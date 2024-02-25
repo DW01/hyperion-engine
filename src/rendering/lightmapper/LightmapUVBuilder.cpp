@@ -1,4 +1,4 @@
-#include <util/lightmapper/LightmapBuilder.hpp>
+#include <rendering/lightmapper/LightmapUVBuilder.hpp>
 #include <util/img/Bitmap.hpp>
 
 #define HYP_XATLAS
@@ -20,26 +20,26 @@ struct LightmapMeshData
     Array<float>    lightmap_uvs;
 };
 
-LightmapBuilder::Result LightmapBuilder::Build(const BuildLightmapParams &params)
+LightmapUVBuilder::Result LightmapUVBuilder::Build(const LightmapUVBuilderParams &params)
 {
     if (!params.elements.Any()) {
-        return { LightmapBuilder::Result::RESULT_ERR, "No elements to build lightmap" };
+        return { LightmapUVBuilder::Result::RESULT_ERR, "No elements to build lightmap" };
     }
 
     Array<LightmapMeshData> lightmap_mesh_datas;
     lightmap_mesh_datas.Resize(params.elements.Size());
 
     for (SizeType i = 0; i < params.elements.Size(); i++) {
-        const BuildLightmapParams::Element &element = params.elements[i];
+        const LightmapUVBuilderParams::Element &element = params.elements[i];
 
         LightmapMeshData &lightmap_mesh_data = lightmap_mesh_datas[i];
 
         if (!element.mesh) {
-            return { LightmapBuilder::Result::RESULT_ERR, "Element has no mesh" };
+            return { LightmapUVBuilder::Result::RESULT_ERR, "Element has no mesh" };
         }
 
         if (!element.mesh->NumIndices()) {
-            return { LightmapBuilder::Result::RESULT_ERR, "Mesh has no indices" };
+            return { LightmapUVBuilder::Result::RESULT_ERR, "Mesh has no indices" };
         }
 
         const Handle<Mesh> &mesh = element.mesh;
@@ -96,12 +96,18 @@ LightmapBuilder::Result LightmapBuilder::Build(const BuildLightmapParams &params
 
             DebugLog(LogType::Error, "Error adding mesh: %s\n", xatlas::StringForEnum(error));
 
-            return { LightmapBuilder::Result::RESULT_ERR, "Error adding mesh" };
+            return { LightmapUVBuilder::Result::RESULT_ERR, "Error adding mesh" };
         }
     }
 
+    xatlas::PackOptions pack_options { };
+    pack_options.resolution = 2048;
+    pack_options.padding = 2;
+    pack_options.blockAlign = 1;
+    pack_options.rotateCharts = true;
+
     xatlas::ComputeCharts(atlas);
-    xatlas::PackCharts(atlas);
+    xatlas::PackCharts(atlas, pack_options);
     
     // write lightmap data
     Bitmap<3> bitmap { atlas->width, atlas->height };
@@ -134,8 +140,6 @@ LightmapBuilder::Result LightmapBuilder::Build(const BuildLightmapParams &params
             if (skip) {
                 continue;
             }
-
-            DebugLog(LogType::Info, "Atlas index: %d\n", atlas_index);
             
             ubyte random_color[3] = { ubyte(rand() % 256), ubyte(rand() % 256), ubyte(rand() % 256) };
 
@@ -150,9 +154,6 @@ LightmapBuilder::Result LightmapBuilder::Build(const BuildLightmapParams &params
             lightmap_mesh_datas[mesh_index].lightmap_uvs[verts[2].first * 2 + 1] = float(verts[2].second[1]) / float(atlas->height);
 
             bitmap.FillTriangle((verts[0].second), (verts[1].second), (verts[2].second), { random_color[0], random_color[1], random_color[2] });
-            bitmap.DrawLine(verts[0].second[0], verts[0].second[1], verts[1].second[0], verts[1].second[1], { random_color[0], random_color[1], random_color[2] });
-            bitmap.DrawLine(verts[1].second[0], verts[1].second[1], verts[2].second[0], verts[2].second[1], { random_color[0], random_color[1], random_color[2] });
-            bitmap.DrawLine(verts[2].second[0], verts[2].second[1], verts[0].second[0], verts[0].second[1], { random_color[0], random_color[1], random_color[2] });
         }
     }
 
@@ -164,7 +165,7 @@ LightmapBuilder::Result LightmapBuilder::Build(const BuildLightmapParams &params
 
     for (SizeType i = 0; i < lightmap_mesh_datas.Size(); i++) {
         const LightmapMeshData &lightmap_mesh_data = lightmap_mesh_datas[i];
-        const BuildLightmapParams::Element &element = params.elements[i];
+        const LightmapUVBuilderParams::Element &element = params.elements[i];
 
         const Handle<Mesh> &mesh = element.mesh;
         AssertThrow(mesh.IsValid());
@@ -186,15 +187,14 @@ LightmapBuilder::Result LightmapBuilder::Build(const BuildLightmapParams &params
     }
 
     return {
-        LightmapBuilder::Result::RESULT_OK,
-        "Success",
+        LightmapUVBuilder::Result::RESULT_OK,
         Lightmap {
             lightmap_name,
             std::move(bitmap)
         }
     };
 #else
-    return { LightmapBuilder::Result::RESULT_ERR, "No method to build lightmap" };
+    return { LightmapUVBuilder::Result::RESULT_ERR, "No method to build lightmap" };
 #endif
 }
 
