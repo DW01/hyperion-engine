@@ -1,6 +1,6 @@
 /* Copyright (c) 2024 No Tomorrow Games. All rights reserved. */
 
-#include <core/reflection/HypDataJSONHelpers.hpp>
+#include <core/serialization/SerializationUtils.hpp>
 
 #include <core/json/JSON.hpp>
 
@@ -28,13 +28,12 @@
 #include <asset/AssetReference.hpp>
 
 #include <core/utilities/GlobalContext.hpp>
+
+// temp
+#include <scene/Scene.hpp>
 #endif
 
 namespace Hyperion {
-
-struct SaveAssetsAsReferencesContext
-{
-};
 
 struct LoadAssetsFromReferencesContext
 {
@@ -48,9 +47,9 @@ static thread_local HashSet<Pair<TypeId, const void*>> s_serializedObjects;
 // otherwise we won't know to deserialize it as a Dog.
 static constexpr bool ForceWriteClassNamesWhenTypesDiffer = true;
 
-bool HypDataToJSON(
+bool BoxedToJSON(
     const BoxedValue& value,
-    Json::Value& outJson,
+    JSON::Value& outJson,
     ToJSONOptions opts)
 {
     if (opts.writeClassNamesRecursively)
@@ -60,7 +59,7 @@ bool HypDataToJSON(
 
     if (value.IsNull())
     {
-        outJson = Json::JSNull();
+        outJson = JSON::JSNull();
 
         return true;
     }
@@ -75,7 +74,7 @@ bool HypDataToJSON(
     {
         assetReference = value.Get<AssetReference>();
     }
-    else if (value.Is<AssetPath>() && opts.followAssetPaths >= ToJSONOptions::FollowAssetPathsMode::WITH_ATTRIBUTE)
+    else if (value.Is<AssetPath>() && opts.followAssetPaths >= ToJSONOptions::FollowAssetPathsMode::MatchingAttribute)
     {
         assetReference = AssetReference(value.Get<AssetPath>());
     }
@@ -95,9 +94,11 @@ bool HypDataToJSON(
         isAssetObject = true;
     }
 
-    if (isAssetObject && assetReference.IsValid() && opts.saveAssetObjectsAsReferences && IsGlobalContextActive<SaveAssetsAsReferencesContext>())
+    if (isAssetObject) // && opts.saveAssetsAsReferences >= ToJSONOptions::SaveAssetsAsReferencesMode::UnlessOtherwiseSpecified)
     {
-        return HypDataToJSON(BoxedValue(assetReference), outJson, opts);
+        AssertDebug(assetReference.IsValid(), "Serializing invalid asset reference");
+
+        return BoxedToJSON(BoxedValue(assetReference), outJson, opts);
     }
 
     assetReference = AssetReference(); // reset
@@ -105,7 +106,7 @@ bool HypDataToJSON(
 
     if (value.Is<bool>(/* strict */ true))
     {
-        outJson = Json::JSBoolean(value.Get<bool>());
+        outJson = value.Get<bool>();
 
         return true;
     }
@@ -113,7 +114,7 @@ bool HypDataToJSON(
 #define DO_NUMERIC_TYPE(T)                        \
     if (value.Is<T>(/* strict */ true))           \
     {                                             \
-        outJson = Json::JSNumber(value.Get<T>()); \
+        outJson = JSON::Number(value.Get<T>()); \
                                                   \
         return true;                              \
     }
@@ -143,7 +144,7 @@ bool HypDataToJSON(
 
     if (value.Is<String>())
     {
-        outJson = Json::JSString(value.Get<String>());
+        outJson = JSON::JString(value.Get<String>());
 
         return true;
     }
@@ -156,7 +157,7 @@ bool HypDataToJSON(
 
         const int size = handler->GetNumComponents();
 
-        Json::JSArray jsonArray;
+        JSON::JArray jsonArray;
         jsonArray.Reserve(size);
 
         for (int i = 0; i < size; i++)
@@ -170,8 +171,8 @@ bool HypDataToJSON(
                 continue;
             }
 
-            Json::Value jsonValue;
-            if (!HypDataToJSON(BoxedValue(element), jsonValue, opts))
+            JSON::Value jsonValue;
+            if (!BoxedToJSON(BoxedValue(element), jsonValue, opts))
             {
                 return false;
             }
@@ -193,7 +194,7 @@ bool HypDataToJSON(
         const int rows = handler->GetNumRows();
         const int columns = handler->GetNumColumns();
 
-        Json::JSArray jsonArray;
+        JSON::JArray jsonArray;
         jsonArray.Resize(rows * columns);
 
         for (int r = 0; r < rows; r++)
@@ -209,8 +210,8 @@ bool HypDataToJSON(
                     return false;
                 }
 
-                Json::Value jsonValue;
-                if (!HypDataToJSON(BoxedValue(element), jsonValue, opts))
+                JSON::Value jsonValue;
+                if (!BoxedToJSON(BoxedValue(element), jsonValue, opts))
                 {
                     return false;
                 }
@@ -224,11 +225,11 @@ bool HypDataToJSON(
         return true;
     }
 
-    if (value.Is<Uuid>())
+    if (value.Is<UUID>())
     {
-        const Uuid& uuid = value.Get<Uuid>();
+        const UUID& uuid = value.Get<UUID>();
 
-        outJson = Json::JSString(uuid.ToString());
+        outJson = JSON::JString(uuid.ToString());
 
         return true;
     }
@@ -237,7 +238,7 @@ bool HypDataToJSON(
     {
         const Name name = value.Get<Name>();
 
-        outJson = Json::JSString(name.LookupString());
+        outJson = JSON::JString(name.LookupString());
 
         return true;
     }
@@ -250,7 +251,7 @@ bool HypDataToJSON(
 
         const SizeType size = handler->GetSize(value);
 
-        Json::JSArray jsonArray;
+        JSON::JArray jsonArray;
         jsonArray.Reserve(size);
 
         for (SizeType i = 0; i < size; i++)
@@ -272,13 +273,18 @@ bool HypDataToJSON(
                 newOpts.writeClassNames = true;
             }
 
-            if (newOpts.followAssetPaths != ToJSONOptions::FollowAssetPathsMode::ALWAYS)
+            if (newOpts.followAssetPaths != ToJSONOptions::FollowAssetPathsMode::Always)
             {
-                newOpts.followAssetPaths = ToJSONOptions::FollowAssetPathsMode::NEVER;
+                newOpts.followAssetPaths = ToJSONOptions::FollowAssetPathsMode::Never;
             }
 
-            Json::Value jsonValue;
-            if (!HypDataToJSON(element, jsonValue, newOpts))
+            /*if (newOpts.saveAssetsAsReferences != ToJSONOptions::SaveAssetsAsReferencesMode::Yes)
+            {
+                newOpts.saveAssetsAsReferences = ToJSONOptions::SaveAssetsAsReferencesMode::No;
+            }*/
+
+            JSON::Value jsonValue;
+            if (!BoxedToJSON(element, jsonValue, newOpts))
             {
                 return false;
             }
@@ -299,7 +305,7 @@ bool HypDataToJSON(
 
         const SizeType size = handler->GetSize(value);
 
-        Json::JSArray jsonArray;
+        JSON::JArray jsonArray;
         jsonArray.Reserve(size);
 
         // Use iterator to traverse set elements
@@ -333,13 +339,18 @@ bool HypDataToJSON(
                 newOpts.writeClassNames = true;
             }
 
-            if (newOpts.followAssetPaths != ToJSONOptions::FollowAssetPathsMode::ALWAYS)
+            if (newOpts.followAssetPaths != ToJSONOptions::FollowAssetPathsMode::Always)
             {
-                newOpts.followAssetPaths = ToJSONOptions::FollowAssetPathsMode::NEVER;
+                newOpts.followAssetPaths = ToJSONOptions::FollowAssetPathsMode::Never;
             }
 
-            Json::Value jsonValue;
-            if (!HypDataToJSON(elementData, jsonValue, newOpts))
+            /*if (newOpts.saveAssetsAsReferences != ToJSONOptions::SaveAssetsAsReferencesMode::Yes)
+            {
+                newOpts.saveAssetsAsReferences = ToJSONOptions::SaveAssetsAsReferencesMode::No;
+            }*/
+
+            JSON::Value jsonValue;
+            if (!BoxedToJSON(elementData, jsonValue, newOpts))
             {
                 return false;
             }
@@ -373,7 +384,7 @@ bool HypDataToJSON(
                 HYP_LOG(Core, Warning, "Enum value {} of type {} is too large to be represented as a JSON number without loss of precision", value.Get<uint64>(), typeInfo.name);
             }
 
-            outJson = Json::JSNumber(value.Get<uint64>());
+            outJson = JSON::Number(value.Get<uint64>());
 
             return true;
         }
@@ -387,7 +398,7 @@ bool HypDataToJSON(
                 HYP_LOG(Core, Warning, "Enum value {} of type {} is too large to be represented as a JSON number without loss of precision", value.Get<int64>(), typeInfo.name);
             }
 
-            outJson = Json::JSNumber(value.Get<int64>());
+            outJson = JSON::Number(value.Get<int64>());
 
             return true;
         }
@@ -406,7 +417,7 @@ bool HypDataToJSON(
         if (handler->GetCurrentTypeIndex(value) == Variant<std::nullptr_t>::invalidTypeIndex)
         {
             // no value set, fine
-            outJson = Json::JSNull();
+            outJson = JSON::JSNull();
 
             return true;
         }
@@ -429,12 +440,17 @@ bool HypDataToJSON(
             newOpts.writeClassNames = true;
         }
 
-        if (newOpts.followAssetPaths != ToJSONOptions::FollowAssetPathsMode::ALWAYS)
+        if (newOpts.followAssetPaths != ToJSONOptions::FollowAssetPathsMode::Always)
         {
-            newOpts.followAssetPaths = ToJSONOptions::FollowAssetPathsMode::NEVER;
+            newOpts.followAssetPaths = ToJSONOptions::FollowAssetPathsMode::Never;
         }
 
-        return HypDataToJSON(BoxedValue(activeValue), outJson, newOpts);
+        /*if (newOpts.saveAssetsAsReferences != ToJSONOptions::SaveAssetsAsReferencesMode::Yes)
+        {
+            newOpts.saveAssetsAsReferences = ToJSONOptions::SaveAssetsAsReferencesMode::No;
+        }*/
+
+        return BoxedToJSON(BoxedValue(activeValue), outJson, newOpts);
     }
 
     const Class* cls = GetClass(value.GetTypeId());
@@ -454,11 +470,7 @@ bool HypDataToJSON(
             s_serializedObjects.Erase(pair);
         });
 
-        Json::JSObject jsonObject;
-
-#if defined(HYPERION_ENGINE) && HYPERION_ENGINE
-        GlobalContextScope contextScope { SaveAssetsAsReferencesContext() };
-#endif
+        JSON::Object jsonObject;
 
         if (!ObjectToJSON(cls, value, jsonObject, opts))
         {
@@ -475,11 +487,7 @@ bool HypDataToJSON(
     return false;
 }
 
-bool ObjectToJSON(
-    const Class* cls,
-    const BoxedValue& target,
-    Json::JSObject& outJson,
-    ToJSONOptions opts)
+bool ObjectToJSON(const Class* cls, const BoxedValue& target, JSON::Object& outJson, ToJSONOptions opts)
 {
     if (opts.writeClassNamesRecursively)
     {
@@ -498,7 +506,7 @@ bool ObjectToJSON(
             if (toJsonMethod->GetParameters().Size() != 2
                 || toJsonMethod->GetTypeId() != TypeId::Void()
                 || toJsonMethod->GetParameters()[0].typeInfo->id != cls->GetTypeId()
-                || toJsonMethod->GetParameters()[1].typeInfo->id != TypeId::ForType<Json::Value>())
+                || toJsonMethod->GetParameters()[1].typeInfo->id != TypeId::ForType<JSON::Value>())
             {
                 HYP_LOG(Core, Warning, "Class \"{}\" has a ToJSON method but it has an invalid signature", cls->GetName());
             }
@@ -507,13 +515,13 @@ bool ObjectToJSON(
                 BoxedValue returnValue;
                 toJsonMethod->Invoke(Array<BoxedValue*> { const_cast<BoxedValue*>(&target), &returnValue });
 
-                if (returnValue.Is<Json::Value>())
+                if (returnValue.Is<JSON::Value>())
                 {
-                    Json::Value& jsonValue = returnValue.Get<Json::Value>();
+                    JSON::Value& jsonValue = returnValue.Get<JSON::Value>();
 
                     if (jsonValue.IsObject())
                     {
-                        Json::JSObject& jsonObject = jsonValue.AsObject();
+                        JSON::Object& jsonObject = jsonValue.AsObject();
                         std::swap(outJson, jsonObject);
                         outJson.MergeDeep(jsonObject);
 
@@ -583,14 +591,19 @@ bool ObjectToJSON(
                     newOpts.writeClassNames = true;
                 }
 
-                if (opts.followAssetPaths != ToJSONOptions::FollowAssetPathsMode::ALWAYS && !property->GetAttribute(Attributes::g_attrFollowAssetPath).GetBool())
+                if (opts.followAssetPaths != ToJSONOptions::FollowAssetPathsMode::Always && !property->GetAttribute(Attributes::g_attrFollowAssetPath).GetBool())
                 {
-                    newOpts.followAssetPaths = ToJSONOptions::FollowAssetPathsMode::NEVER;
+                    newOpts.followAssetPaths = ToJSONOptions::FollowAssetPathsMode::Never;
                 }
 
-                Json::Value jsonValue;
+                /*if (opts.saveAssetsAsReferences != ToJSONOptions::SaveAssetsAsReferencesMode::Yes && !property->GetAttribute(Attributes::g_attrSaveAsReference).GetBool(true))
+                {
+                    newOpts.saveAssetsAsReferences = ToJSONOptions::SaveAssetsAsReferencesMode::No;
+                }*/
 
-                if (!HypDataToJSON(value, jsonValue, newOpts))
+                JSON::Value jsonValue;
+
+                if (!BoxedToJSON(value, jsonValue, newOpts))
                 {
                     HYP_LOG(Core, Warning, "Failed to serialize property \"{}\" of Class \"{}\" to json",
                         member.GetName(), cls->GetName());
@@ -604,7 +617,7 @@ bool ObjectToJSON(
                 {
                     path = pathAttribute.GetString();
 
-                    Json::Value temp(std::move(outJson));
+                    JSON::Value temp(std::move(outJson));
                     temp.Set(path, jsonValue);
 
                     outJson = std::move(temp.AsObject());
@@ -630,14 +643,19 @@ bool ObjectToJSON(
                     newOpts.writeClassNames = true;
                 }
 
-                if (opts.followAssetPaths != ToJSONOptions::FollowAssetPathsMode::ALWAYS && !field->GetAttribute(Attributes::g_attrFollowAssetPath).GetBool())
+                if (opts.followAssetPaths != ToJSONOptions::FollowAssetPathsMode::Always && !field->GetAttribute(Attributes::g_attrFollowAssetPath).GetBool())
                 {
-                    newOpts.followAssetPaths = ToJSONOptions::FollowAssetPathsMode::NEVER;
+                    newOpts.followAssetPaths = ToJSONOptions::FollowAssetPathsMode::Never;
                 }
 
-                Json::Value jsonValue;
+                /*if (opts.saveAssetsAsReferences != ToJSONOptions::SaveAssetsAsReferencesMode::Yes && !field->GetAttribute(Attributes::g_attrSaveAsReference).GetBool(true))
+                {
+                    newOpts.saveAssetsAsReferences = ToJSONOptions::SaveAssetsAsReferencesMode::No;
+                }*/
 
-                if (!HypDataToJSON(value, jsonValue, newOpts))
+                JSON::Value jsonValue;
+
+                if (!BoxedToJSON(value, jsonValue, newOpts))
                 {
                     HYP_LOG(Core, Warning, "Failed to serialize field \"{}\" of Class \"{}\" to json",
                         member.GetName(), cls->GetName());
@@ -651,10 +669,10 @@ bool ObjectToJSON(
                 {
                     path = pathAttribute.GetString();
 
-                    Json::Value temp(std::move(outJson));
+                    JSON::Value temp(std::move(outJson));
                     temp.Set(path, jsonValue);
 
-                    Json::JSObject& obj = temp.AsObject();
+                    JSON::Object& obj = temp.AsObject();
 
                     outJson = std::move(obj);
                 }
@@ -679,14 +697,19 @@ bool ObjectToJSON(
                     newOpts.writeClassNames = true;
                 }
 
-                if (opts.followAssetPaths != ToJSONOptions::FollowAssetPathsMode::ALWAYS && !staticField->GetAttribute(Attributes::g_attrFollowAssetPath).GetBool())
+                if (opts.followAssetPaths != ToJSONOptions::FollowAssetPathsMode::Always && !staticField->GetAttribute(Attributes::g_attrFollowAssetPath).GetBool())
                 {
-                    newOpts.followAssetPaths = ToJSONOptions::FollowAssetPathsMode::NEVER;
+                    newOpts.followAssetPaths = ToJSONOptions::FollowAssetPathsMode::Never;
                 }
 
-                Json::Value jsonValue;
+                /*if (opts.saveAssetsAsReferences != ToJSONOptions::SaveAssetsAsReferencesMode::Yes && !staticField->GetAttribute(Attributes::g_attrSaveAsReference).GetBool(true))
+                {
+                    newOpts.saveAssetsAsReferences = ToJSONOptions::SaveAssetsAsReferencesMode::No;
+                }*/
 
-                if (!HypDataToJSON(staticField->Get(), jsonValue, newOpts))
+                JSON::Value jsonValue;
+
+                if (!BoxedToJSON(staticField->Get(), jsonValue, newOpts))
                 {
                     HYP_LOG(Core, Warning, "Failed to serialize static field \"{}\" of Class \"{}\" to json",
                         member.GetName(), cls->GetName());
@@ -700,7 +723,7 @@ bool ObjectToJSON(
                 {
                     path = pathAttribute.GetString();
 
-                    Json::Value temp(std::move(outJson));
+                    JSON::Value temp(std::move(outJson));
                     temp.Set(path, jsonValue);
 
                     outJson = std::move(temp.AsObject());
@@ -735,9 +758,9 @@ bool ObjectToJSON(
     return true;
 }
 
-bool JSONToObject(const Json::JSObject& jsonObject, const Class* targetClass, BoxedValue& target)
+bool ObjectFromJSON(const JSON::Object& jsonObject, const Class* targetClass, BoxedValue& target)
 {
-    auto resolveMember = [&target](const IMember& member, const Json::Value& value) -> bool
+    auto ResolveMember = [&target](const IMember& member, const JSON::Value& value) -> bool
     {
         switch (member.GetMemberType())
         {
@@ -748,7 +771,7 @@ bool JSONToObject(const Json::JSObject& jsonObject, const Class* targetClass, Bo
 
             BoxedValue boxed;
 
-            if (!JSONToHypData(value, typeInfo, boxed))
+            if (!BoxedFromJSON(value, typeInfo, boxed))
             {
                 HYP_LOG(Core, Warning, "Failed to deserialize property \"{}\" from json",
                     member.GetName());
@@ -773,7 +796,7 @@ bool JSONToObject(const Json::JSObject& jsonObject, const Class* targetClass, Bo
 
             BoxedValue boxed;
 
-            if (!JSONToHypData(value, typeInfo, boxed))
+            if (!BoxedFromJSON(value, typeInfo, boxed))
             {
                 HYP_LOG(Core, Warning, "Failed to deserialize field \"{}\" from json",
                     member.GetName());
@@ -798,12 +821,25 @@ bool JSONToObject(const Json::JSObject& jsonObject, const Class* targetClass, Bo
         return false;
     };
 
-    Json::Value jsonObjectValue { jsonObject };
+    JSON::Value jsonObjectValue { jsonObject };
 
     const Class* instanceClass = target.GetTypeInfo()->GetClass();
 
+    if (!instanceClass)
+    {
+        instanceClass = targetClass;
+    }
+
     if (instanceClass != nullptr)
     {
+        if (target.IsNull())
+        {
+            if (!instanceClass->CreateInstance(target, /* allowAbstract */ false))
+            {
+                return false;
+            }
+        }
+
 #if defined(HYPERION_ENGINE) && HYPERION_ENGINE
         GlobalContextScope contextScope { LoadAssetsFromReferencesContext() };
 #endif
@@ -826,7 +862,7 @@ bool JSONToObject(const Json::JSObject& jsonObject, const Class* targetClass, Bo
                 continue;
             }
 
-            const String& path = pathAttribute.GetString();
+            UTF8StringView path = pathAttribute.GetString();
 
             auto value = jsonObjectValue.Get(path);
 
@@ -850,7 +886,7 @@ bool JSONToObject(const Json::JSObject& jsonObject, const Class* targetClass, Bo
 
         for (const KeyValuePair<int, const IMember*>& pair : sortedMembers)
         {
-            if (!resolveMember(*pair.second, *jsonObjectValue.Get(pair.second->GetAttribute(Attributes::g_attrJsonPath).GetString()).value))
+            if (!ResolveMember(*pair.second, *jsonObjectValue.Get(pair.second->GetAttribute(Attributes::g_attrJsonPath).GetString()).value))
             {
                 HYP_LOG(Core, Warning, "Failed to resolve JSON path \"{}\" for Class \"{}\"", pair.second->GetAttribute(Attributes::g_attrJsonPath).GetString(), instanceClass->GetName());
                 continue;
@@ -901,7 +937,7 @@ bool JSONToObject(const Json::JSObject& jsonObject, const Class* targetClass, Bo
 
         for (const KeyValuePair<int, const IMember*>& pair : sortedMembers)
         {
-            if (!resolveMember(*pair.second, *jsonObjectValue.Get(*pair.second->GetName()).value))
+            if (!ResolveMember(*pair.second, *jsonObjectValue.Get(*pair.second->GetName()).value))
             {
                 HYP_LOG(Core, Warning, "Failed to resolve member \"{}\" for Class \"{}\"", pair.second->GetName(), instanceClass->GetName());
                 continue;
@@ -949,7 +985,7 @@ bool JSONToObject(const Json::JSObject& jsonObject, const Class* targetClass, Bo
     return true;
 }
 
-bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, BoxedValue& outHypData)
+bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, BoxedValue& outHypData)
 {
     if (typeInfo.IsBoolType())
     {
@@ -971,7 +1007,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
             return false;
         }
 
-        const Json::JSNumber number = jsonValue.AsNumber();
+        const JSON::Number number = jsonValue.AsNumber();
 
         if (typeInfo.id == TypeId::ForType<int8>())
         {
@@ -1096,7 +1132,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
             return false;
         }
 
-        const Json::JSNumber number = jsonValue.AsNumber();
+        const JSON::Number number = jsonValue.AsNumber();
 
         if (typeInfo.id == TypeId::ForType<Float16>())
         {
@@ -1218,7 +1254,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
         return false;
     }
 
-    if (typeInfo.id == TypeId::ForType<Uuid>())
+    if (typeInfo.id == TypeId::ForType<UUID>())
     {
         if (!jsonValue.IsString())
         {
@@ -1226,7 +1262,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
             return false;
         }
 
-        const Json::JSString& jsonString = jsonValue.AsString();
+        const JSON::JString& jsonString = jsonValue.AsString();
 
         if (jsonString.Size() != 36)
         {
@@ -1234,7 +1270,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
             return false;
         }
 
-        outHypData = BoxedValue(Uuid(*jsonString.ToAnsi()));
+        outHypData = BoxedValue(UUID(*jsonString.ToAnsi()));
         return true;
     }
 
@@ -1268,7 +1304,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
             return false;
         }
 
-        const Json::JSArray& jsonArray = jsonValue.AsArray();
+        const JSON::JArray& jsonArray = jsonValue.AsArray();
 
         if (jsonArray.Size() != vectorHandler->GetNumComponents())
         {
@@ -1290,7 +1326,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
         {
             BoxedValue elementData;
 
-            if (!JSONToHypData(jsonArray[i], *elementTypeInfo, elementData))
+            if (!BoxedFromJSON(jsonArray[i], *elementTypeInfo, elementData))
             {
                 HYP_LOG(Core, Warning, "Failed to deserialize vector element at index {} for type {}", i, typeInfo.name);
 
@@ -1329,7 +1365,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
             return false;
         }
 
-        const Json::JSArray& jsonArray = jsonValue.AsArray();
+        const JSON::JArray& jsonArray = jsonValue.AsArray();
 
         if (jsonArray.Size() != matrixHandler->GetNumRows() * matrixHandler->GetNumColumns())
         {
@@ -1351,7 +1387,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
         {
             BoxedValue elementData;
 
-            if (!JSONToHypData(jsonArray[i], *elementTypeInfo, elementData))
+            if (!BoxedFromJSON(jsonArray[i], *elementTypeInfo, elementData))
             {
                 HYP_LOG(Core, Warning, "Failed to deserialize matrix element at index {} for type {}", i, typeInfo.name);
 
@@ -1375,7 +1411,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
             return false;
         }
 
-        const Json::JSArray& jsonArray = jsonValue.AsArray();
+        const JSON::JArray& jsonArray = jsonValue.AsArray();
 
         const TypeInfo* elementTypeInfo = typeInfo.extendedInfo.GetElementType();
 
@@ -1411,7 +1447,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
 
             BoxedValue elementData;
 
-            if (!JSONToHypData(jsonArray[i], *elementTypeInfo, elementData))
+            if (!BoxedFromJSON(jsonArray[i], *elementTypeInfo, elementData))
             {
                 HYP_LOG(Core, Warning, "Failed to deserialize array element at index {} for type: {}", i, typeInfo.name);
 
@@ -1440,7 +1476,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
             return false;
         }
 
-        const Json::JSArray& jsonArray = jsonValue.AsArray();
+        const JSON::JArray& jsonArray = jsonValue.AsArray();
 
         const TypeInfo* elementTypeInfo = typeInfo.extendedInfo.GetElementType();
 
@@ -1474,7 +1510,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
 
             BoxedValue elementData;
 
-            if (!JSONToHypData(jsonArray[i], *elementTypeInfo, elementData))
+            if (!BoxedFromJSON(jsonArray[i], *elementTypeInfo, elementData))
             {
                 HYP_LOG(Core, Warning, "Failed to deserialize set element at index {} for type: {}", i, typeInfo.name);
 
@@ -1533,7 +1569,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
 
             BoxedValue variantData;
 
-            if (JSONToHypData(jsonValue, *variantTypeInfo, variantData))
+            if (BoxedFromJSON(jsonValue, *variantTypeInfo, variantData))
             {
                 BoxedValue variantInstance;
 
@@ -1603,7 +1639,7 @@ bool JSONToHypData(const Json::Value& jsonValue, const TypeInfo& typeInfo, Boxed
                 return false;
             }
 
-            if (!JSONToObject(jsonValue.AsObject(), typeInfoClass, instance))
+            if (!ObjectFromJSON(jsonValue.AsObject(), typeInfoClass, instance))
             {
                 HYP_LOG(Core, Warning, "Failed to deserialize instance of \"{}\" from JSON", instanceClass->GetName());
                 return false;
