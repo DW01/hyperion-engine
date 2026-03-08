@@ -358,6 +358,8 @@ VkSurfaceKHR CocoaAppContext::CreateVulkanSurface(
 
         createInfo.pLayer = layer;
     }
+    
+    Assert(g_renderInterface->GetInstance()->GetInstance() != VK_NULL_HANDLE);
 
     VkResult vkResult = vkCreateMetalSurfaceEXT(
         g_renderInterface->GetInstance()->GetInstance(),

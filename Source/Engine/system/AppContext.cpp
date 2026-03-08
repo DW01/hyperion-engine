@@ -45,6 +45,8 @@
 #include <SDL2/SDL_vulkan.h>
 #endif // HYP_SDL
 
+#include <semaphore>
+
 #include <AppContext.generated.inl>
 
 namespace Hyperion {
@@ -54,6 +56,8 @@ HYP_DECLARE_LOG_CHANNEL(Core);
 namespace CoreApi {
 extern const GlobalConfig& GetGlobalConfig();
 } // namespace CoreApi
+
+extern std::binary_semaphore g_renderThreadInit;
 
 /*! \brief Async task object to create a window swapchain once the render API is initialized.
  *  Since some platforms require us to create the surface on the main thread (ahem, macOS), we need to defer swapchain
@@ -76,7 +80,7 @@ struct SetupWindowSwapchainAsync
         // ensure window is still valid, otherwise, cancel the task
         if (Handle<ApplicationWindow> window = windowWeak.Lock(); window.IsValid())
         {
-            if (g_renderInterface != nullptr)
+            if (g_renderInterface != nullptr && g_renderThreadInit.try_acquire())
             {
                 window->CreateSwapchain();
                 success = true;

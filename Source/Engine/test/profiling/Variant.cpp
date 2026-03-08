@@ -156,10 +156,10 @@ void ProfileStdVariantTrivialVisit()
 }
 
 // ---- Non-trivial type tests ----
-// Variant<int, float, ANSIString> vs std::variant<int, float, std::string>
+// Variant<int, float, ANSIString> vs std::variant<int, float, ANSIString>
 
 using NonTrivialHyp = Variant<int, float, ANSIString>;
-using NonTrivialStd = std::variant<int, float, std::string>;
+using NonTrivialStd = std::variant<int, float, ANSIString>;
 
 static constexpr const char* s_testStrings[] = {
     "hello world",
@@ -193,8 +193,8 @@ void ProfileStdVariantNonTrivialConstruction()
         NonTrivialStd v(static_cast<int>(i));
         sum += static_cast<uint64>(std::get<int>(v));
 
-        NonTrivialStd v2(std::string { s_testStrings[i & 3] });
-        sum += std::get<std::string>(v2).size();
+        NonTrivialStd v2(ANSIString { s_testStrings[i & 3] });
+        sum += std::get<ANSIString>(v2).Size();
     }
 
     Consume(sum);
@@ -229,7 +229,7 @@ void ProfileStdVariantNonTrivialTypeSwitch()
         {
         case 0: v = static_cast<int>(i);                    sum += static_cast<uint64>(std::get<int>(v));    break;
         case 1: v = static_cast<float>(i);                  sum += static_cast<uint64>(std::get<float>(v));  break;
-        case 2: v = std::string(s_testStrings[i & 3]);       sum += std::get<std::string>(v).size();          break;
+        case 2: v = ANSIString(s_testStrings[i & 3]);       sum += std::get<ANSIString>(v).Size();           break;
         }
     }
 
@@ -279,16 +279,16 @@ void ProfileStdVariantNonTrivialVisit()
         {
         case 0: v = static_cast<int>(i);                   break;
         case 1: v = static_cast<float>(i);                 break;
-        case 2: v = std::string(s_testStrings[i & 3]);      break;
+        case 2: v = ANSIString(s_testStrings[i & 3]);      break;
         }
 
         std::visit([&sum](auto &val)
         {
             using T = std::decay_t<decltype(val)>;
 
-            if constexpr (std::is_same_v<T, std::string>)
+            if constexpr (std::is_same_v<T, ANSIString>)
             {
-                sum += val.size();
+                sum += val.Size();
             }
             else
             {
@@ -322,12 +322,12 @@ void ProfileStdVariantNonTrivialCopy()
 {
     uint64 sum = 0;
 
-    NonTrivialStd src(std::string { s_testStrings[0] });
+    NonTrivialStd src(ANSIString { s_testStrings[0] });
 
     for (size_t i = 0; i < NumVariantOps; ++i)
     {
         NonTrivialStd copy { src };
-        sum += std::get<std::string>(copy).size();
+        sum += std::get<ANSIString>(copy).Size();
     }
 
     Consume(sum);
@@ -353,9 +353,9 @@ void ProfileStdVariantNonTrivialMove()
 
     for (size_t i = 0; i < NumVariantOps; ++i)
     {
-        NonTrivialStd src(std::string { s_testStrings[i & 3] });
+        NonTrivialStd src(ANSIString { s_testStrings[i & 3] });
         NonTrivialStd dst(std::move(src));
-        sum += std::get<std::string>(dst).size();
+        sum += std::get<ANSIString>(dst).Size();
     }
 
     Consume(sum);
@@ -424,31 +424,31 @@ HYP_EXPORT void PrintVariantProfiling(size_t runsPer = 5, size_t numIterations =
     RunVariantSection("Type Switch",   trivialTypeSwitchEntries,   runsPer, numIterations, runsPerIteration);
     RunVariantSection("Visit",         trivialVisitEntries,        runsPer, numIterations, runsPerIteration);
 
-    std::printf("=== Variant: Non-trivial Types (int, float, ANSIString / std::string) ===\n\n");
+    std::printf("=== Variant: Non-trivial Types (int, float, ANSIString) ===\n\n");
 
     const SectionEntry nonTrivialConstructionEntries[] = {
         { "Variant<int,float,ANSIString>",      &ProfileVariantNonTrivialConstruction },
-        { "std::variant<int,float,std::string>", &ProfileStdVariantNonTrivialConstruction }
+        { "std::variant<int,float,ANSIString>", &ProfileStdVariantNonTrivialConstruction }
     };
 
     const SectionEntry nonTrivialTypeSwitchEntries[] = {
         { "Variant<int,float,ANSIString>",      &ProfileVariantNonTrivialTypeSwitch },
-        { "std::variant<int,float,std::string>", &ProfileStdVariantNonTrivialTypeSwitch }
+        { "std::variant<int,float,ANSIString>", &ProfileStdVariantNonTrivialTypeSwitch }
     };
 
     const SectionEntry nonTrivialVisitEntries[] = {
         { "Variant<int,float,ANSIString>",      &ProfileVariantNonTrivialVisit },
-        { "std::variant<int,float,std::string>", &ProfileStdVariantNonTrivialVisit }
+        { "std::variant<int,float,ANSIString>", &ProfileStdVariantNonTrivialVisit }
     };
 
     const SectionEntry nonTrivialCopyEntries[] = {
         { "Variant<int,float,ANSIString>",      &ProfileVariantNonTrivialCopy },
-        { "std::variant<int,float,std::string>", &ProfileStdVariantNonTrivialCopy }
+        { "std::variant<int,float,ANSIString>", &ProfileStdVariantNonTrivialCopy }
     };
 
     const SectionEntry nonTrivialMoveEntries[] = {
         { "Variant<int,float,ANSIString>",      &ProfileVariantNonTrivialMove },
-        { "std::variant<int,float,std::string>", &ProfileStdVariantNonTrivialMove }
+        { "std::variant<int,float,ANSIString>", &ProfileStdVariantNonTrivialMove }
     };
 
     RunVariantSection("Construction",  nonTrivialConstructionEntries, runsPer, numIterations, runsPerIteration);

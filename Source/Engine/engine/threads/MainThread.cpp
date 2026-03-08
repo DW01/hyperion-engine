@@ -18,11 +18,15 @@
 
 #include <system/AppContext.hpp>
 
+#include <semaphore>
+
 namespace Hyperion {
 
 namespace CoreApi {
 extern const CommandLineArguments& GetCommandLineArguments();
 } // namespace CoreApi
+
+extern std::binary_semaphore g_renderThreadInit;
 
 MainThread::MainThread()
     : Thread(g_mainThread, ThreadPriorityValue::HIGHEST)
@@ -101,6 +105,26 @@ void MainThread::Update()
         && g_simThreadInstance
         && g_simThreadInstance->IsRunning())
     {
+
+#if HYP_APPLE
+        // wait until render thread is finished initializing
+        // until we call Update() - otherwise, sim(main) thread will
+        // try to go into lockstep with RT, and that may be waiting on
+        // the main thread to do stuff for Cocoa (dispatch_sync)
+        static bool s_appleRenderThreadReady = false;
+        if (!s_appleRenderThreadReady)
+        {
+            if (!g_renderThreadInit.try_acquire())
+            {
+                return;
+            }
+            
+            g_renderThreadInit.release();
+            
+            s_appleRenderThreadReady = true;
+        }
+#endif
+        
         g_simThreadInstance->Update();
 
         return;

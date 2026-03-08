@@ -254,8 +254,6 @@ file(MAKE_DIRECTORY ${CSHARP_PROJECTS_DIR})
 set(HYP_EDITOR 1)
 add_definitions(-DHYP_EDITOR=1)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DHYP_ROOT_DIR=\\\"${CMAKE_CURRENT_LIST_DIR}\\\"")
-
 # enable HypScript
 add_definitions(-DHYP_SCRIPT=1)
 

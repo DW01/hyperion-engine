@@ -38,7 +38,6 @@ void SetExecutablePath(const FilePath& path)
     s_executablePath = path;
 }
 
-
 FilePath GetConfigDirectory()
 {
     Mutex::Guard guard(s_globalsMutex);

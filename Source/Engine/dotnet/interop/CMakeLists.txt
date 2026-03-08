@@ -70,11 +70,13 @@ if(HYP_GENERATE_CSHARP_LIBRARIES)
             file(APPEND ${CSPROJ_PATH} "    <Compile Include=\"${CSHARP_INTEROP_SOURCE}\" />\n")
         endforeach()
 
-        # file(APPEND ${CSPROJ_PATH} "    <Reference Include=\"Hyperion.NET.Shared\" >\n")
-        # file(APPEND ${CSPROJ_PATH} "        <HintPath>${HYP_LIBRARY_OUTPUT_DIRECTORY}/Hyperion.NET.Shared.dll</HintPath>\n")
-        # file(APPEND ${CSPROJ_PATH} "    </Reference>\n")
-
-        file(APPEND ${CSPROJ_PATH} "    <ProjectReference Include=\"${CSHARP_PROJECTS_DIR}/Hyperion.NET.Shared/Hyperion.NET.Shared.csproj\" />\n")
+        if(USE_MSBUILD_FOR_CSHARP_BUILD)
+            file(APPEND ${CSPROJ_PATH} "    <ProjectReference Include=\"${CSHARP_PROJECTS_DIR}/Hyperion.NET.Shared/Hyperion.NET.Shared.csproj\" />\n")
+        else()
+            file(APPEND ${CSPROJ_PATH} "    <Reference Include=\"Hyperion.NET.Shared\" >\n")
+            file(APPEND ${CSPROJ_PATH} "        <HintPath>${HYP_LIBRARY_OUTPUT_DIRECTORY}/Hyperion.NET.Shared.dll</HintPath>\n")
+            file(APPEND ${CSPROJ_PATH} "    </Reference>\n")
+        endif()
 
         file(APPEND ${CSPROJ_PATH} "  </ItemGroup>\n")
         # copy dll

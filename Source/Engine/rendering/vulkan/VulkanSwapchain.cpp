@@ -154,6 +154,9 @@ void VulkanSwapchain::PresentFrame(VulkanFrame* frame, VulkanDeviceQueue* queue)
 
     if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
     {
+        HYP_LOG(RenderingBackend, Verbose, "Got suboptimal/out of date swapchain present result ({}), calling Recreate()",
+                result);
+        
         Recreate();
     }
     else if (result != VK_SUCCESS)

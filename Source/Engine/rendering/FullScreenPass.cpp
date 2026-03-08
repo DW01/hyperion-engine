@@ -337,7 +337,7 @@ void FullScreenPass::CreateFramebuffer()
         // double the width as we swap between the two halves when rendering (checkerboarded)
         framebufferExtent = Vec2u { uint32(reshapedExtent.x * 2), uint32(reshapedExtent.y) };
     }
-    else if (ShouldRenderHalfRes())
+    else if (ShouldRenderHalfRes() && m_extent.Volume() > 1)
     {
         framebufferExtent /= 2;
     }

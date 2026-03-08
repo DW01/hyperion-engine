@@ -25,11 +25,11 @@ for project in "${projects[@]}"; do
             echo "Failed to build $project"
             exit 1
         fi
-        # # Copy the built DLL to the Binaries folder
-        # if [ ! -d "$buildDir/../Binaries" ]; then
-        #     mkdir -p "$buildDir/../Binaries"
-        # fi
-        # cp "bin/$CONFIG/net9.0/$project.dll" "$buildDir/../Binaries/$project.dll"
+        # Copy the built DLL to the Binaries folder
+        if [ ! -d "$buildDir/../Binaries" ]; then
+            mkdir -p "$buildDir/../Binaries"
+        fi
+        cp "bin/$CONFIG/net9.0/$project.dll" "$buildDir/../Binaries/$project.dll"
     popd # $project
 done
 
