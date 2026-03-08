@@ -6,7 +6,7 @@
 
 #include <Core/reflection/ObjectFwd.hpp>
 
-#include <core/reflection/BoxedValue.hpp>
+#include <Core/reflection/BoxedValue.hpp>
 #include <Core/reflection/Class.hpp>
 
 #include <Core/name/Name.hpp>

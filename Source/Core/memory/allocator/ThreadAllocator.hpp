@@ -5,7 +5,7 @@
 #include <Core/memory/allocator/Allocator.hpp>
 
 namespace Hyperion {
-    
+
 namespace threading {
 
 class ThreadBase;
@@ -60,7 +60,7 @@ struct TThreadAllocator : Allocator<TThreadAllocator<InnerAllocator, InitInnerAl
 
 private:
     template <class TThreadBase, class T>
-    static T* ThreadLocalAlloc(void(*freeFunction)(void))
+    static T* ThreadLocalAlloc(void (*freeFunction)(void))
     {
         TThreadBase* currentThread = reinterpret_cast<TThreadBase*>(threading::CurrentThreadObject());
         HYP_CORE_ASSERT(currentThread != nullptr);
@@ -83,7 +83,7 @@ private:
     template <class TThreadBase, class TThreadLocalStorage, class T>
     static T* ThreadLocalAlloc2(TThreadBase* currentThread)
     {
-        return reinterpret_cast<TThreadLocalStorage&>(currentThread->GetTLS()).Allocate<T>();
+        return reinterpret_cast<TThreadLocalStorage&>(currentThread->GetTLS()).template Allocate<T>();
     }
 };
 

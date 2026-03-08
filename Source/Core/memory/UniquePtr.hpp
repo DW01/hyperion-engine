@@ -7,7 +7,7 @@
 #include <Core/memory/Memory.hpp>
 #include <Core/memory/allocator/Allocator.hpp>
 
-#include <core/reflection/TypeId.hpp>
+#include <Core/reflection/TypeId.hpp>
 
 #include <Core/Types.hpp>
 #include <Core/Constants.hpp>

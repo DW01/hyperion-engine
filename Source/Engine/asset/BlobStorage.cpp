@@ -3,12 +3,12 @@
 #include <asset/BlobStorage.hpp>
 #include <asset/BlobStorageViews.hpp>
 
-#include <core/serialization/SerializationUtils.hpp>
+#include <Core/serialization/SerializationUtils.hpp>
 
 #include <Core/json/JSON.hpp>
 
-#include <core/io/ByteReader.hpp>
-#include <core/io/ByteWriter.hpp>
+#include <Core/io/ByteReader.hpp>
+#include <Core/io/ByteWriter.hpp>
 
 #include <BlobStorage.generated.inl>
 
@@ -33,7 +33,7 @@ static void InitBlobStorage(BlobStorage& outStorage, const FilePath& baseDirecto
 
         PoolDelete(*g_assetPool, mappedBlobStorage);
     };
-    
+
     outStorage.callbacks.Open = [](void* context, const char* name) -> MemoryMappedFile*
     {
         MappedBlobStorage* mappedBlobStorage = static_cast<MappedBlobStorage*>(context);
@@ -48,7 +48,7 @@ static void InitBlobStorage(BlobStorage& outStorage, const FilePath& baseDirecto
 
         return file;
     };
-    
+
     outStorage.callbacks.Close = [](void* context, MemoryMappedFile* file)
     {
         file->Close();
@@ -98,13 +98,13 @@ private:
     bool dirty;
 
     MapHeader* GetHeader()
-    { 
-        return reinterpret_cast<MapHeader*>(mem.Data()); 
+    {
+        return reinterpret_cast<MapHeader*>(mem.Data());
     }
 
     const MapHeader* GetHeader() const
-    { 
-        return reinterpret_cast<const MapHeader*>(mem.Data()); 
+    {
+        return reinterpret_cast<const MapHeader*>(mem.Data());
     }
 
     Entry* GetBuckets()
@@ -173,8 +173,8 @@ public:
         Entry* entries = GetBuckets();
 
         size_t idx = key.GetHashCode().Value() % header->capacity;
-        
-        int64 firstDeleted = -1; 
+
+        int64 firstDeleted = -1;
 
         while (entries[idx].state != SlotState::Empty)
         {
@@ -198,7 +198,7 @@ public:
                     firstDeleted = idx;
                 }
             }
-            
+
             idx = (idx + 1) % header->capacity;
         }
 
@@ -210,7 +210,7 @@ public:
         {
             header->deleted--; // We are reviving a dead slot
         }
-        
+
         entries[idx].key = key;
         entries[insertIdx].value = value;
         entries[insertIdx].state = SlotState::Occupied;
@@ -236,12 +236,12 @@ public:
                 entries[idx].state = SlotState::Deleted;
                 header->size--;
                 header->deleted++;
-                
+
                 dirty = true;
 
                 return true;
             }
-            
+
             idx = (idx + 1) % header->capacity;
 
             if (idx == startIdx)
@@ -319,7 +319,7 @@ private:
         entry[idx].state = SlotState::Occupied;
 
         dirty = true;
-        
+
         header->size++;
 
         return true;
@@ -331,7 +331,7 @@ private:
         mem.SetSize(totalBytes, /* zeroize */ true);
 
         MapHeader* header = GetHeader();
-        
+
         header->capacity = capacity;
         header->size = 0;
         header->deleted = 0;
@@ -344,7 +344,7 @@ private:
         newMem.SetSize(totalBytes, /* zeroize */ true);
 
         Entry* newBuckets = reinterpret_cast<Entry*>(newMem.Data() + sizeof(MapHeader));
-        
+
         MapHeader* newHeader = reinterpret_cast<MapHeader*>(newMem.Data());
         newHeader->capacity = newCapacity;
         newHeader->size = 0;
@@ -353,8 +353,8 @@ private:
         // rehash
         MapHeader* oldHeader = GetHeader();
         Entry* oldBuckets = GetBuckets();
-        
-        for (size_t i = 0; i < oldHeader->capacity; ++i) 
+
+        for (size_t i = 0; i < oldHeader->capacity; ++i)
         {
             // Only copy OCCUPIED
             if (oldBuckets[i].state == SlotState::Occupied)
@@ -415,7 +415,7 @@ BlobStorage& BlobStorage::operator=(BlobStorage&& other) noexcept
     {
         return *this;
     }
-    
+
     for (uint32 page = 0; page < uint32(m_pageData.Size()); page++)
     {
         ClosePage(page);
@@ -425,7 +425,7 @@ BlobStorage& BlobStorage::operator=(BlobStorage&& other) noexcept
     {
         callbacks.Destroy(callbacks.context);
     }
-    
+
     callbacks = std::move(other.callbacks);
 
     if (m_toc != nullptr)
@@ -480,7 +480,7 @@ ByteWriter* BlobStorage::GetWriteStream(uint32 page)
     {
         return pd.writeStream;
     }
-    
+
     MemoryMappedFile* file;
     Assert(InitMappedFile(file, page));
 
@@ -615,7 +615,7 @@ bool BlobStorage::PutData(StringHash key, const BlobHeader& header, const void* 
     {
         m_toc = new BlobTableOfContents;
     }
-    
+
     const size_t totalBlobSize = header.payloadOffset + header.payloadSize;
     const size_t totalBlobSizePlusHeader = sizeof(BlobHeader) + totalBlobSize;
 
@@ -676,7 +676,7 @@ bool BlobStorage::PutData(StringHash key, const BlobHeader& header, const void* 
         writeStream->Write(header);
 
         writeStream->Seek(writeStream->Position() + header.payloadOffset);
-        
+
         const size_t offset = writeStream->Position();
 
         // fill data
@@ -684,11 +684,7 @@ bool BlobStorage::PutData(StringHash key, const BlobHeader& header, const void* 
 
         pd.cursor = writeStream->Position();
 
-        m_toc->Put(key, BlobTableOfContents::Value {
-            .page = page,
-            .offset = offset,
-            .size = header.payloadSize
-        });
+        m_toc->Put(key, BlobTableOfContents::Value { .page = page, .offset = offset, .size = header.payloadSize });
 
         return true;
     };
@@ -806,7 +802,7 @@ Result BlobStorage::LoadManifest()
     {
         return HYP_MAKE_ERROR(Error, "Manifest path does not exist: {}", manifestPath);
     }
-    
+
     FileByteReader reader { manifestPath };
 
     if (reader.Eof())
@@ -853,7 +849,7 @@ Result BlobStorage::LoadTOC()
     {
         return HYP_MAKE_ERROR(Error, "Blob table of contents file does not exist: {}", tocPath);
     }
-    
+
     FileByteReader reader { tocPath };
 
     if (reader.Eof())
