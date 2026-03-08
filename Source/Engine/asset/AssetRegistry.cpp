@@ -948,6 +948,8 @@ Handle<AssetObject> AssetPackage::GetAssetObject(UTF8StringView assetName, bool 
                 }
 
                 InitObject(assetObject);
+                
+                assetObject->OnLoaded();
 
                 OnAssetObjectAdded(assetObject, true);
                 
@@ -3286,6 +3288,8 @@ TResult<Handle<AssetPackage>> AssetRegistry::LoadPackageFromManifest(
 
                 continue;
             }
+            
+            assetObject->OnLoaded();
         }
     }
 

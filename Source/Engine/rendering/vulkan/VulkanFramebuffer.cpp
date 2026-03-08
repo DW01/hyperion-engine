@@ -376,6 +376,8 @@ void VulkanFramebuffer::Clear(
 
     Array<VkClearRect, VulkanTempAllocator> clearRects;
     clearRects.Resize(m_attachmentMap.attachments.Size());
+    
+    const Vec2u& maxExtent = GetExtent();
 
     for (const auto& it : m_attachmentMap.attachments)
     {
@@ -397,6 +399,9 @@ void VulkanFramebuffer::Clear(
         clearRect.rect.extent.width = rect.x1 - rect.x0;
         clearRect.rect.extent.height = rect.y1 - rect.y0;
         clearRect.layerCount = 1;
+        
+        AssertDebug(clearRect.rect.extent.width - clearRect.rect.offset.x <= maxExtent.x
+                    && clearRect.rect.extent.height - clearRect.rect.offset.y <= maxExtent.y);
 
         VkClearAttachment& clearAttachment = clearAttachments.EmplaceBack();
         clearAttachment = {};

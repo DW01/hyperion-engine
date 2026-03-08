@@ -1940,7 +1940,14 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     }
 
     PerformOcclusionCulling(frame, rs, renderCollector);
-
+    
+    // if no opaque objects will be rendered, we need to clear the color target anyway
+    // as other passes are using load ops
+    if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Empty())
+    {
+        frame->cr << ClearFramebuffer(opaquePassFramebuffer, 0x1);
+    }
+    else
     { // render opaque objects into separate framebuffer
         frame->cr << SetCurrentFramebuffer(opaquePassFramebuffer);
 
@@ -1953,13 +1960,6 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     // The lightmap bucket's framebuffer has a color attachment that will write into the opaque framebuffer's color attachment.
     if (rpl.GetLightmapVolumes().NumCurrent())
     {
-        // if no opaque has been rendered, we need to clear the color target.
-        // otherwise, we'll be using a LOAD operation on a potentially undefined/garbage target.
-        if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Empty())
-        {
-            frame->cr << ClearFramebuffer(opaquePassFramebuffer, 0x1);
-        }
-
         frame->cr << SetCurrentFramebuffer(lightmapPassFramebuffer);
 
         ExecuteDrawCalls(frame, rs, renderCollector, RenderBucketMask<RenderBucket::Lightmapped>);

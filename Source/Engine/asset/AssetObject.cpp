@@ -416,8 +416,6 @@ Result AssetObject::Load(
     {
         return HYP_MAKE_ERROR(Error, "Failed to deserialize asset object from manifest JSON");
     }
-    
-    targetAssetObject->OnLoaded();
 
     outAssetObject = MakeStrongRef(targetAssetObject);
 

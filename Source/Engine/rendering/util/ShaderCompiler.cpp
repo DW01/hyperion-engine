@@ -1366,7 +1366,7 @@ static void ForEachPermutation(
 
         currentCombinations->EmplaceBack(std::move(currentProperties));
     }
-    
+
     Array<ShaderVariantPerms> propertiesWithValueGroupsApplied;
 
     if (valueGroups.Any())
@@ -1878,22 +1878,22 @@ bool ShaderCompiler::HandleBundle(
 
     const bool anyMissing = missingPerms.Any();
 
-    const bool requestedFound = shaderRequest.HasValue() && inOutBundle->compiledShaders.FindIf(
-        [&shaderRequest](const Handle<Shader>& shader)
-        {
-            return SatisfiesRequested(
-                shaderRequest->properties,
-                shaderRequest->vertexAttributes,
-                *shader);
-        }) != inOutBundle->compiledShaders.End();
+    const bool requestedFound = shaderRequest.HasValue() && inOutBundle->compiledShaders.FindIf([&shaderRequest](const Handle<Shader>& shader)
+                                                                {
+                                                                    return SatisfiesRequested(
+                                                                        shaderRequest->properties,
+                                                                        shaderRequest->vertexAttributes,
+                                                                        *shader);
+                                                                })
+            != inOutBundle->compiledShaders.End();
 
-    if (anyMissing || (shaderRequest.HasValue() && !requestedFound))
+    if ((ShouldCompileMissingVariants && anyMissing) || (shaderRequest.HasValue() && !requestedFound))
     {
-        String missingPermsString;
 
-        if (anyMissing)
+        if (ShouldCompileMissingVariants && anyMissing)
         {
             size_t index = 0;
+            String missingPermsString;
 
             for (const ShaderVariantPerms& perm : missingPerms)
             {
@@ -1908,6 +1908,21 @@ bool ShaderCompiler::HandleBundle(
 
                 index++;
             }
+
+            HYP_LOG(ShaderCompiler, Verbose,
+                "Bundle {} is missing {} shader variants:\n\t{}",
+                *decl.name, missingPerms.Size(), missingPermsString);
+        }
+
+        if (shaderRequest.HasValue() && !requestedFound)
+        {
+            String requestString = "requested shader with properties: " + shaderRequest->properties.GetDebugString();
+
+            requestString += "and vertex attributes: " + (shaderRequest->vertexAttributes ? shaderRequest->vertexAttributes.ToString() : "<none>");
+
+            HYP_LOG(ShaderCompiler, Verbose,
+                "Bundle {} does not contain a shader satisfying the {}",
+                *decl.name, requestString);
         }
 
         if (CanCompileShaders())
@@ -2744,7 +2759,10 @@ bool ShaderCompiler::CompileBundle(
         return false;
     }
 
-    outBundle = MakeHandle<ShaderBundle>(decl.name);
+    if (!outBundle.IsValid())
+    {
+        outBundle = MakeHandle<ShaderBundle>(decl.name);
+    }
 
     Array<LoadedSourceFile> loadedSourceFiles;
     loadedSourceFiles.Resize(decl.sources.Size());
@@ -3210,8 +3228,7 @@ bool ShaderCompiler::CompileBundle(
                         "Compiling shader {}\n\tVariable properties: [{}]\n\tStatic properties: [{}]",
                         outputFilepath,
                         variablePropertiesString,
-                        staticPropertiesString
-                    );
+                        staticPropertiesString);
                 }
 
                 ByteBuffer byteBuffer;
@@ -3418,7 +3435,7 @@ bool ShaderCompiler::CompileBundle(
             HYP_LOG(ShaderCompiler, Error,
                 "Failed to register shader bundle asset {}: {}",
                 outBundle->GetName(), registerResult.GetError().GetMessage());
-            
+
             return false;
         }
     }

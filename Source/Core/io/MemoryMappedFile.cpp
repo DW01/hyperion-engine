@@ -295,6 +295,9 @@ bool MemoryMappedFile::Open()
 
     if (fd < 0)
     {
+        HYP_LOG(Core, Error, "Failed to open file at path {}, Error code was: ({}, {})",
+            m_impl->filepath, errno, strerror(errno));
+
         return false;
     }
 

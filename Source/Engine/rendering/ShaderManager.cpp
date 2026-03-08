@@ -158,7 +158,7 @@ public:
             ThreadSleep(100); // sleep to try and pick up more tasks before we finish
         }
     }
-    
+
 #if HYP_EDITOR
     void UpdateEditorTask()
     {
@@ -177,7 +177,7 @@ public:
 
             return String::Join(shaderNames, "\n");
         };
-            
+
         if (m_numCompilingShaders == 0)
         {
             m_editorTask.Reset();
@@ -188,7 +188,8 @@ public:
             {
                 m_editorTask = EditorTaskScope(
                     TickableEditorTask::StaticClass(),
-                    []() { /* no tick function */ },
+                    []()
+                    { /* no tick function */ },
                     "Preparing shaders",
                     GetDescriptionText(),
                     /* isForegroundTask */ true);
@@ -224,7 +225,7 @@ public:
             request.properties = properties;
             request.attributes = attributes;
             request.entry = entry;
-            
+
             {
                 Mutex::Guard guard(impl->m_compilingShadersMutex);
 
@@ -235,7 +236,7 @@ public:
 
                 impl->m_activeCompilationTask.release();
             }
-            
+
             task = TaskSystem::GetInstance().Enqueue([impl, req = &request]()
                 {
                     impl->CompileShaders();
@@ -255,7 +256,6 @@ public:
                 task.Await();
             }
         }
-
     };
 
     ShaderInstanceRef GetOrCreate(
@@ -267,8 +267,8 @@ public:
         const HashCode hc = GetShaderEntryHashCode(name, properties, vertexAttributes);
 
         const auto EnsureMatch = [](
-            const ShaderPropertySet& expectedProperties, const VertexAttributeSet& expectedVertexAttributes,
-            const Shader& received) -> bool
+                                     const ShaderPropertySet& expectedProperties, const VertexAttributeSet& expectedVertexAttributes,
+                                     const Shader& received) -> bool
         {
             if (received.vertexAttributes != expectedVertexAttributes)
             {
@@ -281,7 +281,7 @@ public:
                 FOR_EACH_BIT(chunk, bit)
                 {
                     ShaderPropertyId propertyId = ShaderPropertyId(chunkOffset + bit);
-                    
+
                     if (!received.properties.Test(propertyId))
                     {
                         return false;
@@ -347,9 +347,7 @@ public:
                 numSpins++;
             }
 
-            if (EnsureMatch(
-                properties, vertexAttributes,
-                *entry->shaderInstance->GetShader()))
+            if (EnsureMatch(properties, vertexAttributes, *entry->shaderInstance->GetShader()))
             {
                 return entry->shaderInstance;
             }
@@ -452,7 +450,7 @@ public:
             // someone else added it before we did
             lock.Reset(m_mutex);
         }
-        
+
         return &m_compiledShaderCache.Get(uint64(shaderCacheId));
     }
 
@@ -474,7 +472,7 @@ public:
             // someone else added it before we did
             lock.Reset(m_mutex);
         }
-        
+
         return &m_entries.Get(uint64(shaderCacheId));
     }
 
