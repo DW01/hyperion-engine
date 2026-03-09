@@ -35,7 +35,7 @@ closure := testfunc(f)
 Logger.LogScript(Channel, LogLevel.Info, "closure(10.0) = " + string(closure(10.0)))
 Logger.LogScript(Channel, LogLevel.Info, "closure(10.0) = " + string(closure(10.0)))
 
-Debugger.Breakpoint()
+// Debugger.Breakpoint()
 
 export func Update(DeltaTime : float)
     Accum += DeltaTime

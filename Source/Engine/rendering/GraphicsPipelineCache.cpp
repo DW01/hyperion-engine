@@ -159,7 +159,7 @@ public:
     {
         if (!graphicsPipelinePtr)
         {
-            return size_t(-1);
+            return SIZE_MAX;
         }
 
         // <page size> * sizeof(GraphicsPipelineRef)
@@ -185,7 +185,7 @@ public:
             return (pageIdx << Base::PageSizeBits) + ((UIntPtr(graphicsPipelinePtr) - UIntPtr(&page->storage)) / sizeof(GraphicsPipelineRef));
         }
 
-        return size_t(-1);
+        return SIZE_MAX;
     }
 
     IdGenerator idGenerator;
@@ -347,10 +347,10 @@ void GraphicsPipelineCache::GetOrCreate(
     // sanity check: newly created pipeline must match or caching will fail.
     AssertDebug(graphicsPipeline->MatchesSignature(attributes, renderTargetDesc));
 
-    size_t slot = size_t(-1);
+    size_t slot = SIZE_MAX;
 
     cacheHandle = m_cachedPipelines->Alloc(slot);
-    Assert(cacheHandle.m_ptr != nullptr && slot != size_t(-1));
+    Assert(cacheHandle.m_ptr != nullptr && slot != SIZE_MAX);
 
     // set new allocated slot to the graphics pipeline we just created
     *cacheHandle.m_ptr = std::move(graphicsPipeline);
@@ -369,7 +369,7 @@ void GraphicsPipelineCache::GetOrCreate(
               slot(slot),
               callback(std::move(callback))
         {
-            Assert(graphicsPipeline != nullptr && slot != size_t(-1));
+            Assert(graphicsPipeline != nullptr && slot != SIZE_MAX);
         }
 
         virtual ~CreateGraphicsPipelineAndAddToCache() override = default;
@@ -480,7 +480,7 @@ int GraphicsPipelineCache::RunCleanupCycle(int maxIter)
         {
             // empty slot, remove if unused
             const size_t index = m_cachedPipelines->IndexOf(m_cachedPipelines->cleanupIterator);
-            Assert(index != size_t(-1));
+            Assert(index != SIZE_MAX);
 
             // skip to next iterator before potentially removing the current slot
             ++m_cachedPipelines->cleanupIterator;
@@ -503,7 +503,7 @@ int GraphicsPipelineCache::RunCleanupCycle(int maxIter)
 #endif
 
             const size_t index = m_cachedPipelines->IndexOf(m_cachedPipelines->cleanupIterator);
-            Assert(index != size_t(-1));
+            Assert(index != SIZE_MAX);
 
             m_cachedPipelines->Remove(index);
         }

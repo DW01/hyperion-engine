@@ -100,6 +100,7 @@ struct VulkanAttachmentMap
         textureDesc.type = attachmentDesc.imageType;
         textureDesc.format = attachmentDesc.format;
         textureDesc.extent = Vec3u { extent.x, extent.y, 1 };
+        textureDesc.wrapMode = TextureWrapMode::TWM_CLAMP_TO_EDGE;
         textureDesc.imageUsage = IU_SAMPLED | IU_ATTACHMENT;
 
         VulkanAttachment* attachment = new VulkanAttachment(

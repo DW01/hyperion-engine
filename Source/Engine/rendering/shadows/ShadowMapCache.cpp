@@ -87,14 +87,14 @@ static RenderTargetDesc GetRenderTargetDesc(
         AttachmentDesc& moments = renderTargetDesc.attachments[renderTargetDesc.numAttachments++];
         moments.imageType = TextureType::Cubemap;
         moments.format = TextureFormat::RG16F;
-        moments.loadOp = LoadOperation::CLEAR; // LOAD;
+        moments.loadOp = LoadOperation::LOAD;
         moments.storeOp = StoreOperation::STORE;
         std::fill(std::begin(moments.clearColor), std::end(moments.clearColor), 1000.0f);
 
         AttachmentDesc& depth = renderTargetDesc.attachments[renderTargetDesc.numAttachments++];
         depth.imageType = TextureType::Cubemap;
         depth.format = TextureFormat::D16;
-        depth.loadOp = LoadOperation::CLEAR; // LOAD;
+        depth.loadOp = LoadOperation::LOAD;
         depth.storeOp = StoreOperation::STORE;
 
         outShaderDesc.name = NAME("DrawCubemap");
@@ -114,7 +114,7 @@ static RenderTargetDesc GetRenderTargetDesc(
         //    AttachmentDesc& moments = renderTargetDesc.attachments[renderTargetDesc.numAttachments++];
         //    moments.format = TextureFormat::RG16F;
         //    moments.imageType = TextureType::Texture2D;
-        //    moments.loadOp = LoadOperation::CLEAR; // LOAD;
+        //    moments.loadOp = LoadOperation::LOAD;
         //    moments.storeOp = StoreOperation::STORE;
         //    std::fill(std::begin(moments.clearColor), std::end(moments.clearColor), 1000.0f);
         //}
@@ -122,7 +122,7 @@ static RenderTargetDesc GetRenderTargetDesc(
         AttachmentDesc& depth = renderTargetDesc.attachments[renderTargetDesc.numAttachments++];
         depth.format = TextureFormat::D16;
         depth.imageType = TextureType::Texture2D;
-        depth.loadOp = LoadOperation::CLEAR; // LOAD;
+        depth.loadOp = LoadOperation::LOAD;
         depth.storeOp = StoreOperation::STORE;
 
         break;
@@ -178,7 +178,7 @@ static ViewDesc GetViewDesc(Light* light, bool isStatic, uint32 cascadeIndex, Sh
     materialAttributes.shaderName = shaderDesc.name;
     materialAttributes.shaderProperties = shaderDesc.properties;
     materialAttributes.flags |= MAF_DEPTH_BIAS | MAF_DEPTH_CLAMP;
-    materialAttributes.depthBias = 6; // @TODO play with these numbers
+    materialAttributes.depthBias = 6;
     materialAttributes.depthBiasSlope = 2.0f;
     materialAttributes.cullFaces = light->GetShadowMapFilter() == SMF_VSM ? FCM_FRONT : FCM_BACK;
 

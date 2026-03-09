@@ -99,7 +99,7 @@ static void InitStat(EngineStats* stats, EngineStatBase* stat, UTF8StringView pa
             if (ch == utf::Char32('/'))
             {
                 curr = remainingPath.Substr(0, characterIndex);
-                remainingPath = remainingPath.Substr(characterIndex + 1, size_t(-1));
+                remainingPath = remainingPath.Substr(characterIndex + 1, SIZE_MAX);
                 separatorFound = true;
                 break;
             }
@@ -222,7 +222,7 @@ EngineStatBase* EngineStats::GetStat(UTF8StringView path) const
             if (ch == PathSeparator)
             {
                 curr = path.Substr(0, characterIndex);
-                path = path.Substr(characterIndex + 1, size_t(-1));
+                path = path.Substr(characterIndex + 1, SIZE_MAX);
                 separatorFound = true;
                 break;
             }

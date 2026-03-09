@@ -19,9 +19,9 @@
         "Enabled": false
       },
       "GI": {
-        "Enabled": true
+        "Enabled": false
       },
-      "Enabled": true
+      "Enabled": false
     },
     "SSAO": {
       "Enabled": false
@@ -94,7 +94,7 @@
   },
   "System": {
     "SelectedGpu": {
-      "Index": 1
+      "Index": 0
     }
   }
 }

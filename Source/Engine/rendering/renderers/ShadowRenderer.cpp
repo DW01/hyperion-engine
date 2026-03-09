@@ -285,7 +285,13 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
             rs.framebuffer = framebuffer;
             rs.viewport = Viewport { atlasElement.dimensions, Vec2i(atlasElement.offsetCoords) };
 
-            frame->cr << ClearFramebuffer(framebuffer);
+            Rect<uint32> clearRect {};
+            clearRect.x0 = atlasElement.offsetCoords.x;
+            clearRect.y0 = atlasElement.offsetCoords.y;
+            clearRect.x1 = atlasElement.offsetCoords.x + atlasElement.dimensions.x;
+            clearRect.y1 = atlasElement.offsetCoords.y + atlasElement.dimensions.y;
+
+            frame->cr << ClearFramebuffer(framebuffer, clearRect);
 
             ShadowRendererPassData* pd = ObjCast<ShadowRendererPassData>(rs.passData);
             AssertDebug(pd != nullptr);
@@ -328,7 +334,8 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
             // back to shader read
             frame->cr << InsertBarrier(
                 resultImage,
-                RS_SHADER_RESOURCE);
+                RS_SHADER_RESOURCE,
+                attachment->GetImageView()->GetImageSubResource());
 
 #if 0
             if (!shouldCombineShadowMaps)

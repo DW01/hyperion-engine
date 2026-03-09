@@ -22,7 +22,7 @@ struct ConstantsAllocatorBlock
     ConstantsAllocatorBlock()
         : buffer(new GpuBuffer{ GpuBufferType::CONSTANT_BUFFER, ConstantBufferSize, 256 }),
           offset(0),
-          lastUsedFrame(size_t(-1))
+          lastUsedFrame(UINT32_MAX)
     {
     }
 
@@ -35,7 +35,7 @@ struct ConstantsAllocatorBlock
           lastUsedFrame(other.lastUsedFrame)
     {
         other.buffer = nullptr;
-        other.lastUsedFrame = size_t(-1);
+        other.lastUsedFrame = UINT32_MAX;
         other.offset = 0;
     }
 
@@ -50,7 +50,7 @@ struct ConstantsAllocatorBlock
         other.offset = 0;
 
         lastUsedFrame = other.lastUsedFrame;
-        other.lastUsedFrame = size_t(-1);
+        other.lastUsedFrame = UINT32_MAX;
 
         return *this;
     }
@@ -102,6 +102,13 @@ void ConstantsAllocator::OnFrameEnd()
 
     for (Block& block : m_currentFrameBlocks)
     {
+        size_t flushSize = MathUtil::Min(block.offset, ConstantBufferSize);
+
+        if (flushSize != 0)
+        {
+            block.buffer->Flush(0, flushSize);
+        }
+        
         block.offset = 0;
 
         m_blocks.PushBack(std::move(block));
