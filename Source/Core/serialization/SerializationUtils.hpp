@@ -5,6 +5,8 @@
 #include <Core/containers/String.hpp>
 #include <Core/containers/HashMap.hpp>
 
+#include <Core/utilities/Result.hpp>
+
 #include <Core/Defines.hpp>
 
 namespace Hyperion {
@@ -57,7 +59,7 @@ struct ToJSONOptions
  *  \param outJson The output Value.
  *  \return True if conversion was successful, false otherwise.
  */
-bool BoxedToJSON(
+Result BoxedToJSON(
     const BoxedValue& value,
     JSON::Value& outJson,
     ToJSONOptions opts = ToJSONOptions {});
@@ -72,7 +74,7 @@ bool BoxedToJSON(
  *  \param outJson The output Object.
  *  \return True if serialization was successful, false otherwise.
  */
-bool ObjectToJSON(
+Result ObjectToJSON(
     const Class* cls,
     const BoxedValue& target,
     JSON::Object& outJson,
@@ -85,7 +87,7 @@ bool ObjectToJSON(
  *  \param outBoxed The output BoxedValue.
  *  \return True if conversion was successful, false otherwise.
  */
-bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, BoxedValue& outBoxed);
+Result BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, BoxedValue& outBoxed);
 
 /*! \brief Deserializes a Object to a BoxedValue object.
  *  Only fields and properties of the Class are deserialized.
@@ -96,6 +98,6 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
  *  \param target The output BoxedValue object.
  *  \return True if deserialization was successful, false otherwise.
  */
-bool ObjectFromJSON(const JSON::Object& jsonObject, const Class* targetClass, BoxedValue& target);
+Result ObjectFromJSON(const JSON::Object& jsonObject, const Class* targetClass, BoxedValue& target);
 
 } // namespace Hyperion

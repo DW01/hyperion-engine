@@ -60,7 +60,7 @@
         "Enabled": false
       },
       "GI": {
-        "Enabled": true
+        "Enabled": false
       }
     },
     "Debug": {

@@ -47,7 +47,7 @@ static thread_local HashSet<Pair<TypeId, const void*>> s_serializedObjects;
 // otherwise we won't know to deserialize it as a Dog.
 static constexpr bool ForceWriteClassNamesWhenTypesDiffer = true;
 
-bool BoxedToJSON(
+Result BoxedToJSON(
     const BoxedValue& value,
     JSON::Value& outJson,
     ToJSONOptions opts)
@@ -61,7 +61,7 @@ bool BoxedToJSON(
     {
         outJson = JSON::JSNull();
 
-        return true;
+        return {};
     }
 
     const TypeInfo& typeInfo = *value.GetTypeInfo();
@@ -86,8 +86,7 @@ bool BoxedToJSON(
 
         if (!assetObject.IsRegistered())
         {
-            HYP_LOG(Core, Warning, "Cannot serialize unregistered AssetObject!");
-            return false;
+            return HYP_MAKE_ERROR(Error, "Cannot serialize unregistered AssetObject");
         }
 
         assetReference = AssetReference(assetObject.HandleFromThis());
@@ -108,7 +107,7 @@ bool BoxedToJSON(
     {
         outJson = value.Get<bool>();
 
-        return true;
+        return {};
     }
 
 #define DO_NUMERIC_TYPE(T)                        \
@@ -116,7 +115,7 @@ bool BoxedToJSON(
     {                                             \
         outJson = JSON::Number(value.Get<T>()); \
                                                   \
-        return true;                              \
+        return {};                                \
     }
 
     DO_NUMERIC_TYPE(int8);
@@ -146,7 +145,7 @@ bool BoxedToJSON(
     {
         outJson = JSON::JString(value.Get<String>());
 
-        return true;
+        return {};
     }
 
     if (typeInfo.IsVectorType())
@@ -172,9 +171,9 @@ bool BoxedToJSON(
             }
 
             JSON::Value jsonValue;
-            if (!BoxedToJSON(BoxedValue(element), jsonValue, opts))
+            if (Result result = BoxedToJSON(BoxedValue(element), jsonValue, opts); result.HasError())
             {
-                return false;
+                return result;
             }
 
             jsonArray.PushBack(std::move(jsonValue));
@@ -182,7 +181,7 @@ bool BoxedToJSON(
 
         outJson = std::move(jsonArray);
 
-        return true;
+        return {};
     }
 
     if (typeInfo.IsMatrixType())
@@ -205,15 +204,13 @@ bool BoxedToJSON(
 
                 if (!element.HasValue())
                 {
-                    HYP_LOG(Core, Warning, "Failed to get element at ({}, {}) of matrix of type {}", r, c, typeInfo.name);
-
-                    return false;
+                    return HYP_MAKE_ERROR(Error, "Failed to get element at ({}, {}) of matrix of type {}", r, c, typeInfo.name);
                 }
 
                 JSON::Value jsonValue;
-                if (!BoxedToJSON(BoxedValue(element), jsonValue, opts))
+                if (Result result = BoxedToJSON(BoxedValue(element), jsonValue, opts); result.HasError())
                 {
-                    return false;
+                    return result;
                 }
 
                 jsonArray[r * columns + c] = std::move(jsonValue);
@@ -222,7 +219,7 @@ bool BoxedToJSON(
 
         outJson = std::move(jsonArray);
 
-        return true;
+        return {};
     }
 
     if (value.Is<UUID>())
@@ -231,7 +228,7 @@ bool BoxedToJSON(
 
         outJson = JSON::JString(uuid.ToString());
 
-        return true;
+        return {};
     }
 
     if (value.Is<Name>())
@@ -240,7 +237,7 @@ bool BoxedToJSON(
 
         outJson = JSON::JString(name.LookupString());
 
-        return true;
+        return {};
     }
 
     if (typeInfo.IsArrayType())
@@ -284,9 +281,9 @@ bool BoxedToJSON(
             }*/
 
             JSON::Value jsonValue;
-            if (!BoxedToJSON(element, jsonValue, newOpts))
+            if (Result result = BoxedToJSON(element, jsonValue, newOpts); result.HasError())
             {
-                return false;
+                return result;
             }
 
             jsonArray.PushBack(std::move(jsonValue));
@@ -294,7 +291,7 @@ bool BoxedToJSON(
 
         outJson = std::move(jsonArray);
 
-        return true;
+        return {};
     }
 
     if (typeInfo.IsSetType())
@@ -314,8 +311,7 @@ bool BoxedToJSON(
 
         if (!iterator)
         {
-            HYP_LOG(Core, Warning, "Failed to create iterator for set of type {}", typeInfo.name);
-            return false;
+            return HYP_MAKE_ERROR(Error, "Failed to create iterator for set of type {}", typeInfo.name);
         }
 
         while (iterator->HasNext())
@@ -350,9 +346,9 @@ bool BoxedToJSON(
             }*/
 
             JSON::Value jsonValue;
-            if (!BoxedToJSON(elementData, jsonValue, newOpts))
+            if (Result result = BoxedToJSON(elementData, jsonValue, newOpts); result.HasError())
             {
-                return false;
+                return result;
             }
 
             jsonArray.PushBack(std::move(jsonValue));
@@ -362,7 +358,7 @@ bool BoxedToJSON(
 
         outJson = std::move(jsonArray);
 
-        return true;
+        return {};
     }
 
     if (typeInfo.IsEnum() || typeInfo.IsEnumFlags())
@@ -386,7 +382,7 @@ bool BoxedToJSON(
 
             outJson = JSON::Number(value.Get<uint64>());
 
-            return true;
+            return {};
         }
         else if (underlyingTypeInfo->id == TypeId::ForType<int8>()
             || underlyingTypeInfo->id == TypeId::ForType<int16>()
@@ -400,12 +396,10 @@ bool BoxedToJSON(
 
             outJson = JSON::Number(value.Get<int64>());
 
-            return true;
+            return {};
         }
 
-        HYP_LOG(Core, Warning, "Enum type {} has unsupported underlying type {}", typeInfo.name, underlyingTypeInfo->name);
-
-        return false;
+        return HYP_MAKE_ERROR(Error, "Enum type {} has unsupported underlying type {}", typeInfo.name, underlyingTypeInfo->name);
     }
 
     if (typeInfo.IsVariantType())
@@ -419,16 +413,14 @@ bool BoxedToJSON(
             // no value set, fine
             outJson = JSON::JSNull();
 
-            return true;
+            return {};
         }
 
         AnyRef activeValue = handler->GetValue(value);
 
         if (!activeValue.HasValue())
         {
-            HYP_LOG(Core, Warning, "Failed to get active value of variant of type {}", typeInfo.name);
-
-            return false;
+            return HYP_MAKE_ERROR(Error, "Failed to get active value of variant of type {}", typeInfo.name);
         }
 
         ToJSONOptions newOpts = opts;
@@ -461,9 +453,7 @@ bool BoxedToJSON(
 
         if (!s_serializedObjects.Insert(pair).second)
         {
-            HYP_LOG(Core, Warning, "Detected circular reference when serializing BoxedValue to JSON!");
-
-            return false;
+            return HYP_MAKE_ERROR(Error, "Detected circular reference when serializing BoxedValue to JSON");
         }
 
         HYP_DEFER({
@@ -472,22 +462,20 @@ bool BoxedToJSON(
 
         JSON::Object jsonObject;
 
-        if (!ObjectToJSON(cls, value, jsonObject, opts))
+        if (Result result = ObjectToJSON(cls, value, jsonObject, opts); result.HasError())
         {
-            return false;
+            return result;
         }
 
         outJson = std::move(jsonObject);
 
-        return true;
+        return {};
     }
 
-    HYP_LOG(Core, Warning, "Don't know how to serialize BoxedValue with type \"{}\" to JSON", typeInfo.name);
-
-    return false;
+    return HYP_MAKE_ERROR(Error, "Don't know how to serialize BoxedValue with type \"{}\" to JSON", typeInfo.name);
 }
 
-bool ObjectToJSON(const Class* cls, const BoxedValue& target, JSON::Object& outJson, ToJSONOptions opts)
+Result ObjectToJSON(const Class* cls, const BoxedValue& target, JSON::Object& outJson, ToJSONOptions opts)
 {
     if (opts.writeClassNamesRecursively)
     {
@@ -603,7 +591,7 @@ bool ObjectToJSON(const Class* cls, const BoxedValue& target, JSON::Object& outJ
 
                 JSON::Value jsonValue;
 
-                if (!BoxedToJSON(value, jsonValue, newOpts))
+                if (Result result = BoxedToJSON(value, jsonValue, newOpts); result.HasError())
                 {
                     HYP_LOG(Core, Warning, "Failed to serialize property \"{}\" of Class \"{}\" to json",
                         member.GetName(), cls->GetName());
@@ -655,7 +643,7 @@ bool ObjectToJSON(const Class* cls, const BoxedValue& target, JSON::Object& outJ
 
                 JSON::Value jsonValue;
 
-                if (!BoxedToJSON(value, jsonValue, newOpts))
+                if (Result result = BoxedToJSON(value, jsonValue, newOpts); result.HasError())
                 {
                     HYP_LOG(Core, Warning, "Failed to serialize field \"{}\" of Class \"{}\" to json",
                         member.GetName(), cls->GetName());
@@ -709,7 +697,7 @@ bool ObjectToJSON(const Class* cls, const BoxedValue& target, JSON::Object& outJ
 
                 JSON::Value jsonValue;
 
-                if (!BoxedToJSON(staticField->Get(), jsonValue, newOpts))
+                if (Result result = BoxedToJSON(staticField->Get(), jsonValue, newOpts); result.HasError())
                 {
                     HYP_LOG(Core, Warning, "Failed to serialize static field \"{}\" of Class \"{}\" to json",
                         member.GetName(), cls->GetName());
@@ -755,10 +743,10 @@ bool ObjectToJSON(const Class* cls, const BoxedValue& target, JSON::Object& outJ
         outJson.PushFront({ "$Class", *originalClass->GetName() });
     }
 
-    return true;
+    return {};
 }
 
-bool ObjectFromJSON(const JSON::Object& jsonObject, const Class* targetClass, BoxedValue& target)
+Result ObjectFromJSON(const JSON::Object& jsonObject, const Class* targetClass, BoxedValue& target)
 {
     auto ResolveMember = [&target](const IMember& member, const JSON::Value& value) -> bool
     {
@@ -775,7 +763,7 @@ bool ObjectFromJSON(const JSON::Object& jsonObject, const Class* targetClass, Bo
 
             BoxedValue boxed;
 
-            if (!BoxedFromJSON(value, typeInfo, boxed))
+            if (Result result = BoxedFromJSON(value, typeInfo, boxed); result.HasError())
             {
                 HYP_LOG(Core, Warning, "Failed to deserialize property \"{}\" from json",
                     member.GetName());
@@ -800,7 +788,7 @@ bool ObjectFromJSON(const JSON::Object& jsonObject, const Class* targetClass, Bo
 
             BoxedValue boxed;
 
-            if (!BoxedFromJSON(value, typeInfo, boxed))
+            if (Result result = BoxedFromJSON(value, typeInfo, boxed); result.HasError())
             {
                 HYP_LOG(Core, Warning, "Failed to deserialize field \"{}\" from json",
                     member.GetName());
@@ -840,7 +828,7 @@ bool ObjectFromJSON(const JSON::Object& jsonObject, const Class* targetClass, Bo
         {
             if (!instanceClass->CreateInstance(target, /* allowAbstract */ false))
             {
-                return false;
+                return HYP_MAKE_ERROR(Error, "Failed to create instance of Class");
             }
         }
 
@@ -959,7 +947,7 @@ bool ObjectFromJSON(const JSON::Object& jsonObject, const Class* targetClass, Bo
         {
             target = BoxedValue(assetReference.GetAssetPath());
 
-            return true;
+            return {};
         }
 
         if (assetReference.IsValid())
@@ -968,47 +956,41 @@ bool ObjectFromJSON(const JSON::Object& jsonObject, const Class* targetClass, Bo
             {
                 target = BoxedValue(std::move(assetObject));
 
-                return true;
+                return {};
             }
             else
             {
-                HYP_LOG(Core, Warning, "Failed to load AssetObject from AssetReference: {}", assetReference.GetAssetPath());
-
                 target = BoxedValue(Handle<ObjectBase>::Null());
 
-                return false;
+                return HYP_MAKE_ERROR(Error, "Failed to load AssetObject from AssetReference: {}", assetReference.GetAssetPath());
             }
         }
 
-        HYP_LOG(Core, Warning, "Failed to resolve AssetReference when deserializing to AssetObject: invalid reference at \"{}\"", assetReference.GetAssetPath().ToString());
-
-        return false;
+        return HYP_MAKE_ERROR(Error, "Failed to resolve AssetReference when deserializing to AssetObject: invalid reference at \"{}\"", assetReference.GetAssetPath().ToString());
     }
 #endif
 
-    return true;
+    return {};
 }
 
-bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, BoxedValue& outBoxed)
+Result BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, BoxedValue& outBoxed)
 {
     if (typeInfo.IsBoolType())
     {
         if (!jsonValue.IsBool())
         {
-            HYP_LOG(Core, Warning, "Expected JSON bool for bool but got: {}", jsonValue.ToString());
-            return false;
+            return HYP_MAKE_ERROR(Error, "Expected JSON bool for bool but got: {}", jsonValue.ToString());
         }
 
         outBoxed = BoxedValue(jsonValue.AsBool());
-        return true;
+        return {};
     }
 
     if (typeInfo.IsIntegralType())
     {
         if (!jsonValue.IsNumber())
         {
-            HYP_LOG(Core, Warning, "Expected JSON number for integral type {}, but got value: {}", typeInfo.name, jsonValue.ToString());
-            return false;
+            return HYP_MAKE_ERROR(Error, "Expected JSON number for integral type {}, but got value: {}", typeInfo.name, jsonValue.ToString());
         }
 
         const JSON::Number number = jsonValue.AsNumber();
@@ -1017,96 +999,88 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
         {
             if (number < INT8_MIN || number > INT8_MAX)
             {
-                HYP_LOG(Core, Warning, "Number {} out of range for int8", number);
-                return false;
+                return HYP_MAKE_ERROR(Error, "Number {} out of range for int8", number);
             }
 
             outBoxed = BoxedValue(int8(number));
-            return true;
+            return {};
         }
 
         if (typeInfo.id == TypeId::ForType<int16>())
         {
             if (number < INT16_MIN || number > INT16_MAX)
             {
-                HYP_LOG(Core, Warning, "Number {} out of range for int16", number);
-                return false;
+                return HYP_MAKE_ERROR(Error, "Number {} out of range for int16", number);
             }
 
             outBoxed = BoxedValue(int16(number));
-            return true;
+            return {};
         }
 
         if (typeInfo.id == TypeId::ForType<int32>())
         {
             if (number < INT32_MIN || number > INT32_MAX)
             {
-                HYP_LOG(Core, Warning, "Number {} out of range for int32", number);
-                return false;
+                return HYP_MAKE_ERROR(Error, "Number {} out of range for int32", number);
             }
 
             outBoxed = BoxedValue(int32(number));
-            return true;
+            return {};
         }
 
         if (typeInfo.id == TypeId::ForType<int64>())
         {
             if (number < INT64_MIN || number > INT64_MAX)
             {
-                HYP_LOG(Core, Warning, "Number {} out of range for int64", number);
-                return false;
+                return HYP_MAKE_ERROR(Error, "Number {} out of range for int64", number);
             }
 
             outBoxed = BoxedValue(int64(number));
-            return true;
+            return {};
         }
 
         if (typeInfo.id == TypeId::ForType<uint8>())
         {
             if (number < 0 || number > UINT8_MAX)
             {
-                HYP_LOG(Core, Warning, "Number {} out of range for uint8", number);
-                return false;
+                return HYP_MAKE_ERROR(Error, "Number {} out of range for uint8", number);
             }
 
             outBoxed = BoxedValue(uint8(number));
-            return true;
+            return {};
         }
 
         if (typeInfo.id == TypeId::ForType<uint16>())
         {
             if (number < 0 || number > UINT16_MAX)
             {
-                HYP_LOG(Core, Warning, "Number {} out of range for uint16", number);
-                return false;
+                return HYP_MAKE_ERROR(Error, "Number {} out of range for uint16", number);
             }
 
             outBoxed = BoxedValue(uint16(number));
-            return true;
+            return {};
         }
 
         if (typeInfo.id == TypeId::ForType<uint32>())
         {
             if (number < 0 || number > UINT32_MAX)
             {
-                HYP_LOG(Core, Warning, "Number {} out of range for uint32", number);
-                return false;
+                return HYP_MAKE_ERROR(Error, "Number {} out of range for uint32", number);
             }
 
             outBoxed = BoxedValue(uint32(number));
-            return true;
+            return {};
         }
 
         if (typeInfo.id == TypeId::ForType<uint64>())
         {
             if (number < 0 || number > UINT64_MAX)
             {
-                HYP_LOG(Core, Warning, "Number {} out of range for uint64", number);
-                return false;
+                return HYP_MAKE_ERROR(Error, "Number {} out of range for uint64", number);
             }
 
             outBoxed = BoxedValue(uint64(number));
-            return true;
+            return {};
         }
 
 #ifdef HYP_WINDOWS
@@ -1116,24 +1090,23 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
             {
                 if (number < 0 || number > SIZE_MAX)
                 {
-                    return false;
+                    return HYP_MAKE_ERROR(Error, "Number out of range for size_t");
                 }
 
                 outBoxed = BoxedValue(size_t(number));
-                return true;
+                return {};
             }
         }
 #endif
 
-        return false;
+        return HYP_MAKE_ERROR(Error, "Unsupported integral type");
     }
 
     if (typeInfo.IsFloatType())
     {
         if (!jsonValue.IsNumber())
         {
-            HYP_LOG(Core, Warning, "Expected JSON number for float type {}, but got value: {}", typeInfo.name, jsonValue.ToString());
-            return false;
+            return HYP_MAKE_ERROR(Error, "Expected JSON number for float type {}, but got value: {}", typeInfo.name, jsonValue.ToString());
         }
 
         const JSON::Number number = jsonValue.AsNumber();
@@ -1143,38 +1116,36 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
             // Clamp to representable range of Float16
             const double clamped = MathUtil::Clamp(double(number), double(-FLT16_MAX), double(FLT16_MAX));
             outBoxed = BoxedValue(Float16(float(MathUtil::Clamp(double(clamped), double(-FLT16_MAX), double(FLT16_MAX)))));
-            return true;
+            return {};
         }
 
         if (typeInfo.id == TypeId::ForType<float>())
         {
             outBoxed = BoxedValue(float(MathUtil::Clamp(double(number), double(-FLT_MAX), double(FLT_MAX))));
-            return true;
+            return {};
         }
 
         if (typeInfo.id == TypeId::ForType<double>())
         {
             outBoxed = BoxedValue(double(number));
-            return true;
+            return {};
         }
 
-        return false;
+        return HYP_MAKE_ERROR(Error, "Unsupported float type");
     }
 
     if (typeInfo.IsStringType())
     {
         if (!jsonValue.IsString())
         {
-            HYP_LOG(Core, Warning, "Expected JSON string for string type {}, but got: {}", typeInfo.name, jsonValue.ToString());
-            return false;
+            return HYP_MAKE_ERROR(Error, "Expected JSON string for string type {}, but got: {}", typeInfo.name, jsonValue.ToString());
         }
 
         ITypeInfoHandler* handler = typeInfo.extendedInfo.handler;
 
         if (!handler || handler->GetHandlerType() != ITypeInfoHandler::TYPE_STRING)
         {
-            HYP_LOG(Core, Warning, "String type {} does not have a valid string handler", typeInfo.name);
-            return false;
+            return HYP_MAKE_ERROR(Error, "String type {} does not have a valid string handler", typeInfo.name);
         }
 
         ITypeInfoStringHandler* stringHandler = static_cast<ITypeInfoStringHandler*>(handler);
@@ -1182,15 +1153,14 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
         BoxedValue stringInstance;
         if (!stringHandler->CreateInstance(stringInstance))
         {
-            HYP_LOG(Core, Warning, "Failed to create instance of string type");
-            return false;
+            return HYP_MAKE_ERROR(Error, "Failed to create instance of string type");
         }
 
         stringHandler->SetValue(stringInstance, jsonValue.AsString().ToUtf8());
 
         outBoxed = std::move(stringInstance);
 
-        return true;
+        return {};
     }
 
     if (typeInfo.IsEnum() || typeInfo.IsEnumFlags())
@@ -1200,8 +1170,7 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
 
         if (!underlyingTypeInfo)
         {
-            HYP_LOG(Core, Warning, "Enum type {} does not have a valid underlying type", typeInfo.name);
-            return false;
+            return HYP_MAKE_ERROR(Error, "Enum type {} does not have a valid underlying type", typeInfo.name);
         }
 
         if (jsonValue.IsNumber())
@@ -1209,104 +1178,98 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
             if (underlyingTypeInfo->id == TypeId::ForType<int8>())
             {
                 outBoxed = BoxedValue(jsonValue.ToInt8());
-                return true;
+                return {};
             }
             else if (underlyingTypeInfo->id == TypeId::ForType<int16>())
             {
                 outBoxed = BoxedValue(jsonValue.ToInt16());
-                return true;
+                return {};
             }
             else if (underlyingTypeInfo->id == TypeId::ForType<int32>())
             {
                 outBoxed = BoxedValue(jsonValue.ToInt32());
-                return true;
+                return {};
             }
             else if (underlyingTypeInfo->id == TypeId::ForType<int64>())
             {
                 outBoxed = BoxedValue(jsonValue.ToInt64());
-                return true;
+                return {};
             }
             else if (underlyingTypeInfo->id == TypeId::ForType<uint8>())
             {
                 outBoxed = BoxedValue(jsonValue.ToUInt8());
-                return true;
+                return {};
             }
             else if (underlyingTypeInfo->id == TypeId::ForType<uint16>())
             {
                 outBoxed = BoxedValue(jsonValue.ToUInt16());
-                return true;
+                return {};
             }
             else if (underlyingTypeInfo->id == TypeId::ForType<uint32>())
             {
                 outBoxed = BoxedValue(jsonValue.ToUInt32());
-                return true;
+                return {};
             }
             else if (underlyingTypeInfo->id == TypeId::ForType<uint64>())
             {
                 outBoxed = BoxedValue(jsonValue.ToUInt64());
-                return true;
+                return {};
             }
             else
             {
-                HYP_LOG(Core, Warning, "Enum type {} has unsupported underlying type {}", typeInfo.name, underlyingTypeInfo->name);
-                return false;
+                return HYP_MAKE_ERROR(Error, "Enum type {} has unsupported underlying type {}", typeInfo.name, underlyingTypeInfo->name);
             }
         }
 
         /// \todo String representation of enum values
 
-        return false;
+        return HYP_MAKE_ERROR(Error, "Failed to deserialize enum value for type {}", typeInfo.name);
     }
 
     if (typeInfo.id == TypeId::ForType<UUID>())
     {
         if (!jsonValue.IsString())
         {
-            HYP_LOG(Core, Warning, "Expected JSON string for UUID, but got value: {}", jsonValue.ToString());
-            return false;
+            return HYP_MAKE_ERROR(Error, "Expected JSON string for UUID, but got value: {}", jsonValue.ToString());
         }
 
         const JSON::JString& jsonString = jsonValue.AsString();
 
         if (jsonString.Size() != 36)
         {
-            HYP_LOG(Core, Warning, "Invalid UUID string length: {}", jsonString.Size());
-            return false;
+            return HYP_MAKE_ERROR(Error, "Invalid UUID string length: {}", jsonString.Size());
         }
 
         outBoxed = BoxedValue(UUID(*jsonString.ToAnsi()));
-        return true;
+        return {};
     }
 
     if (typeInfo.id == TypeId::ForType<Name>())
     {
         if (!jsonValue.IsString())
         {
-            HYP_LOG(Core, Warning, "Expected JSON string for Name, but got value: {}", jsonValue.ToString());
-            return false;
+            return HYP_MAKE_ERROR(Error, "Expected JSON string for Name, but got value: {}", jsonValue.ToString());
         }
 
         const JSON::JString& jsonString = jsonValue.AsString();
 
         outBoxed = BoxedValue(Name(CreateNameFromDynamicString(*jsonString.ToAnsi())));
 
-        return true;
+        return {};
     }
 
     if (typeInfo.IsVectorType())
     {
         if (!jsonValue.IsArray())
         {
-            HYP_LOG(Core, Warning, "Expected JSON array for vector type {}, but got value: {}", typeInfo.name, jsonValue.ToString());
-            return false;
+            return HYP_MAKE_ERROR(Error, "Expected JSON array for vector type {}, but got value: {}", typeInfo.name, jsonValue.ToString());
         }
 
         ITypeInfoHandler* handler = typeInfo.extendedInfo.handler;
 
         if (!handler || handler->GetHandlerType() != ITypeInfoHandler::TYPE_VECTOR)
         {
-            HYP_LOG(Core, Warning, "Vector type {} does not have a valid vector handler", typeInfo.name);
-            return false;
+            return HYP_MAKE_ERROR(Error, "Vector type {} does not have a valid vector handler", typeInfo.name);
         }
 
         ITypeInfoVectorHandler* vectorHandler = static_cast<ITypeInfoVectorHandler*>(handler);
@@ -1314,36 +1277,31 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
         BoxedValue vectorInstance;
         if (!vectorHandler->CreateInstance(vectorInstance))
         {
-            return false;
+            return HYP_MAKE_ERROR(Error, "Failed to create instance of vector type");
         }
 
         const JSON::JArray& jsonArray = jsonValue.AsArray();
 
         if (jsonArray.Size() != vectorHandler->GetNumComponents())
         {
-            HYP_LOG(Core, Warning, "Expected JSON array of size {} for vector type {}, but got size {}",
+            return HYP_MAKE_ERROR(Error, "Expected JSON array of size {} for vector type {}, but got size {}",
                 vectorHandler->GetNumComponents(), typeInfo.name, jsonArray.Size());
-            return false;
         }
 
         const TypeInfo* elementTypeInfo = typeInfo.extendedInfo.GetElementType();
 
         if (!elementTypeInfo)
         {
-            HYP_LOG(Core, Warning, "Vector type {} does not have a valid element type", typeInfo.name);
-
-            return false;
+            return HYP_MAKE_ERROR(Error, "Vector type {} does not have a valid element type", typeInfo.name);
         }
 
         for (int i = 0; i < int(jsonArray.Size()); i++)
         {
             BoxedValue elementData;
 
-            if (!BoxedFromJSON(jsonArray[i], *elementTypeInfo, elementData))
+            if (Result result = BoxedFromJSON(jsonArray[i], *elementTypeInfo, elementData); result.HasError())
             {
-                HYP_LOG(Core, Warning, "Failed to deserialize vector element at index {} for type {}", i, typeInfo.name);
-
-                return false;
+                return HYP_MAKE_ERROR(Error, "Failed to deserialize vector element at index {} for type {}", i, typeInfo.name);
             }
 
             vectorHandler->SetComponent(vectorInstance, i, elementData);
@@ -1351,23 +1309,21 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
 
         outBoxed = std::move(vectorInstance);
 
-        return true;
+        return {};
     }
 
     if (typeInfo.IsMatrixType())
     {
         if (!jsonValue.IsArray())
         {
-            HYP_LOG(Core, Warning, "Expected JSON array for matrix type {}, but got value: {}", typeInfo.name, jsonValue.ToString());
-            return false;
+            return HYP_MAKE_ERROR(Error, "Expected JSON array for matrix type {}, but got value: {}", typeInfo.name, jsonValue.ToString());
         }
 
         ITypeInfoHandler* handler = typeInfo.extendedInfo.handler;
 
         if (!handler || handler->GetHandlerType() != ITypeInfoHandler::TYPE_MATRIX)
         {
-            HYP_LOG(Core, Warning, "Matrix type {} does not have a valid matrix handler", typeInfo.name);
-            return false;
+            return HYP_MAKE_ERROR(Error, "Matrix type {} does not have a valid matrix handler", typeInfo.name);
         }
 
         ITypeInfoMatrixHandler* matrixHandler = static_cast<ITypeInfoMatrixHandler*>(handler);
@@ -1375,36 +1331,31 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
         BoxedValue matrixInstance;
         if (!matrixHandler->CreateInstance(matrixInstance))
         {
-            return false;
+            return HYP_MAKE_ERROR(Error, "Failed to create instance of matrix type");
         }
 
         const JSON::JArray& jsonArray = jsonValue.AsArray();
 
         if (jsonArray.Size() != matrixHandler->GetNumRows() * matrixHandler->GetNumColumns())
         {
-            HYP_LOG(Core, Warning, "Expected JSON array of size {} for matrix type {}, but got size {}",
+            return HYP_MAKE_ERROR(Error, "Expected JSON array of size {} for matrix type {}, but got size {}",
                 matrixHandler->GetNumRows() * matrixHandler->GetNumColumns(), typeInfo.name, jsonArray.Size());
-            return false;
         }
 
         const TypeInfo* elementTypeInfo = typeInfo.extendedInfo.GetElementType();
 
         if (!elementTypeInfo)
         {
-            HYP_LOG(Core, Warning, "Matrix type {} does not have a valid element type", typeInfo.name);
-
-            return false;
+            return HYP_MAKE_ERROR(Error, "Matrix type {} does not have a valid element type", typeInfo.name);
         }
 
         for (size_t i = 0; i < jsonArray.Size(); i++)
         {
             BoxedValue elementData;
 
-            if (!BoxedFromJSON(jsonArray[i], *elementTypeInfo, elementData))
+            if (Result result = BoxedFromJSON(jsonArray[i], *elementTypeInfo, elementData); result.HasError())
             {
-                HYP_LOG(Core, Warning, "Failed to deserialize matrix element at index {} for type {}", i, typeInfo.name);
-
-                return false;
+                return HYP_MAKE_ERROR(Error, "Failed to deserialize matrix element at index {} for type {}", i, typeInfo.name);
             }
 
             matrixHandler->SetElement(matrixInstance, i / matrixHandler->GetNumColumns(), i % matrixHandler->GetNumColumns(), elementData);
@@ -1412,16 +1363,14 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
 
         outBoxed = std::move(matrixInstance);
 
-        return true;
+        return {};
     }
 
     if (typeInfo.IsArrayType())
     {
         if (!jsonValue.IsArray())
         {
-            HYP_LOG(Core, Warning, "Expected JSON array for array type {}, but got JSON value: {}", typeInfo.name, jsonValue.ToString());
-
-            return false;
+            return HYP_MAKE_ERROR(Error, "Expected JSON array for array type {}, but got JSON value: {}", typeInfo.name, jsonValue.ToString());
         }
 
         const JSON::JArray& jsonArray = jsonValue.AsArray();
@@ -1430,9 +1379,7 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
 
         if (!elementTypeInfo)
         {
-            HYP_LOG(Core, Warning, "Array type {} does not have a valid element type", typeInfo.name);
-
-            return false;
+            return HYP_MAKE_ERROR(Error, "Array type {} does not have a valid element type", typeInfo.name);
         }
 
         ITypeInfoHandler* handler = typeInfo.extendedInfo.handler;
@@ -1443,9 +1390,7 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
         BoxedValue arrayInstance;
         if (!arrayHandler->CreateInstance(arrayInstance))
         {
-            HYP_LOG(Core, Warning, "Failed to create instance of array type {}", typeInfo.name);
-
-            return false;
+            return HYP_MAKE_ERROR(Error, "Failed to create instance of array type {}", typeInfo.name);
         }
 
         arrayHandler->Resize(arrayInstance, jsonArray.Size());
@@ -1460,33 +1405,27 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
 
             BoxedValue elementData;
 
-            if (!BoxedFromJSON(jsonArray[i], *elementTypeInfo, elementData))
+            if (Result result = BoxedFromJSON(jsonArray[i], *elementTypeInfo, elementData); result.HasError())
             {
-                HYP_LOG(Core, Warning, "Failed to deserialize array element at index {} for type: {}", i, typeInfo.name);
-
-                return false;
+                return HYP_MAKE_ERROR(Error, "Failed to deserialize array element at index {} for type: {}", i, typeInfo.name);
             }
 
             if (!arrayHandler->SetElementAt(arrayInstance, i, std::move(elementData)))
             {
-                HYP_LOG(Core, Warning, "Failed to set array element at index {} for type: {}", i, typeInfo.name);
-
-                return false;
+                return HYP_MAKE_ERROR(Error, "Failed to set array element at index {} for type: {}", i, typeInfo.name);
             }
         }
 
         outBoxed = std::move(arrayInstance);
 
-        return true;
+        return {};
     }
 
     if (typeInfo.IsSetType())
     {
         if (!jsonValue.IsArray())
         {
-            HYP_LOG(Core, Warning, "Expected JSON array for set type {}, but got JSON value: {}", typeInfo.name, jsonValue.ToString());
-
-            return false;
+            return HYP_MAKE_ERROR(Error, "Expected JSON array for set type {}, but got JSON value: {}", typeInfo.name, jsonValue.ToString());
         }
 
         const JSON::JArray& jsonArray = jsonValue.AsArray();
@@ -1495,9 +1434,7 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
 
         if (!elementTypeInfo)
         {
-            HYP_LOG(Core, Warning, "Set type {} does not have a valid element type", typeInfo.name);
-
-            return false;
+            return HYP_MAKE_ERROR(Error, "Set type {} does not have a valid element type", typeInfo.name);
         }
 
         ITypeInfoHandler* handler = typeInfo.extendedInfo.handler;
@@ -1508,9 +1445,7 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
         BoxedValue setInstance;
         if (!setHandler->CreateInstance(setInstance))
         {
-            HYP_LOG(Core, Warning, "Failed to create instance of set type {}", typeInfo.name);
-
-            return false;
+            return HYP_MAKE_ERROR(Error, "Failed to create instance of set type {}", typeInfo.name);
         }
 
         for (size_t i = 0; i < jsonArray.Size(); i++)
@@ -1523,11 +1458,9 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
 
             BoxedValue elementData;
 
-            if (!BoxedFromJSON(jsonArray[i], *elementTypeInfo, elementData))
+            if (Result result = BoxedFromJSON(jsonArray[i], *elementTypeInfo, elementData); result.HasError())
             {
-                HYP_LOG(Core, Warning, "Failed to deserialize set element at index {} for type: {}", i, typeInfo.name);
-
-                return false;
+                return HYP_MAKE_ERROR(Error, "Failed to deserialize set element at index {} for type: {}", i, typeInfo.name);
             }
 
             if (!setHandler->Insert(setInstance, elementData))
@@ -1541,7 +1474,7 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
 
         outBoxed = std::move(setInstance);
 
-        return true;
+        return {};
     }
 
     if (typeInfo.IsVariantType())
@@ -1559,13 +1492,12 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
             BoxedValue variantInstance;
             if (!variantHandler->CreateInstance(variantInstance))
             {
-                HYP_LOG(Core, Warning, "Failed to create instance of variant type {}", typeInfo.name);
-                return false;
+                return HYP_MAKE_ERROR(Error, "Failed to create instance of variant type {}", typeInfo.name);
             }
 
             outBoxed = std::move(variantInstance);
 
-            return true;
+            return {};
         }
 
         const int numTypes = variantHandler->GetNumTypes();
@@ -1582,30 +1514,26 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
 
             BoxedValue variantData;
 
-            if (BoxedFromJSON(jsonValue, *variantTypeInfo, variantData))
+            if (Result result = BoxedFromJSON(jsonValue, *variantTypeInfo, variantData); !result.HasError())
             {
                 BoxedValue variantInstance;
 
                 if (!variantHandler->CreateInstance(variantInstance))
                 {
-                    HYP_LOG(Core, Warning, "Failed to create instance of variant type {}", typeInfo.name);
-                    return false;
+                    return HYP_MAKE_ERROR(Error, "Failed to create instance of variant type {}", typeInfo.name);
                 }
 
                 if (!variantHandler->SetValue(variantInstance, variantData))
                 {
-                    HYP_LOG(Core, Warning, "Failed to set value of variant type {}", typeInfo.name);
-                    return false;
+                    return HYP_MAKE_ERROR(Error, "Failed to set value of variant type {}", typeInfo.name);
                 }
 
                 outBoxed = std::move(variantInstance);
-                return true;
+                return {};
             }
         }
 
-        HYP_LOG(Core, Warning, "Failed to deserialize JSON to any of the possible types for variant: {}", typeInfo.name);
-
-        return false;
+        return HYP_MAKE_ERROR(Error, "Failed to deserialize JSON to any of the possible types for variant: {}", typeInfo.name);
     }
 
     if (jsonValue.IsNull() && typeInfo.IsClass())
@@ -1613,7 +1541,7 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
         // null object
         outBoxed = BoxedValue();
 
-        return true;
+        return {};
     }
 
     // Object types
@@ -1648,30 +1576,24 @@ bool BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Boxed
 
             if (!instanceClass->CreateInstance(instance))
             {
-                HYP_LOG(Core, Warning, "Failed to create instance of Class \"{}\"", instanceClass->GetName());
-                return false;
+                return HYP_MAKE_ERROR(Error, "Failed to create instance of Class \"{}\"", instanceClass->GetName());
             }
 
-            if (!ObjectFromJSON(jsonValue.AsObject(), typeInfoClass, instance))
+            if (Result result = ObjectFromJSON(jsonValue.AsObject(), typeInfoClass, instance); result.HasError())
             {
-                HYP_LOG(Core, Warning, "Failed to deserialize instance of \"{}\" from JSON", instanceClass->GetName());
-                return false;
+                return HYP_MAKE_ERROR(Error, "Failed to deserialize instance of \"{}\" from JSON", instanceClass->GetName());
             }
 
             outBoxed = std::move(instance);
 
-            return true;
+            return {};
         }
 
-        HYP_LOG(Core, Warning, "Could not find Class for type: {}", typeInfo.name);
-
-        return false;
+        return HYP_MAKE_ERROR(Error, "Could not find Class for type: {}", typeInfo.name);
     }
 
-    HYP_LOG(Core, Warning, "Failed to deserialize JSON to BoxedValue of type: {}, no handle logic for JSON value: {}",
+    return HYP_MAKE_ERROR(Error, "Failed to deserialize JSON to BoxedValue of type: {}, no handle logic for JSON value: {}",
         typeInfo.name, jsonValue.ToString(true));
-
-    return false;
 }
 
 } // namespace Hyperion

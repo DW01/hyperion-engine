@@ -9,8 +9,8 @@ namespace threading {
 class ThreadSignal
 {
 public:
-    explicit ThreadSignal(bool startSignalled = true)
-        : m_signalCount(startSignalled ? 1 : 0)
+    explicit ThreadSignal(bool value = 1)
+        : m_value(int32(value))
     {
     }
 
@@ -25,31 +25,33 @@ public:
     void Wait()
     {
         Mutex::Guard guard(m_mutex);
-        while (m_signalCount <= 0)
+
+        int32 expected = 0;
+        while (AtomicCompareExchange(&m_value, expected, 0))
         {
+            expected = 0;
+            
             m_conditionVariable.Wait(m_mutex);
         }
-
-        m_signalCount = 0;
     }
 
     bool IsSignalled() const
     {
-        Mutex::Guard guard(m_mutex);
-        return m_signalCount > 0;
+        return AtomicAdd(&m_value, 0) > 0;
     }
 
     void Signal()
     {
         Mutex::Guard guard(m_mutex);
-        ++m_signalCount;
+        AtomicIncrement(&m_value);
         m_conditionVariable.NotifyOne();
     }
 
 private:
     mutable Mutex m_mutex;
     ConditionVariable m_conditionVariable;
-    int m_signalCount;
+
+    mutable volatile int32 m_value;
 };
 
 } // namespace threading

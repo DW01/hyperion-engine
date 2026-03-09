@@ -90,7 +90,7 @@ extern const CommandLineArguments& GetCommandLineArguments();
 
 EngineStatTimer g_renderTimer("Frame/Render");
 
-ThreadSignal g_renderInitSignal;
+ThreadSignal g_renderInitSignal { 0 };
 
 void HandleSignal(int signum)
 {
