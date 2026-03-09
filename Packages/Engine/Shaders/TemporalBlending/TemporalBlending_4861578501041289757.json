@@ -40,7 +40,7 @@
       "$Class": "ShaderProperty",
       "Name": "FEEDBACK",
       "Flags": 0,
-      "Value": 0.950000,
+      "Value": 0,
       "EnumValues": []
     }],
   "RevisionNumber": 31459917,
@@ -207,6 +207,6 @@
     }],
   "PropertySetHashCode": {},
   "Name": "TemporalBlending_4861578501041289757",
-  "FriendlyName": "TemporalBlending_4861578501041289757",
+  "FriendlyName": "TemporalBlending4861578501041289757",
   "OriginalFilepath": ""
 }

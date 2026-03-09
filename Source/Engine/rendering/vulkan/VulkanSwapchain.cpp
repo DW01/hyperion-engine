@@ -199,10 +199,10 @@ RendererResult VulkanSwapchain::Create()
 
     HYP_LOG(RenderingBackend, Verbose, "Vulkan native swapchain resolution: {}", nativeExtent);
 
-    //if (m_extent.Volume() == 0)
-    //{
+    if (m_extent.Volume() == 0)
+    {
         m_extent = nativeExtent;
-    //}
+    }
 
     const Vec2u maxExtent {
         m_supportDetails.capabilities.maxImageExtent.width,

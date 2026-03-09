@@ -47,7 +47,7 @@ extern void HandleSignal(int signum);
 
 extern EngineStatTimer g_renderTimer;
 
-extern std::binary_semaphore g_renderThreadInit;
+extern ThreadSignal g_renderInitSignal;
 
 RenderThread::RenderThread()
     : Thread(g_renderThread, ThreadPriorityValue::HIGHEST)
@@ -248,7 +248,7 @@ void RenderThread::operator()()
         HYP_FAIL("Failed to initialize rendering backend");
     }
 
-    g_renderThreadInit.release();
+    g_renderInitSignal.Signal();
 
     if (m_id != g_mainThread) // !RenderOnMainThread
     {

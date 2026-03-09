@@ -90,7 +90,7 @@ extern const CommandLineArguments& GetCommandLineArguments();
 
 EngineStatTimer g_renderTimer("Frame/Render");
 
-std::binary_semaphore g_renderThreadInit { 0 };
+ThreadSignal g_renderInitSignal;
 
 void HandleSignal(int signum)
 {
@@ -312,7 +312,7 @@ bool EngineDriver::StartThreads()
 
 #if !HYP_APPLE
     if (g_mainThread != g_renderThread)
-        g_renderThreadInit.acquire();
+        g_renderInitSignal.Wait();
 #endif
 
     success &= g_simThreadInstance->Start();

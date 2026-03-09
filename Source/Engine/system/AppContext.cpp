@@ -12,6 +12,8 @@
 
 #include <Core/debug/Debug.hpp>
 
+#include <Core/threading/ThreadSignal.hpp>
+
 #include <Core/config/Config.hpp>
 
 #include <rendering/RenderInterface.hpp>
@@ -57,7 +59,7 @@ namespace CoreApi {
 extern const GlobalConfig& GetGlobalConfig();
 } // namespace CoreApi
 
-extern std::binary_semaphore g_renderThreadInit;
+extern ThreadSignal g_renderInitSignal;
 
 /*! \brief Async task object to create a window swapchain once the render API is initialized.
  *  Since some platforms require us to create the surface on the main thread (ahem, macOS), we need to defer swapchain
@@ -80,7 +82,7 @@ struct SetupWindowSwapchainAsync
         // ensure window is still valid, otherwise, cancel the task
         if (Handle<ApplicationWindow> window = windowWeak.Lock(); window.IsValid())
         {
-            if (g_renderInterface != nullptr && g_renderThreadInit.try_acquire())
+            if (g_renderInterface != nullptr && g_renderInitSignal.IsSignalled())
             {
                 window->CreateSwapchain();
                 success = true;

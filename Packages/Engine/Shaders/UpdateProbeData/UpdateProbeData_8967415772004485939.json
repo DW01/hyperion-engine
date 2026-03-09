@@ -40,7 +40,7 @@
       "$Class": "ShaderProperty",
       "Name": "HYSTERESIS",
       "Flags": 0,
-      "Value": 0.980000,
+      "Value": 0,
       "EnumValues": []
     }],
   "RevisionNumber": 31459917,
@@ -109,6 +109,6 @@
     }],
   "PropertySetHashCode": {},
   "Name": "UpdateProbeData_8967415772004485939",
-  "FriendlyName": "UpdateProbeData_8967415772004485939",
+  "FriendlyName": "UpdateProbeData8967415772004485939",
   "OriginalFilepath": ""
 }
