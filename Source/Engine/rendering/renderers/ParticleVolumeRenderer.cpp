@@ -21,6 +21,7 @@
 #include <rendering/TextureViewCache.hpp>
 #include <rendering/Mesh.hpp>
 #include <rendering/GBuffer.hpp>
+#include <rendering/ConstantsAllocator.hpp>
 
 #include <rendering/util/DeletionQueue.hpp>
 #include <rendering/util/ShaderPropertyDictionary.hpp>
@@ -53,7 +54,6 @@ ParticleVolumeRenderer::VolumeState::~VolumeState()
 {
     EnqueueDeletion(std::move(particleBuffer));
     EnqueueDeletion(std::move(indirectBuffer));
-    EnqueueDeletion(std::move(uniformBuffers));
     EnqueueDeletion(std::move(noiseMap));
 }
 
@@ -217,36 +217,42 @@ void ParticleVolumeRenderer::RenderFrame(Frame* frame, const RenderSetup& render
     }
 
     // bind and dispatch compute
-    struct ParticleSpawnerUniforms
+    struct ComputeShaderConstants
     {
         Vec4f origin;
+
         float spawnRadius;
         float randomness;
         float avgLifespan;
         uint32 maxParticles;
+
         float maxParticlesSqrt;
         float deltaTime;
         uint32 globalCounter;
+        uint32 _pad;
     };
 
-    ParticleSpawnerUniforms uniforms {};
-    uniforms.origin = proxy->bufferData.originStartSize;
-    uniforms.spawnRadius = proxy->bufferData.spawnRadius;
-    uniforms.randomness = proxy->bufferData.randomness;
-    uniforms.avgLifespan = proxy->bufferData.avgLifespan;
-    uniforms.maxParticles = proxy->bufferData.maxParticles;
-    uniforms.maxParticlesSqrt = proxy->bufferData.maxParticlesSqrt;
-    uniforms.deltaTime = 0.016f; // TODO: real render delta
-    uniforms.globalCounter = m_counter++;
+    ComputeShaderConstants csConstants {};
+    csConstants.origin = proxy->bufferData.originStartSize;
+    csConstants.spawnRadius = proxy->bufferData.spawnRadius;
+    csConstants.randomness = proxy->bufferData.randomness;
+    csConstants.avgLifespan = proxy->bufferData.avgLifespan;
+    csConstants.maxParticles = proxy->bufferData.maxParticles;
+    csConstants.maxParticlesSqrt = proxy->bufferData.maxParticlesSqrt;
+    csConstants.deltaTime = 0.016f; // TODO: real render delta
+    csConstants.globalCounter = m_counter++;
 
-    GpuBufferRef& cBuffer = state.uniformBuffers[frame->GetFrameIndex()];
-    if (!cBuffer)
-    {
-        cBuffer = g_renderInterface->MakeGpuBuffer(GpuBufferType::CONSTANT_BUFFER, sizeof(uniforms));
-        CheckResult(cBuffer->Create());
-    }
+    g_renderInterface->constantsAllocator->Write(&csConstants);
 
-    cBuffer->Copy(sizeof(uniforms), &uniforms);
+    RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(view->GetCamera()));
+    AssertDebug(cameraProxy != nullptr);
+
+    g_renderInterface->constantsAllocator->Write(&cameraProxy->bufferData);
+    
+    GpuBuffer* cBuffer;
+    size_t cBufferOffset;
+    size_t cBufferSize;
+    g_renderInterface->constantsAllocator->Commit(cBuffer, cBufferOffset, cBufferSize);
 
     // this is rendered from translucent pass in DeferredRenderer
     Framebuffer* framebuffer = view->GetOutputTarget().GetFramebuffer(RenderBucket::Translucent);
@@ -276,9 +282,7 @@ void ParticleVolumeRenderer::RenderFrame(Frame* frame, const RenderSetup& render
         
         cr << SetShaderUniform(10, "WorldsBuffer"_sh, g_renderInterface->gpuBuffers[GRB_WORLDS]->GetBuffer(frame->GetFrameIndex()));
         
-        cr << SetShaderUniform(11, "CamerasBuffer"_sh, g_renderInterface->gpuBuffers[GRB_CAMERAS]->GetBuffer(frame->GetFrameIndex()), TShaderDataOffset<CameraShaderData>(view->GetCamera()));
-        
-        cr << SetShaderUniform(12, "ParticleSpawnerData"_sh, cBuffer);
+        cr << SetShaderUniform(11, "CBuffer"_sh, cBuffer, ShaderDataOffset(cBufferOffset, cBufferSize));
 
         const size_t maxParticles = proxy->bufferData.maxParticles;
         cr << DispatchCompute(Vec3u { uint32((maxParticles + 255) / 256), 1, 1 });

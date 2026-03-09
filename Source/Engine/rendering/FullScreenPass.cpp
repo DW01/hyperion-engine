@@ -429,6 +429,7 @@ void FullScreenPass::CreateMergeCheckerboardPass()
     }
 
     m_mergeCheckerboardUniformBuffer->Copy(sizeof(uniforms), &uniforms);
+    m_mergeCheckerboardUniformBuffer->Flush(0, sizeof(uniforms));
 
     m_mergeCheckerboardPass = MakeUnique<FullScreenPass>(
         ShaderDesc(NAME("MergeCheckerboard")),

@@ -216,7 +216,9 @@ void PostProcessing::CreateUniformBuffer()
 
     m_uniformBuffer = g_renderInterface->MakeGpuBuffer(GpuBufferType::CONSTANT_BUFFER, sizeof(postProcessingUniforms));
     CheckResult(m_uniformBuffer->Create());
-    m_uniformBuffer->Copy(sizeof(PostProcessingUniforms), &postProcessingUniforms);
+
+    m_uniformBuffer->Copy(sizeof(postProcessingUniforms), &postProcessingUniforms);
+    m_uniformBuffer->Flush(0, sizeof(postProcessingUniforms));
 }
 
 void PostProcessing::RenderPre(Frame* frame, const RenderSetup& renderSetup) const

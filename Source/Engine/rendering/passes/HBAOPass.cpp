@@ -97,6 +97,7 @@ void HBAO::Render(Frame* frame, const RenderSetup& renderSetup)
         CheckResult(m_cBuffer->Create());
 
         m_cBuffer->Copy(sizeof(constants), &constants);
+        m_cBuffer->Flush(0, sizeof(constants));
     }
 
     Begin(frame, renderSetup);

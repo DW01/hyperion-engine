@@ -509,7 +509,9 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
             uniformData.offset = atlasElement.offsetCoords;
 
             const uint32 frameIndex = frame->GetFrameIndex();
+
             cachedData->blurUniformBuffers[frameIndex]->Copy(sizeof(uniformData), &uniformData);
+            cachedData->blurUniformBuffers[frameIndex]->Flush(0, sizeof(uniformData));
 
             CommandRecorder& cr = frame->cr;
 

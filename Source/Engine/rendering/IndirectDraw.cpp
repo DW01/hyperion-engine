@@ -469,6 +469,7 @@ void IndirectRenderer::ExecuteCullShaderInBatches(Frame* frame, const RenderSetu
     constants.entityInstanceBatchStride = ByteUtil::AlignAs(m_batchAllocator->GetStructSize(), m_batchAllocator->GetStructAlignment());
 
     m_cBuffers[frameIndex]->Copy(sizeof(constants), &constants);
+    m_cBuffers[frameIndex]->Flush(0, sizeof(constants));
 
     cr << SetShaderUniform(numShaderUniforms++, "ComputeVisibilityConstants"_sh, m_cBuffers[frameIndex]);
 

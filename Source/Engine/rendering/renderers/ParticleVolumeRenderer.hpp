@@ -35,7 +35,6 @@ private:
     {
         GpuBufferRef particleBuffer; // STORAGE_BUFFER of ParticleShaderData
         GpuBufferRef indirectBuffer; // struct IndirectDrawCommand
-        FixedArray<GpuBufferRef, NumFramesInFlight> uniformBuffers; // per-frame uniform buffer for this volume
         Handle<Texture> noiseMap;    // 128x128
 
         RenderableAttributeSet renderableAttributes;

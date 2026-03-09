@@ -26,38 +26,32 @@
       "EnumValues": []
     }, {
       "$Class": "ShaderProperty",
-      "Name": "DEBUG_REFLECTIONS",
+      "Name": "HAS_PHYSICS",
       "Flags": 0,
       "Value": null,
       "EnumValues": []
     }, {
       "$Class": "ShaderProperty",
-      "Name": "INSTANCING",
+      "Name": "MAX_PARTICLES",
       "Flags": 0,
-      "Value": null,
-      "EnumValues": []
-    }, {
-      "$Class": "ShaderProperty",
-      "Name": "SHADING_TYPE",
-      "Flags": 0,
-      "Value": "DEFERRED",
+      "Value": 2048,
       "EnumValues": []
     }],
   "RevisionNumber": 31459917,
-  "BaseName": "RenderSky",
+  "BaseName": "UpdateParticles",
   "VertexAttributes": {
-    "FlagMask": 7
+    "FlagMask": 0
   },
   "ShaderInputGroup": {
     "Elements": [{
         "$Class": "ShaderInputSet",
         "SetIndex": 0,
-        "Name": "Default",
+        "Name": "UpdateParticlesDescriptorSet",
         "Slots": [[{
               "$Class": "ShaderInput",
               "Register": 1,
-              "ElementType": 3,
-              "Name": "EntitiesBuffer",
+              "ElementType": 5,
+              "Name": "GBufferDepthTexture",
               "Count": 1,
               "Size": 4294967295,
               "IsDynamic": false,
@@ -70,8 +64,120 @@
             }, {
               "$Class": "ShaderInput",
               "Register": 1,
-              "ElementType": 4,
-              "Name": "EntityInstanceBatchesBuffer",
+              "ElementType": 5,
+              "Name": "GBufferAlbedoTexture",
+              "Count": 1,
+              "Size": 4294967295,
+              "IsDynamic": false,
+              "StructInfo": {
+                "Name": "",
+                "Size": 4294967295,
+                "FieldNames": [],
+                "FieldTypes": []
+              }
+            }, {
+              "$Class": "ShaderInput",
+              "Register": 1,
+              "ElementType": 5,
+              "Name": "GBufferNormalsTexture",
+              "Count": 1,
+              "Size": 4294967295,
+              "IsDynamic": false,
+              "StructInfo": {
+                "Name": "",
+                "Size": 4294967295,
+                "FieldNames": [],
+                "FieldTypes": []
+              }
+            }, {
+              "$Class": "ShaderInput",
+              "Register": 1,
+              "ElementType": 5,
+              "Name": "GBufferVelocityTexture",
+              "Count": 1,
+              "Size": 4294967295,
+              "IsDynamic": false,
+              "StructInfo": {
+                "Name": "",
+                "Size": 4294967295,
+                "FieldNames": [],
+                "FieldTypes": []
+              }
+            }, {
+              "$Class": "ShaderInput",
+              "Register": 1,
+              "ElementType": 5,
+              "Name": "GBufferMaterialTexture",
+              "Count": 1,
+              "Size": 4294967295,
+              "IsDynamic": false,
+              "StructInfo": {
+                "Name": "",
+                "Size": 4294967295,
+                "FieldNames": [],
+                "FieldTypes": []
+              }
+            }, {
+              "$Class": "ShaderInput",
+              "Register": 1,
+              "ElementType": 5,
+              "Name": "NoiseMap",
+              "Count": 1,
+              "Size": 4294967295,
+              "IsDynamic": false,
+              "StructInfo": {
+                "Name": "",
+                "Size": 4294967295,
+                "FieldNames": [],
+                "FieldTypes": []
+              }
+            }], [{
+              "$Class": "ShaderInput",
+              "Register": 2,
+              "ElementType": 3,
+              "Name": "ParticlesBuffer",
+              "Count": 1,
+              "Size": 4294967295,
+              "IsDynamic": false,
+              "StructInfo": {
+                "Name": "",
+                "Size": 4294967295,
+                "FieldNames": [],
+                "FieldTypes": []
+              }
+            }, {
+              "$Class": "ShaderInput",
+              "Register": 2,
+              "ElementType": 3,
+              "Name": "IndirectDrawCommandsBuffer",
+              "Count": 1,
+              "Size": 4294967295,
+              "IsDynamic": false,
+              "StructInfo": {
+                "Name": "",
+                "Size": 4294967295,
+                "FieldNames": [],
+                "FieldTypes": []
+              }
+            }], [{
+              "$Class": "ShaderInput",
+              "Register": 3,
+              "ElementType": 1,
+              "Name": "WorldsBuffer",
+              "Count": 1,
+              "Size": 4294967295,
+              "IsDynamic": false,
+              "StructInfo": {
+                "Name": "",
+                "Size": 4294967295,
+                "FieldNames": [],
+                "FieldTypes": []
+              }
+            }, {
+              "$Class": "ShaderInput",
+              "Register": 3,
+              "ElementType": 2,
+              "Name": "ParticleSpawnerData",
               "Count": 1,
               "Size": 4294967295,
               "IsDynamic": true,
@@ -82,48 +188,6 @@
                 "FieldTypes": []
               }
             }, {
-              "$Class": "ShaderInput",
-              "Register": 1,
-              "ElementType": 4,
-              "Name": "CurrentLight",
-              "Count": 1,
-              "Size": 4294967295,
-              "IsDynamic": true,
-              "StructInfo": {
-                "Name": "",
-                "Size": 4294967295,
-                "FieldNames": [],
-                "FieldTypes": []
-              }
-            }, {
-              "$Class": "ShaderInput",
-              "Register": 1,
-              "ElementType": 4,
-              "Name": "CurrentEnvProbe",
-              "Count": 1,
-              "Size": 4294967295,
-              "IsDynamic": true,
-              "StructInfo": {
-                "Name": "",
-                "Size": 4294967295,
-                "FieldNames": [],
-                "FieldTypes": []
-              }
-            }, {
-              "$Class": "ShaderInput",
-              "Register": 1,
-              "ElementType": 4,
-              "Name": "MaterialsBuffer",
-              "Count": 1,
-              "Size": 4294967295,
-              "IsDynamic": true,
-              "StructInfo": {
-                "Name": "",
-                "Size": 4294967295,
-                "FieldNames": [],
-                "FieldTypes": []
-              }
-            }], [], [{
               "$Class": "ShaderInput",
               "Register": 3,
               "ElementType": 2,
@@ -169,20 +233,16 @@
         "Flags": 0
       }]
   },
-  "ShaderModuleTypes": [1, 2],
-  "ShaderModuleNames": ["RenderSky.vert", "RenderSky.frag"],
-  "EntryPointNames": ["main", "main"],
+  "ShaderModuleTypes": [4],
+  "ShaderModuleNames": ["UpdateParticles.hlsl"],
+  "EntryPointNames": ["CSMain"],
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
-      "Key": "Engine/Shaders/RenderSky/RenderSky_17325309730764028782.VS",
-      "Size": 8072
-    }, {
-      "$Class": "BlobDataReference",
-      "Key": "Engine/Shaders/RenderSky/RenderSky_17325309730764028782.PS",
-      "Size": 15236
+      "Key": "Engine/Shaders/UpdateParticles/UpdateParticles_4637316556027118789.CS",
+      "Size": 8684
     }],
   "PropertySetHashCode": {},
-  "Name": "RenderSky_17325309730764028782",
-  "FriendlyName": "RenderSky_17325309730764028782",
+  "Name": "UpdateParticles_4637316556027118789",
+  "FriendlyName": "UpdateParticles4637316556027118789",
   "OriginalFilepath": ""
 }

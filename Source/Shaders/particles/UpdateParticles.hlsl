@@ -53,21 +53,21 @@ DECLARE_BUFFER(UpdateParticlesDescriptorSet, WorldsBuffer) cbuffer WorldsBuffer
     WorldShaderData world_shader_data;
 };
 
-DECLARE_BUFFER_DYNAMIC(UpdateParticlesDescriptorSet, CamerasBuffer) cbuffer CamerasBuffer
-{
-    Camera camera;
-};
-
-DECLARE_BUFFER(UpdateParticlesDescriptorSet, ParticleSpawnerData) cbuffer ParticleSpawnerData
+DECLARE_BUFFER_DYNAMIC(UpdateParticlesDescriptorSet, CBuffer) cbuffer CBuffer
 {
     float4 origin;
+    
     float spawn_radius;
     float randomness;
     float avg_lifespan;
     uint max_particles;
+
     float max_particles_sqrt;
     float delta_time;
     uint global_counter;
+    uint _pad;
+
+    Camera camera;
 };
 
 float3 GetNoiseValue(uint id)

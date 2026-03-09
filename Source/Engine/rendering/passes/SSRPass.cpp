@@ -232,7 +232,9 @@ void SSRPass::UpdatePipelineState(Frame* frame, const RenderSetup& renderSetup)
         m_uniformBuffer->SetDebugName(NAME("SSR_UniformBuffer"));
 #endif
         CheckResult(m_uniformBuffer->Create());
+
         m_uniformBuffer->Copy(sizeof(uniforms), &uniforms);
+        m_uniformBuffer->Flush(0, sizeof(uniforms));
 
         // Create textures
         m_uvsTexture = MakeHandle<Texture>(TextureDesc {

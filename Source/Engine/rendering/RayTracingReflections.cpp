@@ -148,9 +148,12 @@ void RayTracingReflections::UpdateUniforms(Frame* frame, const RenderSetup& rend
                 lightIndicesU32[numBoundLights++] = RetrieveResourceBinding(light);
             }
 
+            lightsBuffer->Flush(0, numBoundLights * sizeof(LightShaderData));
+
             constantData.numBoundLights = numBoundLights;
 
-            cBuffer->Copy(sizeof(RayTracingConstants), &constantData);
+            cBuffer->Copy(sizeof(constantData), &constantData);
+            cBuffer->Flush(0, sizeof(constantData));
         }
     };
 

@@ -336,14 +336,20 @@ void LightmapRenderer_GpuPathTracing::UpdateUniforms(Frame* frame, BakeJobBase* 
                 RenderProxyLight* lightProxy = static_cast<RenderProxyLight*>(GetRenderProxy(light));
                 Assert(lightProxy != nullptr);
 
-                lightsBuffer->Copy(numBoundLights * sizeof(LightShaderData), sizeof(LightShaderData), &lightProxy->bufferData);
+                const size_t offset = numBoundLights * sizeof(LightShaderData);
+                const size_t count = sizeof(LightShaderData);
+
+                lightsBuffer->Copy(offset, count, &lightProxy->bufferData);
 
                 uniforms.lightIndices[numBoundLights++] = RetrieveResourceBinding(light);
             }
+            
+            lightsBuffer->Flush(0, numBoundLights * sizeof(LightShaderData));
 
             uniforms.numBoundLights = numBoundLights;
 
             cBuffer->Copy(sizeof(uniforms), &uniforms);
+            cBuffer->Flush(0, sizeof(uniforms));
         }
     };
     

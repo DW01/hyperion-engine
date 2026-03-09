@@ -134,6 +134,7 @@ void DepthPyramidRenderer::Create()
             CheckResult(mipUniformBuffer->Create());
 
             mipUniformBuffer->Copy(sizeof(DepthPyramidUniforms), &uniforms);
+            mipUniformBuffer->Flush(0, sizeof(DepthPyramidUniforms));
 
             GpuImageViewRef& mipImageView = m_mipImageViews.PushBack(g_renderInterface->MakeImageView(m_depthPyramid, mipLevel, 1, 0, m_depthPyramid->NumArrayLayers()));
 #if HYP_DEBUG_MODE

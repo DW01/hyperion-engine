@@ -242,8 +242,11 @@ void DDGI::UpdateUniforms(Frame* frame, const RenderSetup& renderSetup)
 
         lightIndicesU32[uniforms.numBoundLights++] = RetrieveResourceBinding(light);
     }
+    
+    m_lightsBuffers[frameIndex]->Flush(0, uniforms.numBoundLights * sizeof(LightShaderData));
 
-    m_cBuffers[frameIndex]->Copy(sizeof(DDGIConstants), &uniforms);
+    m_cBuffers[frameIndex]->Copy(sizeof(uniforms), &uniforms);
+    m_cBuffers[frameIndex]->Flush(0, sizeof(uniforms));
 
     if (m_counter == 0)
     {

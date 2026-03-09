@@ -144,19 +144,19 @@
       }]
   },
   "ShaderModuleTypes": [1, 2],
-  "ShaderModuleNames": ["RenderSky.vert", "RenderSky.frag"],
-  "EntryPointNames": ["main", "main"],
+  "ShaderModuleNames": ["RenderSky.hlsl", "RenderSky.hlsl"],
+  "EntryPointNames": ["VSMain", "PSMain"],
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/RenderSky/RenderSky_11399982633662477820.VS",
-      "Size": 6724
+      "Size": 4960
     }, {
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/RenderSky/RenderSky_11399982633662477820.PS",
-      "Size": 14860
+      "Size": 5892
     }],
   "PropertySetHashCode": {},
   "Name": "RenderSky_11399982633662477820",
-  "FriendlyName": "RenderSky_11399982633662477820",
+  "FriendlyName": "RenderSky11399982633662477820",
   "OriginalFilepath": ""
 }
