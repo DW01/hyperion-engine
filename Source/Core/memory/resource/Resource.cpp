@@ -178,7 +178,7 @@ void ResourceBase::AddWriter(bool doInitialize)
 
         Initialize();
 
-        m_isInitialized = true;
+        m_isInitialized.Store(true);
     }
 }
 
@@ -188,11 +188,11 @@ void ResourceBase::ReleaseWriter(bool doDeinitialize)
     {
         Mutex::Guard initGuard(m_initMutex);
 
-        Assert(m_isInitialized);
+        Assert(m_isInitialized.LoadVolatile());
 
         Destroy();
 
-        m_isInitialized = false;
+        m_isInitialized.Store(false);
     }
 
     AtomicBitAnd(&m_state, ~0x1);
@@ -214,31 +214,39 @@ void ResourceBase::AddReader()
 
         if (state == 0)
         {
-            // successfully acquired read lock
-            Mutex::Guard initGuard(m_initMutex);
+            bool shouldNotifyWaiters = false;
 
-            isInitializedLocal = m_isInitialized;
-
-            if (!isInitializedLocal)
             {
-                // need to do initialize here, since we're the first reader
-                m_isInitialized = true;
-                isInitializedLocal = true;
+                // successfully acquired read lock
+                Mutex::Guard initGuard(m_initMutex);
 
-                Initialize();
+                isInitializedLocal = m_isInitialized.Load();
 
+                if (!isInitializedLocal)
+                {
+                    // need to do initialize here, since we're the first reader
+                    m_isInitialized.Store(true);
+                    isInitializedLocal = true;
+
+                    Initialize();
+
+                    shouldNotifyWaiters = true;
+                }
+            }
+
+            if (shouldNotifyWaiters)
+            {
                 m_initCV.NotifyAll();
             }
         }
 
         if (!isInitializedLocal)
         {
-            // successfully acquired read lock
-            Mutex::Guard initGuard(m_initMutex);
-
             // wait for initialization to complete
-            while (!m_isInitialized)
+            while (!m_isInitialized.Load())
             {
+                Mutex::Guard initGuard(m_initMutex);
+
                 m_initCV.Wait(m_initMutex);
             }
         }
@@ -293,11 +301,11 @@ void ResourceBase::ReleaseReader()
 {
     Mutex::Guard initGuard(m_initMutex);
 
-    if (m_isInitialized && AtomicSub(&m_state, 2) == 2)
+    if (m_isInitialized.Load() && AtomicSub(&m_state, 2) == 2)
     {
         Destroy();
 
-        m_isInitialized = false;
+        m_isInitialized.Store(false);
     }
 }
 

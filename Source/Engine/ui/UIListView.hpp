@@ -128,8 +128,11 @@ public:
 
     virtual void AddChildUIObject(const Handle<UIObject>& uiObject) override;
     virtual bool RemoveChildUIObject(UIObject* uiObject) override;
-
+    
+    UIListViewItem* FindListViewItem(Name name) const;
     UIListViewItem* FindListViewItem(const UUID& dataSourceElementUuid) const;
+
+    void UpdateLayout();
 
     Delegate<void, UIListViewItem*> OnSelectedItemChange;
 
@@ -139,8 +142,6 @@ protected:
     virtual void UpdateSize_Internal(bool updateChildren) override;
 
     virtual void SetDataSource_Internal(UIDataSourceBase* dataSource) override;
-
-    void UpdateLayout();
 
 private:
     static UIListViewItem* FindListViewItem(const UIObject* parentObject, const UUID& dataSourceElementUuid);

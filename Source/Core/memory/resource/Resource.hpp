@@ -3,6 +3,7 @@
 #pragma once
 
 #include <Core/threading/AtomicVar.hpp>
+#include <Core/threading/AtomicFlag.hpp>
 #include <Core/threading/Semaphore.hpp>
 #include <Core/threading/DataRaceDetector.hpp>
 #include <Core/threading/ConditionVariable.hpp>
@@ -127,7 +128,7 @@ private:
 
     mutable Mutex m_initMutex;
     ConditionVariable m_initCV;
-    bool m_isInitialized;
+    AtomicFlag m_isInitialized;
 };
 
 } // namespace Hyperion

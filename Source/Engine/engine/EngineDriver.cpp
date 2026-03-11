@@ -88,7 +88,7 @@ extern FilePath GetExecutablePath();
 extern const CommandLineArguments& GetCommandLineArguments();
 } // namespace CoreApi
 
-EngineStatTimer g_renderTimer("Frame/Render");
+EngineStatTimer g_statRenderUpdate("Render/Update");
 
 ThreadSignal g_renderInitSignal { 0 };
 

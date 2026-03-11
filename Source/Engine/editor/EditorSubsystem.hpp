@@ -487,6 +487,11 @@ private:
         return m_hoveredGizmo.IsValid() && m_hoveredGizmoNode.IsValid();
     }
 
+    SubsystemUpdatePhase GetUpdatePhase_Internal() const override
+    {
+        return SubsystemUpdatePhase::AfterVis;
+    }
+
     Handle<Scene> m_editorScene;
 
     Handle<EditorProject> m_currentProject;

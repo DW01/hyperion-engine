@@ -17,15 +17,15 @@ class UIText;
 class UIListView;
 
 HYP_CLASS()
-class HYP_API StatOverlay : public EditorDebugOverlayBase
+class HYP_API BaseStatsOverlay : public EditorDebugOverlayBase
 {
-    HYP_OBJECT_BODY(StatOverlay);
+    HYP_OBJECT_BODY(BaseStatsOverlay);
 
     static const Array<Pair<int, Color>> s_fpsColors;
 
 public:
-    StatOverlay();
-    virtual ~StatOverlay() override;
+    BaseStatsOverlay();
+    virtual ~BaseStatsOverlay() override;
 
 protected:
     HYP_METHOD()

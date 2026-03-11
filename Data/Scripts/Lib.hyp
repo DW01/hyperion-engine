@@ -1490,7 +1490,13 @@ extern class TextureOverlay : EditorDebugOverlayBase
 end
 extern class TextOverlay : EditorDebugOverlayBase
 end
-extern class StatOverlay : EditorDebugOverlayBase
+extern class StatsOverlay : EditorDebugOverlayBase
+    CreateUIObject_Impl(spawnParent : UIObject) -> UIObject
+    GetPlacement_Impl() -> int
+    Update_Impl(delta : float) -> void
+    IsEnabled_Impl() -> bool
+end
+extern class BaseStatsOverlay : EditorDebugOverlayBase
     CreateUIObject_Impl(spawnParent : UIObject) -> UIObject
     GetPlacement_Impl() -> int
     Update_Impl(delta : float) -> void

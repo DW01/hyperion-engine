@@ -2,7 +2,7 @@
 
 #include <EditorPch.hpp>
 
-#include <editor/ui/debug/StatOverlay.hpp>
+#include <editor/ui/debug/BaseStatsOverlay.hpp>
 
 #include <ui/UIListView.hpp>
 #include <ui/UIText.hpp>
@@ -11,7 +11,7 @@
 
 #include <engine/EngineStats.hpp>
 
-#include <StatOverlay.generated.inl>
+#include <BaseStatsOverlay.generated.inl>
 
 namespace Hyperion {
 
@@ -31,29 +31,29 @@ extern EngineStatCounter<uint32> g_statEnvProbes;
 extern EngineStatCounter<uint32> g_statEnvGrids;
 extern EngineStatCounter<uint32> g_statDebugDraws;
 
-extern EngineStatTimer g_simTimer;
-extern EngineStatTimer g_renderTimer;
-extern EngineStatTimer g_renderCpuSyncTimer;
-extern EngineStatTimer g_scriptUpdateTimer;
+extern EngineStatTimer g_statSimUpdate;
+extern EngineStatTimer g_statRenderUpdate;
+extern EngineStatTimer g_statRenderThreadSync;
+extern EngineStatTimer g_statScriptUpdate;
 
-#pragma region StatOverlay
+#pragma region BaseStatsOverlay
 
-const Array<Pair<int, Color>> StatOverlay::s_fpsColors = {
+const Array<Pair<int, Color>> BaseStatsOverlay::s_fpsColors = {
     { 30, Color(1.0f, 0.0f, 0.0f, 1.0f) },
     { 60, Color(1.0f, 1.0f, 0.0f, 1.0f) },
     { INT32_MAX, Color(0.0f, 1.0f, 0.0f, 1.0f) }
 };
 
-StatOverlay::StatOverlay()
+BaseStatsOverlay::BaseStatsOverlay()
     : m_deltaAccumGame(0.0f),
       m_numTicksGame(0)
 {
     m_timer = ClockTimer { 0.0333f }; // update max. 30hz/s
 }
 
-StatOverlay::~StatOverlay() = default;
+BaseStatsOverlay::~BaseStatsOverlay() = default;
 
-Handle<UIObject> StatOverlay::CreateUIObject_Impl(UIObject* spawnParent)
+Handle<UIObject> BaseStatsOverlay::CreateUIObject_Impl(UIObject* spawnParent)
 {
     HYP_SCOPE;
 
@@ -110,7 +110,7 @@ Handle<UIObject> StatOverlay::CreateUIObject_Impl(UIObject* spawnParent)
     return panel;
 }
 
-void StatOverlay::Update_Impl(float delta)
+void BaseStatsOverlay::Update_Impl(float delta)
 {
     HYP_SCOPE;
 
@@ -142,8 +142,8 @@ void StatOverlay::Update_Impl(float delta)
             snapshot[StatIdMsPerFrame].avg,
             snapshot[StatIdMsPerFrame].min,
             snapshot[StatIdMsPerFrame].max,
-            g_simTimer.GetValue(),
-            g_renderTimer.GetValue()));
+            MathUtil::Round(g_statSimUpdate.GetValue(), 2),
+            MathUtil::Round(g_statRenderUpdate.GetValue(), 2)));
 
         m_fpsTextElement->SetTextColor(GetFpsColor(avgFps));
     }
@@ -194,7 +194,7 @@ void StatOverlay::Update_Impl(float delta)
     }
 }
 
-Color StatOverlay::GetFpsColor(int fps)
+Color BaseStatsOverlay::GetFpsColor(int fps)
 {
     for (const Pair<int, Color>& pair : s_fpsColors)
     {
@@ -207,6 +207,6 @@ Color StatOverlay::GetFpsColor(int fps)
     return s_fpsColors.Back().second;
 }
 
-#pragma endregion StatOverlay
+#pragma endregion BaseStatsOverlay
 
 } // namespace Hyperion

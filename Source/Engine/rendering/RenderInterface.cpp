@@ -118,7 +118,7 @@ static uint32 s_frameIndex[2] = { 0 };
 static std::counting_semaphore<RingBufferDepth> s_fullSemaphore { 0 };
 static std::counting_semaphore<RingBufferDepth> s_freeSemaphore { RingBufferDepth };
 
-EngineStatTimer g_renderCpuSyncTimer("Render/Sync");
+EngineStatTimer g_statRenderThreadSync("Render/Sync");
 
 enum
 {
@@ -1132,7 +1132,7 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
     AssertOnThread(g_renderThread);
 
     {
-        ENGINE_STAT_SCOPE(&g_renderCpuSyncTimer);
+        ENGINE_STAT_SCOPE(&g_statRenderThreadSync);
 
         while (!s_fullSemaphore.try_acquire())
         {

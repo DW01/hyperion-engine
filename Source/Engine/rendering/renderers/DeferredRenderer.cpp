@@ -120,9 +120,7 @@ static constexpr StringHash GBufferTextureNames[GTN_MAX] = {
     "GBufferDepthTexture"_sh
 };
 
-static EngineStatTimer s_deferredPassTimer("Rendering/Deferred/DeferredPass");
-static EngineStatTimer s_deferredDirectLightingTimer("Rendering/Deferred/DirectLighting");
-static EngineStatTimer s_deferredIndirectLightingTimer("Rendering/Deferred/IndirectLighting");
+static EngineStatTimer s_statDeferredPass("Rendering/Deferred/DeferredPass");
 
 // Global stat counter instances
 EngineStatCounter<uint32> g_statDrawCalls("Rendering/DrawCalls");
@@ -298,15 +296,9 @@ void DeferredPass::Resize_Internal(Vec2u newSize)
 void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup& rs, Framebuffer* framebuffer)
 {
     HYP_SCOPE;
-    ENGINE_STAT_SCOPE(&s_deferredPassTimer);
 
     AssertDebug(rs.world && rs.view);
     AssertDebug(rs.passData != nullptr);
-
-    ENGINE_STAT_SCOPE(
-        m_mode == DPM_DIRECT_LIGHTING
-            ? &s_deferredDirectLightingTimer
-            : &s_deferredIndirectLightingTimer);
 
     const uint32 frameIndex = frame->GetFrameIndex();
 
@@ -2036,6 +2028,8 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     passData.postProcessing->RenderPre(frame, rs);
 
     { // deferred lighting on opaque objects
+        ENGINE_STAT_SCOPE(&s_statDeferredPass);
+
         frame->cr << InsertBarrier(
             passData.deferredShadingFramebuffer->GetAttachment(1)->GetGpuImage(),
             RS_RENDER_TARGET,

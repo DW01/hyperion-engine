@@ -426,6 +426,21 @@ void UIListView::SetDataSource_Internal(UIDataSourceBase* dataSource)
         });
 }
 
+UIListViewItem* UIListView::FindListViewItem(Name name) const
+{
+    auto it = m_listViewItems.FindIf([name](UIListViewItem* item)
+        {
+            return item->GetName() == name;
+        });
+
+    if (it == m_listViewItems.End())
+    {
+        return nullptr;
+    }
+
+    return *it;
+}
+
 UIListViewItem* UIListView::FindListViewItem(const UUID& dataSourceElementUuid) const
 {
     return FindListViewItem(this, dataSourceElementUuid);

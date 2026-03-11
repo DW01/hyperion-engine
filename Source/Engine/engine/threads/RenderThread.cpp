@@ -45,7 +45,7 @@ namespace Hyperion {
 
 extern void HandleSignal(int signum);
 
-extern EngineStatTimer g_renderTimer;
+extern EngineStatTimer g_statRenderUpdate;
 
 extern ThreadSignal g_renderInitSignal;
 
@@ -101,7 +101,7 @@ void RenderThread::Stop()
 
 void RenderThread::Update()
 {
-    ENGINE_STAT_SCOPE(&g_renderTimer);
+    ENGINE_STAT_SCOPE(&g_statRenderUpdate);
 
     g_renderInterface->BeginFrame(&m_stopRequested);
 

@@ -39,7 +39,7 @@ namespace Hyperion {
 
 HYP_DEFINE_LOG_CHANNEL(SimThread);
 
-EngineStatTimer g_simTimer("SimThread/Update");
+EngineStatTimer g_statSimUpdate("SimThread/Update");
 
 extern void DestroyDetachedScenes();
 
@@ -129,7 +129,7 @@ void SimThread::SetGameInstance(Game* gameInstance)
 
 void SimThread::Update()
 {
-    ENGINE_STAT_SCOPE(&g_simTimer);
+    ENGINE_STAT_SCOPE(&g_statSimUpdate);
     HYP_PROFILE_BEGIN;
 
     m_counter.NextTick();

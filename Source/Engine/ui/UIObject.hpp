@@ -981,14 +981,14 @@ public:
      *  \param name The Name of the child UIObject to find.
      *  \param deep If true, search all descendants. If false, only search immediate children.
      *  \return The child UIObject with the specified Name, or nullptr if no child UIObject with the specified Name was found. */
-    Handle<UIObject> FindChildUIObject(StringHash name, bool deep = true) const;
+    virtual Handle<UIObject> FindChildUIObject(StringHash name, bool deep = true) const;
 
     /*! \brief Find a child UIObject by predicate. Checks descendants using breadth-first search. If multiple children match the predicate, the first one found is returned.
      *  If no child UIObject matches the predicate, nullptr is returned.
      *  \param predicate The predicate to match against the child UIObjects.
      *  \param deep If true, search all descendants. If false, only search immediate children.
      *  \return The child UIObject that matches the predicate, or nullptr if no child UIObject matches the predicate. */
-    Handle<UIObject> FindChildUIObject(ProcRef<bool(UIObject*)> predicate, bool deep = true) const;
+    virtual Handle<UIObject> FindChildUIObject(ProcRef<bool(UIObject*)> predicate, bool deep = true) const;
 
     /*! \brief Check if the UI object has any child UIObjects.
      *  \return True if the object has child UIObjects, false otherwise. */

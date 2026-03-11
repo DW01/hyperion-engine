@@ -35,7 +35,7 @@
 
 namespace Hyperion {
 
-EngineStatTimer g_scriptUpdateTimer("Script/Update");
+EngineStatTimer g_statScriptUpdate("Script/Update");
 
 constexpr bool enableScriptReloading = true;
 
@@ -254,7 +254,7 @@ void ScriptSystem::Process(float delta, Span<Handle<Scene>> scenes)
         return;
     }
 
-    ENGINE_STAT_SCOPE(&g_scriptUpdateTimer);
+    ENGINE_STAT_SCOPE(&g_statScriptUpdate);
 
     for (Scene* scene : scenes)
     {

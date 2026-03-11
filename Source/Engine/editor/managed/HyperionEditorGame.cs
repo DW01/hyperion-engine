@@ -55,7 +55,10 @@ namespace Hyperion.Editor
                 HandleProjectOpened(project);
             }
 
-            StatOverlay statOverlay = new StatOverlay();
+            EditorDebugOverlayBase statOverlay = new BaseStatsOverlay();
+            _editorSubsystem.AddDebugOverlay(statOverlay);
+
+            statOverlay = new StatsOverlay();
             _editorSubsystem.AddDebugOverlay(statOverlay);
 
             //project.World.AddSystem(new DynamicSkySystem());

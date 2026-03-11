@@ -24,7 +24,7 @@ namespace Hyperion {
 
 extern uint32 GetFrameCounter();
 
-EngineStatTimer g_visUpdateTimer("Vis/Update");
+static EngineStatTimer s_statVisUpdate("Vis/Update");
 
 static bool ProcessEntity(
     Entity* entity,
@@ -181,7 +181,7 @@ void VisThread::AddViewToProcess(View* view)
 
 void VisThread::Process()
 {
-    ENGINE_STAT_SCOPE(&g_visUpdateTimer);
+    ENGINE_STAT_SCOPE(&s_statVisUpdate);
 
     m_simSemaphore.acquire();
 
