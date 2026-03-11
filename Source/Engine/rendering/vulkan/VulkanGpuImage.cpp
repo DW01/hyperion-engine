@@ -801,11 +801,11 @@ void VulkanGpuImage::InsertBarrier(
     }
 }
 
-RendererResult VulkanGpuImage::Blit(
+void VulkanGpuImage::Blit(
     VulkanCommandBuffer* commandBuffer,
     const VulkanGpuImage* srcImage)
 {
-    return Blit(
+    Blit(
         commandBuffer,
         srcImage,
         Rect<uint32> { 0, 0, srcImage->GetExtent().x, srcImage->GetExtent().y },
@@ -818,13 +818,13 @@ RendererResult VulkanGpuImage::Blit(
             .numLayers = m_textureDesc.NumArrayLayers() });
 }
 
-RendererResult VulkanGpuImage::Blit(
+void VulkanGpuImage::Blit(
     VulkanCommandBuffer* commandBuffer,
     const VulkanGpuImage* srcImage,
-    Rect<uint32> srcRect,
-    Rect<uint32> dstRect)
+    const Rect<uint32>& srcRect,
+    const Rect<uint32>& dstRect)
 {
-    return Blit(
+    Blit(
         commandBuffer,
         srcImage,
         srcRect,
@@ -839,11 +839,11 @@ RendererResult VulkanGpuImage::Blit(
         });
 }
 
-RendererResult VulkanGpuImage::Blit(
+void VulkanGpuImage::Blit(
     VulkanCommandBuffer* commandBuffer,
     const VulkanGpuImage* srcImage,
-    Rect<uint32> srcRect,
-    Rect<uint32> dstRect,
+    const Rect<uint32>& srcRect,
+    const Rect<uint32>& dstRect,
     const ImageSubResource& srcSubResource,
     const ImageSubResource& dstSubResource)
 {
@@ -908,7 +908,7 @@ RendererResult VulkanGpuImage::Blit(
             1, &blit,
             ToVkFilter(GetMinFilterMode()));
 
-        return {};
+        return;
     }
 
     // complex path; per-subresource states
@@ -955,7 +955,7 @@ RendererResult VulkanGpuImage::Blit(
         }
     }
 
-    return {};
+    return;
 }
 
 void VulkanGpuImage::CopyFromBuffer(
@@ -1090,6 +1090,132 @@ void VulkanGpuImage::CopyToBuffer(VulkanCommandBuffer* commandBuffer, VulkanGpuB
             dstBuffer->GetVulkanHandle(),
             1,
             &region);
+    }
+}
+
+void VulkanGpuImage::CopyFrom(
+    VulkanCommandBuffer* commandBuffer,
+    const VulkanGpuImage* srcImage,
+    const Vec3u& srcOffset,
+    const Vec3u& dstOffset,
+    const Vec3u& extent,
+    const ImageSubResource& srcSubResource,
+    const ImageSubResource& dstSubResource)
+{
+    VkImageAspectFlags srcAspectFlagBits = 0;
+
+    if (TextureUtils::IsDepthFormat(srcImage->GetTextureFormat()))
+    {
+        srcAspectFlagBits |= VK_IMAGE_ASPECT_DEPTH_BIT;
+
+        if (TextureUtils::HasStencilComponent(srcImage->GetTextureFormat()))
+        {
+            srcAspectFlagBits |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
+    }
+    else
+    {
+        srcAspectFlagBits |= VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+
+    VkImageAspectFlags dstAspectFlagBits = 0;
+
+    if (TextureUtils::IsDepthFormat(GetTextureFormat()))
+    {
+        dstAspectFlagBits |= VK_IMAGE_ASPECT_DEPTH_BIT;
+
+        if (TextureUtils::HasStencilComponent(GetTextureFormat()))
+        {
+            dstAspectFlagBits |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
+    }
+    else
+    {
+        dstAspectFlagBits |= VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+
+    // simple path; all resource states are same
+    if (m_subResourceStates.Empty() && srcImage->m_subResourceStates.Empty())
+    {
+        const ResourceState srcResourceState = srcImage->m_resourceState;
+        const ResourceState dstResourceState = m_resourceState;
+
+        AssertDebug(srcResourceState == RS_COPY_SRC);
+        AssertDebug(dstResourceState == RS_COPY_DST);
+
+        VkImageCopy copy {};
+        copy.extent = { extent.x, extent.y, extent.z };
+        copy.srcOffset = { int(srcOffset.x), int(srcOffset.y), int(srcOffset.z) };
+        copy.dstOffset = { int(dstOffset.x), int(dstOffset.y), int(dstOffset.z) };
+        copy.srcSubresource = {
+            .aspectMask = srcAspectFlagBits,
+            .mipLevel = srcSubResource.baseMipLevel,
+            .baseArrayLayer = srcSubResource.baseArrayLayer,
+            .layerCount = srcSubResource.numLayers
+        };
+        copy.dstSubresource = {
+            .aspectMask = dstAspectFlagBits,
+            .mipLevel = dstSubResource.baseMipLevel,
+            .baseArrayLayer = dstSubResource.baseArrayLayer,
+            .layerCount = dstSubResource.numLayers
+        };
+
+        vkCmdCopyImage(
+            commandBuffer->GetVulkanHandle(),
+            srcImage->GetVulkanHandle(),
+            GetVkImageLayout(srcResourceState),
+            m_handle,
+            GetVkImageLayout(dstResourceState),
+            1, &copy);
+    }
+
+    // complex path; per-subresource states
+    for (uint16 layerIndex = 0; layerIndex < MathUtil::Min(srcSubResource.numLayers, srcImage->NumArrayLayers() - srcSubResource.baseArrayLayer); layerIndex++)
+    {
+        for (uint8 mipLevel = 0; mipLevel < MathUtil::Min(srcSubResource.numLevels, srcImage->NumMips() - srcSubResource.baseMipLevel); mipLevel++)
+        {
+            const ResourceState srcResourceState = srcImage->GetSubResourceState(ImageSubResource {
+                .baseMipLevel = uint8(srcSubResource.baseMipLevel + mipLevel),
+                .numLevels = 1,
+                .baseArrayLayer = uint16(srcSubResource.baseArrayLayer + layerIndex),
+                .numLayers = 1
+            });
+
+            const ResourceState dstResourceState = GetSubResourceState(ImageSubResource {
+                .baseMipLevel = uint8(dstSubResource.baseMipLevel + mipLevel),
+                .numLevels = 1,
+                .baseArrayLayer = uint16(dstSubResource.baseArrayLayer + layerIndex),
+                .numLayers = 1
+            });
+
+            AssertDebug(srcResourceState == RS_COPY_SRC);
+            AssertDebug(dstResourceState == RS_COPY_DST);
+
+            VkImageCopy copy {};
+            copy.extent = { extent.x, extent.y, extent.z };
+            copy.srcOffset = { int(srcOffset.x), int(srcOffset.y), int(srcOffset.z) };
+            copy.dstOffset = { int(dstOffset.x), int(dstOffset.y), int(dstOffset.z) };
+            copy.srcSubresource = {
+                .aspectMask = srcAspectFlagBits,
+                .mipLevel = uint32(srcSubResource.baseMipLevel + mipLevel),
+                .baseArrayLayer = uint32(srcSubResource.baseArrayLayer + layerIndex),
+                .layerCount = 1
+            };
+            copy.dstSubresource = {
+                .aspectMask = dstAspectFlagBits,
+                .mipLevel = uint32(srcSubResource.baseMipLevel + mipLevel),
+                .baseArrayLayer = uint32(srcSubResource.baseArrayLayer + layerIndex),
+                .layerCount = 1
+            };
+
+            vkCmdCopyImage(
+                commandBuffer->GetVulkanHandle(),
+                srcImage->GetVulkanHandle(),
+                GetVkImageLayout(srcResourceState),
+                m_handle,
+                GetVkImageLayout(dstResourceState),
+                1, &copy);
+        }
     }
 }
 

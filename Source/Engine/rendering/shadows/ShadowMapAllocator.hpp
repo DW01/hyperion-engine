@@ -17,8 +17,6 @@
 
 namespace Hyperion {
 
-static constexpr bool CacheStaticShadowMaps = true;
-
 class FullScreenPass;
 class ShadowMap;
 enum ShadowMapFilter : uint32;

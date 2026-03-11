@@ -989,10 +989,10 @@ constexpr uint64 GetImageSubResourceKey(const ImageSubResource& subResource);
 struct ImageSubResource
 {
     uint8 baseMipLevel = 0;
-    uint8 numLevels = uint8(-1);
+    uint8 numLevels = UINT8_MAX;
 
     uint16 baseArrayLayer = 0;
-    uint16 numLayers = uint16(-1);
+    uint16 numLayers = UINT16_MAX;
 
     bool operator==(const ImageSubResource& other) const
     {

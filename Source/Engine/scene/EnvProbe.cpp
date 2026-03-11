@@ -79,49 +79,6 @@ EnvProbe::EnvProbe(EnvProbeType envProbeType, const BoundingBox& aabb, const Vec
     m_entityInitInfo.receivesUpdate = !(m_envProbeFlags & EPF_BAKED);
 }
 
-void EnvProbe::SetEnvProbeFlags(EnumFlags<EnvProbeFlags> envProbeFlags)
-{
-    const uint32 changedFlags = envProbeFlags ^ m_envProbeFlags;
-
-    if (!changedFlags)
-    {
-        return;
-    }
-
-    m_envProbeFlags = envProbeFlags;
-
-    if (changedFlags & EPF_BAKED)
-    {
-        if (envProbeFlags[EPF_BAKED])
-        {
-            SetReceivesUpdate(false);
-        }
-        else
-        {
-            SetReceivesUpdate(true);
-        }
-    }
-
-    SetNeedsRenderProxyUpdate();
-}
-
-bool EnvProbe::IsVisible(ObjId<Camera> cameraId) const
-{
-    return m_visibilityBits.Test(cameraId.ToIndex());
-}
-
-void EnvProbe::SetIsVisible(ObjId<Camera> cameraId, bool isVisible)
-{
-    const bool previousValue = m_visibilityBits.Test(cameraId.ToIndex());
-
-    m_visibilityBits.Set(cameraId.ToIndex(), isVisible);
-
-    if (isVisible != previousValue)
-    {
-        Invalidate();
-    }
-}
-
 EnvProbe::~EnvProbe()
 {
     if (m_view.IsValid())
@@ -192,6 +149,51 @@ void EnvProbe::Init()
     SetReady(true);
 }
 
+void EnvProbe::SetEnvProbeFlags(EnumFlags<EnvProbeFlags> envProbeFlags)
+{
+    const uint32 changedFlags = envProbeFlags ^ m_envProbeFlags;
+
+    if (!changedFlags)
+    {
+        return;
+    }
+
+    m_envProbeFlags = envProbeFlags;
+
+    if (changedFlags & EPF_BAKED)
+    {
+        if (envProbeFlags[EPF_BAKED])
+        {
+            SetReceivesUpdate(false);
+        }
+        else
+        {
+            SetReceivesUpdate(true);
+        }
+    }
+
+    MarkDirty();
+
+    SetNeedsRenderProxyUpdate();
+}
+
+bool EnvProbe::IsVisible(ObjId<Camera> cameraId) const
+{
+    return m_visibilityBits.Test(cameraId.ToIndex());
+}
+
+void EnvProbe::SetIsVisible(ObjId<Camera> cameraId, bool isVisible)
+{
+    const bool previousValue = m_visibilityBits.Test(cameraId.ToIndex());
+
+    m_visibilityBits.Set(cameraId.ToIndex(), isVisible);
+
+    if (isVisible != previousValue)
+    {
+        Invalidate();
+    }
+}
+
 void EnvProbe::OnAttachedToNode(Node* node)
 {
     Entity::OnAttachedToNode(node);
@@ -255,12 +257,10 @@ void EnvProbe::CreateView()
     AssertDebug(m_view == nullptr);
     AssertDebug(m_camera != nullptr);
 
-    RenderTargetDesc renderTargetDesc {
-        .extent = Vec2u(m_dimensions),
-        .numAttachments = 0,
-        .attachments = {},
-        .numLayers = 6
-    };
+    RenderTargetDesc renderTargetDesc {};
+    renderTargetDesc.extent = Vec2u(m_dimensions);
+    renderTargetDesc.numAttachments = 0;
+    renderTargetDesc.numLayers = 6;
 
     if (IsReflectionProbe() || IsSkyProbe())
     {
@@ -336,8 +336,6 @@ void EnvProbe::CreateView()
 
 void EnvProbe::SetOrigin(const Vec3f& origin)
 {
-    HYP_SCOPE;
-
     const Vec3f rel = origin - GetWorldTranslation();
 
     BoundingBox localBounds = GetLocalBounds();
@@ -513,8 +511,6 @@ void EnvProbe::UpdateRenderProxy(RenderProxyEnvProbe* proxy)
 
     Memory::Copy(bufferData.faceViewMatrices, viewMatrices.Data(), sizeof(EnvProbeShaderData::faceViewMatrices));
     Memory::Copy(bufferData.shData, &m_shData, sizeof(EnvProbeSphericalHarmonics::values));
-
-    bufferData.positionInGrid = m_positionInGrid;
 }
 
 void EnvProbe::SetBakedTexture(const Handle<Texture>& texture)

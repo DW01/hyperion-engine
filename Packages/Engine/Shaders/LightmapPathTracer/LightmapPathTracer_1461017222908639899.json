@@ -313,7 +313,7 @@
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/LightmapPathTracer/LightmapPathTracer_1461017222908639899.RGS",
-      "Size": 16188
+      "Size": 16116
     }, {
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/LightmapPathTracer/LightmapPathTracer_1461017222908639899.CHS",

@@ -28,7 +28,6 @@ struct EnvProbe
 
     uvec2 dimensions;
     uvec2 visibility_bits;
-    ivec4 position_in_grid;
 
     vec4 sh[9];
 };

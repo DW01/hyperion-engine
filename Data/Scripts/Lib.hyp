@@ -2157,6 +2157,46 @@ extern class FogVolume : VolumeBase
     VolumeTexture : Texture
     NoiseTexture : Texture
 end
+extern struct EnvProbeSphericalHarmonics
+end
+extern class EnvProbe : VolumeBase
+    GetEnvProbeType() -> EnvProbeType
+    GetEnvProbeFlags() -> EnvProbeFlags
+    SetEnvProbeFlags(envProbeFlags : EnvProbeFlags) -> void
+    IsReflectionProbe() -> bool
+    IsSkyProbe() -> bool
+    IsAmbientProbe() -> bool
+    IsBaked() -> bool
+    SetIsBaked(isBaked : bool) -> void
+    IsRealtime() -> bool
+    GetOrigin() -> Vec3f
+    SetOrigin(origin : Vec3f) -> void
+    GetCamera() -> Camera
+    GetBakedTexture() -> Texture
+    SetBakedTexture(texture : Texture) -> void
+    Dimensions : Vec2u
+    EnvProbeType : EnvProbeType
+    EnvProbeFlags : EnvProbeFlags
+    ShData : EnvProbeSphericalHarmonics
+end
+extern class SkyProbe : EnvProbe
+    GetSkyboxCubemap() -> Texture
+end
+extern class ReflectionProbe : EnvProbe
+    BakeCubemap() -> void
+end
+extern enum EnvProbeType : uint32
+    EPT_INVALID = ~0u,
+    EPT_SKY = 0,
+    EPT_REFLECTION,
+    EPT_AMBIENT,
+    EPT_MAX
+end
+extern enum EnvProbeFlags : uint32
+    EPF_NONE = 0x0,
+    EPF_PARALLAX_CORRECTED = 0x1,
+    EPF_BAKED = 0x2
+end
 extern class Light : Entity
     GetLightType() -> LightType
     GetLightFlags() -> LightFlags
@@ -2217,46 +2257,6 @@ extern enum LightFlags : uint32
     ShadowFilterMask = ((ShadowPCF | ShadowContactHardening) | ShadowVariance),
     ShadowCacheStaticObjects = 0x10,
     Default = (ShadowCaster | ShadowPCF)
-end
-extern struct EnvProbeSphericalHarmonics
-end
-extern class EnvProbe : Entity
-    GetEnvProbeType() -> EnvProbeType
-    GetEnvProbeFlags() -> EnvProbeFlags
-    SetEnvProbeFlags(envProbeFlags : EnvProbeFlags) -> void
-    IsReflectionProbe() -> bool
-    IsSkyProbe() -> bool
-    IsAmbientProbe() -> bool
-    IsBaked() -> bool
-    SetIsBaked(isBaked : bool) -> void
-    IsRealtime() -> bool
-    GetOrigin() -> Vec3f
-    SetOrigin(origin : Vec3f) -> void
-    GetCamera() -> Camera
-    GetBakedTexture() -> Texture
-    SetBakedTexture(texture : Texture) -> void
-    Dimensions : Vec2u
-    EnvProbeType : EnvProbeType
-    EnvProbeFlags : EnvProbeFlags
-    ShData : EnvProbeSphericalHarmonics
-end
-extern class SkyProbe : EnvProbe
-    GetSkyboxCubemap() -> Texture
-end
-extern class ReflectionProbe : EnvProbe
-    BakeCubemap() -> void
-end
-extern enum EnvProbeType : uint32
-    EPT_INVALID = ~0u,
-    EPT_SKY = 0,
-    EPT_REFLECTION,
-    EPT_AMBIENT,
-    EPT_MAX
-end
-extern enum EnvProbeFlags : uint32
-    EPF_NONE = 0x0,
-    EPF_PARALLAX_CORRECTED = 0x1,
-    EPF_BAKED = 0x2
 end
 extern class EnvGrid : Entity
 end

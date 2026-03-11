@@ -178,21 +178,21 @@ public:
         bool onlyDepth = false,
         bool onlyStencil = false) = 0;
 
-    virtual RendererResult Blit(
+    virtual void Blit(
         CommandBuffer* commandBuffer,
         const GpuImage* srcImage) = 0;
 
-    virtual RendererResult Blit(
+    virtual void Blit(
         CommandBuffer* commandBuffer,
         const GpuImage* srcImage,
-        Rect<uint32> srcRect,
-        Rect<uint32> dstRect) = 0;
+        const Rect<uint32>& srcRect,
+        const Rect<uint32>& dstRect) = 0;
 
-    virtual RendererResult Blit(
+    virtual void Blit(
         CommandBuffer* commandBuffer,
         const GpuImage* srcImage,
-        Rect<uint32> srcRect,
-        Rect<uint32> dstRect,
+        const Rect<uint32>& srcRect,
+        const Rect<uint32>& dstRect,
         const ImageSubResource& srcSubResource,
         const ImageSubResource& dstSubResource) = 0;
 
@@ -208,6 +208,15 @@ public:
     virtual void CopyToBuffer(
         CommandBuffer* commandBuffer,
         GpuBuffer* dstBuffer) const = 0;
+
+    virtual void CopyFrom(
+        CommandBuffer* commandBuffer,
+        const GpuImage* srcImage,
+        const Vec3u& srcOffset,
+        const Vec3u& dstOffset,
+        const Vec3u& extent,
+        const ImageSubResource& srcSubResource,
+        const ImageSubResource& dstSubResource) = 0;
 
     virtual GpuImageViewRef MakeLayerImageView(uint32 layerIndex) const = 0;
 

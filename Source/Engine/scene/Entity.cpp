@@ -447,6 +447,8 @@ void Entity::SetLocalBounds(const BoundingBox& aabb)
     {
         BoundingBoxComponent& boundingBoxComponent = entityManager->GetComponent<BoundingBoxComponent>(this);
         boundingBoxComponent.worldAabb = GetWorldBounds();
+
+        SetNeedsRenderProxyUpdate();
     }
 }
 

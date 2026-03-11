@@ -12,7 +12,7 @@
 
 #include <Core/math/BoundingBox.hpp>
 
-#include <scene/Entity.hpp>
+#include <scene/Volume.hpp>
 
 #include <rendering/RenderCommand.hpp>
 
@@ -54,18 +54,14 @@ struct EnvProbeSphericalHarmonics
     Vec4f values[9];
 };
 
-/*! \brief An EnvProbe handles rendering of reflection probes, sky probes, shadow probes, and ambient probes.
- *  \details It is used to capture the environment around a point in space and store it in a cubemap texture.
- *  It can also be used to capture shadows from a light source.
- *  An EnvProbe may be controlled by an EnvGrid in the case of ambient probes, in order to reduce per-probe allocation overhead by batching them together. */
 HYP_CLASS()
-class HYP_API EnvProbe : public Entity
+class HYP_API EnvProbe : public VolumeBase
 {
     HYP_OBJECT_BODY(EnvProbe);
 
 public:
     EnvProbe();
-    EnvProbe(EnvProbeType envProbeType);
+    explicit EnvProbe(EnvProbeType envProbeType);
     EnvProbe(EnvProbeType envProbeType, const BoundingBox& aabb, const Vec2u& dimensions);
 
     EnvProbe(const EnvProbe& other) = delete;
@@ -244,9 +240,6 @@ public:
     virtual void Update(float delta) override;
 
     void UpdateRenderProxy(RenderProxyEnvProbe* proxy);
-
-    uint32 m_gridSlot = ~0u; // temp
-    Vec4i m_positionInGrid;  // temp
 
 protected:
     virtual void OnAttachedToNode(Node* node) override;

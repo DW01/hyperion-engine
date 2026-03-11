@@ -75,10 +75,7 @@ private:
 
         FixedArray<FramebufferRef, MaxShadowMapCascades> shadowMapFramebuffers;
 
-        UniquePtr<FullScreenPass> combineShadowMapsPass; // Pass to combine shadow maps for this light (optional)
-
-        GpuImageRef combinedShadowMapsBlurred;
-        FixedArray<GpuBufferRef, NumFramesInFlight> blurUniformBuffers;
+        Handle<Texture> cachedShadowMapTexture;
 
         uint32 lastFrameUsed;
     };

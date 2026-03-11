@@ -139,7 +139,6 @@ struct alignas(16) EnvProbeShaderData
 
     Vec2u dimensions;
     uint64 visibilityBits = 0;
-    Vec4i positionInGrid;
 
     Vec4f shData[9];
 };

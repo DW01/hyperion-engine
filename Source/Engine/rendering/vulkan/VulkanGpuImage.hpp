@@ -57,21 +57,21 @@ public:
         bool onlyDepth = false,
         bool onlyStencil = false) override;
 
-    RendererResult Blit(
+    void Blit(
         VulkanCommandBuffer* commandBuffer,
         const VulkanGpuImage* srcImage) override;
 
-    RendererResult Blit(
+    void Blit(
         VulkanCommandBuffer* commandBuffer,
         const VulkanGpuImage* srcImage,
-        Rect<uint32> srcRect,
-        Rect<uint32> dstRect) override;
+        const Rect<uint32>& srcRect,
+        const Rect<uint32>& dstRect) override;
         
-    RendererResult Blit(
+    void Blit(
         VulkanCommandBuffer* commandBuffer,
         const VulkanGpuImage* srcImage,
-        Rect<uint32> srcRect,
-        Rect<uint32> dstRect,
+        const Rect<uint32>& srcRect,
+        const Rect<uint32>& dstRect,
         const ImageSubResource& srcSubResource,
         const ImageSubResource& dstSubResource) override;
 
@@ -87,6 +87,15 @@ public:
     void CopyToBuffer(
         VulkanCommandBuffer* commandBuffer,
         VulkanGpuBuffer* dstBuffer) const override;
+
+    void CopyFrom(
+        VulkanCommandBuffer* commandBuffer,
+        const VulkanGpuImage* srcImage,
+        const Vec3u& srcOffset,
+        const Vec3u& dstOffset,
+        const Vec3u& extent,
+        const ImageSubResource& srcSubResource,
+        const ImageSubResource& dstSubResource) override;
 
     /*! \brief Creates a view of the image for the specified array layer
      */

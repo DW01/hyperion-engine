@@ -75,9 +75,8 @@ private:
     ShadowMapType m_type;
     ShadowMapFilter m_filterMode;
     ShadowMapAtlasElement* m_atlasElement;
-    GpuImageViewRef m_imageView;
 
-    UniquePtr<FullScreenPass> m_combineShadowMapsPass;
+    GpuImageViewRef m_imageView;
 };
 
 } // namespace Hyperion

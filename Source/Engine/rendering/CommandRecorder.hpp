@@ -507,6 +507,82 @@ private:
     Rect<uint32> m_dstRect;
 };
 
+class CopyImage final : public CmdBase
+{
+public:
+    CopyImage(GpuImage* srcImage, GpuImage* dstImage, const Vec3u& extent)
+        : srcImage(srcImage),
+          dstImage(dstImage),
+          srcOffset(Vec3u::Zero()),
+          dstOffset(Vec3u::Zero()),
+          extent(extent)
+    {
+    }
+
+    CopyImage(
+        GpuImage* srcImage,
+        GpuImage* dstImage,
+        const Vec3u& extent,
+        const ImageSubResource& srcSubResource,
+        const ImageSubResource& dstSubResource)
+        : srcImage(srcImage),
+          dstImage(dstImage),
+          srcOffset(Vec3u::Zero()),
+          dstOffset(Vec3u::Zero()),
+          extent(extent),
+          srcSubResource(srcSubResource),
+          dstSubResource(dstSubResource)
+    {
+    }
+
+    CopyImage(
+        GpuImage* srcImage,
+        GpuImage* dstImage,
+        const Vec3u& srcOffset,
+        const Vec3u& dstOffset,
+        const Vec3u& extent,
+        const ImageSubResource& srcSubResource,
+        const ImageSubResource& dstSubResource)
+        : srcImage(srcImage),
+          dstImage(dstImage),
+          srcOffset(srcOffset),
+          dstOffset(dstOffset),
+          extent(extent),
+          srcSubResource(srcSubResource),
+          dstSubResource(dstSubResource)
+    {
+    }
+
+    static inline void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
+    {
+        CopyImage* cmdCasted = static_cast<CopyImage*>(cmd);
+
+        cmdCasted->dstImage->CopyFrom(
+            commandBuffer,
+            cmdCasted->srcImage,
+            cmdCasted->srcOffset,
+            cmdCasted->dstOffset,
+            cmdCasted->extent,
+            cmdCasted->srcSubResource,
+            cmdCasted->dstSubResource);
+
+        static_assert(std::is_trivially_destructible_v<CopyImage>);
+        // cmdCasted->~CopyImage();
+    }
+
+private:
+    GpuImage* srcImage;
+    GpuImage* dstImage;
+
+    Vec3u srcOffset;
+    Vec3u dstOffset;
+
+    Vec3u extent;
+
+    ImageSubResource srcSubResource;
+    ImageSubResource dstSubResource;
+};
+
 class CopyImageToBuffer final : public CmdBase
 {
 public:

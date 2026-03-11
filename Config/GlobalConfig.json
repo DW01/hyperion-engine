@@ -19,9 +19,9 @@
         "Enabled": false
       },
       "GI": {
-        "Enabled": true
+        "Enabled": false
       },
-      "Enabled": true
+      "Enabled": false
     },
     "SSAO": {
       "Enabled": false
@@ -43,7 +43,7 @@
       "Enabled": true
     },
     "IndirectRendering": true,
-    "ParallelCollection": true,
+    "ParallelCollection": false,
     "SSR": {
       "Enabled": true,
       "Quality": 2,
@@ -74,7 +74,7 @@
       "AO": false
     },
     "Vulkan": {
-      "DebugLayers": true
+      "DebugLayers": false
     }
   },
   "Editor": {
