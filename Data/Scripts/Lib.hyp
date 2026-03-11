@@ -1555,6 +1555,8 @@ extern class TranslateEditorGizmo : EditorGizmoBase
 end
 extern class RotateEditorGizmo : EditorGizmoBase
 end
+extern class VolumeEditorGizmo : EditorGizmoBase
+end
 extern class GenerateLightmapsEditorTask : TickableEditorTask
     GetWorld() -> World
     SetWorld(world : World) -> void
@@ -1569,7 +1571,8 @@ extern enum EditorManipulationMode
     NONE = 0,
     TRANSLATE,
     ROTATE,
-    SCALE
+    SCALE,
+    VOLUME_EDIT
 end
 extern class EditorSubsystem : Subsystem
     GetCurrentProject() -> EditorProject

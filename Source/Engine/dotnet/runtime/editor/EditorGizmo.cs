@@ -49,4 +49,12 @@ namespace Hyperion
         {
         }
     }
+
+    [ClassBinding(Name="VolumeEditorGizmo")]
+    public class VolumeEditorGizmo : EditorGizmoBase
+    {
+        public VolumeEditorGizmo()
+        {
+        }
+    }
 }

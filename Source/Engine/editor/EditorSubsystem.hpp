@@ -9,6 +9,8 @@
 
 #include <scene/Subsystem.hpp>
 
+#include <Core/math/BoundingBox.hpp>
+
 #include <Core/functional/Delegate.hpp>
 
 namespace Hyperion {
@@ -36,6 +38,7 @@ struct KeyboardEvent;
 class View;
 class EditorViewport;
 class LightmapVolume;
+class VolumeBase;
 class AppContextBase;
 
 HYP_CLASS()
@@ -105,7 +108,8 @@ enum class EditorManipulationMode
 
     TRANSLATE,
     ROTATE,
-    SCALE
+    SCALE,
+    VOLUME_EDIT
 };
 
 /*! \brief A widget that can manipulate the selected object. (e.g translate, rotate, scale) */
@@ -319,6 +323,65 @@ protected:
     virtual Handle<Node> Load_Internal() const override;
 
     Optional<DragData> m_dragData;
+};
+
+/*! \brief A gizmo for editing axis-aligned bounding boxes by dragging individual faces.
+ *  Used for resizing volumes such as LightmapVolume, FogVolume, etc.
+ *  Each face of the AABB is represented as a draggable quad handle.
+ */
+HYP_CLASS()
+class VolumeEditorGizmo : public EditorGizmoBase
+{
+    HYP_OBJECT_BODY(VolumeEditorGizmo);
+
+public:
+    VolumeEditorGizmo();
+    virtual ~VolumeEditorGizmo() override = default;
+
+    virtual EditorManipulationMode GetManipulationMode() const override
+    {
+        return EditorManipulationMode::VOLUME_EDIT;
+    }
+
+    virtual String GetMenuText() const override
+    {
+        return "Volume Edit";
+    }
+
+    virtual int GetPriority() const override
+    {
+        return 0;
+    }
+
+    virtual void SetFocusedNode(const Handle<Node>& focusedNode) override;
+
+    virtual void OnDragStart(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node, const Vec3f& hitpoint) override;
+    virtual void OnDragEnd(const Handle<Camera>& camera, const MouseEvent& mouseEvent) override;
+
+    virtual bool OnMouseHover(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node) override;
+    virtual bool OnMouseLeave(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node) override;
+    virtual bool OnMouseMove(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node) override;
+
+    virtual bool OnKeyPress(const Handle<Camera>& camera, const KeyboardEvent& keyboardEvent, const Handle<Node>& node) override;
+
+protected:
+    struct DragData
+    {
+        int faceIndex;
+        Vec3f faceNormal;
+        Vec3f planePoint;
+        Vec3f planeNormal;
+        float hitOffset;
+        BoundingBox originalBounds;
+    };
+
+    virtual Handle<Node> Load_Internal() const override;
+
+private:
+    void UpdateFaceGeometry(const BoundingBox& localBounds, const Vec3f& worldTranslation);
+
+    Optional<DragData> m_dragData;
+    BoundingBox m_currentBounds;
 };
 
 HYP_CLASS()
