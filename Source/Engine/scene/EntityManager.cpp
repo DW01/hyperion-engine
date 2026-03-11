@@ -271,6 +271,15 @@ void EntityManager::Shutdown()
                 entity->OnRemovedFromWorld(m_world);
             }
 
+            if (m_scene->GetSceneFlags() & SceneFlags::HAS_OCTREE)
+            {
+                auto removeFromOctreeResult = m_scene->GetOctree().Remove(entity, /* allowRebuild */ false);
+                AssertDebug(!removeFromOctreeResult.HasError(), "Failed to remove Entity {} from Scene {}'s octree: {}",
+                    entity->GetName(),
+                    m_scene->GetName(),
+                    removeFromOctreeResult.GetError().GetMessage());
+            }
+
             entity->OnRemovedFromScene(m_scene);
 
             NotifySystemsOfEntityRemoved(entity, entityData.components);
@@ -714,6 +723,15 @@ void EntityManager::MoveEntity(const Handle<Entity>& entity, const Handle<Entity
         if (m_world)
         {
             entity->OnRemovedFromWorld(m_world);
+        }
+
+        if (m_scene->GetSceneFlags() & SceneFlags::HAS_OCTREE)
+        {
+            auto removeFromOctreeResult = m_scene->GetOctree().Remove(entity, /* allowRebuild */ false);
+            AssertDebug(!removeFromOctreeResult.HasError(), "Failed to remove Entity {} from Scene {}'s octree: {}",
+                entity->GetName(),
+                m_scene->GetName(),
+                removeFromOctreeResult.GetError().GetMessage());
         }
 
         entity->OnRemovedFromScene(m_scene);

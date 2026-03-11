@@ -80,8 +80,6 @@ const VulkanGpuImageViewRef& VulkanTextureViewCache::GetOrCreate(
     const ImageSubResource& subResource,
     TextureType viewTextureType)
 {
-    AssertOnThread(g_renderThread);
-
     Assert(texture != nullptr);
 
     const size_t idx = texture->Id().ToIndex();
@@ -131,8 +129,6 @@ const VulkanGpuImageViewRef& VulkanTextureViewCache::GetOrCreate(
 
 void VulkanTextureViewCache::RemoveTexture(const Texture* texture)
 {
-    AssertOnThread(g_renderThread);
-
     if (!texture)
     {
         return;

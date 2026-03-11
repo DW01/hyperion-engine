@@ -91,6 +91,11 @@ public:
      */
     const Class* GetClass(StringHash typeName) const;
 
+    /*! \brief Get the Class instance associated with the given name, with an option to ignore case.
+     *  Heavier than the StringHash version, so only use if necessary
+     */
+    const Class* GetClass(ANSIStringView typeName, bool ignoreCase) const;
+
     /*! \brief Get an enum Class instance associated with the given type.
      *
      *  \tparam T The type to get the Class instance for.

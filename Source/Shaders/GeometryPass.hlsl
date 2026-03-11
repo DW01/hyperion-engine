@@ -294,9 +294,9 @@ PSOutput PSMain(PSInput input)
     roughness = roughness_sample;
 #endif
 
-#if DEBUG_REFLECTIONS
-    roughness = 0.01;
-#endif
+// #if DEBUG_REFLECTIONS
+//     roughness = 0.01;
+// #endif
 
 #if HAS_AO_MAP
     ao = SAMPLE_MATERIAL_TEXTURE(CURRENT_MATERIAL, AoMap, texcoord).r;

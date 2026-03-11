@@ -121,7 +121,7 @@ class HYP_API CommandLineArguments
 {
     HYP_STRUCT_BODY(CommandLineArguments);
 
-    String m_command;
+    ANSIString m_command;
     Array<Pair<String, CommandLineArgumentValue>> m_values;
 
 public:
@@ -132,7 +132,7 @@ public:
 
     CommandLineArguments() = default;
 
-    CommandLineArguments(const String& command)
+    CommandLineArguments(const ANSIString& command)
         : m_command(command)
     {
     }
@@ -146,7 +146,7 @@ public:
 
     const CommandLineArgumentValue& operator[](UTF8StringView key) const;
 
-    HYP_FORCE_INLINE const String& GetCommand() const
+    HYP_FORCE_INLINE const ANSIString& GetCommand() const
     {
         return m_command;
     }
@@ -234,7 +234,7 @@ public:
 
     HYP_API TResult<CommandLineArguments> Parse(const String& commandLine) const;
     HYP_API TResult<CommandLineArguments> Parse(int argc, char** argv) const;
-    HYP_API TResult<CommandLineArguments> Parse(const String& command, const Array<String>& args) const;
+    HYP_API TResult<CommandLineArguments> Parse(ANSIStringView command, const Array<String>& args) const;
 
 private:
     const CommandLineArgumentDefinitions* m_definitions;

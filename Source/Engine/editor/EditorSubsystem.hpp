@@ -583,9 +583,6 @@ private:
     Handle<UIListView> m_contentBrowserDirectoryList;
     Handle<AssetPackage> m_selectedPackage;
 
-    Handle<UIGrid> m_contentBrowserContents;
-    Handle<UIObject> m_contentBrowserContentsEmpty;
-
     Array<Handle<EditorViewport>> m_editorViewports;
 
     DelegateHandlerSet m_delegateHandlers;

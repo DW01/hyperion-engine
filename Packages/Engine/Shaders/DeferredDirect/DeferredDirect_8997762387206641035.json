@@ -56,20 +56,6 @@
         "Slots": [[{
               "$Class": "ShaderInput",
               "Register": 1,
-              "ElementType": 4,
-              "Name": "CurrentLight",
-              "Count": 1,
-              "Size": 4294967295,
-              "IsDynamic": true,
-              "StructInfo": {
-                "Name": "",
-                "Size": 4294967295,
-                "FieldNames": [],
-                "FieldTypes": []
-              }
-            }, {
-              "$Class": "ShaderInput",
-              "Register": 1,
               "ElementType": 5,
               "Name": "GBufferDepthTexture",
               "Count": 1,
@@ -215,6 +201,20 @@
               "Count": 1,
               "Size": 4294967295,
               "IsDynamic": false,
+              "StructInfo": {
+                "Name": "",
+                "Size": 4294967295,
+                "FieldNames": [],
+                "FieldTypes": []
+              }
+            }, {
+              "$Class": "ShaderInput",
+              "Register": 3,
+              "ElementType": 2,
+              "Name": "CBuffer",
+              "Count": 1,
+              "Size": 4294967295,
+              "IsDynamic": true,
               "StructInfo": {
                 "Name": "",
                 "Size": 4294967295,

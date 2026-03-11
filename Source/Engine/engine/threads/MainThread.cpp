@@ -44,7 +44,8 @@ bool MainThread::Start()
 
     AssertDebug(!IsRunning());
 
-    SetCurrentThreadObject(this);
+    // Should already be set in InitThreads()
+    AssertDebug(CurrentThreadObject() == this);
 
     m_isRunning.Store(true);
 

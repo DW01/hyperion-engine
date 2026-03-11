@@ -12,8 +12,6 @@
 #include <Core/utilities/GlobalContext.hpp>
 #include <Core/utilities/IdGenerator.hpp>
 
-#include <Core/profiling/ProfileScope.hpp>
-
 #include <Core/Defines.hpp>
 
 #include <Core/math/MathUtil.hpp>
@@ -62,7 +60,6 @@ ThreadBase::~ThreadBase()
 
 ThreadLocalStorage& ThreadBase::GetTLS() const
 {
-    HYP_SCOPE;
     AssertOnThread(m_id);
 
     if (HYP_UNLIKELY(!m_tls))

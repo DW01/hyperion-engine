@@ -28,8 +28,11 @@ struct ProfilerConnectionParams
     bool enabled;
 };
 
-extern HYP_API void StartProfilerConnectionThread(const ProfilerConnectionParams& params);
-extern HYP_API void StopProfilerConnectionThread();
+HYP_API void StartProfilerConnectionThread(const ProfilerConnectionParams& params);
+HYP_API void StopProfilerConnectionThread();
+
+/*! \brief Collect all hot functions across all registered profile scopes. Locks a global mutex so beware! */
+HYP_API void CollectAllHotFunctions(Array<Pair<ANSIString, double>>& outHotFunctions);
 
 struct HYP_API ProfileScope
 {
@@ -49,7 +52,7 @@ struct HYP_API ProfileScope
     ~ProfileScope();
 };
 
-#ifdef HYP_ENABLE_PROFILE
+#if HYP_ENABLE_PROFILE
 #define HYP_NAMED_SCOPE(label)  \
     ProfileScope _profile_scope \
     {                           \
@@ -87,5 +90,6 @@ using profiling::ProfilerConnectionParams;
 using profiling::ProfileScope;
 using profiling::StartProfilerConnectionThread;
 using profiling::StopProfilerConnectionThread;
+using profiling::CollectAllHotFunctions;
 
 } // namespace Hyperion

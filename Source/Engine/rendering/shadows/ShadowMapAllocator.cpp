@@ -12,6 +12,8 @@
 #include <rendering/Frame.hpp>
 #include <rendering/Texture.hpp>
 
+#include <rendering/TextureViewCache.hpp>
+
 #include <rendering/util/DeletionQueue.hpp>
 
 #include <scene/Light.hpp>
@@ -59,16 +61,13 @@ ShadowMapAllocator::ShadowMapAllocator()
 
 ShadowMapAllocator::~ShadowMapAllocator()
 {
-    EnqueueDeletion(std::move(m_atlasImage));
-    EnqueueDeletion(std::move(m_atlasImageView));
-
-    EnqueueDeletion(std::move(m_pointLightShadowMapImage));
-    EnqueueDeletion(std::move(m_pointLightShadowMapImageView));
+    EnqueueDeletion(std::move(m_atlasTextureArray));
+    EnqueueDeletion(std::move(m_pointLightTextureArray));
 }
 
 void ShadowMapAllocator::Initialize()
 {
-    m_atlasImage = g_renderInterface->MakeImage(TextureDesc {
+    m_atlasTextureArray = MakeHandle<Texture>(TextureDesc {
         TextureType::Texture2DArray,
         TextureFormat::D16,
         Vec3u { m_atlasDimensions, 1 },
@@ -79,20 +78,10 @@ void ShadowMapAllocator::Initialize()
         IU_SAMPLED | IU_ATTACHMENT
     });
     
-#if HYP_DEBUG_MODE
-    m_atlasImage->SetDebugName(NAME("ShadowMapAtlasImage"));
-#endif
+    m_atlasTextureArray->SetName(NAME("ShadowMapAtlas"));
+    CheckResult(m_atlasTextureArray->Create());
 
-    CheckResult(m_atlasImage->Create());
-
-    m_atlasImageView = g_renderInterface->MakeImageView(m_atlasImage);
-#if HYP_DEBUG_MODE
-    m_atlasImageView->SetDebugName(NAME("ShadowMapAtlasImageView"));
-#endif
-
-    CheckResult(m_atlasImageView->Create());
-
-    m_pointLightShadowMapImage = g_renderInterface->MakeImage(TextureDesc {
+    m_pointLightTextureArray = MakeHandle<Texture>(TextureDesc {
         TextureType::CubemapArray,
         TextureFormat::RG16F, // Variance shadow maps are used for point lights
         Vec3u { 256, 256, 1 },
@@ -103,19 +92,8 @@ void ShadowMapAllocator::Initialize()
         IU_SAMPLED | IU_ATTACHMENT
     });
     
-#if HYP_DEBUG_MODE
-    m_pointLightShadowMapImage->SetDebugName(NAME("PointLightShadowMapImage"));
-#endif
-
-    CheckResult(m_pointLightShadowMapImage->Create());
-
-    m_pointLightShadowMapImageView = g_renderInterface->MakeImageView(m_pointLightShadowMapImage);
-    
-#if HYP_DEBUG_MODE
-    m_pointLightShadowMapImageView->SetDebugName(NAME("PointLightShadowMapImageView"));
-#endif
-
-    CheckResult(m_pointLightShadowMapImageView->Create());
+    m_pointLightTextureArray->SetName(NAME("PointLightShadowMapImage"));
+    CheckResult(m_pointLightTextureArray->Create());
 }
 
 void ShadowMapAllocator::Shutdown()
@@ -125,11 +103,8 @@ void ShadowMapAllocator::Shutdown()
         atlas.Clear();
     }
 
-    EnqueueDeletion(std::move(m_atlasImage));
-    EnqueueDeletion(std::move(m_atlasImageView));
-
-    EnqueueDeletion(std::move(m_pointLightShadowMapImage));
-    EnqueueDeletion(std::move(m_pointLightShadowMapImageView));
+    EnqueueDeletion(std::move(m_atlasTextureArray));
+    EnqueueDeletion(std::move(m_pointLightTextureArray));
 }
 
 ShadowMap* ShadowMapAllocator::AllocateShadowMap(ShadowMapType shadowMapType, ShadowMapFilter filterMode, const Vec2u& dimensions)
@@ -152,13 +127,12 @@ ShadowMap* ShadowMapAllocator::AllocateShadowMap(ShadowMapType shadowMapType, Sh
             return nullptr;
         }
 
-        const ShadowMapAtlasElement atlasElement {
-            .layerIndex = pointLightIndex,
-            .offsetUV = Vec2f::Zero(),
-            .offsetCoords = Vec2u::Zero(),
-            .dimensions = dimensions,
-            .scale = Vec2f::One()
-        };
+        ShadowMapAtlasElement atlasElement {};
+        atlasElement.layerIndex = pointLightIndex;
+        atlasElement.offsetUV = Vec2f::Zero();
+        atlasElement.offsetCoords = Vec2u::Zero();
+        atlasElement.dimensions = dimensions;
+        atlasElement.scale = Vec2f::One();
 
         ImageSubResource subResource {};
         subResource.baseArrayLayer = atlasElement.layerIndex * 6;
@@ -166,8 +140,8 @@ ShadowMap* ShadowMapAllocator::AllocateShadowMap(ShadowMapType shadowMapType, Sh
         subResource.baseMipLevel = 0;
         subResource.numLevels = 1;
         
-        GpuImageViewRef atlasImageView = MakeHandle<GpuImageView>(m_pointLightShadowMapImage, subResource);
-        DeferCreate(atlasImageView);
+        GpuImageViewRef atlasImageView = g_renderInterface->textureViewCache->GetOrCreate(m_pointLightTextureArray, subResource);
+        CheckResult(atlasImageView->Create());
 
         ShadowMap* shadowMap = new ShadowMap(
             shadowMapType,
@@ -184,8 +158,14 @@ ShadowMap* ShadowMapAllocator::AllocateShadowMap(ShadowMapType shadowMapType, Sh
 
         if (atlas.AddElement(dimensions, atlasElement))
         {
-            GpuImageViewRef atlasImageView = m_atlasImage->MakeLayerImageView(atlasElement.layerIndex);
-            DeferCreate(atlasImageView);
+            ImageSubResource subResource {};
+            subResource.baseArrayLayer = atlasElement.layerIndex;
+            subResource.numLayers = 1;
+            subResource.baseMipLevel = 0;
+            subResource.numLevels = 1;
+
+            GpuImageViewRef atlasImageView = g_renderInterface->textureViewCache->GetOrCreate(m_atlasTextureArray, subResource);
+            CheckResult(atlasImageView->Create());
 
             ShadowMap* shadowMap = new ShadowMap(
                 shadowMapType,

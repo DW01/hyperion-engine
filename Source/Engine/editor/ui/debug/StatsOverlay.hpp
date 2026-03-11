@@ -18,6 +18,7 @@ namespace Hyperion {
 class World;
 class UIListView;
 class UIButton;
+class UIText;
 class UIDataSource;
 class EngineStatBase;
 
@@ -52,7 +53,11 @@ protected:
 private:
     Handle<UIListView> m_panel;
     Handle<UIDataSource> m_dataSource;
-    HashMap<EngineStatBase *, UUID> m_statUuids;
+    HashMap<EngineStatBase*, UUID> m_statUuids;
+
+    ClockTimer m_hotFunctionsUpdateTimer; // updates at a slower rate 
+    Handle<UIListView> m_hotFunctionsPanel;
+    Handle<UIText> m_hotFunctionsText;
 };
 
 } // namespace Hyperion

@@ -195,10 +195,11 @@ float4 CalculateDirectLighting(uint light_index, float4 albedo, float3 P, float3
 
     float shadow = 1.0;
 
-    if (light.type == HYP_LIGHT_TYPE_DIRECTIONAL && ((light.flags & LF_SHADOW_CASTER) != 0))
-    {
-        shadow = GetShadowStandard(light, P, float2(0.0, 0.0), NdotL);
-    }
+    // @FIXME:
+    // if (light.type == HYP_LIGHT_TYPE_DIRECTIONAL && ((light.flags & LF_SHADOW_CASTER) != 0))
+    // {
+    //     shadow = GetShadowStandard(light, P, float2(0.0, 0.0), NdotL);
+    // }
 
     return light_color * NdotL * shadow * light.position_intensity.w;
 }

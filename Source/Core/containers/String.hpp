@@ -1743,7 +1743,15 @@ template <int TStringType>
 auto String<TStringType>::ToLower() const -> String
 {
     String result;
-    result.Reserve(Size());
+    
+    if constexpr (isUtf8)
+    {
+        result.Reserve(Size());
+    }
+    else
+    {
+        result = *this;
+    }
 
     for (size_t i = 0; i < Size();)
     {
@@ -1767,7 +1775,7 @@ auto String<TStringType>::ToLower() const -> String
         }
         else
         {
-            result.Append(std::tolower(result[i]));
+            result.Data()[i] = CharType(std::tolower(Data()[i]));
 
             i++;
         }
@@ -1780,7 +1788,15 @@ template <int TStringType>
 auto String<TStringType>::ToUpper() const -> String
 {
     String result;
-    result.Reserve(Size());
+    
+    if constexpr (isUtf8)
+    {
+        result.Reserve(Size());
+    }
+    else
+    {
+        result = *this;
+    }
 
     for (size_t i = 0; i < Size();)
     {
@@ -1804,7 +1820,7 @@ auto String<TStringType>::ToUpper() const -> String
         }
         else
         {
-            result.Append(std::toupper(result[i]));
+            result.Data()[i] = CharType(std::toupper(Data()[i]));
 
             i++;
         }

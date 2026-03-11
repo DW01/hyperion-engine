@@ -253,7 +253,9 @@ public:
     void RemoveWindow(ApplicationWindow* window);
 
     HYP_METHOD()
-    Result RunCommandlet(Name commandletName, const CommandLineArguments& args);
+    Result RunCommandlet(ANSIStringView commandletName, const CommandLineArguments& args);
+
+    const Class* FindCommandletClass(ANSIStringView commandletName);
 
     virtual int PollEvents(Event& event) = 0;
 

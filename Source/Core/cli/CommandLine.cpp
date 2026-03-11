@@ -388,7 +388,7 @@ CommandLineArgumentDefinitions& CommandLineArgumentDefinitions::Add(
 
 TResult<CommandLineArguments> CommandLineParser::Parse(const String& commandLine) const
 {
-    String command;
+    ANSIString command;
     Array<String> args;
 
     int currentStringIndex = 0;
@@ -400,7 +400,7 @@ TResult<CommandLineArguments> CommandLineParser::Parse(const String& commandLine
         {
             if (currentStringIndex++ == 0)
             {
-                command = std::move(currentString);
+                command = currentString.ToAnsi();
             }
             else
             {
@@ -466,7 +466,7 @@ TResult<CommandLineArguments> CommandLineParser::Parse(int argc, char** argv) co
     return Parse(argv[0], args);
 }
 
-TResult<CommandLineArguments> CommandLineParser::Parse(const String& command, const Array<String>& args) const
+TResult<CommandLineArguments> CommandLineParser::Parse(ANSIStringView command, const Array<String>& args) const
 {
     if (!m_definitions)
     {

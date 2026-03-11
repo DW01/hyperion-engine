@@ -22,6 +22,12 @@ bool Initialize(int argc, char** argv);
 const CommandLineArguments& GetCommandLineArguments();
 const CommandLineArgumentDefinitions& DefaultCommandLineArgumentDefinitions();
 
+#if HYP_ENABLE_PROFILE
+bool IsProfilingEnabled();
+#else
+static constexpr std::false_type IsProfilingEnabled;
+#endif
+
 const GlobalConfig& GetGlobalConfig();
 void UpdateGlobalConfig(const ConfigurationTable& mergeValues);
 

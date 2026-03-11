@@ -51,7 +51,7 @@ extern const FilePath& GetDataDirectory();
     HYP_BEGIN_CLASS(EditorCommand##name, -1, 0, NAME("EditorCommandBase")) \
     HYP_END_CLASS                                                          \
                                                                            \
-    HYP_EXPORT TClassStaticInit<EditorCommand##name> classInit##EditorCommand##name {};
+    HYP_EXPORT TClassStaticInit<EditorCommand##name> g_classInit##EditorCommand##name {};
 
 #pragma region Undo
 

@@ -215,6 +215,16 @@ const GlobalConfig& GetGlobalConfig()
     return s_globalConfigChain.Back();
 }
 
+#if HYP_ENABLE_PROFILE
+bool IsProfilingEnabled()
+{
+    // only check once since it won't change and we call from some hot paths
+    static const bool s_isProfilingEnabled = GetCommandLineArguments()["Profile"].ToBool();
+
+    return s_isProfilingEnabled;
+}
+#endif
+
 void OnShutdown(void (*func)())
 {
     Mutex::Guard guard(s_globalsMutex);

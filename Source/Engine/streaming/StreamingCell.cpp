@@ -1,6 +1,8 @@
 /* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
 
-#include <StreamingPch.hpp>
+#include <HyperionPch.hpp>
+
+#include <engine/EngineGlobals.hpp>
 
 #include <streaming/StreamingCell.hpp>
 

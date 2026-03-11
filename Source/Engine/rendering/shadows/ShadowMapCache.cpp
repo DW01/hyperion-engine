@@ -7,6 +7,7 @@
 #include <rendering/shadows/ShadowMap.hpp>
 
 #include <rendering/RenderInterface.hpp>
+#include <rendering/TextureViewCache.hpp>
 
 #include <Core/containers/HashMap.hpp>
 
@@ -316,22 +317,22 @@ void ShadowMapCache::Shutdown()
 
 GpuImage* ShadowMapCache::GetAtlasImage() const
 {
-    return m_impl->allocator.GetAtlasImage().Get();
+    return m_impl->allocator.GetAtlasTextureArray()->GetGpuImage();
 }
 
 GpuImageView* ShadowMapCache::GetAtlasImageView() const
 {
-    return m_impl->allocator.GetAtlasImageView().Get();
+    return g_renderInterface->textureViewCache->GetOrCreate(m_impl->allocator.GetAtlasTextureArray());
 }
 
 GpuImage* ShadowMapCache::GetPointLightShadowMapImage() const
 {
-    return m_impl->allocator.GetPointLightShadowMapImage().Get();
+    return m_impl->allocator.GetPointLightTextureArray()->GetGpuImage();
 }
 
 GpuImageView* ShadowMapCache::GetPointLightShadowMapImageView() const
 {
-    return m_impl->allocator.GetPointLightShadowMapImageView().Get();
+    return g_renderInterface->textureViewCache->GetOrCreate(m_impl->allocator.GetPointLightTextureArray());
 }
 
 HYP_NODISCARD View* ShadowMapCache::GetOrCreateShadowView(

@@ -15,17 +15,15 @@ namespace Hyperion.Editor.Services
 {
     public struct LogEntry
     {
-        private static readonly ImmutableDictionary<int, string> LogLevelColors = new Dictionary<int, string>
+        private static readonly ImmutableDictionary<LogLevel, string> LogLevelColors = new Dictionary<LogLevel, string>
         {
-            { 0, "#FFFFFF" }, // Debug - White
-            { 1, "#FFFFFF" }, // Info - White
-            { 2, "#FFA500" }, // Warning - Orange
-            { 3, "#FF0000" }, // Error - Red
-            { 4, "#FF00FF" }  // Fatal - Magenta
+            { LogLevel.Fatal, "#4c0b0b" },
+            { LogLevel.Error, "#FF0000" },
+            { LogLevel.Warning, "#ffc65d" }
         }.ToImmutableDictionary();
 
         public string Channel { get; set; }
-        public int Level { get; set; }
+        public LogLevel Level { get; set; }
         public double Timestamp { get; set; }
         public string FileName { get; set; }
         public int LineNumber { get; set; }
@@ -56,7 +54,7 @@ namespace Hyperion.Editor.Services
         public LogEntry()
         {
             Channel = string.Empty;
-            Level = 0;
+            Level = LogLevel.Info;
             Timestamp = 0.0;
             FileName = string.Empty;
             LineNumber = 0;
@@ -96,7 +94,7 @@ namespace Hyperion.Editor.Services
             }
         }
 
-        private void OnLogMessage(string channel, int level, double timestamp, string fileName, int lineNumber, string message)
+        private void OnLogMessage(string channel, LogLevel level, double timestamp, string fileName, int lineNumber, string message)
         {
             _logQueue.Enqueue(new LogEntry
             {
@@ -109,9 +107,46 @@ namespace Hyperion.Editor.Services
             });
         }
 
-        public void ExecuteCommand(string command)
+        public void ExecuteCommand(ReadOnlySpan<string> args)
         {
-            NativeBindings.Editor_ExecuteConsoleCommand(command);
+            // make char** from List<string>
+            int argc = args.Length;
+
+            IntPtr argvPtr = Marshal.AllocHGlobal(argc * IntPtr.Size);
+
+            try
+            {
+                IntPtr[] stringPointers = new IntPtr[argc];
+
+                for (int i = 0; i < argc; i++)
+                {
+                    byte[] utf8Bytes = System.Text.Encoding.UTF8.GetBytes(args[i] + "\0");
+
+                    IntPtr stringPtr = Marshal.AllocHGlobal(utf8Bytes.Length);
+                    Marshal.Copy(utf8Bytes, 0, stringPtr, utf8Bytes.Length);
+
+                    stringPointers[i] = stringPtr;
+                }
+
+                Marshal.Copy(stringPointers, 0, argvPtr, argc);
+
+                // execute with int argc, char** argv
+                int returnValue = NativeBindings.Editor_ExecuteConsoleCommand(argc, argvPtr);
+                if (returnValue != 0)
+                {
+                    throw new Exception("The command returned with error code: " + returnValue);
+                }
+            }
+            finally
+            {
+                // free all unmanaged memory
+                for (int i = 0; i < args.Length; i++)
+                {
+                    Marshal.FreeHGlobal(Marshal.ReadIntPtr(argvPtr, i * IntPtr.Size));
+                }
+
+                Marshal.FreeHGlobal(argvPtr);
+            }
         }
 
         public void ClearLogs()

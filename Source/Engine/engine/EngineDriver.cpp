@@ -58,6 +58,8 @@
 #include <Core/threading/Threads.hpp>
 #include <Core/threading/TaskSystem.hpp>
 
+#include <Core/Core.hpp>
+
 #include <asset/Assets.hpp>
 
 #include <streaming/StreamingManager.hpp>
@@ -81,12 +83,6 @@
 namespace Hyperion {
 
 void HandleSignal(int signum);
-
-namespace CoreApi {
-extern const GlobalConfig& GetGlobalConfig();
-extern FilePath GetExecutablePath();
-extern const CommandLineArguments& GetCommandLineArguments();
-} // namespace CoreApi
 
 EngineStatTimer g_statRenderUpdate("Render/Update");
 
@@ -166,7 +162,7 @@ HYP_API void EngineDriver::Init()
     netRequestThread->Start();
 
     // must start after net request thread
-    if (CoreApi::GetCommandLineArguments()["Profile"])
+    if (CoreApi::IsProfilingEnabled())
     {
         StartProfilerConnectionThread(ProfilerConnectionParams {
             /* endpointUrl */ CoreApi::GetCommandLineArguments()["TraceURL"].ToString(),

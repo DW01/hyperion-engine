@@ -182,8 +182,6 @@ void ParticleVolumeRenderer::RenderFrame(Frame* frame, const RenderSetup& render
     HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
-    HYP_NAMED_SCOPE("Render particle volume");
-
     AssertDebug(renderSetup.world && renderSetup.view && renderSetup.volume);
 
     ParticleVolume* particleVolume = ObjCast<ParticleVolume>(renderSetup.volume);

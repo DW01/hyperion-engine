@@ -49,14 +49,12 @@ namespace Hyperion.Editor.ViewModels
         public ICommand SelectTransformModeTranslate { get; private set; }
         public ICommand SelectTransformModeRotate { get; private set; }
         public ICommand SelectTransformModeScale { get; private set; }
-        public bool CanSelectGizmo
-        {
-            get
-            {
-                return _editorSubsystem != null
-                    && EngineManager.GameInstance?.World?.GetGameState().Mode == GameStateMode.EditMode;
-            }
-        }
+
+        public bool CanSelectTransformModeTranslate => CanSelectGizmo;// && _editorSubsystem.GetSelectedGizmo()?.ManipulationMode != EditorManipulationMode.Translate;
+        public bool CanSelectTransformModeRotate => CanSelectGizmo;// && _editorSubsystem.GetSelectedGizmo()?.ManipulationMode != EditorManipulationMode.Rotate;
+        public bool CanSelectTransformModeScale => CanSelectGizmo;// && _editorSubsystem.GetSelectedGizmo()?.ManipulationMode != EditorManipulationMode.Scale;
+
+        public bool CanSelectGizmo = true; // temp hax
 
         public ICommand SetGameModePlaying { get; private set; }
         public bool CanSetGameModePlaying
@@ -64,11 +62,7 @@ namespace Hyperion.Editor.ViewModels
             get
             {
                 EditorProject? project = EngineManager.CurrentProject;
-
-                if (project == null)
-                {
-                    return false;
-                }
+                Debug.Assert(project != null);
 
                 return project.World.GetGameState().Mode != GameStateMode.Simulating;
             }
@@ -160,6 +154,22 @@ namespace Hyperion.Editor.ViewModels
             Inspector = new InspectorViewModel();
             ForegroundTask = new ForegroundTaskViewModel();
 
+            SelectTransformModeTranslate = new SetGizmoCommand(EditorManipulationMode.Translate);
+            SelectTransformModeRotate = new SetGizmoCommand(EditorManipulationMode.Rotate);
+            SelectTransformModeScale = new SetGizmoCommand(EditorManipulationMode.Scale);
+
+            SetGameModePlaying = new SetGameModeCommand(GameStateMode.Simulating);
+            SetGameModePaused = new SetGameModeCommand(GameStateMode.Paused);
+            SetGameModeStopped = new SetGameModeCommand(GameStateMode.Stopped);
+
+            SetActiveSceneCommand = new RelayCommand<SceneViewModel>(scene =>
+            {
+                if (scene != null)
+                {
+                    ActiveScene = scene;
+                }
+            });
+
             HyperionEditorGame? editorGame = EngineManager.EditorGame;
             if (editorGame == null)
                 throw new InvalidOperationException("Editor game instance is not initialized.");
@@ -179,22 +189,6 @@ namespace Hyperion.Editor.ViewModels
                 {
                     Init(editorGame);
                 });
-            });
-
-            SelectTransformModeTranslate = new SetGizmoCommand(EditorManipulationMode.Translate);
-            SelectTransformModeRotate = new SetGizmoCommand(EditorManipulationMode.Rotate);
-            SelectTransformModeScale = new SetGizmoCommand(EditorManipulationMode.Scale);
-
-            SetGameModePlaying = new SetGameModeCommand(GameStateMode.Simulating);
-            SetGameModePaused = new SetGameModeCommand(GameStateMode.Paused);
-            SetGameModeStopped = new SetGameModeCommand(GameStateMode.Stopped);
-
-            SetActiveSceneCommand = new RelayCommand<SceneViewModel>(scene =>
-            {
-                if (scene != null)
-                {
-                    ActiveScene = scene;
-                }
             });
         }
 
@@ -382,7 +376,11 @@ namespace Hyperion.Editor.ViewModels
                             (SelectTransformModeTranslate as SetGizmoCommand)?.RaiseCanExecuteChanged();
                             (SelectTransformModeRotate as SetGizmoCommand)?.RaiseCanExecuteChanged();
                             (SelectTransformModeScale as SetGizmoCommand)?.RaiseCanExecuteChanged();
+
                             OnPropertyChanged(nameof(CanSelectGizmo));
+                            OnPropertyChanged(nameof(CanSelectTransformModeTranslate));
+                            OnPropertyChanged(nameof(CanSelectTransformModeRotate));
+                            OnPropertyChanged(nameof(CanSelectTransformModeScale));
                         });
                     });
             }
@@ -398,6 +396,9 @@ namespace Hyperion.Editor.ViewModels
                         (SelectTransformModeScale as SetGizmoCommand)?.RaiseCanExecuteChanged();
 
                         OnPropertyChanged(nameof(CanSelectGizmo));
+                        OnPropertyChanged(nameof(CanSelectTransformModeTranslate));
+                        OnPropertyChanged(nameof(CanSelectTransformModeRotate));
+                        OnPropertyChanged(nameof(CanSelectTransformModeScale));
                     });
                 });
 
@@ -408,6 +409,9 @@ namespace Hyperion.Editor.ViewModels
                 OnPropertyChanged(nameof(CanSetGameModeStopped));
 
                 OnPropertyChanged(nameof(CanSelectGizmo));
+                OnPropertyChanged(nameof(CanSelectTransformModeTranslate));
+                OnPropertyChanged(nameof(CanSelectTransformModeRotate));
+                OnPropertyChanged(nameof(CanSelectTransformModeScale));
 
                 // Update scenes list
                 Scenes.Clear();

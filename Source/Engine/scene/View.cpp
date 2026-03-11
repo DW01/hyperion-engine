@@ -479,8 +479,6 @@ void View::SetPriority(int priority)
 
 void View::AddScene(Scene* scene)
 {
-    HYP_SCOPE;
-
     if (!scene)
     {
         return;
@@ -496,8 +494,6 @@ void View::AddScene(Scene* scene)
 
 void View::RemoveScene(Scene* scene)
 {
-    HYP_SCOPE;
-
     if (!scene)
     {
         return;

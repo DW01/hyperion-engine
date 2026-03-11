@@ -1212,7 +1212,7 @@ void VolumeEditorGizmo::UpdateFaceGeometry(const BoundingBox& localBounds, const
 
 Handle<Node> VolumeEditorGizmo::Load_Internal() const
 {
-    const Vec4f volumeColor = Vec4f(0.7f, 0.0f, 0.3f, 0.9f);
+    const Vec4f volumeColor = Vec4f(0.3f, 0.0f, 0.28f, 0.25f);
 
     Handle<Node> rootNode = MakeHandle<Node>();
     rootNode->SetName(NAME("VolumeEditGizmo"));
@@ -1390,7 +1390,7 @@ void VolumeEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEvent
                                 finalBoundsLocal = focusedNode->GetWorldMatrix().Inverse() * finalBoundsLocal;
 
                                 focusedNode->SetLocalBounds(finalBoundsLocal);
-
+                                
                                 editorSubsystem->SetSelectedManipulationMode(manipulationMode);
                                 editorSubsystem->SetFocusedNode(focusedNode, true);
                             },
@@ -1430,7 +1430,7 @@ bool VolumeEditorGizmo::OnMouseHover(const Handle<Camera>& camera, const MouseEv
 
     meshComponent->material->SetParameter(
         MATERIAL_KEY_ALBEDO,
-        Vec4f(0.7f, 0.0f, 0.0f, 0.8f));
+        Vec4f(0.7f, 0.35f, 0.0f, 0.35f));
 
     return true;
 }
@@ -1535,8 +1535,8 @@ bool VolumeEditorGizmo::OnMouseMove(const Handle<Camera>& camera, const MouseEve
     m_currentBounds = newBounds;
 
     // set new bounds
-    const BoundingBox newBoundsLocal = focusedNode->GetWorldMatrix().Inverse() * newBounds;
-    focusedNode->SetLocalBounds(newBoundsLocal);
+    //const BoundingBox newBoundsLocal = focusedNode->GetWorldMatrix().Inverse() * newBounds;
+    //focusedNode->SetLocalBounds(newBoundsLocal);
 
     UpdateFaceGeometry(newBounds, focusedNode->GetWorldTranslation());
 

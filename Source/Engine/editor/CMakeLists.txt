@@ -127,6 +127,7 @@ if(DOTNET_EXECUTABLE)
     file(APPEND ${EDITOR_CSPROJ_PATH} "    <PackageReference Include=\"Dock.Avalonia\" Version=\"*\" />\n")
     file(APPEND ${EDITOR_CSPROJ_PATH} "    <PackageReference Include=\"Dock.Model.Avalonia\" Version=\"*\" />\n")
     file(APPEND ${EDITOR_CSPROJ_PATH} "    <PackageReference Include=\"Dock.Avalonia.Themes.Fluent\" Version=\"*\" />\n")
+    file(APPEND ${EDITOR_CSPROJ_PATH} "    <PackageReference Include=\"Lucide.Avalonia\" Version=\"*\" />\n")
     file(APPEND ${EDITOR_CSPROJ_PATH} "  </ItemGroup>\n")
 
     file(GLOB_RECURSE EDITOR_CS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/managed/*.cs")

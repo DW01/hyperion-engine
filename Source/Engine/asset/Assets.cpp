@@ -200,8 +200,6 @@ void AssetManager::SetBasePath(const FilePath& basePath)
 
 void AssetManager::ForEachAssetCollector(const ProcRef<void(const Handle<AssetCollector>&)>& callback) const
 {
-    HYP_SCOPE;
-
     Mutex::Guard guard(m_assetCollectorsMutex);
 
     for (const Handle<AssetCollector>& assetCollector : m_assetCollectors)
@@ -296,8 +294,6 @@ void AssetManager::RegisterDefaultLoaders()
 
 const AssetLoaderDefinition* AssetManager::GetLoaderDefinition(const FilePath& path, TypeId desiredTypeId)
 {
-    HYP_SCOPE;
-
     const String extension = StringUtil::GetExtension(path).ToLower();
 
     AssetLoaderBase* loader = nullptr;
@@ -345,8 +341,6 @@ const AssetLoaderDefinition* AssetManager::GetLoaderDefinition(const FilePath& p
 
 void AssetManager::Init()
 {
-    HYP_SCOPE;
-
     RegisterDefaultLoaders();
 
     m_assetRegistry = MakeHandle<AssetRegistry>();

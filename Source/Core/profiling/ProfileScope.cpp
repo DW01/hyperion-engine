@@ -5,12 +5,19 @@
 
 #include <Core/containers/LinkedList.hpp>
 #include <Core/containers/FlatMap.hpp>
+#include <Core/containers/FixedArray.hpp>
+
+#include <Core/utilities/Pair.hpp>
 
 #include <Core/memory/NotNullPtr.hpp>
+
+#include <Core/memory/allocator/Allocator.hpp>
+#include <Core/memory/allocator/ThreadAllocator.hpp>
 
 #include <Core/threading/Threads.hpp>
 #include <Core/threading/Thread.hpp>
 #include <Core/threading/TaskThread.hpp>
+#include <Core/threading/ThreadLocalStorage.hpp>
 #include <Core/threading/DataRaceDetector.hpp>
 
 #include <Core/utilities/Uuid.hpp>
@@ -23,6 +30,8 @@
 #include <Core/cli/CommandLine.hpp>
 
 #include <Core/json/JSON.hpp>
+
+#include <Core/Core.hpp>
 
 namespace Hyperion {
 namespace profiling {
@@ -249,16 +258,22 @@ private:
 
 HYP_API void StartProfilerConnectionThread(const ProfilerConnectionParams& params)
 {
-#ifdef HYP_ENABLE_PROFILE
-    ProfilerConnection::GetInstance().SetParams(params);
-    ProfilerConnection::GetInstance().StartThread();
+#if HYP_ENABLE_PROFILE
+    if (CoreApi::IsProfilingEnabled())
+    {
+        ProfilerConnection::GetInstance().SetParams(params);
+        ProfilerConnection::GetInstance().StartThread();
+    }
 #endif
 }
 
 HYP_API void StopProfilerConnectionThread()
 {
-#ifdef HYP_ENABLE_PROFILE
-    ProfilerConnection::GetInstance().StopThread();
+#if HYP_ENABLE_PROFILE
+    if (CoreApi::IsProfilingEnabled())
+    {
+        ProfilerConnection::GetInstance().StopThread();
+    }
 #endif
 }
 
@@ -365,6 +380,12 @@ struct ProfileScopeEntryQueue
 
 #pragma region ProfileScopeStack
 
+// If we reach this number, the thread probably isn't resetting the scopes in a consistent way and we need to reset at the threshold
+// for some threads this makes sense, others that have a defined loop like render, sim etc. Will be reset at the top of the frame
+static constexpr uint32 MaxRecordedScopes = 4096;
+
+static constexpr uint32 MaxHotFunctions = 10;
+
 static void DebugLogProfileScopeEntry(ProfileScopeEntry* entry, int depth = 0)
 {
     if (depth > 0)
@@ -385,11 +406,14 @@ static void DebugLogProfileScopeEntry(ProfileScopeEntry* entry, int depth = 0)
 
 class ProfileScopeStack
 {
+    using TimeByFunctionMap = HashMap<ANSIString, double, PooledNodeAllocator<ThreadAllocator>>;
+
 public:
     ProfileScopeStack()
         : m_threadId(CurrentThreadId()),
           m_rootEntry("ROOT", ""),
-          m_head(&m_rootEntry)
+          m_head(&m_rootEntry),
+          m_numRecordedScopes(0)
     {
         m_rootEntry.StartMeasure();
     }
@@ -401,6 +425,8 @@ public:
         AssertOnThread(m_threadId);
 
         m_rootEntry.SaveDiff();
+
+        BuildHotFunctions();
 
         if (ProfilerConnection::GetInstance().GetParams().enabled)
         {
@@ -418,11 +444,21 @@ public:
         m_rootEntry.StartMeasure();
 
         m_head = &m_rootEntry;
+
+        m_numRecordedScopes = 0;
     }
 
     ProfileScopeEntry& Open(ANSIStringView label, ANSIStringView location)
     {
         AssertOnThread(m_threadId);
+
+        if (m_numRecordedScopes >= MaxRecordedScopes
+            && m_head == &m_rootEntry) // only reset if at root (don't mess up nesting)
+        {
+            Reset();
+        }
+        
+        ++m_numRecordedScopes;
 
         m_head = &m_head->children.EmplaceBack(label, location, m_head);
         return *m_head;
@@ -442,22 +478,192 @@ public:
         }
     }
 
+    HYP_FORCE_INLINE const Time& GetLastHotFunctionsUpdateTimestamp() const
+    {
+        TSharedLock lock(m_hotFunctionsMutex);
+        return m_lastHotFunctionsUpdateTimestamp;
+    }
+
+    void CollectHotFunctions(Array<Pair<ANSIString, double>>& outHotFunctions)
+    {
+        TSharedLock lock(m_hotFunctionsMutex);
+
+        outHotFunctions.Reserve(outHotFunctions.Size() + m_numHotFunctions);
+
+        const ANSIString threadIdString = *m_threadId.GetName();
+
+        for (uint32 i = 0; i < m_numHotFunctions; ++i)
+        {
+            outHotFunctions.EmplaceBack(threadIdString + ":" + m_hotFunctions[i].first, m_hotFunctions[i].second);
+        }
+    }
+
 private:
+    void BuildHotFunctions()
+    {
+        TUniqueLock lock(m_hotFunctionsMutex);
+
+        TimeByFunctionMap timeByFunction;
+        CollectTimeByFunction_Internal(&m_rootEntry, timeByFunction);
+
+        m_numHotFunctions = 0;
+
+        CollectHotFunctions_Internal(timeByFunction);
+
+        m_lastHotFunctionsUpdateTimestamp = Time::Now();
+    }
+
+    void CollectTimeByFunction_Internal(ProfileScopeEntry* entry, TimeByFunctionMap& totalTimeByFunction)
+    {
+        // assume mutex is locked
+        
+        if (entry != &m_rootEntry)
+        {
+            totalTimeByFunction[entry->label.Any() ? ANSIStringView(entry->label) : entry->location] += entry->measuredTimeMs;
+        }
+
+        for (ProfileScopeEntry& child : entry->children)
+        {
+            CollectTimeByFunction_Internal(&child, totalTimeByFunction);
+        }
+    }
+
+    void CollectHotFunctions_Internal(const TimeByFunctionMap& timeByFunction)
+    {
+        // assume mutex is locked
+
+        for (const KeyValuePair<ANSIString, double>& it : timeByFunction)
+        {
+            uint32 insertPos = m_numHotFunctions;
+
+            for (uint32 i = 0; i < m_numHotFunctions; ++i)
+            {
+                if (it.second > m_hotFunctions[i].second)
+                {
+                    insertPos = i;
+                    break;
+                }
+            }
+
+            if (insertPos < MaxHotFunctions)
+            {
+                const uint32 shiftEnd = m_numHotFunctions < MaxHotFunctions ? m_numHotFunctions : MaxHotFunctions - 1;
+
+                for (uint32 i = shiftEnd; i > insertPos; --i)
+                {
+                    m_hotFunctions[i] = std::move(m_hotFunctions[i - 1]);
+                }
+
+                m_hotFunctions[insertPos] = { it.first, it.second };
+
+                if (m_numHotFunctions < MaxHotFunctions)
+                {
+                    ++m_numHotFunctions;
+                }
+            }
+        }
+    }
+
     ThreadId m_threadId;
     ProfileScopeEntry m_rootEntry;
     NotNullPtr<ProfileScopeEntry> m_head;
     JSON::JArray m_queue;
+    uint32 m_numRecordedScopes;
+
+    SharedMutex m_hotFunctionsMutex; // since we will be ingesting the data from another thread for reading.
+    FixedArray<Pair<ANSIString, double>, MaxHotFunctions> m_hotFunctions;
+    uint32 m_numHotFunctions = 0;
+    Time m_lastHotFunctionsUpdateTimestamp;
 };
 
 #pragma endregion ProfileScopeStack
 
 #pragma region ProfileScope
 
+static constexpr uint32 MaxRegisteredProfileScopeStacks = 64;
+static ProfileScopeStack* s_allRegisteredProfileScopeStacks[MaxRegisteredProfileScopeStacks];
+static volatile int64 s_numRegisteredProfileScopeStacks;
+static volatile int64 s_profileScopeStacksBitMask;
+
+static thread_local ProfileScopeStack* s_profileScopeStack;
+static thread_local uint32 s_profileScopeStackIndex;
+
+void CollectAllHotFunctions(Array<Pair<ANSIString, double>>& outHotFunctions)
+{
+    const Time now = Time::Now();
+
+    const uint64 mask = std::bit_cast<uint64>(AtomicAdd(&s_profileScopeStacksBitMask, 0));
+
+    FOR_EACH_BIT(mask, iter)
+    {
+        ProfileScopeStack* profileScopeStack = s_allRegisteredProfileScopeStacks[iter];
+
+        if (now - profileScopeStack->GetLastHotFunctionsUpdateTimestamp() >= TimeDiff(3000))
+        {
+            // skip if time diff >= 3s.
+            // if it hasn't been updated in a while it's not really relevant anymore
+            continue;
+        }
+
+        profileScopeStack->CollectHotFunctions(outHotFunctions);
+    }
+
+    std::sort(outHotFunctions.Begin(), outHotFunctions.End(), [](const Pair<ANSIString, double>& a, const Pair<ANSIString, double>& b)
+        {
+            return a.second > b.second;
+        });
+}
+
 ProfileScopeStack& ProfileScope::GetProfileScopeStackForCurrentThread()
 {
-    static thread_local ProfileScopeStack profileScopeStack;
+    if (HYP_UNLIKELY(!s_profileScopeStack))
+    {
+        s_profileScopeStackIndex = uint32(AtomicAdd(&s_numRegisteredProfileScopeStacks, 1));
+        Assert(s_profileScopeStackIndex < MaxRegisteredProfileScopeStacks, "Too many profile scope stacks registered");
 
-    return profileScopeStack;
+        ThreadBase* currThread = CurrentThreadObject();
+        if (currThread != nullptr)
+        {
+            // use thread local allocator
+
+            s_profileScopeStack = (ProfileScopeStack*)GetDefaultAllocatorInstance<ThreadAllocator>()->Allocate(sizeof(ProfileScopeStack), alignof(ProfileScopeStack));
+            AssertDebug(s_profileScopeStack != nullptr);
+
+            new (s_profileScopeStack) ProfileScopeStack;
+
+            s_allRegisteredProfileScopeStacks[s_profileScopeStackIndex] = s_profileScopeStack;
+
+            AtomicBitOr(&s_profileScopeStacksBitMask, int64(1 << s_profileScopeStackIndex));
+
+            currThread->AddOnExitCallback([]()
+                {
+                    AtomicBitAnd(&s_profileScopeStacksBitMask, ~(1 << s_profileScopeStackIndex));
+
+                    s_allRegisteredProfileScopeStacks[s_profileScopeStackIndex] = nullptr;
+
+                    s_profileScopeStack->~ProfileScopeStack();
+                    GetDefaultAllocatorInstance<ThreadAllocator>()->Free(s_profileScopeStack);
+                    s_profileScopeStack = nullptr;
+                });
+        }
+        else
+        {
+            // fallback to use thread_local instance.
+            // thread_local non-trivially constructible types have a performance overhead
+            // (I have a reference to more info on this hanging around somewhere...)
+            // but currently some threads don't have an object assoc'd so i'm adding this for now
+            // as a temporary measure :)
+
+            static thread_local ProfileScopeStack s_profileScopeStackInstance;
+            s_profileScopeStack = &s_profileScopeStackInstance;
+
+            AtomicBitOr(&s_profileScopeStacksBitMask, int64(1 << s_profileScopeStackIndex));
+
+            s_allRegisteredProfileScopeStacks[s_profileScopeStackIndex] = s_profileScopeStack;
+        }
+    }
+
+    return *s_profileScopeStack;
 }
 
 void ProfileScope::ResetForCurrentThread()
@@ -466,13 +672,16 @@ void ProfileScope::ResetForCurrentThread()
 }
 
 ProfileScope::ProfileScope(ANSIStringView label, ANSIStringView location)
-    : entry(&GetProfileScopeStackForCurrentThread().Open(label, location))
+    : entry(CoreApi::IsProfilingEnabled() ? &GetProfileScopeStackForCurrentThread().Open(label, location) : nullptr)
 {
 }
 
 ProfileScope::~ProfileScope()
 {
-    GetProfileScopeStackForCurrentThread().Close();
+    if (CoreApi::IsProfilingEnabled())
+    {
+        GetProfileScopeStackForCurrentThread().Close();
+    }
 }
 
 #pragma endregion ProfileScope

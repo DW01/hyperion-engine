@@ -22,6 +22,7 @@
 #include <Core/reflection/Class.hpp>
 #include <Core/reflection/TypeInfo.hpp>
 #include <Core/reflection/Handle.hpp>
+#include <Core/reflection/Method.hpp>
 
 #include <Core/threading/Threads.hpp>
 #include <Core/threading/TaskSystem.hpp>
@@ -30,8 +31,6 @@
 #include <Core/memory/pool/Pool.hpp>
 
 #include <Core/cli/CommandLine.hpp>
-
-#include <engine/console/ConsoleCommandManager.hpp>
 
 #include <system/MessageBox.hpp>
 #include <system/AppContext.hpp>
@@ -241,6 +240,8 @@ static void InitThreads()
     }
 
     g_mainThreadInstance = new MainThread();
+    SetCurrentThreadObject(g_mainThreadInstance);
+
     g_renderThreadInstance = new RenderThread();
     g_simThreadInstance = new SimThread();
     g_visThreadInstance = new VisThread();
@@ -297,7 +298,7 @@ extern "C"
 
         const CommandLineArguments& cliArgs = CoreApi::GetCommandLineArguments();
 
-        const FilePath basePath = FilePath(cliArgs.GetCommand()).BasePath();
+        const FilePath basePath = FilePath(cliArgs.GetCommand().ToUtf8()).BasePath();
         CoreApi::SetExecutablePath(basePath);
         
         const bool isEditor = cliArgs["Editor"].ToBool();
@@ -309,7 +310,6 @@ extern "C"
         DotNETHost::GetInstance().Initialize(basePath, /* initFromManaged */ isEditor, s_initFromManagedCallback);
 #endif
 
-        ConsoleCommandManager::GetInstance().Initialize();
         TaskSystem::GetInstance().Start();
 
         g_engineDriver = MakeHandle<EngineDriver>();
@@ -406,7 +406,7 @@ extern "C"
         
         if (isCommandlet)
         {
-            const String commandletName = cliArgs["Commandlet"].ToString();
+            const ANSIString commandletName = cliArgs["Commandlet"].ToString().ToAnsi();
 
             CommandLineArguments commandletArgs = CommandLineArguments::Merge(
                 CoreApi::DefaultCommandLineArgumentDefinitions(),
@@ -415,9 +415,7 @@ extern "C"
 
             commandletArgs.Delete("Commandlet");
 
-            Result commandletResult = g_appContext->RunCommandlet(
-                CreateNameFromDynamicString(commandletName),
-                commandletArgs);
+            Result commandletResult = g_appContext->RunCommandlet(commandletName, commandletArgs);
 
             if (commandletResult.HasError())
             {
@@ -471,7 +469,6 @@ extern "C"
         g_appContext.Reset();
 
         ComponentInterfaceRegistry::GetInstance().Shutdown();
-        ConsoleCommandManager::GetInstance().Shutdown();
 
 #if HYP_DOTNET
         DotNETHost::GetInstance().Shutdown();
@@ -676,7 +673,7 @@ extern "C"
 #if HYP_EDITOR
     using LogCallback = void (*)(
         const char* channel,
-        int level,
+        LogLevel level,
         double timestamp,
         const char* fileName,
         int lineNumber,
@@ -697,7 +694,7 @@ extern "C"
 
             g_logCallback(
                 channel.name.LookupString(),
-                (int)message.level,
+                message.level,
                 (double)message.timestamp,
                 message.fileName,
                 message.lineNumber,
@@ -723,12 +720,65 @@ extern "C"
         }
     }
 
-    HYP_EXPORT void Editor_ExecuteConsoleCommand(const char* command)
+    HYP_EXPORT int Editor_ExecuteConsoleCommand(int argc, const char** argv)
     {
-        if (!command)
-            return;
+        if (argc == 0)
+            return 1; // NO COMMAND!
 
-        ConsoleCommandManager::GetInstance().ExecuteCommand(command);
+        // parse command string into cli args
+
+        ANSIString commandName = argv[0];
+        String commandLine;
+
+        for (int i = 1; i < argc; i++)
+        {
+            commandLine += argv[i];
+            if (i != argc - 1)
+            {
+                commandLine += ' ';
+            }
+        }
+
+        CommandLineArgumentDefinitions argumentDefinitions {};
+
+        const Class* commandletClass = g_appContext->FindCommandletClass(commandName);
+
+        if (commandletClass != nullptr)
+        {
+            CommandLineArguments args { commandName };
+
+            // check for static method GetArgumentDefinitions() on commandlet class to override.
+            if (const Method* m = commandletClass->GetMethod("GetArgumentDefinitions"_sh))
+            {
+                Span<BoxedValue*> args = { nullptr };
+
+                BoxedValue boxed = m->Invoke(args);
+                AssertDebug(boxed.Is<CommandLineArgumentDefinitions>());
+
+                if (boxed.Is<CommandLineArgumentDefinitions>())
+                {
+                    argumentDefinitions = boxed.Get<CommandLineArgumentDefinitions>();
+                }
+            }
+
+            CommandLineParser parser { &argumentDefinitions };
+            TResult<CommandLineArguments> parseResult = parser.Parse(commandLine);
+
+            Result commandletResult = g_appContext->RunCommandlet(
+                commandName,
+                parseResult.GetValue());
+
+            if (commandletResult.HasError())
+            {
+                HYP_LOG(Engine, Error, "Commandlet execution failed! {}", commandletResult.GetError().GetMessage());
+
+                return 1;
+            }
+
+            return 0; // 0 == success to model C main()
+        }
+
+        return 1;
     }
 #endif
 }

@@ -11,11 +11,13 @@
 
 #include <Core/reflection/ObjectMacros.hpp>
 
-#include <util/AtlasPacker.hpp>
-
 #include <Core/Types.hpp>
 
+#include <util/AtlasPacker.hpp>
+
 namespace Hyperion {
+
+static constexpr bool CacheStaticShadowMaps = true;
 
 class FullScreenPass;
 class ShadowMap;
@@ -141,24 +143,14 @@ public:
     ShadowMapAllocator();
     ~ShadowMapAllocator();
 
-    HYP_FORCE_INLINE const GpuImageRef& GetAtlasImage() const
+    HYP_FORCE_INLINE const Handle<Texture>& GetAtlasTextureArray() const
     {
-        return m_atlasImage;
+        return m_atlasTextureArray;
     }
 
-    HYP_FORCE_INLINE const GpuImageViewRef& GetAtlasImageView() const
+    HYP_FORCE_INLINE const Handle<Texture>& GetPointLightTextureArray() const
     {
-        return m_atlasImageView;
-    }
-
-    HYP_FORCE_INLINE const GpuImageRef& GetPointLightShadowMapImage() const
-    {
-        return m_pointLightShadowMapImage;
-    }
-
-    HYP_FORCE_INLINE const GpuImageViewRef& GetPointLightShadowMapImageView() const
-    {
-        return m_pointLightShadowMapImageView;
+        return m_pointLightTextureArray;
     }
 
     void Initialize();
@@ -175,11 +167,8 @@ private:
     Vec2u m_atlasDimensions;
     Array<ShadowMapAtlas> m_atlases;
 
-    GpuImageRef m_atlasImage;
-    GpuImageViewRef m_atlasImageView;
-
-    GpuImageRef m_pointLightShadowMapImage;
-    GpuImageViewRef m_pointLightShadowMapImageView;
+    Handle<Texture> m_atlasTextureArray;
+    Handle<Texture> m_pointLightTextureArray;
 
     IdGenerator m_pointLightShadowMapIdGenerator;
 };

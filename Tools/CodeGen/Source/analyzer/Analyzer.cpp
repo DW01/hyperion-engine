@@ -46,6 +46,19 @@ static const HashMap<String, MemberType> s_memberDefinitionTypes = {
     { "HYP_PROPERTY", MemberType::Property }
 };
 
+// for each path below, if it matches the module path, add the corresponding define(s) to the class condition
+static const HashMap<String, String> s_builtinConditionalDefines = {
+    // platforms
+    { "platform/win32", "HYP_WINDOWS" },
+    { "platform/linux", "HYP_LINUX" },
+    { "platform/mac", "HYP_MAC" },
+    { "platform/ios", "HYP_IOS" },
+    { "platform/android", "HYP_ANDROID" },
+    // rendering backends
+    { "rendering/vulkan", "HYP_VULKAN" },
+    { "rendering/dx12", "HYP_DX12" },
+};
+
 const String& ClassDefinitionTypeToString(ClassDefinitionType type)
 {
     auto it = s_classDefinitionTypes.FindIf([type](const Pair<String, ClassDefinitionType>& pair)
@@ -496,22 +509,7 @@ static TResult<Array<ClassDefinition>, AnalyzerError> BuildClasses(const Analyze
         classDefinition.staticIndex = -1;
 
         { // Set up condition for the class
-            // built in conditions:
-
             const String pathSanitized = mod.GetPath().ToLower().ReplaceAll("\\", "/");
-
-            // for each path below, if it matches the module path, add the corresponding define(s) to the class condition
-            static const HashMap<String, String> s_builtinConditionalDefines = {
-                // platforms
-                { "platform/win32", "HYP_WINDOWS" },
-                { "platform/linux", "HYP_LINUX" },
-                { "platform/mac", "HYP_MAC" },
-                { "platform/ios", "HYP_IOS" },
-                { "platform/android", "HYP_ANDROID" },
-                // rendering backends
-                { "rendering/vulkan", "HYP_VULKAN" },
-                { "rendering/dx12", "HYP_DX12" },
-            };
 
             for (const auto& [pathMatch, define] : s_builtinConditionalDefines)
             {

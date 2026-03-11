@@ -299,7 +299,8 @@ constexpr auto PrettyFunctionName()
     }
 }
 
-#define HYP_PRETTY_FUNCTION_NAME Hyperion::PrettyFunctionName<HYP_STATIC_STRING(HYP_FUNCTION_NAME_LIT)>()
+//#define HYP_PRETTY_FUNCTION_NAME Hyperion::PrettyFunctionName<HYP_STATIC_STRING(HYP_FUNCTION_NAME_LIT)>()
+#define HYP_PRETTY_FUNCTION_NAME HYP_STATIC_STRING(HYP_FUNCTION_NAME_LIT)
 
 #pragma endregion PrettyFunctionName
 

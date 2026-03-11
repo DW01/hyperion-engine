@@ -174,8 +174,6 @@ World::~World()
 
 void World::Init()
 {
-    HYP_SCOPE;
-
     if (m_worldFlags & WorldFlags::HAS_STREAMING)
     {
         if (!m_worldGrid)
@@ -749,8 +747,6 @@ void World::CollectSubsystems(Array<Subsystem*, SceneTempAllocator>& outSubsyste
 
 const Handle<Subsystem>& World::AddSubsystem(TypeId typeId, const Handle<Subsystem>& subsystem)
 {
-    HYP_SCOPE;
-
     if (!subsystem)
     {
         return Handle<Subsystem>::Null();
@@ -798,8 +794,6 @@ const Handle<Subsystem>& World::AddSubsystem(TypeId typeId, const Handle<Subsyst
 
 bool World::TryAddSubsystem(const Handle<Subsystem>& subsystem)
 {
-    HYP_SCOPE;
-
     if (!subsystem)
     {
         return false;
@@ -817,8 +811,6 @@ bool World::TryAddSubsystem(const Handle<Subsystem>& subsystem)
 
 Subsystem* World::GetSubsystem(TypeId typeId) const
 {
-    HYP_SCOPE;
-
     const auto it = m_subsystems.Find(typeId);
 
     if (it == m_subsystems.End())
@@ -831,8 +823,6 @@ Subsystem* World::GetSubsystem(TypeId typeId) const
 
 Subsystem* World::GetSubsystemByName(StringHash name) const
 {
-    HYP_SCOPE;
-
     const auto it = m_subsystemsArray.FindIf([name](Subsystem* subsystem)
         {
             const Class* cls = subsystem->InstanceClass();
@@ -850,8 +840,6 @@ Subsystem* World::GetSubsystemByName(StringHash name) const
 
 bool World::RemoveSubsystem(Subsystem* subsystem)
 {
-    HYP_SCOPE;
-
     if (!subsystem)
     {
         return false;
@@ -897,8 +885,6 @@ bool World::RemoveSubsystem(Subsystem* subsystem)
 
 void World::AddScene(const Handle<Scene>& scene, bool addToStreamingLayer)
 {
-    HYP_SCOPE;
-
     if (!scene)
     {
         return;
@@ -963,8 +949,6 @@ void World::AddScene(const Handle<Scene>& scene, bool addToStreamingLayer)
 
 bool World::RemoveScene(Scene* scene, bool removeFromStreamingLayer)
 {
-    HYP_SCOPE;
-
     auto it = m_scenes.Find(scene);
 
     if (it == m_scenes.End())
@@ -1029,8 +1013,6 @@ const Handle<Scene>& World::GetSceneByName(Name name) const
 
 void World::AddView(View* view)
 {
-    HYP_SCOPE;
-
     if (!view)
     {
         return;
@@ -1090,8 +1072,6 @@ void World::AddView(View* view)
 
 void World::RemoveView(View* view)
 {
-    HYP_SCOPE;
-
     if (!view)
     {
         return;
@@ -1130,7 +1110,6 @@ void World::RemoveView(View* view)
 
 Span<View* const> World::GetViews() const
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread | g_simThread);
 
     return m_viewsPerFrame[GetRingIndex()].ToSpan();
@@ -1138,7 +1117,6 @@ Span<View* const> World::GetViews() const
 
 void World::DeserializeNonStreamingScenes(const Array<Handle<Scene>>& scenes)
 {
-    HYP_SCOPE;
     // no thread assertion if not yet init since this is used for deserialization mainly
 
     const bool isInitialized = IsInitCalled();
@@ -1220,8 +1198,6 @@ void World::DeserializeNonStreamingScenes(const Array<Handle<Scene>>& scenes)
 
 Array<Handle<Scene>> World::SerializeNonStreamingScenes() const
 {
-    HYP_SCOPE;
-
     if (m_worldFlags & WorldFlags::HAS_SCENE_STREAMING_LAYER)
     {
         // return nothing if we have streaming enabled.
@@ -1273,8 +1249,6 @@ static void BindStreamingDelegates(DelegateHandlerSet& set, World* world, WorldG
 
 Handle<WorldGridLayer> World::GetOrCreateStreamingLayer(Name streamingLayerName)
 {
-    HYP_SCOPE;
-
     AssertDebug(streamingLayerName.IsValid());
     if (!streamingLayerName.IsValid())
     {
@@ -1450,8 +1424,6 @@ SystemBase* World::AddSystem(const Handle<SystemBase>& system)
 
 bool World::RemoveSystem(SystemBase* system)
 {
-    HYP_SCOPE;
-
     if (!system)
     {
         return false;

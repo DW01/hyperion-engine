@@ -128,7 +128,12 @@
                         Orientation="Horizontal"
                         Spacing="6">
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Button Content="Save" Command="{Binding SaveProject}" />
+                            <Button Command="{Binding SaveProject}">
+                                <StackPanel Orientation="Vertical" Spacing="4">
+                                    <LucideIcon Kind="Save" Size="24" />
+                                    <TextBlock Text="Save" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="6">
                           <DropDownButton
@@ -151,28 +156,39 @@
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
                         Spacing="6">
-                        <RadioButton
+                        <Button
                             x:Name="TransformModeTranslate"
                             Classes="gizmo"
                             Command="{Binding SelectTransformModeTranslate}"
-                            Content="Translate"
-                            GroupName="GizmoMode"
-                            IsChecked="False"
-                            ToolTip.Tip="Set the active transform mode to translate mode, allowing for objects to be positioned in the scene." />
-                        <RadioButton
+                            Width="64"
+                            IsEnabled="{Binding CanSelectTransformModeTranslate}">
+                            <StackPanel Orientation="Vertical" Spacing="4">
+                                <LucideIcon Kind="Move" Size="24" />
+                                <TextBlock Text="Translate" />
+                            </StackPanel>
+                        </Button>
+                        <Button
                             x:Name="TransformModeRotate"
                             Classes="gizmo"
                             Command="{Binding SelectTransformModeRotate}"
-                            Content="Rotate"
-                            GroupName="GizmoMode"
-                            ToolTip.Tip="Set the active transform mode to rotate mode, allowing for objects to have their orientations adjusted." />
-                        <RadioButton
+                            Width="64"
+                            IsEnabled="{Binding CanSelectTransformModeRotate}">
+                            <StackPanel Orientation="Vertical" Spacing="4">
+                                <LucideIcon Kind="RotateCw" Size="24" />
+                                <TextBlock Text="Rotate" />
+                            </StackPanel>
+                        </Button>
+                        <Button
                             x:Name="TransformModeScale"
                             Classes="gizmo"
                             Command="{Binding SelectTransformModeScale}"
-                            Content="Scale"
-                            GroupName="GizmoMode"
-                            ToolTip.Tip="Set the active transform mode to scale mode, allowing for objects to be sized." />
+                            Width="64"
+                            IsEnabled="{Binding CanSelectTransformModeScale}">
+                            <StackPanel Orientation="Vertical" Spacing="4">
+                                <LucideIcon Kind="Maximize" Size="24" />
+                                <TextBlock Text="Scale" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
 
                     <StackPanel
@@ -181,16 +197,28 @@
                         Spacing="6">
                         <Button
                             Command="{Binding SetGameModePlaying}"
-                            Content="Play"
-                            IsEnabled="{Binding CanSetGameModePlaying}" />
+                            IsVisible="{Binding CanSetGameModePlaying}">
+                            <StackPanel Orientation="Vertical" Spacing="4">
+                                <LucideIcon Kind="Play" Size="24" />
+                                <TextBlock Text="Play" />
+                            </StackPanel>
+                        </Button>
                         <Button
                             Command="{Binding SetGameModePaused}"
-                            Content="Pause"
-                            IsEnabled="{Binding CanSetGameModePaused}" />
+                            IsVisible="{Binding CanSetGameModePaused}">
+                            <StackPanel Orientation="Vertical" Spacing="4">
+                                <LucideIcon Kind="Pause" Size="24" />
+                                <TextBlock Text="Pause" />
+                            </StackPanel>
+                        </Button>
                         <Button
                             Command="{Binding SetGameModeStopped}"
-                            Content="Stop"
-                            IsEnabled="{Binding CanSetGameModeStopped}" />
+                            IsVisible="{Binding CanSetGameModeStopped}">
+                            <StackPanel Orientation="Vertical" Spacing="4">
+                                <LucideIcon Kind="Square" Size="24" />
+                                <TextBlock Text="Stop" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </Grid>
             </Border>

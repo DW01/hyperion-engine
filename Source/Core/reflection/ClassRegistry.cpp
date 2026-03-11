@@ -86,8 +86,6 @@ ClassRegistry::~ClassRegistry()
 
 const Class* ClassRegistry::GetClass(TypeId typeId) const
 {
-    HYP_SCOPE;
-
 #if defined(HYP_CLASS_REGISTRY_USE_TLS) && HYP_CLASS_REGISTRY_USE_TLS
     if (!typeId.IsDynamicType())
     {
@@ -137,8 +135,6 @@ const Class* ClassRegistry::GetClass(TypeId typeId) const
 
 const Class* ClassRegistry::GetClass(StringHash typeName) const
 {
-    HYP_SCOPE;
-
     Mutex::Guard guard(m_mutex);
 
     const auto it = m_classesByTypeId.FindIf([typeName](auto&& item)
@@ -164,10 +160,69 @@ const Class* ClassRegistry::GetClass(StringHash typeName) const
     return it->second;
 }
 
+const Class* ClassRegistry::GetClass(ANSIStringView typeName, bool ignoreCase) const
+{
+    if (typeName.Length() == 0)
+    {
+        return nullptr;
+    }
+
+    Mutex::Guard guard(m_mutex);
+
+    ANSIString typeNameLower;
+    StringHash typeNameHash = StringHash(typeName);
+
+    const auto it = m_classesByTypeId.FindIf([typeName, ignoreCase, &typeNameLower, typeNameHash](auto&& item)
+        {
+            if (ignoreCase)
+            {
+                // lazy lower-case conversion
+                if (typeNameLower.Empty())
+                {
+                    typeNameLower = ANSIString(typeName).ToLower();
+                }
+
+                ANSIString itemNameLower = ANSIString(*item.second->GetName()).ToLower();
+
+                return itemNameLower == typeNameLower;
+            }
+
+            return item.second->GetName() == typeNameHash;
+        });
+
+    if (it == m_classesByTypeId.End())
+    {
+        auto dynamicIt = m_dynamicClasses.FindIf([typeName, ignoreCase, &typeNameLower](auto&& item)
+            {
+                if (ignoreCase)
+                {
+                    // lazy lower-case conversion
+                    if (typeNameLower.Empty())
+                    {
+                        typeNameLower = ANSIString(typeName).ToLower();
+                    }
+
+                    ANSIString itemNameLower = ANSIString(*item.second->GetName()).ToLower();
+
+                    return itemNameLower == typeNameLower;
+                }
+
+                return item.second->GetName() == typeName;
+            });
+
+        if (dynamicIt != m_dynamicClasses.End())
+        {
+            return dynamicIt->second;
+        }
+
+        return nullptr;
+    }
+
+    return it->second;
+}
+
 const Class* ClassRegistry::GetEnum(TypeId typeId) const
 {
-    HYP_SCOPE;
-
     const Class* cls = GetClass(typeId);
 
     if (!cls || !(cls->GetFlags() & ClassFlags::ENUM_TYPE))
@@ -180,8 +235,6 @@ const Class* ClassRegistry::GetEnum(TypeId typeId) const
 
 const Class* ClassRegistry::GetEnum(StringHash typeName) const
 {
-    HYP_SCOPE;
-
     const Class* cls = GetClass(typeName);
 
     if (!cls || !(cls->GetFlags() & ClassFlags::ENUM_TYPE))
@@ -194,8 +247,6 @@ const Class* ClassRegistry::GetEnum(StringHash typeName) const
 
 void ClassRegistry::RegisterClass(TypeId typeId, Class* cls)
 {
-    HYP_SCOPE;
-
     if (typeId == TypeId::Void() || !cls)
     {
         return;
@@ -256,17 +307,10 @@ void ClassRegistry::RegisterClass(TypeId typeId, Class* cls)
         (*s_cache)[typeId] = cls;
     }
 #endif
-
-    if (m_isInitialized)
-    {
-        cls->Initialize();
-    }
 }
 
 bool ClassRegistry::UnregisterClass(const Class* cls)
 {
-    HYP_SCOPE;
-
     HYP_CORE_ASSERT(cls->IsDynamic(), "Cannot unregister class - must be a dynamic Class to unregister");
 
     Mutex::Guard guard(m_mutex);
@@ -290,8 +334,6 @@ bool ClassRegistry::UnregisterClass(const Class* cls)
 
 void ClassRegistry::ForEachClass(const ProcRef<IterationResult(const Class*)>& callback, bool includeDynamicClasses) const
 {
-    HYP_SCOPE;
-
     Array<const Class*> classes;
     classes.Reserve(m_classesByTypeId.Size() + (includeDynamicClasses ? m_dynamicClasses.Size() : 0));
 
@@ -323,7 +365,6 @@ void ClassRegistry::ForEachClass(const ProcRef<IterationResult(const Class*)>& c
 
 void ClassRegistry::Initialize()
 {
-    HYP_SCOPE;
     AssertOnThread(g_mainThread);
 
     HYP_CORE_ASSERT(!m_isInitialized);

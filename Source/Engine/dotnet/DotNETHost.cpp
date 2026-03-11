@@ -18,8 +18,6 @@
 #include <Core/filesystem/FsUtil.hpp>
 #include <Core/json/JSON.hpp>
 
-#include <Core/profiling/ProfileScope.hpp>
-
 #include <system/AppContext.hpp>
 
 #include <dotnet/ManagedClass.hpp>
@@ -58,8 +56,6 @@ public:
 
 static Optional<FilePath> FindAssemblyFilePath(const FilePath& basePath, const char* path)
 {
-    HYP_NAMED_SCOPE("Find .NET Assembly File Path");
-
     const FilePath filepath = basePath / path;
 
     if (!filepath.Exists())
@@ -625,8 +621,6 @@ RC<Assembly> DotNETHost::LoadAssembly(const char* path) const
         return nullptr;
     }
 
-    HYP_NAMED_SCOPE("Load .NET Assembly");
-
     return m_impl->LoadAssembly(path);
 }
 
@@ -637,8 +631,6 @@ bool DotNETHost::UnloadAssembly(ManagedGuid guid) const
         return false;
     }
 
-    HYP_NAMED_SCOPE("Unload .NET Assembly");
-
     return m_impl->UnloadAssembly(guid);
 }
 
@@ -648,8 +640,6 @@ bool DotNETHost::IsCoreAssembly(const Assembly* assembly) const
     {
         return false;
     }
-
-    HYP_NAMED_SCOPE("Check if .NET Assembly is Core Assembly");
 
     return m_impl->IsCoreAssembly(assembly);
 }
@@ -680,8 +670,6 @@ void DotNETHost::Initialize(const FilePath& basePath, bool initFromManaged, Init
         return;
     }
 
-    HYP_NAMED_SCOPE("Initialize .NET System");
-
     Assert(m_impl == nullptr);
 
     HYP_LOG(DotNET, Verbose, "Initializing .NET Host with base path: {}", basePath);
@@ -703,8 +691,6 @@ void DotNETHost::Shutdown()
     {
         return;
     }
-
-    HYP_NAMED_SCOPE("Shutdown .NET System");
 
     if (m_globalFunctions.cleanupOnShutdownFunction != nullptr)
     {

@@ -4,8 +4,6 @@
 
 #include <system/AppContext.hpp>
 
-#include <system/commandlet/Commandlet.hpp>
-
 #include <input/Event.hpp>
 
 #include <Core/cli/CommandLine.hpp>
@@ -13,6 +11,8 @@
 #include <Core/debug/Debug.hpp>
 
 #include <Core/threading/ThreadSignal.hpp>
+
+#include <Core/reflection/ClassRegistry.hpp>
 
 #include <Core/config/Config.hpp>
 
@@ -36,6 +36,8 @@
 #include <rendering/Swapchain.hpp>
 
 #include <engine/EngineDriver.hpp>
+
+#include <engine/commandlet/Commandlet.hpp>
 
 #include <engine/threads/MainThread.hpp>
 #include <engine/threads/RenderThread.hpp>
@@ -311,17 +313,17 @@ void AppContextBase::RemoveWindow(ApplicationWindow* window)
     }
 }
 
-Result AppContextBase::RunCommandlet(Name commandletName, const CommandLineArguments& args)
+Result AppContextBase::RunCommandlet(ANSIStringView commandletName, const CommandLineArguments& args)
 {
     AssertOnThread(g_mainThread);
 
-    const Class* commandletClass = GetClass(commandletName);
+    const Class* commandletClass = ClassRegistry::GetInstance().GetClass(commandletName, /* ignoreCase */ true);
 
     if (!commandletClass
         || !commandletClass->IsDerivedFrom(CommandletBase::StaticClass())
         || commandletClass->IsAbstract())
     {
-        return HYP_MAKE_ERROR(Error, "'{}' is not a valid commandlet class", commandletName);
+        return HYP_MAKE_ERROR(Error, "'{}' is not a valid commandlet class", commandletClass ? commandletClass->GetName() : Name::Invalid());
     }
 
     BoxedValue boxed;
@@ -334,6 +336,22 @@ Result AppContextBase::RunCommandlet(Name commandletName, const CommandLineArgum
     Assert(commandlet.IsValid());
 
     return commandlet->Run(args);
+}
+
+const Class* AppContextBase::FindCommandletClass(ANSIStringView commandletName)
+{
+    AssertOnThread(g_mainThread);
+
+    const Class* commandletClass = ClassRegistry::GetInstance().GetClass(commandletName, /* ignoreCase */ true);
+
+    if (!commandletClass
+        || !commandletClass->IsDerivedFrom(CommandletBase::StaticClass())
+        || commandletClass->IsAbstract())
+    {
+        return nullptr;
+    }
+
+    return commandletClass;
 }
 
 #pragma endregion AppContextBase

@@ -18,7 +18,7 @@ struct GetClassHelper
 class ClassRegistrationBase;
 
 template <class T>
-class HYP_API TClassStaticInit final
+class HYP_EXPORT TClassStaticInit final
 {
 public:
     TClassStaticInit(); // leave undefined to cause linker error if not specialized
@@ -54,7 +54,7 @@ protected:
 #define HYP_BEGIN_STRUCT(cls, _static_index, _num_descendants, parentClass, ...)                                                                \
                                                                                                                                                 \
     template <>                                                                                                                                 \
-    HYP_API const Class* GetClassHelper<cls>::Get() { return g_cls##cls; }                                                                      \
+    HYP_EXPORT const Class* GetClassHelper<cls>::Get() { return g_cls##cls; }                                                                   \
                                                                                                                                                 \
     template <>                                                                                                                                 \
     TClassStaticInit<cls>::TClassStaticInit()                                                                                                   \
@@ -68,7 +68,7 @@ protected:
 #define HYP_BEGIN_CLASS(cls, _static_index, _num_descendants, parentClass, ...)                                                                 \
                                                                                                                                                 \
     template <>                                                                                                                                 \
-    HYP_API const Class* GetClassHelper<cls>::Get() { return g_cls##cls; }                                                                      \
+    HYP_EXPORT const Class* GetClassHelper<cls>::Get() { return g_cls##cls; }                                                                   \
                                                                                                                                                 \
     template <>                                                                                                                                 \
     TClassStaticInit<cls>::TClassStaticInit()                                                                                                   \
@@ -82,7 +82,7 @@ protected:
 #define HYP_BEGIN_ENUM(cls, _static_index, _num_descendants, ...)                                                                               \
                                                                                                                                                 \
     template <>                                                                                                                                 \
-    HYP_API const Class* GetClassHelper<cls>::Get() { return g_cls##cls; }                                                                      \
+    HYP_EXPORT const Class* GetClassHelper<cls>::Get() { return g_cls##cls; }                                                                   \
                                                                                                                                                 \
     template <>                                                                                                                                 \
     TClassStaticInit<cls>::TClassStaticInit()                                                                                                   \
@@ -229,6 +229,6 @@ private:
     }
 
 #define HYP_REGISTER_STATIC_CLASS(T) \
-    static TClassStaticInit<T> s_classInit##T;
+    HYP_EXPORT TClassStaticInit<T> g_classInit##T;
 
 } // namespace Hyperion

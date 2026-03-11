@@ -130,7 +130,6 @@ void SimThread::SetGameInstance(Game* gameInstance)
 void SimThread::Update()
 {
     ENGINE_STAT_SCOPE(&g_statSimUpdate);
-    HYP_PROFILE_BEGIN;
 
     m_counter.NextTick();
 
@@ -204,6 +203,8 @@ void SimThread::operator()()
     {
         while (!m_stopRequested.Load())
         {
+            HYP_PROFILE_BEGIN;
+
             Update();
         }
     }

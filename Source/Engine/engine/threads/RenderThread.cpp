@@ -254,6 +254,8 @@ void RenderThread::operator()()
     {
         while (!m_stopRequested.Load())
         {
+            HYP_PROFILE_BEGIN;
+
             Update();
         }
     }

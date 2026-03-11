@@ -22,6 +22,7 @@ namespace Hyperion.Editor.ViewModels
 
         public ConsoleViewModel()
         {
+            _commandText = string.Empty;
             ExecuteCommand = new RelayCommand(Execute);
             ClearCommand = new RelayCommand(Clear);
         }
@@ -30,8 +31,23 @@ namespace Hyperion.Editor.ViewModels
         {
             if (string.IsNullOrWhiteSpace(CommandText)) return;
 
-            ConsoleService.Instance.ExecuteCommand(CommandText);
-            CommandText = string.Empty;
+            string[] args = CommandText.Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+            if (args.Length != 0)
+            {
+                try
+                {
+                    ConsoleService.Instance.ExecuteCommand(args);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Error, $"Failed to execute command: {ex.Message}");
+                }
+                finally
+                {
+                    CommandText = string.Empty;
+                }
+            }
         }
 
         private void Clear()

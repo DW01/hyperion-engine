@@ -275,10 +275,6 @@ extern class UIElementFactoryBase
     CreateUIObject(parent : UIObject, value : any, context : any) -> UIObject
     UpdateUIObject(uiObject : UIObject, value : any, context : any) -> void
 end
-extern class CommandletBase
-    Run(args : CommandLineArguments) -> Result
-    Run_Impl(args : CommandLineArguments) -> Result
-end
 extern class ApplicationWindow
     GetInputManager() -> InputManager
     GetHWND() -> any
@@ -342,7 +338,7 @@ extern class AppContextBase
     GetWindows() -> Array<ApplicationWindow>
     CreateSystemWindow(windowOptions : WindowOptions) -> ApplicationWindow
     RemoveWindow(window : ApplicationWindow) -> void
-    RunCommandlet(commandletName : Name, args : CommandLineArguments) -> Result
+    RunCommandlet(commandletName : string, args : CommandLineArguments) -> Result
     OnCurrentWindowChanged : any
 end
 extern class Win32AppContext : AppContextBase
@@ -1411,10 +1407,10 @@ extern enum EventFlags : uint8
     NONE = 0x0,
     RELATIVE_MOUSE = 0x1
 end
-extern class ConsoleCommandBase
-    Execute(args : CommandLineArguments) -> Result
-end
-extern class LogEntitiesCommand : ConsoleCommandBase
+extern class CommandletBase
+    static GetArgumentDefinitions() -> CommandLineArgumentDefinitions
+    Run(args : CommandLineArguments) -> Result
+    Run_Impl(args : CommandLineArguments) -> Result
 end
 extern enum GameStateMode : uint32
     STOPPED = 0,

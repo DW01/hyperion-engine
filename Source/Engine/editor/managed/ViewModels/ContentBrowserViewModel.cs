@@ -29,9 +29,9 @@ namespace Hyperion.Editor.ViewModels
             }
         }
 
-        private DelegateHandler _onSelectedPackageChangedHandler;
-        private DelegateHandler _onPackageAddedHandler;
-        private DelegateHandler _onPackageRemovedHandler;
+        private DelegateHandler? _onSelectedPackageChangedHandler;
+        private DelegateHandler? _onPackageAddedHandler;
+        private DelegateHandler? _onPackageRemovedHandler;
 
         public ICommand ImportCommand { get; }
 

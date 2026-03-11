@@ -942,15 +942,23 @@ void SceneOctree::RebuildEntriesHash(uint32 level)
 
     for (SceneOctreePayload::Entry& entry : m_payload.entries)
     {
-        const HashCode entryHashCode = entry.GetHashCode();
-        m_entryHashes[0].Add(entryHashCode);
-
         uint32 tagsMask = 0;
 
         if (m_entityManager)
         {
+            const bool hasEntity = m_entityManager->HasEntity(entry.value->Id());
+            AssertDebug(hasEntity);
+
+            if (!hasEntity)
+            {
+                continue;
+            }
+
             tagsMask = m_entityManager->GetSavableTagsMask(entry.value);
         }
+
+        const HashCode entryHashCode = entry.GetHashCode();
+        m_entryHashes[0].Add(entryHashCode);
 
         FOR_EACH_BIT(tagsMask, i)
         {
@@ -981,7 +989,6 @@ void SceneOctree::RebuildEntriesHash(uint32 level)
     }
 }
 
-HYP_DISABLE_OPTIMIZATION;
 bool SceneOctree::TestRay(const Ray& ray, RayTestResults& outResults, EnumFlags<RayTestFlags> flags) const
 {
     HYP_SCOPE;
@@ -1105,6 +1112,5 @@ bool SceneOctree::TestRay(const Ray& ray, RayTestResults& outResults, EnumFlags<
 
     return hasHit;
 }
-HYP_ENABLE_OPTIMIZATION;
 
 } // namespace Hyperion

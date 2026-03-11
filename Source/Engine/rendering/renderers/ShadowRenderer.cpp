@@ -264,8 +264,9 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
         }
 
         View* passes[] = {
-            cachedData->shadowViewsDynamic[cascadeIndex],
-            cachedData->shadowViewsStatic[cascadeIndex]
+            // static first so we can copy to cache texture or blit from it
+            cachedData->shadowViewsStatic[cascadeIndex],
+            cachedData->shadowViewsDynamic[cascadeIndex]
         };
 
         for (uint32 passIndex = 0; passIndex < std::size(passes); passIndex++)
@@ -305,8 +306,6 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
                 pd->prevCameraMatrices.Resize(cascadeIndex + 1);
             }
 
-            HYP_LOG(Rendering, Verbose, "Rendering shadows for shadow view {} at frame {}", shadowView->Id(), GetFrameCounter());
-
             const bool isMatrixDirty = pd->prevCameraMatrices[cascadeIndex] != viewProjMat;
 
             if (!isMatrixDirty
@@ -315,6 +314,8 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
             {
                 continue;
             }
+
+            HYP_LOG(Rendering, Verbose, "Rendering shadows for shadow view {} at frame {}", shadowView->Id(), GetFrameCounter());
 
             Attachment* attachment = framebuffer->GetAttachment(0);
 
