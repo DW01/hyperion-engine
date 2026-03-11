@@ -422,16 +422,7 @@ void View::BeginAsyncCollection(TaskBatch& batch)
 
     if (m_overrideCollectFunctor.IsValid())
     {
-        batch.AddTask([this, &rpl]()
-            {
-                rpl.BeginWrite();
-
-                rpl.priority = m_priority;
-
-                m_overrideCollectFunctor(rpl);
-
-                rpl.EndWrite();
-            });
+        batch.AddTask([&fn = m_overrideCollectFunctor, &rpl]() { fn(rpl); });
 
         return;
     }
@@ -549,8 +540,13 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
         case uint32(ViewFlags::COLLECT_ALL_ENTITIES):
             if ((m_flags & ViewFlags::NO_FRUSTUM_CULLING) || !(scene->GetSceneFlags() & SceneFlags::HAS_OCTREE))
             {
-                for (auto [entity, meshComponent] : scene->GetEntityManager()->GetEntitySet<MeshComponent>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
+                for (auto [entity, meshComponent, boundingBoxComponent] : scene->GetEntityManager()->GetEntitySet<MeshComponent, BoundingBoxComponent>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
                 {
+                    if (m_viewDesc.bounds.IsValid() && !m_viewDesc.bounds.Overlaps(boundingBoxComponent.worldAabb))
+                    {
+                        continue;
+                    }
+
                     ++numCollectedEntities;
 
                     rpl.GetMeshEntities().Track(entity->Id(), entity, entity->GetRenderProxyVersionPtr());
@@ -583,8 +579,13 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
             }
             else
             {
-                for (auto [entity, meshComponent, visibilityStateComponent] : scene->GetEntityManager()->GetEntitySet<MeshComponent, VisibilityStateComponent>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
+                for (auto [entity, meshComponent, boundingBoxComponent, visibilityStateComponent] : scene->GetEntityManager()->GetEntitySet<MeshComponent, BoundingBoxComponent, VisibilityStateComponent>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
                 {
+                    if (m_viewDesc.bounds.IsValid() && !m_viewDesc.bounds.Overlaps(boundingBoxComponent.worldAabb))
+                    {
+                        continue;
+                    }
+
                     if (!(visibilityStateComponent.flags & VisibilityStateFlags::ALWAYS_VISIBLE))
                     {
 #ifndef HYP_DISABLE_VISIBILITY_CHECK
@@ -643,8 +644,13 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
         case uint32(ViewFlags::COLLECT_STATIC_ENTITIES):
             if ((m_flags & ViewFlags::NO_FRUSTUM_CULLING) || !(scene->GetSceneFlags() & SceneFlags::HAS_OCTREE))
             {
-                for (auto [entity, meshComponent, _] : scene->GetEntityManager()->GetEntitySet<MeshComponent, TagComponent<EntityTag::MobStatic>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
+                for (auto [entity, meshComponent, boundingBoxComponent, _] : scene->GetEntityManager()->GetEntitySet<MeshComponent, BoundingBoxComponent, TagComponent<EntityTag::MobStatic>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
                 {
+                    if (m_viewDesc.bounds.IsValid() && !m_viewDesc.bounds.Overlaps(boundingBoxComponent.worldAabb))
+                    {
+                        continue;
+                    }
+
                     ++numCollectedEntities;
 
                     rpl.GetMeshEntities().Track(entity->Id(), entity, entity->GetRenderProxyVersionPtr());
@@ -677,8 +683,13 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
             }
             else
             {
-                for (auto [entity, meshComponent, visibilityStateComponent, _] : scene->GetEntityManager()->GetEntitySet<MeshComponent, VisibilityStateComponent, TagComponent<EntityTag::MobStatic>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
+                for (auto [entity, meshComponent, boundingBoxComponent, visibilityStateComponent, _] : scene->GetEntityManager()->GetEntitySet<MeshComponent, BoundingBoxComponent, VisibilityStateComponent, TagComponent<EntityTag::MobStatic>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
                 {
+                    if (m_viewDesc.bounds.IsValid() && !m_viewDesc.bounds.Overlaps(boundingBoxComponent.worldAabb))
+                    {
+                        continue;
+                    }
+
                     if (!(visibilityStateComponent.flags & VisibilityStateFlags::ALWAYS_VISIBLE))
                     {
 #ifndef HYP_DISABLE_VISIBILITY_CHECK
@@ -737,8 +748,13 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
         case uint32(ViewFlags::COLLECT_DYNAMIC_ENTITIES):
             if ((m_flags & ViewFlags::NO_FRUSTUM_CULLING) || !(scene->GetSceneFlags() & SceneFlags::HAS_OCTREE))
             {
-                for (auto [entity, meshComponent, _] : scene->GetEntityManager()->GetEntitySet<MeshComponent, TagComponent<EntityTag::MobDynamic>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
+                for (auto [entity, meshComponent, boundingBoxComponent, _] : scene->GetEntityManager()->GetEntitySet<MeshComponent, BoundingBoxComponent, TagComponent<EntityTag::MobDynamic>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
                 {
+                    if (m_viewDesc.bounds.IsValid() && !m_viewDesc.bounds.Overlaps(boundingBoxComponent.worldAabb))
+                    {
+                        continue;
+                    }
+
                     ++numCollectedEntities;
 
                     rpl.GetMeshEntities().Track(entity->Id(), entity, entity->GetRenderProxyVersionPtr());
@@ -771,8 +787,13 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
             }
             else
             {
-                for (auto [entity, meshComponent, visibilityStateComponent, _] : scene->GetEntityManager()->GetEntitySet<MeshComponent, VisibilityStateComponent, TagComponent<EntityTag::MobDynamic>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
+                for (auto [entity, meshComponent, boundingBoxComponent, visibilityStateComponent, _] : scene->GetEntityManager()->GetEntitySet<MeshComponent, BoundingBoxComponent, VisibilityStateComponent, TagComponent<EntityTag::MobDynamic>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
                 {
+                    if (m_viewDesc.bounds.IsValid() && !m_viewDesc.bounds.Overlaps(boundingBoxComponent.worldAabb))
+                    {
+                        continue;
+                    }
+
                     if (!(visibilityStateComponent.flags & VisibilityStateFlags::ALWAYS_VISIBLE))
                     {
 #ifndef HYP_DISABLE_VISIBILITY_CHECK
@@ -848,7 +869,7 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
             AssertDebug(entity->InstanceClass() == Entity::StaticClass());
 
             auto&& [meshComponent, transformComponent, boundingBoxComponent, lightmapElementComponent] = entity->GetEntityManager()->TryGetComponents<MeshComponent, TransformComponent, BoundingBoxComponent, LightmapElementComponent>(entity);
-
+            
             AssertDebug(meshComponent != nullptr);
             AssertDebug(meshComponent->mesh && meshComponent->mesh->IsReady());
             AssertDebug(meshComponent->material && meshComponent->material->IsReady());
@@ -1029,16 +1050,21 @@ void View::CollectLightmapVolumes(RenderProxyList& rpl)
             LightmapVolume* lightmapVolume = ObjCast<LightmapVolume>(entity);
             Assert(lightmapVolume != nullptr);
 
-            const BoundingBox volumeAabb = lightmapVolume->GetWorldBounds();
+            const BoundingBox worldBounds = lightmapVolume->GetWorldBounds();
 
-            if (!volumeAabb.IsValid() || !volumeAabb.IsFinite())
+            if (!worldBounds.IsValid() || !worldBounds.IsFinite())
             {
                 HYP_LOG(Scene, Warning, "Lightmap volume {} has an invalid AABB in view {}", lightmapVolume->Id(), Id());
 
                 continue;
             }
 
-            if (!m_subFrustum.ContainsAABB(volumeAabb))
+            if (m_viewDesc.bounds.IsValid() && !m_viewDesc.bounds.Overlaps(worldBounds))
+            {
+                continue;
+            }
+
+            if (!m_subFrustum.ContainsAABB(worldBounds))
             {
                 continue;
             }
@@ -1065,19 +1091,24 @@ void View::CollectParticleVolumes(RenderProxyList& rpl)
         {
             ParticleVolume* volume = static_cast<ParticleVolume*>(entity);
 
-            const BoundingBox volumeAabb = volume->GetWorldBounds();
+            const BoundingBox worldBounds = volume->GetWorldBounds();
 
-            if (!volumeAabb.IsValid() || !volumeAabb.IsFinite())
+            if (!worldBounds.IsValid() || !worldBounds.IsFinite())
             {
                 HYP_LOG(Scene, Warning, "ParticleVolume {} has an invalid AABB in view {}", volume->Id(), Id());
                 continue;
             }
 
+            if (m_viewDesc.bounds.IsValid() && !m_viewDesc.bounds.Overlaps(worldBounds))
+            {
+                continue;
+            }
+
             if (!(m_flags & ViewFlags::NO_FRUSTUM_CULLING))
             {
-                if (!m_subFrustum.ContainsAABB(volumeAabb))
+                if (!m_subFrustum.ContainsAABB(worldBounds))
                 {
-                    // continue;
+                    continue;
                 }
             }
 
@@ -1103,19 +1134,24 @@ void View::CollectFogVolumes(RenderProxyList& rpl)
         {
             FogVolume* volume = static_cast<FogVolume*>(entity);
 
-            const BoundingBox volumeAabb = volume->GetWorldBounds();
+            const BoundingBox worldBounds = volume->GetWorldBounds();
 
-            if (!volumeAabb.IsValid() || !volumeAabb.IsFinite())
+            if (!worldBounds.IsValid() || !worldBounds.IsFinite())
             {
                 HYP_LOG(Scene, Warning, "FogVolume {} has an invalid AABB in view {}", volume->Id(), Id());
                 continue;
             }
 
+            if (m_viewDesc.bounds.IsValid() && !m_viewDesc.bounds.Overlaps(worldBounds))
+            {
+                continue;
+            }
+
             if (!(m_flags & ViewFlags::NO_FRUSTUM_CULLING))
             {
-                if (!m_subFrustum.ContainsAABB(volumeAabb))
+                if (!m_subFrustum.ContainsAABB(worldBounds))
                 {
-                    // continue;
+                    continue;
                 }
             }
 
@@ -1150,6 +1186,11 @@ void View::CollectEnvGrids(RenderProxyList& rpl)
                 continue;
             }
 
+            if (m_viewDesc.bounds.IsValid() && !m_viewDesc.bounds.Overlaps(worldBounds))
+            {
+                continue;
+            }
+
             if (!m_subFrustum.ContainsAABB(worldBounds))
             {
                 HYP_LOG(Scene, Verbose, "EnvGrid {} is not in frustum of View {}", envGrid->Id(), Id());
@@ -1181,16 +1222,21 @@ void View::CollectEnvProbes(RenderProxyList& rpl)
 
             if (!probe->IsSkyProbe())
             {
-                const BoundingBox& probeAabb = probe->GetWorldBounds();
+                const BoundingBox worldBounds = probe->GetWorldBounds();
 
-                if (!probeAabb.IsValid() || !probeAabb.IsFinite())
+                if (!worldBounds.IsValid() || !worldBounds.IsFinite())
                 {
                     HYP_LOG(Scene, Warning, "EnvProbe {} has an invalid AABB in view {}", probe->Id(), Id());
 
                     continue;
                 }
 
-                if (!(m_flags & ViewFlags::NO_FRUSTUM_CULLING) && !m_subFrustum.ContainsAABB(probeAabb))
+                if (m_viewDesc.bounds.IsValid() && !m_viewDesc.bounds.Overlaps(worldBounds))
+                {
+                    continue;
+                }
+
+                if (!(m_flags & ViewFlags::NO_FRUSTUM_CULLING) && !m_subFrustum.ContainsAABB(worldBounds))
                 {
                     continue;
                 }

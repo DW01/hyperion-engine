@@ -7,6 +7,9 @@
 #include <Core/math/Color.hpp>
 
 #include <Core/containers/Array.hpp>
+#include <Core/containers/HashMap.hpp>
+
+#include <Core/utilities/Uuid.hpp>
 
 #include <Core/Types.hpp>
 
@@ -14,6 +17,9 @@ namespace Hyperion {
 
 class World;
 class UIListView;
+class UIButton;
+class UIDataSource;
+class EngineStatBase;
 
 HYP_CLASS()
 class HYP_API StatsOverlay : public EditorDebugOverlayBase
@@ -45,6 +51,8 @@ protected:
 
 private:
     Handle<UIListView> m_panel;
+    Handle<UIDataSource> m_dataSource;
+    HashMap<EngineStatBase *, UUID> m_statUuids;
 };
 
 } // namespace Hyperion

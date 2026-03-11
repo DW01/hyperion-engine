@@ -258,12 +258,6 @@ end
 extern class EditorPropertyPanelBase : UIPanel
     Build(boxed : any, property : any) -> void
 end
-extern class EditTransform : EditorPropertyPanelBase
-end
-extern class EditName : EditorPropertyPanelBase
-end
-extern class EditBoundingBox : EditorPropertyPanelBase
-end
 extern class UIImage : UIObject
 end
 extern class UIButton : UIObject

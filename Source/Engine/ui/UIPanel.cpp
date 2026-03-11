@@ -102,9 +102,10 @@ void UIPanel::SetScrollbarVisible(ScrollAxis axis, bool visible)
             newScrollbar->SetAffectsParentSize(false);
             newScrollbar->SetIsPositionAbsolute(true);
             newScrollbar->SetIsScrollEnabled(SA_ALL, false);
-            newScrollbar->SetAcceptsFocus(false);
+            newScrollbar->SetAcceptsFocus(true);
             newScrollbar->SetParentAlignment(scrollbarAlignment);
             newScrollbar->SetOriginAlignment(scrollbarAlignment);
+            newScrollbar->SetDepth(100);
 
             *scrollbar = std::move(newScrollbar);
         }
@@ -190,9 +191,9 @@ UIEventHandlerResult UIPanel::HandleScroll(const MouseEvent& eventData)
 
     if ((eventData.wheel.x != 0 && CanScrollOnAxis(SA_HORIZONTAL)) || (eventData.wheel.y != 0 && CanScrollOnAxis(SA_VERTICAL)))
     {
-        constexpr float MouseWheelMultiplier = 25.0f;
+        constexpr float MouseWheelMultiplier = 5.0f;
 
-        SetScrollOffset(GetScrollOffset() - Vec2f(eventData.wheel * MouseWheelMultiplier), /* smooth */ true);
+        SetScrollOffset(GetScrollOffset() - Vec2f(eventData.wheel * MouseWheelMultiplier), /* smooth */ false);
 
         return UIEventHandlerResult::STOP_BUBBLING;
     }

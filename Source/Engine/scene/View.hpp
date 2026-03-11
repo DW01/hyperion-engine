@@ -88,12 +88,20 @@ HYP_MAKE_ENUM_FLAGS(ViewFlags)
 struct ViewDesc
 {
     EnumFlags<ViewFlags> flags = ViewFlags::DEFAULT;
+
     RenderTargetDesc renderTargetDesc;
+
     Array<Scene*> scenes;
+
     Camera* camera = nullptr;
+
+    BoundingBox bounds = BoundingBox::Empty();
+
     int priority = 0;
     float resolutionScale = 1.0f;
+
     Optional<RenderableAttributeSet> overrideAttributes;
+
     const Class* entityBatchClass = nullptr;
 };
 

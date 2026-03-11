@@ -344,9 +344,6 @@ public:
     HYP_METHOD()
     double QueryStatValue(UTF8StringView path, double valueIfNotFound = 0.0) const;
 
-    void Suppress();
-    void Unsuppress();
-
     void Prepare();
     void Advance();
 

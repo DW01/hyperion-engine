@@ -21,7 +21,7 @@
       "GI": {
         "Enabled": false
       },
-      "Enabled": false
+      "Enabled": true
     },
     "SSAO": {
       "Enabled": false
@@ -74,7 +74,7 @@
       "AO": false
     },
     "Vulkan": {
-      "DebugLayers": true
+      "DebugLayers": false
     }
   },
   "Editor": {

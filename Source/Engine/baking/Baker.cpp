@@ -176,6 +176,13 @@ void BakerBase::Initialize()
         renderTargetDesc.attachments[0] = { TextureType::Texture2D, TextureFormat::R8 };
         renderTargetDesc.numAttachments = 1;
 
+        BoundingBox bounds = BoundingBox::Empty();
+        if (m_source->IsA(VolumeBase::StaticClass()))
+        {
+            VolumeBase* volume = static_cast<VolumeBase*>(m_source);
+            bounds = volume->GetWorldBounds();
+        }
+
         ViewDesc viewDesc {
             .flags = ViewFlags::COLLECT_STATIC_ENTITIES
                 | ViewFlags::NO_FRUSTUM_CULLING
@@ -186,7 +193,8 @@ void BakerBase::Initialize()
                 | ViewFlags::NOT_MULTI_BUFFERED,
             .renderTargetDesc = renderTargetDesc,
             .scenes = { m_scene },
-            .camera = camera
+            .camera = camera,
+            .bounds = bounds
         };
 
         m_view = MakeHandle<View>(viewDesc);

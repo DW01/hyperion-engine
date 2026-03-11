@@ -374,6 +374,7 @@ public:
 
         currentProject->GetActionStack()->Push(action);
 
+#if 0
         // kickoff lightmap generation for the new volume
         Handle<GenerateLightmapsEditorTask> generateLightmapsTask = MakeHandle<GenerateLightmapsEditorTask>(lightmapVolume);
         InitObject(generateLightmapsTask);
@@ -384,6 +385,7 @@ public:
         generateLightmapsTask->SetWorld(worldHandle);
 
         g_editorState->AddTask(generateLightmapsTask);
+#endif
     }
 };
 

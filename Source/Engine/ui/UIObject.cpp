@@ -957,9 +957,15 @@ bool UIObject::AcceptsFocus() const
     }
 
     bool acceptsFocus = true;
+    const int hasPositiveDepth = m_depth > 0;
 
-    ForEachParentUIObject([&acceptsFocus](UIObject* parent)
+    ForEachParentUIObject([&acceptsFocus, hasPositiveDepth](UIObject* parent)
         {
+            if (hasPositiveDepth)
+            {
+                return IterationResult::STOP;
+            }
+
             if (!parent->m_acceptsFocus)
             {
                 acceptsFocus = false;

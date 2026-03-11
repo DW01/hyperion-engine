@@ -480,7 +480,8 @@ void RayGenMain()
     float3 finalColor = accumRadiance.rgb / float(NUM_SAMPLES);
 
 #else
-    float3 finalColor = float3(0.0, 0.0, 0.0);
+    // shouldn't get here; output green so it's really obvious
+    float3 finalColor = float3(0.0, 1.0, 0.0);
 #endif
 
     hits[ray_index] = float4(finalColor, 1.0);

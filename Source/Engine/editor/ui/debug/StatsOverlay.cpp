@@ -4,8 +4,10 @@
 
 #include <editor/ui/debug/StatsOverlay.hpp>
 
+#include <ui/UIButton.hpp>
 #include <ui/UIListView.hpp>
 #include <ui/UIText.hpp>
+#include <ui/UIDataSource.hpp>
 
 #include <scene/World.hpp>
 
@@ -21,6 +23,7 @@ HYP_DECLARE_LOG_CHANNEL(Editor);
 
 StatsOverlay::StatsOverlay()
 {
+    m_timer = ClockTimer { 0.0333f }; // update max. 30hz/s
 }
 
 StatsOverlay::~StatsOverlay() = default;
@@ -31,106 +34,124 @@ Handle<UIObject> StatsOverlay::CreateUIObject_Impl(UIObject* spawnParent)
 
     Handle<UIPanel> panelBackdrop = spawnParent->CreateUIObject<UIPanel>(
         NAME_FMT("StatsOverlay_PanelBackdrop"),
-        Vec2i(5, 5),
-        UIObjectSize({ 250, UIObjectSize::PIXEL }, { 0, UIObjectSize::AUTO }));
+        Vec2i(2, 2),
+        UIObjectSize({ 250, UIObjectSize::PIXEL }, { 300, UIObjectSize::PIXEL }));
 
-    panelBackdrop->SetPadding(Vec2i(1, 1));
-    panelBackdrop->SetBackgroundColor(Color(0.7f, 0.7f, 0.7f, 0.5f));
-    panelBackdrop->SetBorderRadius(5);
+    panelBackdrop->SetMaxSize(UIObjectSize(Vec2i(250, 300), UIObjectSize::PIXEL));
+    panelBackdrop->SetBackgroundColor(Color(0.0f, 0.0f, 0.0f, 0.8f));
+    panelBackdrop->SetPadding(Vec2i(10, 10));
+    panelBackdrop->SetBorderRadius(10);
 
     m_panel = spawnParent->CreateUIObject<UIListView>(
         NAME_FMT("StatsOverlay_Panel"),
         Vec2i::Zero(),
-        UIObjectSize(0, UIObjectSize::AUTO));
+        UIObjectSize(100, UIObjectSize::PERCENT));
 
-    m_panel->SetBackgroundColor(Color(0.0f, 0.0f, 0.0f, 0.5f));
-    m_panel->SetPadding(Vec2i(10, 10));
     m_panel->SetTextSize(14.0f);
     m_panel->SetTextColor(Color(0.7f, 0.7f, 0.7f, 1.0f));
+    m_panel->SetBackgroundColor(Color::Transparent());
+    m_panel->SetPadding(Vec2i(2, 2));
 
-    Handle<UIText> titleText = m_panel->CreateUIObject<UIText>(
-        NAME_FMT("StatsOverlay_Panel_Title"),
-        Vec2i::Zero(),
-        UIObjectSize(Vec2i::Zero(), UIObjectSize::AUTO));
-    titleText->SetText("Stats");
-    m_panel->AddChildUIObject(titleText);
+    m_dataSource = MakeHandle<UIDataSource>(
+        Array<Handle<UIElementFactoryBase>> {},
+        [](UIObject* parent, const BoxedValue& value, const BoxedValue& context) -> Handle<UIObject>
+        {
+            if (value.Is<Name>())
+            {
+                Handle<UIPanel> textPanel = parent->CreateUIObject<UIPanel>(
+                    Vec2i::Zero(),
+                    UIObjectSize({ 100, UIObjectSize::PERCENT }, { 25, UIObjectSize::PIXEL }));
+                textPanel->SetBackgroundColor(Color(0.2f, 0.2f, 0.2f, 1.0f));
+                textPanel->SetBorderRadius(3);
+                textPanel->SetPadding(Vec2i(2, 2));
+
+                // heading
+                Handle<UIText> text = parent->CreateUIObject<UIText>(
+                    Vec2i::Zero(),
+                    UIObjectSize(Vec2i::Zero(), UIObjectSize::AUTO));
+
+                text->SetTextColor(Color(0.9f, 0.9f, 0.9f, 1.0f));
+                text->SetText(*value.Get<Name>());
+                text->SetOriginAlignment(UIObjectAlignment::CENTER);
+                text->SetParentAlignment(UIObjectAlignment::CENTER);
+
+                textPanel->AddChildUIObject(text);
+
+                return textPanel;
+            }
+            else
+            {
+                Handle<UIText> text = parent->CreateUIObject<UIText>(
+                    Vec2i::Zero(),
+                    UIObjectSize(Vec2i::Zero(), UIObjectSize::AUTO));
+
+                text->SetPadding(Vec2i(1, 1));
+                text->SetText(value.Get<String>());
+
+                return text;
+            }
+        },
+        [](UIObject* uiObject, const BoxedValue& value, const BoxedValue& context)
+        {
+            uiObject->SetText(value.Get<String>());
+        });
+
+    m_panel->SetDataSource(m_dataSource);
 
     panelBackdrop->AddChildUIObject(m_panel);
 
     return panelBackdrop;
 }
 
-HYP_DISABLE_OPTIMIZATION;
-
 void StatsOverlay::Update_Impl(float delta)
 {
     HYP_SCOPE;
 
     const Handle<EngineStats>& engineStats = EngineStats::GetInstance();
+    const EngineStatsSnapshot& snapshot = engineStats->GetCurrentSnapshot();
 
-    static auto AddStatElemToGroup = [](UIObject& parentUIObject, const EngineStatsSnapshot& snapshot, EngineStatBase& stat)
-    {
-        Handle<UIObject> statTextElement = parentUIObject.FindChildUIObject(stat.name);
+    using ProcessGroupFuncRef = ProcRef<void(const EngineStatGroup&)>;
+    ProcessGroupFuncRef ProcessGroup = nullptr;
 
-        if (!statTextElement)
-        {
-            statTextElement = parentUIObject.CreateUIObject<UIText>(
-                stat.name,
-                Vec2i::Zero(),
-                UIObjectSize(Vec2i::Zero(), UIObjectSize::AUTO));
-
-            statTextElement->SetPadding(Vec2i(1, 1));
-
-            parentUIObject.AddChildUIObject(statTextElement);
-        }
-
-        statTextElement->SetText(HYP_FORMAT("{}: {}", stat.name, snapshot[stat].value));
-    };
-
-    using IterateGroupFunctorRef = ProcRef<void(UIListView& parentUIObject, const EngineStatGroup& group, const EngineStatsSnapshot& snapshot)>;
-    IterateGroupFunctorRef IterateGroup = nullptr;
-
-    auto IterateGroupImpl = [&IterateGroup](UIListView& parentUIObject, const EngineStatGroup& group, const EngineStatsSnapshot& snapshot)
+    auto ProcessGroupImpl = [this, &ProcessGroup, &snapshot](const EngineStatGroup& group) -> void
     {
         for (EngineStatBase* stat : group.stats)
         {
+            auto it = m_statUuids.Find(stat);
+
             if (stat->type == EST_GROUP)
             {
-                Handle<UIObject> groupUIObject = parentUIObject.FindChildUIObject(stat->name);
-                if (!groupUIObject)
+                if (it == m_statUuids.End())
                 {
-                    groupUIObject = parentUIObject.CreateUIObject<UIListView>(
-                        stat->name,
-                        Vec2i::Zero(),
-                        UIObjectSize(Vec2i::Zero(), UIObjectSize::AUTO));
-
-                    UIListView* groupListView = static_cast<UIListView*>(groupUIObject.Get());
-                    groupListView->SetBackgroundColor(Color(0.0f, 0.0f, 0.0f, 0.0f));
-                    groupListView->SetOrientation(UIListViewOrientation::VERTICAL);
-
-                    Handle<UIText> headingText = parentUIObject.CreateUIObject<UIText>();
-                    headingText->SetTextColor(Color(0.8f, 0.8f, 0.8f, 1.0f));
-                    headingText->SetText(*stat->name);
-                    groupUIObject->AddChildUIObject(headingText);
-
-                    parentUIObject.AddChildUIObject(groupUIObject);
+                    UUID groupUuid = UUID();
+                    m_statUuids.Set(stat, groupUuid);
+                    m_dataSource->Push(groupUuid, BoxedValue(stat->name), UUID::Invalid());
                 }
 
-                IterateGroup(static_cast<UIListView&>(*groupUIObject), *static_cast<EngineStatGroup*>(stat), snapshot);
+                ProcessGroup(static_cast<const EngineStatGroup&>(*stat));
             }
             else
             {
-                AddStatElemToGroup(parentUIObject, snapshot, *stat);
+                String statText = HYP_FORMAT("{}: {}", stat->name, snapshot[*stat].value);
+
+                if (it == m_statUuids.End())
+                {
+                    UUID statUuid = UUID();
+                    m_statUuids.Set(stat, statUuid);
+                    m_dataSource->Push(statUuid, BoxedValue(std::move(statText)), UUID::Invalid());
+                }
+                else
+                {
+                    m_dataSource->Set(it->second, BoxedValue(std::move(statText)));
+                }
             }
         }
     };
 
-    IterateGroup = IterateGroupImpl;
+    ProcessGroup = ProcessGroupImpl;
 
-    IterateGroup(*m_panel, *engineStats->root, engineStats->GetCurrentSnapshot());
+    ProcessGroup(*engineStats->root);
 }
-
-HYP_ENABLE_OPTIMIZATION;
 
 #pragma endregion StatsOverlay
 

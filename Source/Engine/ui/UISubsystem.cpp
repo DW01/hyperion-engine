@@ -265,6 +265,8 @@ void UISubsystem::Update(float delta)
 
 void UISubsystem::RenderCollect(RenderProxyList& rpl)
 {
+    rpl.BeginWrite();
+
     rpl.disableBuildRenderCollection = true;
     rpl.useOrdering = true;
     rpl.priority = m_view->GetPriority();
@@ -365,6 +367,8 @@ void UISubsystem::RenderCollect(RenderProxyList& rpl)
             meshProxy.bufferData.worldAabbMin = boundingBoxComponent ? boundingBoxComponent->worldAabb.min : MathUtil::MaxSafeValue<Vec3f>();
         }
     }
+    
+    rpl.EndWrite();
 }
 
 void UISubsystem::CreateFramebuffer()
