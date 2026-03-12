@@ -260,8 +260,8 @@ public:
     /*! \brief Creates a TaskBatch which will call the lambda for \p numItems times in parallel.
      *  The tasks will be split evenly into groups, based on the number of threads in the pool for the default priority.
         The lambda will be called with (item, index) for each item. */
-    template <class CallbackFunction>
-    HYP_FORCE_INLINE void ParallelForEach(uint32 numItems, CallbackFunction&& cb)
+    template <class Callback>
+    HYP_FORCE_INLINE void ParallelForEach(uint32 numItems, Callback&& cb)
     {
         TaskThreadPool& pool = GetPool(THREAD_POOL_GENERIC);
 
@@ -269,27 +269,27 @@ public:
             pool,
             pool.GetProcessorAffinity(),
             numItems,
-            std::forward<CallbackFunction>(cb));
+            std::forward<Callback>(cb));
     }
 
     /*! \brief Creates a TaskBatch which will call the lambda for \p numItems times in parallel.
      *  The tasks will be split evenly into groups, based on the number of threads in the pool for the given priority.
         The lambda will be called with (item, index) for each item. */
-    template <class CallbackFunction>
-    HYP_FORCE_INLINE void ParallelForEach(TaskThreadPool& pool, uint32 numItems, CallbackFunction&& cb)
+    template <class Callback>
+    HYP_FORCE_INLINE void ParallelForEach(TaskThreadPool& pool, uint32 numItems, Callback&& cb)
     {
         ParallelForEach(
             pool,
             pool.GetProcessorAffinity(),
             numItems,
-            std::forward<CallbackFunction>(cb));
+            std::forward<Callback>(cb));
     }
 
     /*! \brief Creates a TaskBatch which will call the lambda for \p numItems times in parallel.
      *  The tasks will be split evenly into \p numBatches batches.
         The lambda will be called with (item, index) for each item. */
-    template <class CallbackFunction>
-    void ParallelForEach(TaskThreadPool& pool, uint32 numBatches, uint32 numItems, CallbackFunction&& cb)
+    template <class Callback>
+    void ParallelForEach(TaskThreadPool& pool, uint8 numBatches, uint32 numItems, Callback&& cb)
     {
         TaskBatch batch;
         batch.pool = &pool;
@@ -321,18 +321,18 @@ public:
         batch.AwaitCompletion();
     }
 
-    template <class Container, class CallbackFunction>
-    HYP_FORCE_INLINE void ParallelForEach(TaskThreadPool& pool, Container&& items, CallbackFunction&& cb)
+    template <class Container, class Callback>
+    HYP_FORCE_INLINE void ParallelForEach(TaskThreadPool& pool, Container&& items, Callback&& cb)
     {
         ParallelForEach(
             pool,
             pool.GetProcessorAffinity(),
             std::forward<Container>(items),
-            std::forward<CallbackFunction>(cb));
+            std::forward<Callback>(cb));
     }
 
-    template <class Container, class CallbackFunction>
-    HYP_FORCE_INLINE void ParallelForEach(Container&& items, CallbackFunction&& cb)
+    template <class Container, class Callback>
+    HYP_FORCE_INLINE void ParallelForEach(Container&& items, Callback&& cb)
     {
         TaskThreadPool& pool = GetPool(THREAD_POOL_GENERIC);
 
@@ -340,48 +340,15 @@ public:
             pool,
             pool.GetProcessorAffinity(),
             std::forward<Container>(items),
-            std::forward<CallbackFunction>(cb));
-    }
-
-    template <class Container, class CallbackFunction>
-    void ParallelForEach(TaskThreadPool& pool, uint32 numBatches, Container&& items, CallbackFunction&& cb)
-    {
-        TaskBatch batch;
-        batch.pool = &pool;
-        const uint32 numItems = uint32(items.Size());
-
-        if (numItems == 0)
-        {
-            return;
-        }
-
-        numBatches = MathUtil::Clamp(numBatches, 1u, numItems);
-
-        const uint32 itemsPerBatch = (numItems + numBatches - 1) / numBatches;
-
-        auto* dataPtr = items.Data();
-
-        for (uint32 batchIndex = 0; batchIndex < numBatches; batchIndex++)
-        {
-            batch.AddTask([dataPtr, batchIndex, itemsPerBatch, numItems, &cb](...)
-                {
-                    const uint32 offsetIndex = batchIndex * itemsPerBatch;
-                    const uint32 maxIndex = MathUtil::Min(offsetIndex + itemsPerBatch, numItems);
-
-                    for (uint32 i = offsetIndex; i < maxIndex; i++)
-                    {
-                        cb(*(dataPtr + i), i, batchIndex);
-                    }
-                });
-        }
-
-        EnqueueBatch(&batch);
-        batch.AwaitCompletion();
+            std::forward<Callback>(cb));
     }
 
     template <class Container, class Callback>
-    void ParallelForEach_Batch(TaskBatch& batch, uint32 numBatches, Container&& items, Callback&& cb)
+    void ParallelForEach_Batch(TaskBatch& batch, uint8 numBatches, Container&& items, Callback&& cb)
     {
+        static_assert(std::is_lvalue_reference_v<decltype(cb)> || std::is_base_of_v<functional::ProcRefBase, NormalizedType<decltype(cb)>>,
+            "Callback type must be lvalue reference or already be wrapped by ProcRef, otherwise it will become dangling");
+
         const uint32 numItems = uint32(items.Size());
 
         if (numItems == 0)
@@ -389,27 +356,55 @@ public:
             return;
         }
 
-        numBatches = MathUtil::Clamp(numBatches, 1u, numItems);
+        numBatches = uint8(MathUtil::Clamp(uint32(numBatches), 1u, MathUtil::Min(numItems, uint32(UINT8_MAX))));
 
-        const uint32 itemsPerBatch = (numItems + numBatches - 1) / numBatches;
+        const uint16 itemsPerBatch = uint16((numItems + numBatches - 1) / numBatches);
 
         auto* dataPtr = items.Data();
 
-        auto procRef = ProcRef(std::forward<Callback>(cb));
+        auto procRef = ProcRef(cb);
 
-        for (uint32 batchIndex = 0; batchIndex < numBatches; batchIndex++)
+        for (uint8 batchIndex = 0; batchIndex < numBatches; batchIndex++)
         {
-            batch.AddTask([dataPtr, batchIndex, itemsPerBatch, numItems, procRef](...)
-                {
-                    const uint32 offsetIndex = batchIndex * itemsPerBatch;
-                    const uint32 maxIndex = MathUtil::Min(offsetIndex + itemsPerBatch, numItems);
+            const uint32 offsetIndex = uint32(batchIndex * itemsPerBatch);
+            const uint16 maxIndex = uint16(MathUtil::Min(offsetIndex + itemsPerBatch, numItems) - offsetIndex);
 
-                    for (uint32 i = offsetIndex; i < maxIndex; i++)
+            struct Functor
+            {
+                decltype(procRef) callback;
+                decltype(dataPtr) data;
+                uint16 maxIndex;
+                uint8 batchIndex;
+
+                void operator()()
+                {
+                    for (uint16 i = 0; i < maxIndex; i++)
                     {
-                        procRef(*(dataPtr + i), i, batchIndex);
+                        callback(*(data + i), i, batchIndex);
                     }
-                });
+                }
+            };
+
+            Functor f;
+            f.data = dataPtr + uint32(batchIndex * itemsPerBatch);
+            f.callback = procRef;
+            f.maxIndex = maxIndex;
+            f.batchIndex = batchIndex;
+
+            batch.AddTask(f);
         }
+    }
+
+    template <class Container, class Callback>
+    void ParallelForEach(TaskThreadPool& pool, uint8 numBatches, Container&& items, Callback&& cb)
+    {
+        TaskBatch batch;
+        batch.pool = &pool;
+        
+        ParallelForEach_Batch(batch, numBatches, std::forward<Container>(items), cb);
+
+        EnqueueBatch(&batch);
+        batch.AwaitCompletion();
     }
 
     HYP_FORCE_INLINE bool CancelTask(const TaskRef& taskRef)

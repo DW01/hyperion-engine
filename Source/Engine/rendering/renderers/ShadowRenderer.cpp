@@ -149,7 +149,7 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
     Assert(lightProxy != nullptr, "Proxy for Light {} not found when rendering shadows!", light->Id());
 
     const bool isVarianceShadowMap = light->GetShadowMapFilter() == ShadowMapFilter::SMF_VSM;
-    const bool shouldCombineShadowMaps = light->GetLightFlags() & LightFlags::ShadowCacheStaticObjects;
+    const bool cacheStaticShadowMaps = light->GetLightFlags() & LightFlags::CacheStaticShadowMaps;
     
     CacheKey cacheKey {};
     cacheKey.light = light;
@@ -208,7 +208,7 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
         GpuImage* shadowMapImage = shadowMap->GetImageView()->GetImage();
         AssertDebug(shadowMapImage != nullptr);
 
-        if (shouldCombineShadowMaps && !cachedData->cachedShadowMapTexture)
+        if (cacheStaticShadowMaps && !cachedData->cachedShadowMapTexture)
         {
             TextureDesc textureDesc;
             textureDesc.format = shadowMapImage->GetTextureFormat();
@@ -236,10 +236,6 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
 
         if (!framebuffer.IsValid())
         {
-            // @TODO: For dynamic, can we use the cached static objects' shadow map as the depth attachment image,
-            // so we render directly over it without our CopyImage below and get "free" depth testing?
-            //  I THINK YES!
-
             const RenderTargetDesc& renderTargetDesc = cachedData->shadowViewsDynamic[cascadeIndex]->GetViewDesc().renderTargetDesc;
 
             framebuffer = g_renderInterface->MakeFramebuffer(renderTargetDesc);
@@ -278,7 +274,7 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
 
         bool needsClearBeforeDraw = true;
 
-        if (shouldCombineShadowMaps)
+        if (cacheStaticShadowMaps)
         {
             // skip rendering static objects if we used the cached texture.
 
@@ -364,7 +360,8 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
                 continue;
             }
 
-            bool isStaticShadowMap = passIndex == 0;
+            const bool isStaticShadowMap = passIndex == 0;
+            const bool shouldCacheAfterRender = isStaticShadowMap && cacheStaticShadowMaps;
 
             RenderSetup rs = renderSetup.Fork();
             rs.view = shadowView;
@@ -375,11 +372,18 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
             ShadowRendererPassData* pd = ObjCast<ShadowRendererPassData>(rs.passData);
             AssertDebug(pd != nullptr);
 
-            Rect<uint32> clearRect {};
-            clearRect.x0 = atlasElement.offsetCoords.x;
-            clearRect.y0 = atlasElement.offsetCoords.y;
-            clearRect.x1 = atlasElement.offsetCoords.x + atlasElement.dimensions.x;
-            clearRect.y1 = atlasElement.offsetCoords.y + atlasElement.dimensions.y;
+            if (needsClearBeforeDraw)
+            {
+                Rect<uint32> clearRect {};
+                clearRect.x0 = atlasElement.offsetCoords.x;
+                clearRect.y0 = atlasElement.offsetCoords.y;
+                clearRect.x1 = atlasElement.offsetCoords.x + atlasElement.dimensions.x;
+                clearRect.y1 = atlasElement.offsetCoords.y + atlasElement.dimensions.y;
+
+                frame->cr << ClearFramebuffer(framebuffer, clearRect);
+
+                needsClearBeforeDraw = false;
+            }
 
             RenderProxyList& rpl = GetConsumerProxyList(shadowView);
             rpl.BeginRead();
@@ -390,31 +394,16 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
                 pd->prevCameraMatrices.Resize(cascadeIndex + 1);
             }
 
-            Attachment* attachment = framebuffer->GetAttachment(0);
-
-            GpuImage* resultImage = attachment->GetGpuImage();
-            Assert(resultImage != nullptr);
-
-            const bool shouldCacheAfterRender = isStaticShadowMap && shouldCombineShadowMaps;
+            pd->prevCameraMatrices[cascadeIndex] = viewProjMat;
 
             HYP_LOG(Rendering, Verbose, "Rendering shadows for shadow view {} at frame {}", shadowView->Id(), GetFrameCounter());
 
-            // transition to render target before rendering
-            /*frame->cr << InsertBarrier(
-                resultImage,
-                RS_RENDER_TARGET,
-                attachment->GetImageView()->GetImageSubResource());*/
-
-            pd->prevCameraMatrices[cascadeIndex] = viewProjMat;
-
-            if (needsClearBeforeDraw)
-            {
-                frame->cr << ClearFramebuffer(framebuffer, clearRect);
-
-                needsClearBeforeDraw = false;
-            }
-
             GetRenderCollector(shadowView).ExecuteDrawCalls(frame, rs, BucketMask);
+            
+            Attachment* target = framebuffer->GetAttachment(0);
+
+            GpuImage* resultImage = target->GetGpuImage();
+            Assert(resultImage != nullptr);
 
             if (shouldCacheAfterRender)
             {
@@ -426,7 +415,7 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
                 frame->cr << InsertBarrier(
                     resultImage,
                     RS_COPY_SRC,
-                    attachment->GetImageView()->GetImageSubResource());
+                    target->GetImageView()->GetImageSubResource());
 
                 // and our cache texture should be COPY_DST
                 frame->cr << InsertBarrier(
@@ -439,7 +428,7 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
                     Vec3u(atlasElement.offsetCoords.x, atlasElement.offsetCoords.y, 0),
                     Vec3u(0, 0, 0),
                     Vec3u(atlasElement.dimensions.x, atlasElement.dimensions.y, 1),
-                    attachment->GetImageView()->GetImageSubResource(),
+                    target->GetImageView()->GetImageSubResource(),
                     ImageSubResource {});
             }
 
@@ -447,7 +436,7 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
             frame->cr << InsertBarrier(
                 resultImage,
                 RS_SHADER_RESOURCE,
-                attachment->GetImageView()->GetImageSubResource());
+                target->GetImageView()->GetImageSubResource());
         }
         
 #if 0 // FIXME

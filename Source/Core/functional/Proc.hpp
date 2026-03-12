@@ -205,7 +205,7 @@ class ProcRef;
 template <class ReturnType, class... Args>
 class Proc<ReturnType(Args...)> : ProcBase
 {
-    static constexpr uint32 InlineStorageSizeBytes = 16;
+    static constexpr uint32 InlineStorageSizeBytes = 64;
 
     using InlineStorageType = ValueStorage<char, InlineStorageSizeBytes>;
     using Impl = Proc_Impl<ReturnType(Args...), InlineStorageType>;
@@ -369,10 +369,44 @@ template <class ReturnType, class... Args>
 class ProcRef<ReturnType(Args...)> : public ProcRefBase
 {
 public:
+    ProcRef()
+        : m_ptr(nullptr),
+          m_invokeFn(nullptr)
+    {
+    }
+
     explicit ProcRef(std::nullptr_t)
         : m_ptr(nullptr),
           m_invokeFn(nullptr)
     {
+    }
+
+    ProcRef(const ProcRef<ReturnType(Args...)>& other)
+        : m_ptr(other.m_ptr)
+    {
+        m_invokeFn = other.m_invokeFn;
+    }
+
+    ProcRef& operator=(const ProcRef<ReturnType(Args...)>& other)
+    {
+        m_ptr = other.m_ptr;
+        m_invokeFn = other.m_invokeFn;
+
+        return *this;
+    }
+
+    ProcRef(ProcRef<ReturnType(Args...)>&& other) noexcept
+        : m_ptr(other.m_ptr)
+    {
+        m_invokeFn = other.m_invokeFn;
+    }
+
+    ProcRef& operator=(ProcRef<ReturnType(Args...)>&& other) noexcept
+    {
+        m_ptr = other.m_ptr;
+        m_invokeFn = other.m_invokeFn;
+
+        return *this;
     }
 
     ProcRef(const Proc<ReturnType(Args...)>& proc)
@@ -389,6 +423,27 @@ public:
 
                 return proc(std::forward<Args>(args)...);
             };
+        }
+    }
+
+    template <class TFunctor>
+    ProcRef(const ProcRef<TFunctor>& other)
+    {
+        if (other.IsValid())
+        {
+            m_ptr = other.m_ptr;
+            m_invokeFn = [](void* ptr, Args... args) -> ReturnType
+            {
+                TFunctor* functor = *static_cast<TFunctor*>(ptr);
+                HYP_CORE_ASSERT(functor != nullptr);
+
+                return (*functor)(args...);
+            };
+        }
+        else
+        {
+            m_ptr = nullptr;
+            m_invokeFn = nullptr;
         }
     }
 
@@ -409,15 +464,41 @@ public:
         }
     }
 
-    template <class Callable, typename = std::enable_if_t<!std::is_pointer_v<NormalizedType<Callable>> && std::is_invocable_v<NormalizedType<Callable>, Args...> && !std::is_base_of_v<ProcRefBase, NormalizedType<Callable>> && !std::is_base_of_v<ProcBase, NormalizedType<Callable>>>>
+    // Assign ProcRef to a functor
+    template <class Callable, typename = std::enable_if_t<!std::is_base_of_v<ProcBase, NormalizedType<Callable>> && !std::is_base_of_v<ProcRefBase, NormalizedType<Callable>> && !std::is_same_v<ProcRef<ReturnType(Args...)>, NormalizedType<Callable>> && std::is_invocable_v<NormalizedType<Callable>, Args...> && !std::is_function_v<NormalizedType<Callable>> && !std::is_pointer_v<NormalizedType<Callable>>>>
     ProcRef(Callable&& callable)
-        : m_ptr(const_cast<void*>(static_cast<const void*>(&callable)))
     {
-        m_invokeFn = [](void* ptr, Args... args) -> ReturnType
+        /*if constexpr (std::is_base_of_v<ProcRefBase, NormalizedType<Callable>>)
         {
-            return (*static_cast<NormalizedType<Callable>*>(ptr))(std::forward<Args>(args)...);
-        };
+            using FunctorType = typename NormalizedType<Callable>::FunctorType;
+
+            if (callable.IsValid())
+            {
+                m_ptr = callable.m_ptr;
+                m_invokeFn = [](void* ptr, Args... args) -> ReturnType
+                {
+                    FunctorType* functor = *static_cast<FunctorType*>(ptr);
+                    HYP_CORE_ASSERT(functor != nullptr);
+
+                    return (*functor)(args...);
+                };
+            }
+            else
+            {
+                m_ptr = nullptr;
+                m_invokeFn = nullptr;
+            }
+        }
+        else
+        {*/
+            m_ptr = const_cast<void*>(static_cast<const void*>(&callable));
+            m_invokeFn = [](void* ptr, Args... args) -> ReturnType
+            {
+                return (*static_cast<NormalizedType<Callable>*>(ptr))(std::forward<Args>(args)...);
+            };
+        //}
     }
+
 
     ProcRef(ReturnType (*fn)(Args...))
         : ProcRef(nullptr)
@@ -444,12 +525,6 @@ public:
             return (instance.*MemFn)(std::forward<Args>(args)...);
         };
     }
-
-    ProcRef(const ProcRef& other) = default;
-    ProcRef& operator=(const ProcRef& other) = default;
-
-    ProcRef(ProcRef&& other) noexcept = default;
-    ProcRef& operator=(ProcRef&& other) noexcept = default;
 
     ~ProcRef() = default;
 
@@ -486,6 +561,13 @@ template <class T>
 class ProcRef : public ProcRefBase
 {
 public:
+    using FunctorType = T;
+
+    ProcRef()
+        : m_ptr(nullptr)
+    {
+    }
+
     explicit ProcRef(std::nullptr_t)
         : m_ptr(nullptr)
     {
@@ -495,6 +577,9 @@ public:
         : m_ptr(&callable)
     {
     }
+    
+    // @NOTE: explicitly deleted ctor to prevent lifetime issues (dangling reference to the callable)
+    ProcRef(T&& callable) = delete;
 
     ProcRef(const ProcRef& other) = default;
     ProcRef& operator=(const ProcRef& other) = default;
@@ -524,6 +609,7 @@ public:
     template <class... Args>
     HYP_FORCE_INLINE decltype(auto) operator()(Args&&... args) const
     {
+        HYP_CORE_ASSERT(m_ptr != nullptr);
         return (*m_ptr)(std::forward<Args>(args)...);
     }
 

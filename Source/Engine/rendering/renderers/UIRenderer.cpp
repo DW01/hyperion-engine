@@ -182,6 +182,10 @@ void UIRenderCollector::ExecuteDrawCalls(Frame* frame, const RenderSetup& render
             });
     }
 
+    // set these to null after rendering
+    Array<ParallelRenderingState**, RenderTempAllocator> parallelRenderingStatesToNullify;
+    parallelRenderingStatesToNullify.Reserve(32);
+
     for (size_t index = 0; index < iterators.Size(); index++)
     {
         auto& it = *iterators[index];
@@ -194,25 +198,32 @@ void UIRenderCollector::ExecuteDrawCalls(Frame* frame, const RenderSetup& render
         RenderGroup& renderGroup = drawCallCollection.renderGroup;
         Assert(renderGroup.valid);
 
-        ParallelRenderingState* parallelRenderingState = nullptr;
-
         if (renderGroup.flags & RenderGroupFlags::PARALLEL_RENDERING)
         {
-            parallelRenderingState = AcquireNextParallelRenderingState();
+            renderGroup.parallelRenderingState = AcquireNextParallelRenderingState();
         }
 
-        renderGroup.PerformRendering(frame, renderSetup, drawCallCollection, nullptr, parallelRenderingState);
+        renderGroup.PerformRendering(frame, renderSetup, drawCallCollection, nullptr);
 
-        if (parallelRenderingState != nullptr)
+        if (renderGroup.parallelRenderingState != nullptr)
         {
-            AssertDebug(parallelRenderingState->taskBatch != nullptr);
+            parallelRenderingStatesToNullify.PushBack(&renderGroup.parallelRenderingState);
 
-            TaskSystem::GetInstance().EnqueueBatch(parallelRenderingState->taskBatch);
+            AssertDebug(renderGroup.parallelRenderingState->taskBatch != nullptr);
+            TaskSystem::GetInstance().EnqueueBatch(renderGroup.parallelRenderingState->taskBatch);
         }
     }
 
     // Wait for all parallel rendering tasks to finish
     CommitParallelRenderingState(frame->cr);
+    
+    if (parallelRenderingStatesToNullify.Any())
+    {
+        for (ParallelRenderingState** pp : parallelRenderingStatesToNullify)
+        {
+            *pp = nullptr;
+        }
+    }
 
     if (framebuffer != nullptr)
     {

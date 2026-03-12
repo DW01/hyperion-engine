@@ -2255,7 +2255,7 @@ extern enum LightFlags : uint32
     ShadowContactHardening = 0x4,
     ShadowVariance = 0x8,
     ShadowFilterMask = ((ShadowPCF | ShadowContactHardening) | ShadowVariance),
-    ShadowCacheStaticObjects = 0x10,
+    CacheStaticShadowMaps = 0x10,
     Default = (ShadowCaster | ShadowPCF)
 end
 extern class EnvGrid : Entity

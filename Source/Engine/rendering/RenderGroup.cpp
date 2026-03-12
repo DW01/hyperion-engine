@@ -451,6 +451,202 @@ static void RenderAll(
 }
 
 template <bool UseIndirectRendering>
+void ParallelRenderingState::DrawCallPayload::ProcessNonInstanced(DrawCallRange range, uint32 index, uint32 batchIndex)
+{
+    static const bool s_useBindlessTextures = g_renderInterface->GetRenderConfig().bindlessTextures;
+
+    if (range.count == 0)
+    {
+        return;
+    }
+
+    auto& cr = *parallelRenderingState->threadLocalRecorders[GetCurrentThreadIndex()];
+
+    const DrawCallStorage& drawCalls = drawCallCollection->drawCalls;
+
+    Mesh* prevMesh = nullptr;
+
+    for (size_t i = range.start; i < range.start + range.count; i++)
+    {
+        uint32 numDrawCallUniforms = numShaderUniforms;
+
+        const uint32 materialBoundIndex = RetrieveResourceBinding(drawCalls.materials[i]);
+        AssertDebug(materialBoundIndex != ~0u);
+
+        cr << SetShaderUniform(numDrawCallUniforms++, "CurrentEntity"_sh,
+            g_renderInterface->gpuBuffers[GRB_ENTITIES]->GetBuffer(frameIndex),
+            TShaderDataOffset<EntityShaderData>(drawCalls.entityIds[i].ToIndex()));
+
+        cr << SetShaderUniform(numDrawCallUniforms++, "MaterialsBuffer"_sh,
+            g_renderInterface->gpuBuffers[GRB_MATERIALS]->GetBuffer(frameIndex),
+            TShaderDataOffset<MaterialShaderData>(materialBoundIndex));
+                        
+        if (drawCalls.skeletons[i] != nullptr)
+        {
+            cr << SetShaderUniform(numDrawCallUniforms++, "SkeletonsBuffer"_sh,
+                g_renderInterface->gpuBuffers[GRB_SKELETONS]->GetBuffer(frameIndex),
+                TShaderDataOffset<SkeletonShaderData>(drawCalls.skeletons[i]));
+        }
+
+        if (!s_useBindlessTextures)
+        {
+            const uint32 textureMask = drawCallCollection->renderGroup.renderableAttributes.GetMaterialAttributes().textureMask;
+
+            if (textureMask != 0)
+            {
+                RenderProxyMaterial* materialProxy = static_cast<RenderProxyMaterial*>(GetRenderProxy(drawCalls.materials[i]));
+                AssertDebug(materialProxy != nullptr);
+
+                Span<const GpuImageViewRef> imageViews = g_renderInterface->materialTextureCache->imageViews.Get(materialBoundIndex);
+                AssertDebug(imageViews.Size() >= materialProxy->boundTextures.Size());
+
+                FOR_EACH_BIT(textureMask, bit)
+                {
+                    const Name textureUniformName = Material::s_textureNames[bit];
+
+                    cr << SetShaderUniform(numDrawCallUniforms++,
+                        textureUniformName,
+                        imageViews[materialProxy->boundTextureIndices[bit]]);
+                }
+            }
+        }
+        
+        cr << CommitDrawState();
+
+        if (!prevMesh || prevMesh != drawCalls.meshes[i])
+        {
+            cr << BindVertexBuffer(drawCalls.meshes[i]->GetVertexBuffer());
+            cr << BindIndexBuffer(drawCalls.meshes[i]->GetIndexBuffer());
+
+#if HYP_MATERIAL_DEBUG
+            AssertDebug(drawCalls.materials[i] != nullptr && drawCalls.materials[i]->IsReady());
+            if (!drawCalls.materials[i]->GetTexture(MaterialTextureKey::Diffuse))
+            {
+                HYP_LOG(Rendering, Warning, "Rendering instanced draw call with material '{}' that has no albedo map bound!", drawCalls.materials[i]->GetName());
+            }
+#endif
+        }
+
+        if (UseIndirectRendering && drawCalls.drawCommandIndices[i] != ~0u)
+        {
+            cr << DrawIndexedIndirect(
+                indirectRenderer->GetDrawState().GetIndirectBuffer(frameIndex),
+                drawCalls.drawCommandIndices[i] * uint32(sizeof(IndirectDrawCommand)));
+        }
+        else
+        {
+            cr << DrawIndexed(drawCalls.numIndices[i], 1);
+        }
+
+        parallelRenderingState->statValues[index][g_statTriangles] += drawCalls.numIndices[i] / 3;
+        parallelRenderingState->statValues[index][g_statDrawCalls]++;
+
+        prevMesh = drawCalls.meshes[i];
+    }
+}
+
+template <bool UseIndirectRendering>
+void ParallelRenderingState::DrawCallPayload::ProcessInstanced(DrawCallRange range, uint32 index, uint32 batchIndex)
+{
+    static const bool s_useBindlessTextures = g_renderInterface->GetRenderConfig().bindlessTextures;
+
+    if (range.count == 0)
+    {
+        return;
+    }
+
+    auto& cr = *parallelRenderingState->threadLocalRecorders[GetCurrentThreadIndex()];
+
+    const InstancedDrawCallStorage& instancedDrawCalls = drawCallCollection->instancedDrawCalls;
+
+    Mesh* prevMesh = nullptr;
+
+    for (size_t i = range.start; i < range.start + range.count; i++)
+    {
+        uint32 numDrawCallUniforms = numShaderUniforms;
+
+        EntityInstanceBatch* entityInstanceBatch = instancedDrawCalls.batches[i];
+        AssertDebug(entityInstanceBatch != nullptr);
+
+        const size_t stride = drawCallCollection->batchAllocator->GetStructSize();
+        
+        cr << SetShaderUniform(numDrawCallUniforms++, "EntityInstanceBatchesBuffer"_sh,
+            drawCallCollection->batchAllocator->GetGpuBufferHolder()->GetBuffer(frameIndex),
+            ShaderDataOffset(entityInstanceBatch->batchIndex * stride, stride));
+
+        const uint32 materialBoundIndex = RetrieveResourceBinding(instancedDrawCalls.materials[i]);
+        AssertDebug(materialBoundIndex != ~0u);
+
+        cr << SetShaderUniform(numDrawCallUniforms++, "MaterialsBuffer"_sh,
+            g_renderInterface->gpuBuffers[GRB_MATERIALS]->GetBuffer(frameIndex),
+            TShaderDataOffset<MaterialShaderData>(materialBoundIndex));
+                        
+        if (instancedDrawCalls.skeletons[i] != nullptr)
+        {
+            cr << SetShaderUniform(numDrawCallUniforms++, "SkeletonsBuffer"_sh,
+                g_renderInterface->gpuBuffers[GRB_SKELETONS]->GetBuffer(frameIndex),
+                TShaderDataOffset<SkeletonShaderData>(instancedDrawCalls.skeletons[i]));
+        }
+                    
+        if (!s_useBindlessTextures)
+        {
+            const uint32 textureMask = drawCallCollection->renderGroup.renderableAttributes.GetMaterialAttributes().textureMask;
+
+            if (textureMask != 0)
+            {
+                RenderProxyMaterial* materialProxy = static_cast<RenderProxyMaterial*>(GetRenderProxy(instancedDrawCalls.materials[i]));
+                AssertDebug(materialProxy != nullptr);
+
+                Span<const GpuImageViewRef> imageViews = g_renderInterface->materialTextureCache->imageViews.Get(materialBoundIndex);
+                AssertDebug(imageViews.Size() >= materialProxy->boundTextures.Size());
+
+                FOR_EACH_BIT(textureMask, bit)
+                {
+                    const Name textureUniformName = Material::s_textureNames[bit];
+
+                    cr << SetShaderUniform(numDrawCallUniforms++,
+                        textureUniformName,
+                        imageViews[materialProxy->boundTextureIndices[bit]]);
+                }
+            }
+        }
+        
+        cr << CommitDrawState();
+
+        if (!prevMesh || prevMesh != instancedDrawCalls.meshes[i])
+        {
+            cr << BindVertexBuffer(instancedDrawCalls.meshes[i]->GetVertexBuffer());
+            cr << BindIndexBuffer(instancedDrawCalls.meshes[i]->GetIndexBuffer());
+
+#if HYP_MATERIAL_DEBUG
+            AssertDebug(instancedDrawCalls.materials[i] != nullptr && instancedDrawCalls.materials[i]->IsReady());
+            if (!instancedDrawCalls.materials[i]->GetTexture(MaterialTextureKey::Diffuse))
+            {
+                HYP_LOG(Rendering, Warning, "Rendering instanced draw call with material '{}' that has no albedo map bound!", instancedDrawCalls.materials[i]->GetName());
+            }
+#endif
+        }
+
+        if (UseIndirectRendering && instancedDrawCalls.drawCommandIndices[i] != ~0u)
+        {
+            cr << DrawIndexedIndirect(
+                indirectRenderer->GetDrawState().GetIndirectBuffer(frameIndex),
+                instancedDrawCalls.drawCommandIndices[i] * uint32(sizeof(IndirectDrawCommand)));
+        }
+        else
+        {
+            cr << DrawIndexed(instancedDrawCalls.numIndices[i], entityInstanceBatch->numEntities);
+        }
+
+        prevMesh = instancedDrawCalls.meshes[i];
+
+        parallelRenderingState->statValues[index][g_statTriangles] += instancedDrawCalls.numIndices[i] / 3;
+        parallelRenderingState->statValues[index][g_statDrawCalls]++;
+        parallelRenderingState->statValues[index][g_statInstancedDrawCalls]++;
+    }
+}
+
+template <bool UseIndirectRendering>
 static void RenderAll_Parallel(
     Frame* frame,
     const RenderSetup& renderSetup,
@@ -523,219 +719,36 @@ static void RenderAll_Parallel(
         cr << SetShaderUniform(numShaderUniforms++, "GBufferMipChain"_sh, g_renderInterface->textureViewCache->GetOrCreate(dpd->mipChain));
     }
 
+    ParallelRenderingState::DrawCallPayload& p = parallelRenderingState->drawCallPayload;
+
+    p = {};
+    p.frameIndex = frameIndex;
+    p.drawCallCollection = &drawCallCollection;
+    p.indirectRenderer = indirectRenderer;
+    p.numShaderUniforms = numShaderUniforms;
+    p.parallelRenderingState = parallelRenderingState;
+
     // Store the proc in the parallel rendering state so that it doesn't get destroyed until we're done with it
     if (drawCallCollection.drawCalls.Any())
     {
         DivideDrawCalls(drawCallCollection.drawCalls.Size(), parallelRenderingState->numBatches, parallelRenderingState->drawCalls);
-
-        ProcRef<void(DrawCallRange, uint32, uint32)> proc = parallelRenderingState->drawCallProcs.EmplaceBack([frameIndex, numShaderUniforms, parallelRenderingState, &drawCallCollection, indirectRenderer](DrawCallRange range, uint32 index, uint32 batchIndex)
-            {
-                if (range.count == 0)
-                {
-                    return;
-                }
-
-                auto& cr = *parallelRenderingState->threadLocalRecorders[GetCurrentThreadIndex()];
-
-                const DrawCallStorage& drawCalls = drawCallCollection.drawCalls;
-
-                Mesh* prevMesh = nullptr;
-
-                for (size_t i = range.start; i < range.start + range.count; i++)
-                {
-                    AssertDebug(drawCalls.entityIds[i].GetTypeId() == TypeId::ForType<Entity>());
-
-                    uint32 numDrawCallUniforms = numShaderUniforms;
-
-                    const uint32 materialBoundIndex = RetrieveResourceBinding(drawCalls.materials[i]);
-                    AssertDebug(materialBoundIndex != ~0u);
-
-                    cr << SetShaderUniform(numDrawCallUniforms++, "CurrentEntity"_sh,
-                        g_renderInterface->gpuBuffers[GRB_ENTITIES]->GetBuffer(frameIndex),
-                        TShaderDataOffset<EntityShaderData>(drawCalls.entityIds[i].ToIndex()));
-
-                    cr << SetShaderUniform(numDrawCallUniforms++, "MaterialsBuffer"_sh,
-                        g_renderInterface->gpuBuffers[GRB_MATERIALS]->GetBuffer(frameIndex),
-                        TShaderDataOffset<MaterialShaderData>(materialBoundIndex));
-                        
-                    if (drawCalls.skeletons[i] != nullptr)
-                    {
-                        cr << SetShaderUniform(numDrawCallUniforms++, "SkeletonsBuffer"_sh,
-                            g_renderInterface->gpuBuffers[GRB_SKELETONS]->GetBuffer(frameIndex),
-                            TShaderDataOffset<SkeletonShaderData>(drawCalls.skeletons[i]));
-                    }
-
-                    if (!s_useBindlessTextures)
-                    {
-                        const uint32 textureMask = drawCallCollection.renderGroup.renderableAttributes.GetMaterialAttributes().textureMask;
-
-                        if (textureMask != 0)
-                        {
-                            RenderProxyMaterial* materialProxy = static_cast<RenderProxyMaterial*>(GetRenderProxy(drawCalls.materials[i]));
-                            AssertDebug(materialProxy != nullptr);
-
-                            Span<const GpuImageViewRef> imageViews = g_renderInterface->materialTextureCache->imageViews.Get(materialBoundIndex);
-                            AssertDebug(imageViews.Size() >= materialProxy->boundTextures.Size());
-
-                            FOR_EACH_BIT(textureMask, bit)
-                            {
-                                const Name textureUniformName = Material::s_textureNames[bit];
-
-                                cr << SetShaderUniform(numDrawCallUniforms++,
-                                    textureUniformName,
-                                    imageViews[materialProxy->boundTextureIndices[bit]]);
-                            }
-                        }
-                    }
         
-                    cr << CommitDrawState();
-
-                    if (!prevMesh || prevMesh != drawCalls.meshes[i])
-                    {
-                        cr << BindVertexBuffer(drawCalls.meshes[i]->GetVertexBuffer());
-                        cr << BindIndexBuffer(drawCalls.meshes[i]->GetIndexBuffer());
-
-#if HYP_MATERIAL_DEBUG
-                        AssertDebug(drawCalls.materials[i] != nullptr && drawCalls.materials[i]->IsReady());
-                        if (!drawCalls.materials[i]->GetTexture(MaterialTextureKey::Diffuse))
-                        {
-                            HYP_LOG(Rendering, Warning, "Rendering instanced draw call with material '{}' that has no albedo map bound!", drawCalls.materials[i]->GetName());
-                        }
-#endif
-                    }
-
-                    if (UseIndirectRendering && drawCalls.drawCommandIndices[i] != ~0u)
-                    {
-                        cr << DrawIndexedIndirect(
-                            indirectRenderer->GetDrawState().GetIndirectBuffer(frameIndex),
-                            drawCalls.drawCommandIndices[i] * uint32(sizeof(IndirectDrawCommand)));
-                    }
-                    else
-                    {
-                        cr << DrawIndexed(drawCalls.numIndices[i], 1);
-                    }
-
-                    parallelRenderingState->statValues[index][g_statTriangles] += drawCalls.numIndices[i] / 3;
-                    parallelRenderingState->statValues[index][g_statDrawCalls]++;
-
-                    prevMesh = drawCalls.meshes[i];
-                }
-            });
-
         TaskSystem::GetInstance().ParallelForEach_Batch(
             *parallelRenderingState->taskBatch,
             parallelRenderingState->numBatches,
             parallelRenderingState->drawCalls,
-            std::move(proc));
+            ProcRef<void(DrawCallRange, uint32, uint32)>(p, ValueWrapper<&ParallelRenderingState::DrawCallPayload::ProcessNonInstanced<UseIndirectRendering>>()));
     }
 
     if (drawCallCollection.instancedDrawCalls.Any())
     {
         DivideDrawCalls(drawCallCollection.instancedDrawCalls.Size(), parallelRenderingState->numBatches, parallelRenderingState->instancedDrawCalls);
 
-        ProcRef<void(DrawCallRange, uint32, uint32)> proc = parallelRenderingState->instancedDrawCallProcs.EmplaceBack([frameIndex, numShaderUniforms, parallelRenderingState, &drawCallCollection, indirectRenderer](DrawCallRange range, uint32 index, uint32 batchIndex)
-            {
-                if (range.count == 0)
-                {
-                    return;
-                }
-
-                auto& cr = *parallelRenderingState->threadLocalRecorders[GetCurrentThreadIndex()];
-
-                const InstancedDrawCallStorage& instancedDrawCalls = drawCallCollection.instancedDrawCalls;
-
-                Mesh* prevMesh = nullptr;
-
-                for (size_t i = range.start; i < range.start + range.count; i++)
-                {
-                    uint32 numDrawCallUniforms = numShaderUniforms;
-
-                    EntityInstanceBatch* entityInstanceBatch = instancedDrawCalls.batches[i];
-                    AssertDebug(entityInstanceBatch != nullptr);
-
-                    const uint32 stride = drawCallCollection.batchAllocator->GetStructSize();
-        
-                    cr << SetShaderUniform(numDrawCallUniforms++, "EntityInstanceBatchesBuffer"_sh,
-                        drawCallCollection.batchAllocator->GetGpuBufferHolder()->GetBuffer(frameIndex),
-                        ShaderDataOffset(entityInstanceBatch->batchIndex * stride, stride));
-
-                    const uint32 materialBoundIndex = RetrieveResourceBinding(instancedDrawCalls.materials[i]);
-                    AssertDebug(materialBoundIndex != ~0u);
-
-                    cr << SetShaderUniform(numDrawCallUniforms++, "MaterialsBuffer"_sh,
-                        g_renderInterface->gpuBuffers[GRB_MATERIALS]->GetBuffer(frameIndex),
-                        TShaderDataOffset<MaterialShaderData>(materialBoundIndex));
-                        
-                    if (instancedDrawCalls.skeletons[i] != nullptr)
-                    {
-                        cr << SetShaderUniform(numDrawCallUniforms++, "SkeletonsBuffer"_sh,
-                            g_renderInterface->gpuBuffers[GRB_SKELETONS]->GetBuffer(frameIndex),
-                            TShaderDataOffset<SkeletonShaderData>(instancedDrawCalls.skeletons[i]));
-                    }
-                    
-                    if (!s_useBindlessTextures)
-                    {
-                        const uint32 textureMask = drawCallCollection.renderGroup.renderableAttributes.GetMaterialAttributes().textureMask;
-
-                        if (textureMask != 0)
-                        {
-                            RenderProxyMaterial* materialProxy = static_cast<RenderProxyMaterial*>(GetRenderProxy(instancedDrawCalls.materials[i]));
-                            AssertDebug(materialProxy != nullptr);
-
-                            Span<const GpuImageViewRef> imageViews = g_renderInterface->materialTextureCache->imageViews.Get(materialBoundIndex);
-                            AssertDebug(imageViews.Size() >= materialProxy->boundTextures.Size());
-
-                            FOR_EACH_BIT(textureMask, bit)
-                            {
-                                const Name textureUniformName = Material::s_textureNames[bit];
-
-                                cr << SetShaderUniform(numDrawCallUniforms++,
-                                    textureUniformName,
-                                    imageViews[materialProxy->boundTextureIndices[bit]]);
-                            }
-                        }
-                    }
-        
-                    cr << CommitDrawState();
-
-                    if (!prevMesh || prevMesh != instancedDrawCalls.meshes[i])
-                    {
-                        cr << BindVertexBuffer(instancedDrawCalls.meshes[i]->GetVertexBuffer());
-                        cr << BindIndexBuffer(instancedDrawCalls.meshes[i]->GetIndexBuffer());
-
-#if HYP_MATERIAL_DEBUG
-                        AssertDebug(instancedDrawCalls.materials[i] != nullptr && instancedDrawCalls.materials[i]->IsReady());
-                        if (!instancedDrawCalls.materials[i]->GetTexture(MaterialTextureKey::Diffuse))
-                        {
-                            HYP_LOG(Rendering, Warning, "Rendering instanced draw call with material '{}' that has no albedo map bound!", instancedDrawCalls.materials[i]->GetName());
-                        }
-#endif
-                    }
-
-                    if (UseIndirectRendering && instancedDrawCalls.drawCommandIndices[i] != ~0u)
-                    {
-                        cr << DrawIndexedIndirect(
-                            indirectRenderer->GetDrawState().GetIndirectBuffer(frameIndex),
-                            instancedDrawCalls.drawCommandIndices[i] * uint32(sizeof(IndirectDrawCommand)));
-                    }
-                    else
-                    {
-                        cr << DrawIndexed(instancedDrawCalls.numIndices[i], entityInstanceBatch->numEntities);
-                    }
-
-                    prevMesh = instancedDrawCalls.meshes[i];
-
-                    parallelRenderingState->statValues[index][g_statTriangles] += instancedDrawCalls.numIndices[i] / 3;
-                    parallelRenderingState->statValues[index][g_statDrawCalls]++;
-                    parallelRenderingState->statValues[index][g_statInstancedDrawCalls]++;
-                }
-            });
-
         TaskSystem::GetInstance().ParallelForEach_Batch(
             *parallelRenderingState->taskBatch,
             parallelRenderingState->numBatches,
             parallelRenderingState->instancedDrawCalls,
-            std::move(proc));
+            ProcRef<void(DrawCallRange, uint32, uint32)>(p, ValueWrapper<&ParallelRenderingState::DrawCallPayload::ProcessInstanced<UseIndirectRendering>>()));
     }
 }
 
@@ -743,8 +756,7 @@ void RenderGroup::PerformRendering(
     Frame* frame,
     const RenderSetup& renderSetup,
     DrawCallCollection& drawCallCollection,
-    IndirectRenderer* indirectRenderer,
-    ParallelRenderingState* parallelRenderingState) const
+    IndirectRenderer* indirectRenderer) const
 {
     HYP_SCOPE;
     AssertOnThread(g_renderThread);

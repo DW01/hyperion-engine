@@ -63,6 +63,7 @@ private:
     Handle<Scene> m_visScene;
 
     ClockTimer m_updateTimer;
+    uint32 m_lastFrame;
 };
 
 } // namespace Hyperion

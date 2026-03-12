@@ -185,7 +185,7 @@ static ViewDesc GetViewDesc(Light* light, bool isStatic, uint32 cascadeIndex, Sh
 
     viewDesc.overrideAttributes = RenderableAttributeSet(MeshAttributes(), materialAttributes);
 
-    if (light->GetLightFlags() & LightFlags::ShadowCacheStaticObjects)
+    if (light->GetLightFlags() & LightFlags::CacheStaticShadowMaps)
     {
         viewDesc.flags &= ~ViewFlags::COLLECT_ALL_ENTITIES;
 

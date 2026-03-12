@@ -918,9 +918,8 @@ void RenderCollector::CommitParallelRenderingState(CommandRecorder& cr)
         state->sharedData->Reset();
 
         state->drawCalls.Clear();
-        state->drawCallProcs.Clear();
         state->instancedDrawCalls.Clear();
-        state->instancedDrawCallProcs.Clear();
+        state->drawCallPayload = {};
 
         state->taskBatch->ResetState();
 
@@ -989,6 +988,108 @@ void RenderCollector::PerformOcclusionCulling(Frame* frame, const RenderSetup& r
             }
         }
     }
+}
+
+
+bool RenderCollector::PrepareAsyncDrawCalls(
+    Frame* frame,
+    const RenderSetup& renderSetup,
+    uint32 bucketBits)
+{
+    HYP_SCOPE;
+    AssertOnThread(g_renderThread);
+
+    Span<HashMap<RenderableAttributeSet, DrawCallCollection, NodeAllocator<RenderAllocator>>> groupsView;
+
+    if (bucketBits == 0)
+    {
+        bucketBits = AllBucketsMask;
+    }
+
+    // If only one bit is set, we can skip the loop by directly accessing the RenderGroup
+    if (ByteUtil::BitCount(bucketBits) == 1)
+    {
+        const uint32 renderBucketIndex = MathUtil::FastLog2_Pow2(bucketBits);
+
+        auto& mappings = mappingsByBucket[renderBucketIndex];
+
+        if (mappings.Empty())
+        {
+            return false;
+        }
+
+        groupsView = { &mappings, 1 };
+    }
+    else
+    {
+        bool allEmpty = true;
+
+        for (auto& mappings : mappingsByBucket)
+        {
+            if (mappings.Any())
+            {
+                if (AnyOf(mappings, [&bucketBits](const auto& it)
+                        {
+                            return (bucketBits & (1u << uint32(it.first.GetMaterialAttributes().bucket))) != 0;
+                        }))
+                {
+                    allEmpty = false;
+
+                    break;
+                }
+            }
+        }
+
+        if (allEmpty)
+        {
+            return false;
+        }
+
+        groupsView = mappingsByBucket.ToSpan();
+    }
+
+    bool anyEnqueued = false;
+
+    for (auto& mappings : groupsView)
+    {
+        for (auto& it : mappings)
+        {
+            const RenderableAttributeSet& attributes = it.first;
+
+            DrawCallCollection& drawCallCollection = it.second;
+            AssertDebug(drawCallCollection.IsValid());
+
+            const RenderBucket rb = attributes.GetMaterialAttributes().bucket;
+
+            if (!(bucketBits & (1u << uint32(rb))))
+            {
+                continue;
+            }
+
+            RenderGroup& renderGroup = drawCallCollection.renderGroup;
+            AssertDebug(renderGroup.valid);
+
+            IndirectRenderer* indirectRenderer = drawCallCollection.indirectRenderer;
+
+            if (!(renderGroup.flags & RenderGroupFlags::PARALLEL_RENDERING))
+            {
+                continue;
+            }
+
+            AssertDebug(renderGroup.parallelRenderingState == nullptr);
+
+            renderGroup.parallelRenderingState = AcquireNextParallelRenderingState();
+            renderGroup.PerformRendering(frame, renderSetup, drawCallCollection, indirectRenderer);
+
+            AssertDebug(renderGroup.parallelRenderingState->taskBatch != nullptr);
+
+            TaskSystem::GetInstance().EnqueueBatch(renderGroup.parallelRenderingState->taskBatch);
+
+            anyEnqueued = true;
+        }
+    }
+
+    return anyEnqueued;
 }
 
 void RenderCollector::ExecuteDrawCalls(
@@ -1086,6 +1187,10 @@ void RenderCollector::ExecuteDrawCalls(
         frame->cr << SetCurrentFramebuffer(framebuffer);
     }
 
+    // set these to null after rendering
+    Array<ParallelRenderingState**, RenderTempAllocator> parallelRenderingStatesToNullify;
+    parallelRenderingStatesToNullify.Reserve(32);
+
     for (auto& mappings : groupsView)
     {
         for (auto& it : mappings)
@@ -1102,7 +1207,7 @@ void RenderCollector::ExecuteDrawCalls(
                 continue;
             }
 
-            const RenderGroup& renderGroup = drawCallCollection.renderGroup;
+            RenderGroup& renderGroup = drawCallCollection.renderGroup;
             AssertDebug(renderGroup.valid);
 
             IndirectRenderer* indirectRenderer = drawCallCollection.indirectRenderer;
@@ -1111,10 +1216,21 @@ void RenderCollector::ExecuteDrawCalls(
 
             if (renderGroup.flags & RenderGroupFlags::PARALLEL_RENDERING)
             {
+                parallelRenderingStatesToNullify.PushBack(&renderGroup.parallelRenderingState);
+
+                if (renderGroup.parallelRenderingState != nullptr)
+                {
+                    // If PrepareAsyncDrawCalls() was used, parallelRenderingState would be non-null,
+                    // therefore we skip enqueueing teh task batch if that is set and instead just
+                    // will wait on the existing one
+                    continue;
+                }
+
                 parallelRenderingState = AcquireNextParallelRenderingState();
             }
 
-            renderGroup.PerformRendering(frame, renderSetup, drawCallCollection, indirectRenderer, parallelRenderingState);
+            renderGroup.parallelRenderingState = parallelRenderingState;
+            renderGroup.PerformRendering(frame, renderSetup, drawCallCollection, indirectRenderer);
 
             if (parallelRenderingState != nullptr)
             {
@@ -1129,6 +1245,14 @@ void RenderCollector::ExecuteDrawCalls(
     {
         // Wait for all parallel rendering tasks to finish
         CommitParallelRenderingState(frame->cr);
+
+        if (parallelRenderingStatesToNullify.Any())
+        {
+            for (ParallelRenderingState** pp : parallelRenderingStatesToNullify)
+            {
+                *pp = nullptr;
+            }
+        }
     }
 
     if (framebuffer)

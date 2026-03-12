@@ -256,89 +256,91 @@ FBOMResult FBOMWriter::WriteExternalObjects(ByteWriter* out, const FilePath& bas
         errors.Insert(err);
     };
 
-    TaskSystem::GetInstance().ParallelForEach(m_writeStream->m_objectLibraries, [&](const FBOMObjectLibrary& library, uint32, uint32) -> void
+    auto fn = [&](const FBOMObjectLibrary& library, uint32, uint32) -> void
+    {
+        FBOMWriter serializer { FBOMWriterConfig {} };
+
+        for (const FBOMObject& object : library.objectData)
         {
-            FBOMWriter serializer { FBOMWriterConfig {} };
+            const FBOMExternalObjectInfo* externalObjectInfo = object.GetExternalObjectInfo();
+            HYP_CORE_ASSERT(externalObjectInfo != nullptr);
+            HYP_CORE_ASSERT(externalObjectInfo->IsLinked());
 
-            for (const FBOMObject& object : library.objectData)
+            FBOMObject objectCopy(object);
+
+            // unset to stop recursion
+            objectCopy.SetIsExternal(false);
+
+            if (FBOMResult err = serializer.Append(objectCopy))
             {
-                const FBOMExternalObjectInfo* externalObjectInfo = object.GetExternalObjectInfo();
-                HYP_CORE_ASSERT(externalObjectInfo != nullptr);
-                HYP_CORE_ASSERT(externalObjectInfo->IsLinked());
+                addError(err);
 
-                FBOMObject objectCopy(object);
+                return;
+            }
+        }
 
-                // unset to stop recursion
-                objectCopy.SetIsExternal(false);
+        const FBOMObjectLibraryFlags flags = FBOMObjectLibraryFlags::LOCATION_EXTERNAL;
 
-                if (FBOMResult err = serializer.Append(objectCopy))
-                {
-                    addError(err);
+        MemoryByteWriter bufferedOutput;
 
-                    return;
-                }
+        bufferedOutput.Write<uint8>(FBOM_OBJECT_LIBRARY_START);
+
+        bufferedOutput.Write<UUID>(library.uuid);
+        bufferedOutput.Write<uint8>(uint8(flags));
+
+        if (flags & FBOMObjectLibraryFlags::LOCATION_INLINE)
+        {
+            MemoryByteWriter byteWriter;
+
+            if (FBOMResult err = serializer.Emit(&byteWriter, /* writeHeader */ false))
+            {
+                addError(err);
+
+                return;
             }
 
-            const FBOMObjectLibraryFlags flags = FBOMObjectLibraryFlags::LOCATION_EXTERNAL;
+            ByteBuffer buffer = std::move(byteWriter.GetBuffer());
 
-            MemoryByteWriter bufferedOutput;
+            // write size of buffer
+            bufferedOutput.Write<uint64>(buffer.Size());
 
-            bufferedOutput.Write<uint8>(FBOM_OBJECT_LIBRARY_START);
+            // write actual buffer data
+            bufferedOutput.Write(buffer.Data(), buffer.Size());
+        }
+        else if (flags & FBOMObjectLibraryFlags::LOCATION_EXTERNAL)
+        {
+            // write to external file
 
-            bufferedOutput.Write<UUID>(library.uuid);
-            bufferedOutput.Write<uint8>(uint8(flags));
+            const FilePath filepath = externalPath / (library.uuid.ToString() + ".hyp");
+            const FilePath relativePath = FilePath::Relative(filepath, basePath).BasePath();
 
-            if (flags & FBOMObjectLibraryFlags::LOCATION_INLINE)
+            FileByteWriter byteWriter { filepath };
+
+            if (FBOMResult err = serializer.Emit(&byteWriter, /* writeHeader */ true))
             {
-                MemoryByteWriter byteWriter;
+                addError(err);
 
-                if (FBOMResult err = serializer.Emit(&byteWriter, /* writeHeader */ false))
-                {
-                    addError(err);
-
-                    return;
-                }
-
-                ByteBuffer buffer = std::move(byteWriter.GetBuffer());
-
-                // write size of buffer
-                bufferedOutput.Write<uint64>(buffer.Size());
-
-                // write actual buffer data
-                bufferedOutput.Write(buffer.Data(), buffer.Size());
-            }
-            else if (flags & FBOMObjectLibraryFlags::LOCATION_EXTERNAL)
-            {
-                // write to external file
-
-                const FilePath filepath = externalPath / (library.uuid.ToString() + ".hyp");
-                const FilePath relativePath = FilePath::Relative(filepath, basePath).BasePath();
-
-                FileByteWriter byteWriter { filepath };
-
-                if (FBOMResult err = serializer.Emit(&byteWriter, /* writeHeader */ true))
-                {
-                    addError(err);
-
-                    return;
-                }
-
-                bufferedOutput.WriteString(relativePath, BYTE_WRITER_FLAGS_WRITE_SIZE);
-            }
-            else
-            {
-                HYP_UNREACHABLE();
+                return;
             }
 
-            bufferedOutput.Write<uint8>(FBOM_OBJECT_LIBRARY_END);
+            bufferedOutput.WriteString(relativePath, BYTE_WRITER_FLAGS_WRITE_SIZE);
+        }
+        else
+        {
+            HYP_UNREACHABLE();
+        }
 
-            // Pipe the buffered data into the output stream
-            {
-                Mutex::Guard guard(outputMutex);
+        bufferedOutput.Write<uint8>(FBOM_OBJECT_LIBRARY_END);
 
-                out->Write(bufferedOutput.GetBuffer().Data(), bufferedOutput.GetBuffer().Size());
-            }
-        });
+        // Pipe the buffered data into the output stream
+        {
+            Mutex::Guard guard(outputMutex);
+
+            out->Write(bufferedOutput.GetBuffer().Data(), bufferedOutput.GetBuffer().Size());
+        }
+    };
+
+    TaskSystem::GetInstance().ParallelForEach(m_writeStream->m_objectLibraries, fn);
 
     return errors.Any() ? errors.Front() : FBOMResult::FBOM_OK;
 }

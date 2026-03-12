@@ -35,13 +35,13 @@ public:
     bool valid = false;
     RenderableAttributeSet renderableAttributes;
     EnumFlags<RenderGroupFlags> flags;
+    ParallelRenderingState* parallelRenderingState = nullptr;
 
     void PerformRendering(
         Frame* frame,
         const RenderSetup& renderSetup,
         DrawCallCollection& drawCallCollection,
-        IndirectRenderer* indirectRenderer,
-        ParallelRenderingState* parallelRenderingState) const;
+        IndirectRenderer* indirectRenderer) const;
 };
 
 } // namespace Hyperion

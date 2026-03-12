@@ -337,7 +337,7 @@ void View::PrepareShadowViews(Array<View*, SceneTempAllocator>& outShadowViews)
                 continue;
             }
                 
-            const bool cacheStaticObjects = (light->GetLightFlags() & LightFlags::ShadowCacheStaticObjects);
+            const bool cacheStaticObjects = (light->GetLightFlags() & LightFlags::CacheStaticShadowMaps);
 
             View* shadowViewsStatic[MaxShadowMapCascades] {};
             View* shadowViewsDynamic[MaxShadowMapCascades] {};

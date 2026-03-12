@@ -81,8 +81,23 @@ struct ParallelRenderingState
     // Temporary storage for data that will be executed in parallel during the frame
     Array<DrawCallRange, FixedAllocator<MaxBatches>> drawCalls;
     Array<DrawCallRange, FixedAllocator<MaxBatches>> instancedDrawCalls;
-    Array<Proc<void(DrawCallRange, uint32, uint32)>, FixedAllocator<1>> drawCallProcs;
-    Array<Proc<void(DrawCallRange, uint32, uint32)>, FixedAllocator<1>> instancedDrawCallProcs;
+
+    struct DrawCallPayload
+    {
+        uint32 frameIndex;
+        uint32 numShaderUniforms;
+        ParallelRenderingState* parallelRenderingState;
+        const DrawCallCollection* drawCallCollection;
+        IndirectRenderer* indirectRenderer;
+
+        template <bool UseIndirectRendering>
+        void ProcessNonInstanced(DrawCallRange range, uint32 index, uint32 batchIndex);
+        
+        template <bool UseIndirectRendering>
+        void ProcessInstanced(DrawCallRange range, uint32 index, uint32 batchIndex);
+    };
+
+    DrawCallPayload drawCallPayload;
 
     ParallelRenderingState* next = nullptr;
 
@@ -132,6 +147,14 @@ public:
     void CommitParallelRenderingState(CommandRecorder& cr);
 
     void PerformOcclusionCulling(Frame* frame, const RenderSetup& renderSetup, uint32 bucketBits);
+    
+    /*! \brief Used with ExecuteDrawCalls for parallel rendering to start writing the draw calls 
+     *   in advance. Call ExecuteDrawCalls() when it is necessary to block execution until all draw calls are written.
+     *   \returns true if any draw calls are enqueued; otherwise, returns false. */
+    bool PrepareAsyncDrawCalls(
+        Frame* frame,
+        const RenderSetup& renderSetup,
+        uint32 bucketBits);
 
     // Writes commands into the frame's command list to execute the draw calls in the given bucket mask.
     void ExecuteDrawCalls(

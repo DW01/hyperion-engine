@@ -352,6 +352,11 @@ class TaskExecutorInstance<void> : public TaskExecutorBase
 {
     using Function = Proc<void()>;
 
+    struct Functor
+    {
+
+    };
+
 public:
     using Base = TaskExecutorBase;
 

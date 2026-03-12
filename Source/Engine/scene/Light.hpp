@@ -49,7 +49,7 @@ enum class LightFlags : uint32
     ShadowVariance = 0x8,
     ShadowFilterMask = (ShadowPCF | ShadowContactHardening | ShadowVariance),
 
-    ShadowCacheStaticObjects = 0x10,
+    CacheStaticShadowMaps = 0x10,
 
     Default = ShadowCaster | ShadowPCF
 };
@@ -347,7 +347,7 @@ public:
     DirectionalLight(const Vec3f& direction, const Color& color, float intensity)
         : Light(LightType::Directional, direction.Normalized(), color, intensity, 0.0f)
     {
-        m_lightFlags |= LightFlags::ShadowCacheStaticObjects;
+        m_lightFlags |= LightFlags::CacheStaticShadowMaps;
         //m_numShadowMapCascades = 4;
     }
 

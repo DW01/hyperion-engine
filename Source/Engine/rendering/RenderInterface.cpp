@@ -109,14 +109,14 @@ static_assert(MaxFramesBeforeDiscard >= MinSafeDeleteCycles,
 // iterations per frame for cleaning up unused resources for passes
 static constexpr int FrameCleanupBudget = 16;
 
+static volatile alignas(std::hardware_destructive_interference_size) int64 s_frameCounter; // atomic
+
+static alignas(std::hardware_destructive_interference_size) std::counting_semaphore<RingBufferDepth> s_fullSemaphore { 0 };
+static alignas(std::hardware_destructive_interference_size) std::counting_semaphore<RingBufferDepth> s_freeSemaphore { RingBufferDepth };
+
 // thread-local frame index for the game and render threads
 static thread_local uint32* s_threadFrameIndex;
-
-static volatile int64 s_frameCounter; // atomic
 static uint32 s_frameIndex[2] = { 0 };
-
-static std::counting_semaphore<RingBufferDepth> s_fullSemaphore { 0 };
-static std::counting_semaphore<RingBufferDepth> s_freeSemaphore { RingBufferDepth };
 
 EngineStatTimer g_statRenderThreadSync("Render/Sync");
 

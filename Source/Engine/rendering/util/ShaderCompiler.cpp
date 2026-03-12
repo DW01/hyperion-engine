@@ -1423,11 +1423,12 @@ static void ForEachPermutation(
 
     if (parallel)
     {
-        TaskSystem::GetInstance().ParallelForEach(
-            *currentCombinations, [&callback](const ShaderVariantPerms& perm, uint32, uint32)
-            {
-                callback(perm);
-            });
+        auto callbackWrapper = [&callback](const ShaderVariantPerms& perm, uint32, uint32)
+        {
+            callback(perm);
+        };
+
+        TaskSystem::GetInstance().ParallelForEach(*currentCombinations, callbackWrapper);
     }
     else
     {

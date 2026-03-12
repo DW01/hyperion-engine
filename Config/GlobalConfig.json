@@ -43,7 +43,7 @@
       "Enabled": true
     },
     "IndirectRendering": true,
-    "ParallelCollection": false,
+    "ParallelCollection": true,
     "SSR": {
       "Enabled": true,
       "Quality": 2,

@@ -112,16 +112,16 @@ void MainThread::Update()
         // until we call Update() - otherwise, sim(main) thread will
         // try to go into lockstep with RT, and that may be waiting on
         // the main thread to do stuff for Cocoa (dispatch_sync)
-        static bool s_isRenderThread = false;
+        static bool s_isRenderThreadInit = false;
 
-        if (!s_isRenderThread)
+        if (!s_isRenderThreadInit)
         {
             if (!g_renderInitSignal.IsSignalled())
             {
                 return;
             }
             
-            s_isRenderThread = true;
+            s_isRenderThreadInit = true;
         }
         
         g_simThreadInstance->Update();
