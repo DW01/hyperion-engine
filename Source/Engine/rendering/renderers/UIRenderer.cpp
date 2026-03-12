@@ -203,7 +203,7 @@ void UIRenderCollector::ExecuteDrawCalls(Frame* frame, const RenderSetup& render
             renderGroup.parallelRenderingState = AcquireNextParallelRenderingState(uint8(attributes.GetMaterialAttributes().bucket));
         }
 
-        renderGroup.PerformRendering(frame, renderSetup, drawCallCollection, nullptr);
+        PerformRendering(frame, renderSetup, drawCallCollection, nullptr);
 
         if (renderGroup.parallelRenderingState != nullptr)
         {

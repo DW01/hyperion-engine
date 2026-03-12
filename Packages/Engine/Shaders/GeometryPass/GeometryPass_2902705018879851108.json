@@ -26,6 +26,12 @@
       "EnumValues": []
     }, {
       "$Class": "ShaderProperty",
+      "Name": "SHADING_TYPE",
+      "Flags": 0,
+      "Value": "FORWARD",
+      "EnumValues": []
+    }, {
+      "$Class": "ShaderProperty",
       "Name": "SKINNING",
       "Flags": 0,
       "Value": null,
@@ -35,12 +41,6 @@
       "Name": "MAX_LIGHTS",
       "Flags": 0,
       "Value": 4,
-      "EnumValues": []
-    }, {
-      "$Class": "ShaderProperty",
-      "Name": "SHADING_TYPE",
-      "Flags": 0,
-      "Value": "FORWARD",
       "EnumValues": []
     }],
   "RevisionNumber": 31459917,

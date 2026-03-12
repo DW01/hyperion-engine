@@ -62,7 +62,7 @@ struct ParallelRenderingState
     static constexpr uint32 MaxBatches = NumAsyncCommandBuffers;
 
     // temp, for testing something
-    using LocalQueue = CommandRecorder;//TCommandRecorder<ThreadAllocator>;
+    using LocalQueue = TCommandRecorder<ThreadAllocator>;
 
     TaskBatch* taskBatch = nullptr;
 
@@ -186,6 +186,13 @@ public:
 
     /*! \brief Builds RenderGroups for proxies, based on renderable attributes */
     void BuildRenderGroups(View* view, RenderProxyList& renderProxyList);
+
+protected:
+    void PerformRendering(
+        Frame* frame,
+        const RenderSetup& renderSetup,
+        const DrawCallCollection& drawCallCollection,
+        IndirectRenderer* indirectRenderer);
 };
 
 } // namespace Hyperion
