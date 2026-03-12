@@ -314,10 +314,10 @@ static HashMap<TypeId, EntityBatchAllocatorBase*> s_entityBatchAllocatorMap;
 
 using CreateFnMap = HashMap<TypeId, PFNCreateEntityBatchAllocator>;
 
-static Mutex& GetEntityBatchAllocatorCreateFnMapMutex()
+static Mutex& GetEntityBatchAllocatorMutex()
 {
-    static Mutex s_entityBatchAllocatorCreateFnMapMutex;
-    return s_entityBatchAllocatorCreateFnMapMutex;
+    static Mutex s_entityBatchAllocatorMutex;
+    return s_entityBatchAllocatorMutex;
 }
 
 static CreateFnMap& GetEntityBatchAllocatorCreateFnMap()
@@ -349,8 +349,8 @@ EntityBatchAllocatorBase* GetEntityBatchAllocator(const TypeId& typeId)
     {
         return nullptr;
     }
-
-    AssertOnThread(g_renderThread);
+    
+    Mutex& mtx = GetEntityBatchAllocatorMutex();
 
     auto it = s_entityBatchAllocatorMap.Find(typeId);
 
@@ -359,7 +359,6 @@ EntityBatchAllocatorBase* GetEntityBatchAllocator(const TypeId& typeId)
         return it->second;
     }
 
-    Mutex& mtx = GetEntityBatchAllocatorCreateFnMapMutex();
     CreateFnMap& funcs = GetEntityBatchAllocatorCreateFnMap();
 
     Mutex::Guard guard(mtx);
@@ -381,8 +380,8 @@ HYP_NODISCARD static bool SetEntityBatchAllocator(const TypeId& typeId, EntityBa
     {
         return false;
     }
-
-    AssertOnThread(g_renderThread);
+    
+    Mutex& mtx = GetEntityBatchAllocatorMutex();
 
     auto it = s_entityBatchAllocatorMap.Find(typeId);
     if (it != s_entityBatchAllocatorMap.End())
@@ -406,22 +405,24 @@ EntityBatchAllocatorBase* GetOrCreateEntityBatchAllocator(const TypeId& typeId)
 
     if (!batchAllocator)
     {
-        Mutex& mtx = GetEntityBatchAllocatorCreateFnMapMutex();
-        CreateFnMap& funcs = GetEntityBatchAllocatorCreateFnMap();
+        {
+            Mutex& mtx = GetEntityBatchAllocatorMutex();
+            CreateFnMap& funcs = GetEntityBatchAllocatorCreateFnMap();
 
-        Mutex::Guard guard(mtx);
+            Mutex::Guard guard(mtx);
 
-        PFNCreateEntityBatchAllocator createFn = nullptr;
+            PFNCreateEntityBatchAllocator createFn = nullptr;
 
-        auto createFnIt = funcs.Find(typeId);
-        AssertDebug(createFnIt != funcs.End());
+            auto createFnIt = funcs.Find(typeId);
+            AssertDebug(createFnIt != funcs.End());
 
-        createFn = createFnIt->second;
-        AssertDebug(createFn != nullptr);
+            createFn = createFnIt->second;
+            AssertDebug(createFn != nullptr);
 
-        batchAllocator = createFn();
-        AssertDebug(batchAllocator != nullptr);
-        AssertDebug(batchAllocator->GetGpuBufferHolder() == nullptr);
+            batchAllocator = createFn();
+            AssertDebug(batchAllocator != nullptr);
+            AssertDebug(batchAllocator->GetGpuBufferHolder() == nullptr);
+        }
 
         if (!SetEntityBatchAllocator(typeId, batchAllocator))
         {
@@ -439,8 +440,8 @@ void RegisterEntityBatchAllocator(const TypeId& typeId, PFNCreateEntityBatchAllo
     {
         return;
     }
-
-    Mutex& mtx = GetEntityBatchAllocatorCreateFnMapMutex();
+    
+    Mutex& mtx = GetEntityBatchAllocatorMutex();
     CreateFnMap& funcs = GetEntityBatchAllocatorCreateFnMap();
 
     Mutex::Guard guard(mtx);

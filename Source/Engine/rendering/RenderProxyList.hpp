@@ -7,6 +7,8 @@
 
 #include <Core/utilities/Tuple.hpp>
 
+#include <Core/threading/SharedMutex.hpp>
+
 #include <Core/memory/resource/Resource.hpp>
 
 #include <Core/reflection/ObjId.hpp>
@@ -169,10 +171,7 @@ public:
 
     Array<Pair<ObjId<Entity>, int>, DynamicAllocator> meshEntityOrdering;
 
-    // marker to set to locked when sim thread is writing to this list.
-    // this only really comes into play with non-buffered Views that do not double/triple buffer their RenderProxyLists
-    volatile int64 rwMarker = 0;
-    uint32 readDepth = 0;
+    SharedMutex m_lock;
 };
 
 } // namespace Hyperion

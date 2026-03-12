@@ -157,7 +157,7 @@ void TaskThreadPool::Start()
 
 TaskThread* TaskThreadPool::GetNextTaskThread()
 {
-    static constexpr uint32 maxSpins = 16;
+    static constexpr uint32 MaxSpins = 16;
 
     const uint32 numThreadsInPool = uint32(m_threads.Size());
 
@@ -185,7 +185,7 @@ TaskThread* TaskThreadPool::GetNextTaskThread()
 
             ++numSpins;
 
-            if (numSpins >= maxSpins)
+            if (numSpins >= MaxSpins)
             {
                 if (isOnTaskThread)
                 {
@@ -239,23 +239,23 @@ bool TaskThreadPool::TryStealTask(TaskThread* thief, Scheduler::ScheduledTask& o
 
 #pragma endregion TaskThreadPool
 
-#pragma region BackgroundTaskThreadPool
+#pragma region BackgroundWorkerPool
 
-BackgroundTaskThreadPool::BackgroundTaskThreadPool(ANSIStringView baseName, uint32 maxThreads)
+BackgroundWorkerPool::BackgroundWorkerPool(ANSIStringView baseName, uint32 maxThreads)
     : TaskThreadPool(),
       m_baseName(baseName),
       m_maxThreads(maxThreads),
       m_overseerThread(nullptr)
 {
-    AssertDebug(maxThreads > 0, "BackgroundTaskThreadPool must have at least one thread");
+    AssertDebug(maxThreads > 0, "BackgroundWorkerPool must have at least one thread");
 }
 
-BackgroundTaskThreadPool::~BackgroundTaskThreadPool()
+BackgroundWorkerPool::~BackgroundWorkerPool()
 {
     Stop();
 }
 
-void BackgroundTaskThreadPool::Start()
+void BackgroundWorkerPool::Start()
 {
     if (m_overseerThread != nullptr)
     {
@@ -267,7 +267,7 @@ void BackgroundTaskThreadPool::Start()
     class OverseerThread final : public TaskThread
     {
     public:
-        OverseerThread(BackgroundTaskThreadPool* pool)
+        OverseerThread(BackgroundWorkerPool* pool)
             : TaskThread(ThreadId(Name::Unique(HYP_FORMAT("{}_Overseer", pool->m_baseName).Data()), THREAD_CATEGORY_TASK), ThreadPriorityValue::LOWEST),
               m_pool(pool)
         {
@@ -296,7 +296,7 @@ void BackgroundTaskThreadPool::Start()
         }
 
     private:
-        BackgroundTaskThreadPool* m_pool;
+        BackgroundWorkerPool* m_pool;
     };
 
     OverseerThread* overseerThread = new OverseerThread(this);
@@ -305,7 +305,7 @@ void BackgroundTaskThreadPool::Start()
     m_overseerThread = overseerThread;
 }
 
-void BackgroundTaskThreadPool::Stop()
+void BackgroundWorkerPool::Stop()
 {
     if (m_overseerThread == nullptr)
     {
@@ -345,7 +345,7 @@ void BackgroundTaskThreadPool::Stop()
     m_activeThreadCount.Set(0, MemoryOrder::RELEASE);
 }
 
-TaskThread* BackgroundTaskThreadPool::GetNextTaskThread()
+TaskThread* BackgroundWorkerPool::GetNextTaskThread()
 {
     Mutex::Guard guard(m_threadCreationMutex);
 
@@ -385,7 +385,7 @@ TaskThread* BackgroundTaskThreadPool::GetNextTaskThread()
     return taskThread;
 }
 
-TaskThread* BackgroundTaskThreadPool::CreateThread()
+TaskThread* BackgroundWorkerPool::CreateThread()
 {
     const uint32 threadIndex = m_nextThreadIndex.Increment(1, MemoryOrder::ACQUIRE_RELEASE);
 
@@ -410,7 +410,7 @@ TaskThread* BackgroundTaskThreadPool::CreateThread()
     return taskThread;
 }
 
-void BackgroundTaskThreadPool::CleanupIdleThreads()
+void BackgroundWorkerPool::CleanupIdleThreads()
 {
     Mutex::Guard guard(m_threadCreationMutex);
 
@@ -448,7 +448,7 @@ void BackgroundTaskThreadPool::CleanupIdleThreads()
                 thread->Join();
             }
 
-            HYP_LOG(Tasks, Verbose, "BackgroundTaskThreadPool cleaned up idle thread: {}", thread->Id().GetName());
+            HYP_LOG(Tasks, Verbose, "BackgroundWorkerPool cleaned up idle thread: {}", thread->Id().GetName());
         }
 
         m_threads.EraseAt(index);
@@ -456,14 +456,14 @@ void BackgroundTaskThreadPool::CleanupIdleThreads()
     }
 }
 
-void BackgroundTaskThreadPool::WakeOverseer()
+void BackgroundWorkerPool::WakeOverseer()
 {
     Mutex::Guard lock(m_overseerMutex);
 
     m_overseerCV.NotifyOne();
 }
 
-#pragma endregion BackgroundTaskThreadPool
+#pragma endregion BackgroundWorkerPool
 
 } // namespace threading
 } // namespace Hyperion

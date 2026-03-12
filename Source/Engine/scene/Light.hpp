@@ -348,7 +348,7 @@ public:
         : Light(LightType::Directional, direction.Normalized(), color, intensity, 0.0f)
     {
         m_lightFlags |= LightFlags::CacheStaticShadowMaps;
-        //m_numShadowMapCascades = 4;
+        m_numShadowMapCascades = 2;
     }
 
     virtual ~DirectionalLight() override = default;

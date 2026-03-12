@@ -389,12 +389,21 @@ struct BufferedData
 };
 
 static BufferedData s_bufferedData[RingBufferDepth];
+
 static HashMap<View*, ViewData*> s_viewData;
 
 static ViewData* GetViewData(View* view, bool createIfNotExist)
 {
     HYP_SCOPE;
-    AssertOnThread(g_renderThread);
+
+    if (createIfNotExist)
+    {
+        AssertOnThread(g_renderThread);
+    }
+    else
+    {
+        AssertOnThread(g_renderThread | ThreadCategory::THREAD_CATEGORY_TASK);
+    }
 
     AssertDebug(view != nullptr);
 
@@ -433,7 +442,7 @@ static ViewData* GetViewData(View* view, bool createIfNotExist)
         auto insertResult = s_viewData.Insert(view, viewData);
         AssertDebug(insertResult.second);
 
-        viewDataIt = insertResult.first;
+        return viewData;
     }
 
     return viewDataIt->second;
@@ -723,7 +732,7 @@ RenderProxyList& GetProducerProxyList(View* view)
 RenderProxyList& GetConsumerProxyList(View* view)
 {
     HYP_SCOPE;
-    AssertOnThread(g_renderThread);
+    AssertOnThread(g_renderThread | ThreadCategory::THREAD_CATEGORY_TASK);
 
     AssertDebug(view != nullptr);
 

@@ -213,6 +213,7 @@ static void SetForwardShadingUniforms(const RenderSetup& renderSetup, CommandRec
 template <bool UseIndirectRendering>
 static void RenderAll(
     Frame* frame,
+    CommandRecorder& cr,
     const RenderSetup& renderSetup,
     IndirectRenderer* indirectRenderer,
     const DrawCallCollection& drawCallCollection)
@@ -239,8 +240,6 @@ static void RenderAll(
 
     const MeshAttributes& meshAttributes = renderableAttributes.GetMeshAttributes();
     const MaterialAttributes& materialAttributes = renderableAttributes.GetMaterialAttributes();
-
-    CommandRecorder& cr = frame->cr;
 
     uint32 numShaderUniforms = 0;
     
@@ -646,112 +645,6 @@ void ParallelRenderingState::DrawCallPayload::ProcessInstanced(DrawCallRange ran
     }
 }
 
-template <bool UseIndirectRendering>
-static void RenderAll_Parallel(
-    Frame* frame,
-    const RenderSetup& renderSetup,
-    IndirectRenderer* indirectRenderer,
-    const DrawCallCollection& drawCallCollection,
-    ParallelRenderingState* parallelRenderingState)
-{
-    HYP_SCOPE;
-
-    if constexpr (UseIndirectRendering)
-    {
-        AssertDebug(indirectRenderer != nullptr);
-    }
-
-    AssertDebug(parallelRenderingState != nullptr);
-
-    static const bool s_useBindlessTextures = g_renderInterface->GetRenderConfig().bindlessTextures;
-
-    if (drawCallCollection.instancedDrawCalls.Empty() && drawCallCollection.drawCalls.Empty())
-    {
-        // No draw calls to render
-        return;
-    }
-
-    const uint32 frameIndex = frame->GetFrameIndex();
-
-    const RenderGroup& renderGroup = drawCallCollection.renderGroup;
-    const RenderableAttributeSet& renderableAttributes = renderGroup.renderableAttributes;
-
-    const MeshAttributes& meshAttributes = renderableAttributes.GetMeshAttributes();
-    const MaterialAttributes& materialAttributes = renderableAttributes.GetMaterialAttributes();
-
-    CommandRecorder& cr = parallelRenderingState->renderThreadRecorder;
-    
-    uint32 numShaderUniforms = 0;
-    
-    cr << SetShaderUniform(numShaderUniforms++, "SamplerLinear"_sh, g_renderInterface->placeholderData->GetSamplerLinearMipmap());
-    cr << SetShaderUniform(numShaderUniforms++, "SamplerNearest"_sh, g_renderInterface->placeholderData->GetSamplerNearest());
-
-    cr << SetShaderUniform(numShaderUniforms++, "CamerasBuffer"_sh, g_renderInterface->gpuBuffers[GRB_CAMERAS]->GetBuffer(frameIndex), TShaderDataOffset<CameraShaderData>(renderSetup.view->GetCamera()));
-
-    cr << SetShaderUniform(numShaderUniforms++, "EntitiesBuffer"_sh, g_renderInterface->gpuBuffers[GRB_ENTITIES]->GetBuffer(frameIndex));
-
-    cr << SetShaderUniform(numShaderUniforms++, "WorldsBuffer"_sh, g_renderInterface->gpuBuffers[GRB_WORLDS]->GetBuffer(frameIndex));
-
-    cr << SetShaderUniform(numShaderUniforms++, "ShadowMapsTextureArray"_sh, g_renderInterface->shadowMapCache->GetAtlasImageView()); 
-    cr << SetShaderUniform(numShaderUniforms++, "PointLightShadowMapsTextureArray"_sh, g_renderInterface->shadowMapCache->GetPointLightShadowMapImageView());
-
-    cr << SetShaderUniform(numShaderUniforms++, "EnvProbesTexture"_sh, g_renderInterface->textureViewCache->GetOrCreate(g_renderInterface->envProbesTexture));
-    cr << SetShaderUniform(numShaderUniforms++, "EnvProbesBuffer"_sh, g_renderInterface->gpuBuffers[GRB_ENV_PROBES]->GetBuffer(frameIndex));
-    
-    if (renderSetup.light != nullptr)
-        cr << SetShaderUniform(numShaderUniforms++, "CurrentLight"_sh, g_renderInterface->gpuBuffers[GRB_LIGHTS]->GetBuffer(frameIndex), TShaderDataOffset<LightShaderData>(renderSetup.light));
-    else
-        cr << SetShaderUniform(numShaderUniforms++, "CurrentLight"_sh, g_renderInterface->gpuBuffers[GRB_LIGHTS]->GetBuffer(frameIndex), TShaderDataOffset<LightShaderData>(0));
-        
-    if (renderSetup.envProbe != nullptr)
-        cr << SetShaderUniform(numShaderUniforms++, "CurrentEnvProbe"_sh, g_renderInterface->gpuBuffers[GRB_ENV_PROBES]->GetBuffer(frameIndex), TShaderDataOffset<EnvProbeShaderData>(renderSetup.envProbe));
-    else
-        cr << SetShaderUniform(numShaderUniforms++, "CurrentEnvProbe"_sh, g_renderInterface->gpuBuffers[GRB_ENV_PROBES]->GetBuffer(frameIndex), TShaderDataOffset<EnvProbeShaderData>(0));
-    
-    if (renderableAttributes.GetMaterialAttributes().shaderProperties.Test(s_propShadingTypeForward))
-    {
-        SetForwardShadingUniforms(renderSetup, cr, numShaderUniforms);
-    }
-
-    DeferredRendererPassData* dpd = ObjCast<DeferredRendererPassData>(renderSetup.passData);
-    if (dpd != nullptr)
-    {
-        cr << SetShaderUniform(numShaderUniforms++, "GBufferMipChain"_sh, g_renderInterface->textureViewCache->GetOrCreate(dpd->mipChain));
-    }
-
-    ParallelRenderingState::DrawCallPayload& p = parallelRenderingState->drawCallPayload;
-
-    p = {};
-    p.frameIndex = frameIndex;
-    p.drawCallCollection = &drawCallCollection;
-    p.indirectRenderer = indirectRenderer;
-    p.numShaderUniforms = numShaderUniforms;
-    p.parallelRenderingState = parallelRenderingState;
-
-    // Store the proc in the parallel rendering state so that it doesn't get destroyed until we're done with it
-    if (drawCallCollection.drawCalls.Any())
-    {
-        DivideDrawCalls(drawCallCollection.drawCalls.Size(), parallelRenderingState->numBatches, parallelRenderingState->drawCalls);
-        
-        TaskSystem::GetInstance().ParallelForEach_Batch(
-            *parallelRenderingState->taskBatch,
-            parallelRenderingState->numBatches,
-            parallelRenderingState->drawCalls,
-            ProcRef<void(DrawCallRange, uint32, uint32)>(p, ValueWrapper<&ParallelRenderingState::DrawCallPayload::ProcessNonInstanced<UseIndirectRendering>>()));
-    }
-
-    if (drawCallCollection.instancedDrawCalls.Any())
-    {
-        DivideDrawCalls(drawCallCollection.instancedDrawCalls.Size(), parallelRenderingState->numBatches, parallelRenderingState->instancedDrawCalls);
-
-        TaskSystem::GetInstance().ParallelForEach_Batch(
-            *parallelRenderingState->taskBatch,
-            parallelRenderingState->numBatches,
-            parallelRenderingState->instancedDrawCalls,
-            ProcRef<void(DrawCallRange, uint32, uint32)>(p, ValueWrapper<&ParallelRenderingState::DrawCallPayload::ProcessInstanced<UseIndirectRendering>>()));
-    }
-}
-
 void RenderGroup::PerformRendering(
     Frame* frame,
     const RenderSetup& renderSetup,
@@ -759,7 +652,6 @@ void RenderGroup::PerformRendering(
     IndirectRenderer* indirectRenderer) const
 {
     HYP_SCOPE;
-    AssertOnThread(g_renderThread);
 
     AssertDebug(renderSetup.world && renderSetup.view);
     AssertDebug(renderSetup.passData != nullptr, "RenderSetup must have valid PassData for rendering!");
@@ -781,7 +673,7 @@ void RenderGroup::PerformRendering(
 
     if (drawCallCollection.drawCalls.Empty() && drawCallCollection.instancedDrawCalls.Empty())
     {
-        // No draw calls to render; skip pipeline / cache fetch
+        // No draw calls to render
         return;
     }
     
@@ -793,7 +685,7 @@ void RenderGroup::PerformRendering(
     {
         AssertDebug(parallelRenderingState != nullptr);
 
-        pRecorder = &parallelRenderingState->renderThreadRecorder;
+        pRecorder = parallelRenderingState->threadLocalRecorders[GetCurrentThreadIndex()];
     }
 
     CommandRecorder& cr = *pRecorder;
@@ -834,43 +726,21 @@ void RenderGroup::PerformRendering(
 
     if (useIndirectRendering)
     {
-        if (flags & RenderGroupFlags::PARALLEL_RENDERING)
-        {
-            RenderAll_Parallel<true>(
-                frame,
-                renderSetup,
-                indirectRenderer,
-                drawCallCollection,
-                parallelRenderingState);
-        }
-        else
-        {
-            RenderAll<true>(
-                frame,
-                renderSetup,
-                indirectRenderer,
-                drawCallCollection);
-        }
+        RenderAll<true>(
+            frame,
+            cr,
+            renderSetup,
+            indirectRenderer,
+            drawCallCollection);
     }
     else
     {
-        if (flags & RenderGroupFlags::PARALLEL_RENDERING)
-        {
-            RenderAll_Parallel<false>(
-                frame,
-                renderSetup,
-                indirectRenderer,
-                drawCallCollection,
-                parallelRenderingState);
-        }
-        else
-        {
-            RenderAll<false>(
-                frame,
-                renderSetup,
-                indirectRenderer,
-                drawCallCollection);
-        }
+        RenderAll<false>(
+            frame,
+            cr,
+            renderSetup,
+            indirectRenderer,
+            drawCallCollection);
     }
 
     g_statRenderGroups++;

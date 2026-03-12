@@ -35,6 +35,10 @@ constexpr uint64 EngineBinaryMagicNumber = (uint64(0x505948) << 32) | EngineVers
 constexpr uint32 NumFramesInFlight = 3;
 constexpr uint32 NumAsyncCommandBuffers = 4;
 
+constexpr uint32 NumRendererWorkerThreads = 2;
+constexpr uint32 NumForegroundWorkerThreads = 3;
+constexpr uint32 MaxBackgroundWorkerThreads = 4;
+
 constexpr uint32 MaxBoundReflectionProbes = 16;
 constexpr uint32 MaxBoundEnvGrids = 16;
 constexpr uint32 MaxBoundAmbientProbes = 4096;

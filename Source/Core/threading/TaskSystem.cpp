@@ -58,35 +58,35 @@ void TaskBatch::AwaitCompletion()
 
 #pragma endregion TaskBatch
 
-#pragma region GenericTaskThreadPool
+#pragma region ForegroundWorkerPool
 
-class GenericTaskThreadPool final : public TaskThreadPool
+class ForegroundWorkerPool final : public TaskThreadPool
 {
 public:
-    GenericTaskThreadPool(uint32 numTaskThreads, ThreadPriorityValue priority)
-        : TaskThreadPool(TypeWrapper<TaskThread>(), "GenericTask", numTaskThreads)
+    ForegroundWorkerPool(uint32 numTaskThreads, ThreadPriorityValue priority)
+        : TaskThreadPool(TypeWrapper<TaskThread>(), "ForegroundWorker", numTaskThreads)
     {
     }
 
-    virtual ~GenericTaskThreadPool() override = default;
+    virtual ~ForegroundWorkerPool() override = default;
 };
 
-#pragma endregion GenericTaskThreadPool
+#pragma endregion ForegroundWorkerPool
 
-#pragma region RenderTaskThreadPool
+#pragma region RenderWorkerPool
 
-class RenderTaskThreadPool final : public TaskThreadPool
+class RenderWorkerPool final : public TaskThreadPool
 {
 public:
-    RenderTaskThreadPool(uint32 numTaskThreads, ThreadPriorityValue priority)
-        : TaskThreadPool(TypeWrapper<TaskThread>(), "RenderTask", numTaskThreads)
+    RenderWorkerPool(uint32 numTaskThreads, ThreadPriorityValue priority)
+        : TaskThreadPool(TypeWrapper<TaskThread>(), "RenderWorker", numTaskThreads)
     {
     }
 
-    virtual ~RenderTaskThreadPool() override = default;
+    virtual ~RenderWorkerPool() override = default;
 };
 
-#pragma endregion RenderTaskThreadPool
+#pragma endregion RenderWorkerPool
 
 #pragma region TaskSystem
 
@@ -245,15 +245,15 @@ const FlatMap<TaskThreadPoolName, UniquePtr<TaskThreadPool> (*)(void)> g_threadP
     { TaskThreadPoolName::THREAD_POOL_GENERIC, +[]() -> UniquePtr<TaskThreadPool>
         {
             // we generally don't have more than 3 concurrent Systems running at once.
-            return MakeUnique<GenericTaskThreadPool>(3, ThreadPriorityValue::HIGHEST);
+            return MakeUnique<ForegroundWorkerPool>(NumForegroundWorkerThreads, ThreadPriorityValue::HIGHEST);
         } },
     { TaskThreadPoolName::THREAD_POOL_RENDER, +[]() -> UniquePtr<TaskThreadPool>
         {
-            return MakeUnique<RenderTaskThreadPool>(2, ThreadPriorityValue::HIGHEST);
+            return MakeUnique<RenderWorkerPool>(NumRendererWorkerThreads, ThreadPriorityValue::HIGHEST);
         } },
     { TaskThreadPoolName::THREAD_POOL_BACKGROUND, +[]() -> UniquePtr<TaskThreadPool>
         {
-            return MakeUnique<BackgroundTaskThreadPool>("BackgroundTask", BackgroundTaskThreadPool::MaxBackgroundThreads);
+            return MakeUnique<BackgroundWorkerPool>("BackgroundWorker", MaxBackgroundWorkerThreads);
         } }
 };
 

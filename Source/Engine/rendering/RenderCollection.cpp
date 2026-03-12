@@ -517,18 +517,7 @@ RenderProxyList::~RenderProxyList()
 
 void RenderProxyList::BeginWrite()
 {
-    if (isShared)
-    {
-        uint64 rwMarkerState = AtomicBitOr(&rwMarker, WriteFlag);
-        while (HYP_UNLIKELY(rwMarkerState & ReadMask))
-        {
-            HYP_LOG(Rendering, Verbose, "Busy-waiting for read marker to be released! "
-                                      "If this is occuring frequently, the View that owns this RenderProxyList should have double / triple buffering enabled");
-
-            rwMarkerState = AtomicAdd(&rwMarker, 0);
-            HYP_WAIT_IDLE();
-        }
-    }
+    m_lock.LockWriter();
 
     AssertDebug(state != CS_READING);
     state = CS_WRITING;
@@ -552,48 +541,36 @@ void RenderProxyList::EndWrite()
 
     state = CS_WRITTEN;
 
-    if (isShared)
-    {
-        AtomicBitAnd(&rwMarker, ~WriteFlag);
-    }
+    m_lock.UnlockWriter();
 }
 
 void RenderProxyList::BeginRead(bool* pOutSuccess)
 {
     constexpr uint32 MaxSpinsBeforeFail = 32;
 
-    if (isShared)
-    {
-        int64 rwMarkerState;
-        uint32 numSpins = 0;
+    bool lockAcquired = false;
+    uint32 numSpins = 0;
 
-        do
+    while (!lockAcquired)
+    {
+        while (!(lockAcquired = m_lock.TryLockReader()) && numSpins++ < MaxSpinsBeforeFail)
+            ;
+
+        if (!lockAcquired && numSpins >= MaxSpinsBeforeFail)
         {
-            rwMarkerState = AtomicAdd(&rwMarker, 2);
+            HYP_LOG(Rendering, Verbose, "Failed to acquire read lock. "
+                                        "If this is occurring frequently, the View that owns this RenderProxyList should have double / triple buffering enabled");
 
-            if (HYP_UNLIKELY(rwMarkerState & WriteFlag))
+            if (pOutSuccess != nullptr)
             {
-                HYP_LOG(Rendering, Verbose, "Waiting for write marker to be released. "
-                                          "If this is occurring frequently, the View that owns this RenderProxyList should have double / triple buffering enabled");
+                *pOutSuccess = false;
 
-                AtomicSub(&rwMarker, 2);
-
-                if (pOutSuccess != nullptr && ++numSpins >= MaxSpinsBeforeFail)
-                {
-                    // fail state; stop spinning
-                    *pOutSuccess = false;
-                    return;
-                }
-
-                // spin to wait for write flag to be released
-                HYP_WAIT_IDLE();
+                return;
             }
+
+            // continue and try again, if no pOutSuccess
+            ThreadSleep(0);
         }
-        while (HYP_UNLIKELY(rwMarkerState & WriteFlag));
-    }
-    else
-    {
-        ++readDepth;
     }
 
     AssertDebug(state != CS_WRITING);
@@ -608,25 +585,12 @@ void RenderProxyList::BeginRead(bool* pOutSuccess)
 void RenderProxyList::EndRead()
 {
     AssertDebug(state == CS_READING);
-
-    if (isShared)
+    
+    /// @NOTE: If BeginRead() is called on other thread between the check and setting state to CS_DONE,
+    /// we could set state to done when it isn't actually.
+    if (m_lock.UnlockReader() == 0)
     {
-        int64 rwMarkerState = AtomicSub(&rwMarker, 2);
-        AssertDebug(rwMarkerState & ReadMask, "Invalid state, expected read mask to be set when calling EndRead()");
-
-        /// FIXME: If BeginRead() is called on other thread between the check and setting state to CS_DONE,
-        /// we could set state to done when it isn't actually.
-        if (((rwMarkerState - 2) & ReadMask) == 0)
-        {
-            state = CS_DONE;
-        }
-    }
-    else
-    {
-        if (!--readDepth)
-        {
-            state = CS_DONE;
-        }
+        state = CS_DONE;
     }
 }
 
@@ -1076,6 +1040,8 @@ bool RenderCollector::BeginRecordDrawCalls(
 
     for (auto& mappings : groupsView)
     {
+        ParallelRenderingState* parallelRenderingState = nullptr;
+
         for (auto& it : mappings)
         {
             const RenderableAttributeSet& attributes = it.first;
@@ -1102,16 +1068,34 @@ bool RenderCollector::BeginRecordDrawCalls(
 
             AssertDebug(renderGroup.parallelRenderingState == nullptr);
 
-            renderGroup.parallelRenderingState = AcquireNextParallelRenderingState(uint8(rb));
-            renderGroup.PerformRendering(frame, renderSetup, drawCallCollection, indirectRenderer);
+            if (!parallelRenderingState)
+            {
+                parallelRenderingState = AcquireNextParallelRenderingState(uint8(rb));
+
+                AssertDebug(parallelRenderingState != nullptr);
+            }
+
+            renderGroup.parallelRenderingState = parallelRenderingState;
 
             AssertDebug(renderGroup.parallelRenderingState->taskBatch != nullptr);
 
-            TaskSystem::GetInstance().EnqueueBatch(renderGroup.parallelRenderingState->taskBatch);
+            // @TODO refactor to use payload similar to before
+            parallelRenderingState->taskBatch->AddTask([frame, renderSetup = renderSetup, &renderGroup, &drawCallCollection, indirectRenderer]()
+                {
+                    renderGroup.PerformRendering(frame, renderSetup, drawCallCollection, indirectRenderer);
+                });
+
+            //TaskSystem::GetInstance().EnqueueBatch(renderGroup.parallelRenderingState->taskBatch);
 
             anyEnqueued = true;
         }
+
+        if (parallelRenderingState != nullptr)
+        {
+            TaskSystem::GetInstance().EnqueueBatch(parallelRenderingState->taskBatch);
+        }
     }
+
 
     return anyEnqueued;
 }

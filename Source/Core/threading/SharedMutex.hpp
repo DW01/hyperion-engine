@@ -7,6 +7,8 @@
 
 #include <Core/threading/AtomicVar.hpp>
 
+#include <Core/utilities/ByteUtil.hpp>
+
 namespace Hyperion {
 namespace threading {
 
@@ -57,7 +59,19 @@ public:
             }
         }
     }
+    
+    HYP_NODISCARD bool TryLockWriter() const
+    {
+        int64 expected = 0;
+        if (AtomicCompareExchange(&m_value, expected, 1))
+        {
+            return true;
+        }
 
+        return false;
+    }
+
+    /*! \brief Remove the write lock */
     void UnlockWriter() const
     {
         AtomicBitAnd(&m_value, ~0x1);
@@ -115,10 +129,38 @@ public:
             AtomicSub(&m_value, 2);
         }
     }
-
-    void UnlockReader() const
+    
+    HYP_NODISCARD bool TryLockReader() const
     {
-        AtomicSub(&m_value, 2);
+        uint32 numSpins = 0;
+
+        union
+        {
+            int64 state;
+            uint64 ustate;
+        };
+        
+        // first pass: optimistic read
+        if ((m_value & 0x1) == 0)
+        {
+            state = AtomicAdd(&m_value, 2);
+
+            if ((state & 0x1) == 0)
+            {
+                // successfully acquired read lock
+                return true;
+            }
+
+            AtomicSub(&m_value, 2);
+        }
+
+        return false;
+    }
+
+    /*! \brief Unlock a single reader. Returns the number of readers remaining at the time of release */
+    uint32 UnlockReader() const
+    {
+        return (uint32)ByteUtil::BitCount(AtomicSub(&m_value, 2) - 2);
     }
 
     volatile int64* GetInternalValuePtr() const

@@ -187,21 +187,20 @@ public:
 /*! \brief Background thread pool that lazily creates threads on-demand and manages thread lifecycle.
  *  Threads are created only when needed and automatically cleaned up when idle for too long.
  *  Useful for background tasks that don't require constant worker threads. */
-class HYP_API BackgroundTaskThreadPool : public TaskThreadPool
+class HYP_API BackgroundWorkerPool : public TaskThreadPool
 {
 public:
-    static constexpr uint32 MaxBackgroundThreads = 6;
-    static constexpr uint32 IdleTimeout = 30000; // 30 seconds
+    static constexpr uint32 IdleTimeout = 10000; // 10 seconds
 
-    BackgroundTaskThreadPool(ANSIStringView baseName, uint32 maxThreads = MaxBackgroundThreads);
+    BackgroundWorkerPool(ANSIStringView baseName, uint32 maxThreads = MaxBackgroundWorkerThreads);
 
-    BackgroundTaskThreadPool(const BackgroundTaskThreadPool&) = delete;
-    BackgroundTaskThreadPool& operator=(const BackgroundTaskThreadPool&) = delete;
+    BackgroundWorkerPool(const BackgroundWorkerPool&) = delete;
+    BackgroundWorkerPool& operator=(const BackgroundWorkerPool&) = delete;
 
-    BackgroundTaskThreadPool(BackgroundTaskThreadPool&&) noexcept = delete;
-    BackgroundTaskThreadPool& operator=(BackgroundTaskThreadPool&&) noexcept = delete;
+    BackgroundWorkerPool(BackgroundWorkerPool&&) noexcept = delete;
+    BackgroundWorkerPool& operator=(BackgroundWorkerPool&&) noexcept = delete;
 
-    virtual ~BackgroundTaskThreadPool() override;
+    virtual ~BackgroundWorkerPool() override;
 
     virtual void Start() override;
     virtual void Stop() override;
@@ -246,7 +245,7 @@ private:
 
 } // namespace threading
 
-using threading::BackgroundTaskThreadPool;
+using threading::BackgroundWorkerPool;
 using threading::TaskThreadPool;
 using threading::ThreadPoolBase;
 

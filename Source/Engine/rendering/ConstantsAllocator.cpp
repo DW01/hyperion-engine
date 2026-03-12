@@ -11,6 +11,18 @@ namespace Hyperion {
 
 static constexpr size_t ConstantBufferSize = 65536;
 
+static thread_local uint32 s_currentRenderThreadIndex;
+
+static uint32 CurrentRenderThreadIndex()
+{
+    if (s_currentRenderThreadIndex == 0)
+    {
+        s_currentRenderThreadIndex = 1 + (IsOnThread(g_renderThread) ? 0 : GetCurrentThreadIndex() + 1);
+    }
+
+    return s_currentRenderThreadIndex - 1;
+}
+
 struct ConstantsAllocatorBlock
 {
     HYP_DEF_POOL_NEW_DELETE(g_renderPool);
@@ -63,13 +75,16 @@ struct ConstantsAllocatorBlock
 
 ConstantsAllocator::ConstantsAllocator()
     : m_minAllocationAlignment(0),
-      m_scratchAlignment(0)
+      m_scratchAlignment {}
 {
 }
 
 ConstantsAllocator::~ConstantsAllocator()
 {
-    m_scratch.Clear();
+    for (auto& scratch : m_scratch)
+    {
+        scratch.Clear();
+    }
     
     for (Block& block : m_blocks)
     {
@@ -78,12 +93,15 @@ ConstantsAllocator::~ConstantsAllocator()
 
     m_blocks.Clear();
 
-    for (Block& block : m_currentFrameBlocks)
+    for (auto& frameBlocks : m_currentFrameBlocks)
     {
-        delete block.buffer;
-    }
+        for (Block& block : frameBlocks)
+        {
+            delete block.buffer;
+        }
 
-    m_currentFrameBlocks.Clear();
+        frameBlocks.Clear();
+    }
 }
 
 void ConstantsAllocator::Initialize(size_t minAllocationAlignment)
@@ -93,28 +111,37 @@ void ConstantsAllocator::Initialize(size_t minAllocationAlignment)
 
 void ConstantsAllocator::OnFrameStart()
 {
-    m_scratch.SetCapacity(2048);
+    for (auto& scratch : m_scratch)
+    {
+        scratch.SetCapacity(2048);
+    }
 }
 
+// only ever called after all workers are done.
 void ConstantsAllocator::OnFrameEnd()
 {
-    m_scratch.Clear();
+    AssertOnThread(g_renderThread);
 
-    for (Block& block : m_currentFrameBlocks)
+    for (uint32 idx = 0; idx < NumRendererWorkerThreads + 1; idx++)
     {
-        size_t flushSize = MathUtil::Min(block.offset, ConstantBufferSize);
+        m_scratch[idx].Clear();
 
-        if (flushSize != 0)
+        for (Block& block : m_currentFrameBlocks[idx])
         {
-            block.buffer->Flush(0, flushSize);
+            size_t flushSize = MathUtil::Min(block.offset, ConstantBufferSize);
+
+            if (flushSize != 0)
+            {
+                block.buffer->Flush(0, flushSize);
+            }
+
+            block.offset = 0;
+
+            m_blocks.PushBack(std::move(block));
         }
-        
-        block.offset = 0;
 
-        m_blocks.PushBack(std::move(block));
+        m_currentFrameBlocks[idx].Clear();
     }
-
-    m_currentFrameBlocks.Clear();
 }
 
 void ConstantsAllocator::Write(const void* src, size_t count, size_t alignment)
@@ -124,19 +151,29 @@ void ConstantsAllocator::Write(const void* src, size_t count, size_t alignment)
 
     AssertDebug(src != nullptr);
 
+    const uint32 idx = CurrentRenderThreadIndex();
+
+    auto& scratch = m_scratch[idx];
+    size_t& scratchAlignment = m_scratchAlignment[idx];
+
     const size_t alignedCount = alignment > 0 ? ByteUtil::AlignAs(count, alignment) : count;
-    const size_t scratchOffset = ByteUtil::AlignAs(m_scratch.Size(), alignment);
+    const size_t scratchOffset = ByteUtil::AlignAs(scratch.Size(), alignment);
 
-    m_scratch.SetSize(scratchOffset + alignedCount);
+    scratch.SetSize(scratchOffset + alignedCount);
 
-    m_scratchAlignment = MathUtil::Max(m_scratchAlignment, alignment);
+    scratchAlignment = MathUtil::Max(scratchAlignment, alignment);
 
-    Memory::Copy(m_scratch.Data() + scratchOffset, reinterpret_cast<const ubyte*>(src), count);
+    Memory::Copy(scratch.Data() + scratchOffset, reinterpret_cast<const ubyte*>(src), count);
 }
 
 void ConstantsAllocator::Commit(GpuBuffer*& outBuffer, size_t& outOffset, size_t& outSize)
 {
-    if (m_scratch.Empty())
+    const uint32 idx = CurrentRenderThreadIndex();
+
+    auto& scratch = m_scratch[idx];
+    size_t& scratchAlignment = m_scratchAlignment[idx];
+
+    if (scratch.Empty())
     {
         outBuffer = nullptr;
         outOffset = 0;
@@ -144,22 +181,27 @@ void ConstantsAllocator::Commit(GpuBuffer*& outBuffer, size_t& outOffset, size_t
         return;
     }
 
-    void* ptr = Allocate(m_scratch.Size(), m_scratchAlignment, outBuffer, outOffset);
+    void* ptr = Allocate(scratch.Size(), scratchAlignment, outBuffer, outOffset);
     AssertDebug(ptr != nullptr && outBuffer != nullptr);
 
-    Memory::Copy(ptr, m_scratch.Data(), m_scratch.Size());
+    Memory::Copy(ptr, scratch.Data(), scratch.Size());
 
-    outSize = m_scratch.Size();
+    outSize = scratch.Size();
 
     // keep memory around
-    m_scratch.SetSize(0);
-    m_scratchAlignment = 0;
+    scratch.SetSize(0);
+    scratchAlignment = 0;
 }
 
 void* ConstantsAllocator::Allocate(size_t count, size_t alignment, GpuBuffer*& outBuffer, size_t& outStartOffset)
 {
     if (alignment < m_minAllocationAlignment)
         alignment = m_minAllocationAlignment;
+    
+    const uint32 idx = CurrentRenderThreadIndex();
+
+    auto& scratch = m_scratch[idx];
+    size_t& scratchAlignment = m_scratchAlignment[idx];
 
     const size_t alignedCount = ByteUtil::AlignAs(count, alignment);
 
@@ -168,9 +210,9 @@ void* ConstantsAllocator::Allocate(size_t count, size_t alignment, GpuBuffer*& o
     outBuffer = nullptr;
     outStartOffset = 0;
 
-    if (m_currentFrameBlocks.Any())
+    if (m_currentFrameBlocks[idx].Any())
     {
-        Block& lastBlock = m_currentFrameBlocks.Back();
+        Block& lastBlock = m_currentFrameBlocks[idx].Back();
 
         const size_t offset = ByteUtil::AlignAs(lastBlock.offset, alignment);
 
@@ -208,7 +250,9 @@ void* ConstantsAllocator::Allocate(size_t count, size_t alignment, GpuBuffer*& o
 
 ConstantsAllocator::Block* ConstantsAllocator::NewBlock(uint32 currentFrameCounter)
 {
-    Block& newBlock = m_currentFrameBlocks.EmplaceBack();
+    const uint32 idx = CurrentRenderThreadIndex();
+
+    Block& newBlock = m_currentFrameBlocks[idx].EmplaceBack();
     newBlock.lastUsedFrame = currentFrameCounter;
     newBlock.offset = 0;
 
@@ -219,6 +263,10 @@ ConstantsAllocator::Block* ConstantsAllocator::NewBlock(uint32 currentFrameCount
 
 ConstantsAllocator::Block* ConstantsAllocator::TryGetRecycledBlock(uint32 currentFrameCounter)
 {
+    const uint32 idx = CurrentRenderThreadIndex();
+
+    TUniqueLock lock(m_mutex);
+
     constexpr uint32 MinDiff = NumFramesInFlight;
 
     for (auto it = m_blocks.Begin(); it != m_blocks.End();)
@@ -230,7 +278,7 @@ ConstantsAllocator::Block* ConstantsAllocator::TryGetRecycledBlock(uint32 curren
             block.offset = 0;
             block.lastUsedFrame = currentFrameCounter;
 
-            Block& newBlock = m_currentFrameBlocks.PushBack(std::move(block));
+            Block& newBlock = m_currentFrameBlocks[idx].PushBack(std::move(block));
 
             it = m_blocks.Erase(it);
 

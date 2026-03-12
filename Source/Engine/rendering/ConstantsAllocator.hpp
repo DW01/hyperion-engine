@@ -11,6 +11,8 @@
 #include <Core/memory/allocator/Allocator.hpp>
 #include <Core/memory/allocator/ArenaAllocator.hpp>
 
+#include <Core/threading/SharedMutex.hpp>
+
 #include <rendering/RenderObject.hpp>
 #include <rendering/RenderMemory.hpp>
 
@@ -57,10 +59,13 @@ private:
     Block* TryGetRecycledBlock(uint32 currentFrameCounter);
 
     LinkedList<Block, RHIAllocator> m_blocks;
-    LinkedList<Block, RHIAllocator> m_currentFrameBlocks;
-    TByteBuffer<RHITempAllocator> m_scratch;
-    size_t m_scratchAlignment;
     size_t m_minAllocationAlignment;
+
+    LinkedList<Block, RHIAllocator> m_currentFrameBlocks[NumRendererWorkerThreads + 1];
+    TByteBuffer<RHITempAllocator> m_scratch[NumRendererWorkerThreads + 1];
+    size_t m_scratchAlignment[NumRendererWorkerThreads + 1];
+
+    SharedMutex m_mutex;
 };
 
 } // namespace Hyperion
