@@ -80,70 +80,39 @@ struct RendererConfig : public ConfigBase<RendererConfig>
 };
 
 /*! \brief Describes the setup for rendering a frame.  */
-struct HYP_API RenderSetup
+struct RenderSetup
 {
     friend const RenderSetup& NullRenderSetup();
 
-    World* world;
-    View* view;
-    EnvProbe* envProbe;
-    EnvGrid* envGrid;
-    Light* light;
-    VolumeBase* volume;
+    World* world = nullptr;
+    View* view = nullptr;
+    EnvProbe* envProbe = nullptr;
+    EnvGrid* envGrid = nullptr;
+    Light* light = nullptr;
+    VolumeBase* volume = nullptr;
 
-    Swapchain* swapchain;
+    Swapchain* swapchain = nullptr;
 
     // override render target to use this framebuffer, even if View has an OutputTarget.
-    Framebuffer* framebuffer;
+    Framebuffer* framebuffer = nullptr;
     Viewport viewport;
 
-    PassData* passData;
+    PassData* passData = nullptr;
 
-    RenderSetup* prev;
+    RenderSetup* prev = nullptr;
 
 public:
-    RenderSetup()
-        : world(nullptr),
-          view(nullptr),
-          envProbe(nullptr),
-          envGrid(nullptr),
-          light(nullptr),
-          volume(nullptr),
-          swapchain(nullptr),
-          framebuffer(nullptr),
-          passData(nullptr),
-          prev(nullptr)
-    {
-    }
+    RenderSetup() = default;
 
     explicit RenderSetup(World* world)
-        : world(world),
-          view(nullptr),
-          envProbe(nullptr),
-          envGrid(nullptr),
-          light(nullptr),
-          volume(nullptr),
-          swapchain(nullptr),
-          framebuffer(nullptr),
-          passData(nullptr),
-          prev(nullptr)
+        : world(world)
     {
-        AssertDebug(world != nullptr, "RenderSetup must have a valid World");
     }
 
     RenderSetup(World* world, View* view)
         : world(world),
-          view(view),
-          envProbe(nullptr),
-          envGrid(nullptr),
-          light(nullptr),
-          volume(nullptr),
-          swapchain(nullptr),
-          framebuffer(nullptr),
-          passData(nullptr),
-          prev(nullptr)
+          view(view)
     {
-        AssertDebug(world != nullptr, "RenderSetup must have a valid World");
     }
 
     RenderSetup(const RenderSetup& other) = default;

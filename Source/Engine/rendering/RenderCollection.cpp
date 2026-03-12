@@ -63,7 +63,6 @@ struct ParallelRenderingState_Shared
     HYP_DEF_POOL_NEW_DELETE(g_renderPool);
 
     static constexpr uint32 MaxBatches = ParallelRenderingState::MaxBatches;
-    static constexpr size_t MaxLocalQueueSizeBytes = 64 * 1024 * 1024;
 
     using LocalQueue = ParallelRenderingState::LocalQueue;
 
@@ -667,8 +666,7 @@ static inline void DeleteOnRenderThread(Func&& function)
 }
 
 RenderCollector::RenderCollector()
-    : parallelRenderingStateHead(nullptr),
-      parallelRenderingStateTail(nullptr),
+    : parallelRenderingStates {},
       batchAllocator(nullptr),
       renderGroupFlags(RenderGroupFlags::DEFAULT)
 {
@@ -678,38 +676,41 @@ RenderCollector::~RenderCollector()
 {
     HYP_SCOPE;
 
-    DeleteOnRenderThread([attrs = std::move(previousAttributes), m = std::move(mappingsByBucket), prsHead = parallelRenderingStateHead]() mutable
+    DeleteOnRenderThread([attrs = std::move(previousAttributes), m = std::move(mappingsByBucket), states = parallelRenderingStates]() mutable
         {
             attrs.Clear(/* freeMemory */ true);
 
             Array<FixedArray<ParallelRenderingState::LocalQueue*, ParallelRenderingState::MaxBatches>> allLocalQueues;
 
-            if (prsHead)
+            for (auto& list : states)
             {
-                ParallelRenderingState* state = prsHead;
-
-                while (state != nullptr)
+                if (list.head)
                 {
-                    if (state->taskBatch != nullptr)
+                    ParallelRenderingState* state = list.head;
+
+                    while (state != nullptr)
                     {
-                        state->taskBatch->AwaitCompletion();
+                        if (state->taskBatch != nullptr)
+                        {
+                            state->taskBatch->AwaitCompletion();
 
-                        delete state->taskBatch;
+                            delete state->taskBatch;
+                        }
+
+                        if (state->ownsSharedData && state->sharedData != nullptr)
+                        {
+                            // take the local queues to free for ourselves - we need to free up their memory on a per-thread basis
+                            allLocalQueues.PushBack(state->sharedData->threadLocalRecorders);
+
+                            state->sharedData->threadLocalRecorders = {};
+                        }
+
+                        ParallelRenderingState* nextState = state->next;
+
+                        delete state;
+
+                        state = nextState;
                     }
-
-                    if (state->ownsSharedData && state->sharedData != nullptr)
-                    {
-                        // take the local queues to free for ourselves - we need to free up their memory on a per-thread basis
-                        allLocalQueues.PushBack(state->sharedData->threadLocalRecorders);
-
-                        state->sharedData->threadLocalRecorders = {};
-                    }
-
-                    ParallelRenderingState* nextState = state->next;
-
-                    delete state;
-
-                    state = nextState;
                 }
             }
 
@@ -770,8 +771,7 @@ RenderCollector::~RenderCollector()
             }
         });
 
-    parallelRenderingStateHead = nullptr;
-    parallelRenderingStateTail = nullptr;
+    parallelRenderingStates = {};
 }
 
 #if HYP_DEBUG_MODE
@@ -823,10 +823,13 @@ void RenderCollector::Clear(bool freeMemory)
     }
 }
 
-ParallelRenderingState* RenderCollector::AcquireNextParallelRenderingState()
+ParallelRenderingState* RenderCollector::AcquireNextParallelRenderingState(uint8 index)
 {
     HYP_SCOPE;
     AssertOnThread(g_renderThread);
+    
+    ParallelRenderingState*& parallelRenderingStateHead = parallelRenderingStates[index].head;
+    ParallelRenderingState*& parallelRenderingStateTail = parallelRenderingStates[index].tail;
 
     ParallelRenderingState* curr = parallelRenderingStateTail;
 
@@ -882,16 +885,38 @@ ParallelRenderingState* RenderCollector::AcquireNextParallelRenderingState()
     return curr;
 }
 
-void RenderCollector::CommitParallelRenderingState(CommandRecorder& cr)
+void RenderCollector::CommitParallelRenderingState(CommandRecorder& cr, uint8 index)
 {
     HYP_SCOPE;
+    
+    ParallelRenderingState*& parallelRenderingStateHead = parallelRenderingStates[index].head;
+    ParallelRenderingState*& parallelRenderingStateTail = parallelRenderingStates[index].tail;
 
     ParallelRenderingState* state = parallelRenderingStateHead;
 
+    if (!state)
+    {
+        // non threaded -- reset draw states
+
+        cr << SetStencilState(0, 0xFF, 0x0);
+        cr << SetVertexAttributes(VertexAttributeSet::StaticMeshVertexAttributes);
+        cr << SetTopology(TOP_TRIANGLES);
+        cr << SetFillMode(FM_FILL);
+        cr << SetFaceCullMode(FCM_BACK);
+        cr << SetCurrentBlendFunction(BlendFunction::None());
+        cr << SetDepthWrite(true);
+        cr << SetDepthTest(true);
+        cr << SetDepthBias(0, 0.0f);
+        cr << SetDepthClamp(false);
+        cr << SetStencilTest(false);
+    }
+
     while (state)
     {
+        // @TODO Make a way to not wait dependent - 
+        // just move head after completion maybe?
+        // but we need a way to await certain states.. hmm..
         AssertDebug(state->taskBatch != nullptr);
-
         state->taskBatch->AwaitCompletion();
 
         state->renderThreadRecorder.Done();
@@ -905,7 +930,18 @@ void RenderCollector::CommitParallelRenderingState(CommandRecorder& cr)
             state->threadLocalRecorders[i]->Reset(/* freeMemory */ false);
         }
 
-        cr << SetStencilState(0, 0xFF, 0x0); // reset stencil
+        // end threaded commands -- reset draw states
+        cr << SetStencilState(0, 0xFF, 0x0);
+        cr << SetVertexAttributes(VertexAttributeSet::StaticMeshVertexAttributes);
+        cr << SetTopology(TOP_TRIANGLES);
+        cr << SetFillMode(FM_FILL);
+        cr << SetFaceCullMode(FCM_BACK);
+        cr << SetCurrentBlendFunction(BlendFunction::None());
+        cr << SetDepthWrite(true);
+        cr << SetDepthTest(true);
+        cr << SetDepthBias(0, 0.0f);
+        cr << SetDepthClamp(false);
+        cr << SetStencilTest(false);
 
         // Add render stats counts to the engine's render stats
         for (EngineStatsValueSet& valueSet : state->statValues)
@@ -925,18 +961,6 @@ void RenderCollector::CommitParallelRenderingState(CommandRecorder& cr)
 
         state = state->next;
     }
-
-    // Reset draw states
-    cr << SetVertexAttributes(VertexAttributeSet::StaticMeshVertexAttributes);
-    cr << SetTopology(TOP_TRIANGLES);
-    cr << SetFillMode(FM_FILL);
-    cr << SetFaceCullMode(FCM_BACK);
-    cr << SetCurrentBlendFunction(BlendFunction::None());
-    cr << SetDepthWrite(true);
-    cr << SetDepthTest(true);
-    cr << SetDepthBias(0, 0.0f);
-    cr << SetDepthClamp(false);
-    cr << SetStencilTest(false);
 
     parallelRenderingStateTail = nullptr;
 }
@@ -991,7 +1015,7 @@ void RenderCollector::PerformOcclusionCulling(Frame* frame, const RenderSetup& r
 }
 
 
-bool RenderCollector::PrepareAsyncDrawCalls(
+bool RenderCollector::BeginRecordDrawCalls(
     Frame* frame,
     const RenderSetup& renderSetup,
     uint32 bucketBits)
@@ -1078,7 +1102,7 @@ bool RenderCollector::PrepareAsyncDrawCalls(
 
             AssertDebug(renderGroup.parallelRenderingState == nullptr);
 
-            renderGroup.parallelRenderingState = AcquireNextParallelRenderingState();
+            renderGroup.parallelRenderingState = AcquireNextParallelRenderingState(uint8(rb));
             renderGroup.PerformRendering(frame, renderSetup, drawCallCollection, indirectRenderer);
 
             AssertDebug(renderGroup.parallelRenderingState->taskBatch != nullptr);
@@ -1226,7 +1250,7 @@ void RenderCollector::ExecuteDrawCalls(
                     continue;
                 }
 
-                parallelRenderingState = AcquireNextParallelRenderingState();
+                parallelRenderingState = AcquireNextParallelRenderingState(uint8(rb));
             }
 
             renderGroup.parallelRenderingState = parallelRenderingState;
@@ -1243,8 +1267,11 @@ void RenderCollector::ExecuteDrawCalls(
 
     if (commit)
     {
-        // Wait for all parallel rendering tasks to finish
-        CommitParallelRenderingState(frame->cr);
+        FOR_EACH_BIT(bucketBits, bit)
+        {
+            // Wait for all parallel rendering tasks to finish
+            CommitParallelRenderingState(frame->cr, uint8(bit));
+        }
 
         if (parallelRenderingStatesToNullify.Any())
         {
@@ -1301,11 +1328,6 @@ void RenderCollector::BuildDrawCalls(uint32 bucketBits)
     {
         return;
     }
-
-    // std::sort(iterators.Begin(), iterators.End(), [](IteratorType lhs, IteratorType rhs) -> bool
-    //     {
-    //         return int(lhs->first.GetLayerIndex()) < int(rhs->first.GetLayerIndex());
-    //     });
 
     for (IteratorType it : iterators)
     {
@@ -1482,6 +1504,7 @@ void RenderCollector::BuildRenderGroups(View* view, RenderProxyList& renderProxy
             DrawCallCollection& newDrawCallCollection = mappingsByBucket[uint32(bucket)][newAttributes];
 
             RenderGroup& rg = newDrawCallCollection.renderGroup;
+            AssertDebug(rg.parallelRenderingState == nullptr); // not handled properly? should be set to null after awaited
 
             if (!rg.valid)
             {

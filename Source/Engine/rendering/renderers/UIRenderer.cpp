@@ -200,7 +200,7 @@ void UIRenderCollector::ExecuteDrawCalls(Frame* frame, const RenderSetup& render
 
         if (renderGroup.flags & RenderGroupFlags::PARALLEL_RENDERING)
         {
-            renderGroup.parallelRenderingState = AcquireNextParallelRenderingState();
+            renderGroup.parallelRenderingState = AcquireNextParallelRenderingState(uint8(attributes.GetMaterialAttributes().bucket));
         }
 
         renderGroup.PerformRendering(frame, renderSetup, drawCallCollection, nullptr);
@@ -215,7 +215,11 @@ void UIRenderCollector::ExecuteDrawCalls(Frame* frame, const RenderSetup& render
     }
 
     // Wait for all parallel rendering tasks to finish
-    CommitParallelRenderingState(frame->cr);
+    FOR_EACH_BIT(bucketBits, bit)
+    {
+        // Wait for all parallel rendering tasks to finish
+        CommitParallelRenderingState(frame->cr, uint8(bit));
+    }
     
     if (parallelRenderingStatesToNullify.Any())
     {

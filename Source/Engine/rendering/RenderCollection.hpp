@@ -132,26 +132,31 @@ public:
 
     void Clear(bool freeMemory = true);
 
-    ParallelRenderingState* parallelRenderingStateHead;
-    ParallelRenderingState* parallelRenderingStateTail;
-
     // map entity id to previous attribute set (for draw call collection)
     SparsePagedArray<RenderableAttributeSet, 128, RenderAllocator> previousAttributes;
 
     FixedArray<HashMap<RenderableAttributeSet, DrawCallCollection, NodeAllocator<RenderAllocator>>, NumRenderBuckets> mappingsByBucket;
 
+    struct ParallelRenderingStateLL
+    {
+        ParallelRenderingState* head;
+        ParallelRenderingState* tail;
+    };
+    
+    FixedArray<ParallelRenderingStateLL, NumRenderBuckets> parallelRenderingStates;
+
     EntityBatchAllocatorBase* batchAllocator;
     EnumFlags<RenderGroupFlags> renderGroupFlags;
 
-    ParallelRenderingState* AcquireNextParallelRenderingState();
-    void CommitParallelRenderingState(CommandRecorder& cr);
+    ParallelRenderingState* AcquireNextParallelRenderingState(uint8 index);
+    void CommitParallelRenderingState(CommandRecorder& cr, uint8 index);
 
     void PerformOcclusionCulling(Frame* frame, const RenderSetup& renderSetup, uint32 bucketBits);
     
     /*! \brief Used with ExecuteDrawCalls for parallel rendering to start writing the draw calls 
      *   in advance. Call ExecuteDrawCalls() when it is necessary to block execution until all draw calls are written.
      *   \returns true if any draw calls are enqueued; otherwise, returns false. */
-    bool PrepareAsyncDrawCalls(
+    bool BeginRecordDrawCalls(
         Frame* frame,
         const RenderSetup& renderSetup,
         uint32 bucketBits);

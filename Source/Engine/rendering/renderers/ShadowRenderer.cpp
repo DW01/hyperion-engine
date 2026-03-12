@@ -398,7 +398,9 @@ void ShadowRendererBase::RenderFrame(Frame* frame, const RenderSetup& renderSetu
 
             HYP_LOG(Rendering, Verbose, "Rendering shadows for shadow view {} at frame {}", shadowView->Id(), GetFrameCounter());
 
-            GetRenderCollector(shadowView).ExecuteDrawCalls(frame, rs, BucketMask);
+            RenderCollector& renderCollector = GetRenderCollector(shadowView);
+           // renderCollector.renderGroupFlags &= ~(RenderGroupFlags::INDIRECT_RENDERING | RenderGroupFlags::PARALLEL_RENDERING | RenderGroupFlags::OCCLUSION_CULLING);
+            renderCollector.ExecuteDrawCalls(frame, rs, BucketMask);
             
             Attachment* target = framebuffer->GetAttachment(0);
 

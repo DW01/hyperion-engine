@@ -124,14 +124,15 @@ public:
           m_bufferOffset(bufferOffset)
     {
         Assert(buffer != nullptr && buffer->IsCreated());
-#if HYP_VULKAN
-        Assert(bufferOffset + /*sizeof(VkDrawIndexedIndirectCommand)*/ 20 <= buffer->Size());
-#endif
     }
 
     static inline void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
     {
         DrawIndexedIndirect* cmdCasted = static_cast<DrawIndexedIndirect*>(cmd);
+
+#if HYP_VULKAN
+        AssertDebug(cmdCasted->m_bufferOffset + /*sizeof(VkDrawIndexedIndirectCommand)*/ 20 <= cmdCasted->m_buffer->Size());
+#endif
 
         commandBuffer->DrawIndexedIndirect(cmdCasted->m_buffer, cmdCasted->m_bufferOffset);
 

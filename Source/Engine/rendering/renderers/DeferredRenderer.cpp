@@ -1865,9 +1865,11 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
     RenderCollector& renderCollector = GetRenderCollector(view);
 
-    const bool anyOpaque = renderCollector.PrepareAsyncDrawCalls(frame, rs, RenderBucketMask<RenderBucket::Opaque>);
-    const bool anyLightmapped = renderCollector.PrepareAsyncDrawCalls(frame, rs, RenderBucketMask<RenderBucket::Lightmapped>);
-    const bool anyTranslucent = renderCollector.PrepareAsyncDrawCalls(frame, rs, RenderBucketMask<RenderBucket::Translucent>);
+    // must be before RecordDrawCalls
+    PerformOcclusionCulling(frame, rs, renderCollector);
+    
+    renderCollector.BeginRecordDrawCalls(frame, rs, RenderBucketMask<
+        RenderBucket::Opaque, RenderBucket::Translucent, RenderBucket::Lightmapped, RenderBucket::Sky>);
 
     DeferredRendererPassData* passDataCasted = ObjCast<DeferredRendererPassData>(rs.passData);
     AssertDebug(passDataCasted != nullptr);
@@ -1898,7 +1900,7 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
         shadowRenderer->RenderFrame(frame, shadowRs);
     }
-    
+
     Framebuffer* opaquePassFramebuffer = view->GetOutputTarget().GetFramebuffer(RenderBucket::Opaque);
     Framebuffer* lightmapPassFramebuffer = view->GetOutputTarget().GetFramebuffer(RenderBucket::Lightmapped);
     Framebuffer* translucentPassFramebuffer = view->GetOutputTarget().GetFramebuffer(RenderBucket::Translucent);
@@ -1934,12 +1936,10 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
             UpdateGpuData(view->GetCamera());
         }
     }
-
-    PerformOcclusionCulling(frame, rs, renderCollector);
     
     // if no opaque objects will be rendered, we need to clear the color target anyway
     // as other passes are using load ops
-    if (anyOpaque)
+    if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Any())
     {
         // render opaque objects into separate framebuffer
         frame->cr << SetCurrentFramebuffer(opaquePassFramebuffer);
@@ -1955,7 +1955,7 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     
     // render objects to be lightmapped, separate from the opaque objects.
     // The lightmap bucket's framebuffer has a color attachment that will write into the opaque framebuffer's color attachment.
-    if (anyLightmapped)
+    if (renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any())
     {
         frame->cr << SetCurrentFramebuffer(lightmapPassFramebuffer);
 
@@ -2100,12 +2100,15 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         }
 
         // begin translucent with forward rendering
-        if (anyTranslucent)
+        if (renderCollector.mappingsByBucket[uint32(RenderBucket::Translucent)].Any())
         {
-            ExecuteDrawCalls(frame, rs, renderCollector, RenderBucketMask<RenderBucket::Translucent>);
+            renderCollector.ExecuteDrawCalls(frame, rs, RenderBucketMask<RenderBucket::Translucent>);
         }
 
-        ExecuteDrawCalls(frame, rs, renderCollector, RenderBucketMask<RenderBucket::Sky>);
+        if (renderCollector.mappingsByBucket[uint32(RenderBucket::Sky)].Any())
+        {
+            renderCollector.ExecuteDrawCalls(frame, rs, RenderBucketMask<RenderBucket::Sky>);
+        }
 
         // render fog volumes
         for (FogVolume* fogVolume : rpl.GetFogVolumes())
