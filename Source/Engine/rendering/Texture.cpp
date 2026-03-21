@@ -301,7 +301,9 @@ RendererResult Texture::Create()
     
     if (!m_gpuImage.IsValid())
     {
-        GpuImageRef gpuImage = g_renderInterface->MakeImage(GetTextureDesc());
+        Assert(m_textureDesc.extent.Volume() > 0);
+
+        GpuImageRef gpuImage = g_renderInterface->MakeImage(m_textureDesc);
     
 #if HYP_DEBUG_MODE
         if (m_name.IsValid())

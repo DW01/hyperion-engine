@@ -2,6 +2,12 @@
   "$Class": "Shader",
   "PropertySet": [{
       "$Class": "ShaderProperty",
+      "Name": "MAX_LIGHTS",
+      "Flags": 0,
+      "Value": 16,
+      "EnumValues": []
+    }, {
+      "$Class": "ShaderProperty",
       "Name": "HYP_VULKAN",
       "Flags": 0,
       "Value": 4202496,
@@ -23,12 +29,6 @@
       "Name": "HAS_ENV_PROBE",
       "Flags": 0,
       "Value": null,
-      "EnumValues": []
-    }, {
-      "$Class": "ShaderProperty",
-      "Name": "MAX_LIGHTS",
-      "Flags": 0,
-      "Value": 16,
       "EnumValues": []
     }],
   "RevisionNumber": 31459917,
@@ -259,7 +259,7 @@
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/DDGI/DDGI_637609700988852496.RGS",
-      "Size": 16260
+      "Size": 16256
     }, {
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/DDGI/DDGI_637609700988852496.CHS",
