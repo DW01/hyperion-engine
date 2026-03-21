@@ -23,7 +23,7 @@
 #include <scene/world_grid/terrain/TerrainWorldGridLayer.hpp>
 #include <scene/world_grid/WorldGrid.hpp>
 
-#include <script/HypScript.hpp>
+#include <Lang/HypScript.hpp>
 
 #include <scripting/asset/ScriptAsset.hpp>
 
@@ -188,10 +188,10 @@ void DefaultGame::OnLaunch_Impl()
     GetWorld()->AddSystemT<DynamicSkySystem>();
 
 
-    //ScriptComponent& scriptComponent = sunEntity->AddComponent<ScriptComponent>(ScriptComponent {
-    //    TAssetReference<ScriptAsset>(scriptAsset)
-    //});
-//
+    ScriptComponent& scriptComponent = sunEntity->AddComponent<ScriptComponent>(ScriptComponent {
+       TAssetReference<ScriptAsset>(scriptAsset)
+    });
+
 //    Handle<FogVolume> fogVolume = MakeHandle<FogVolume>();
 //    fogVolume->SetLocalBounds(BoundingBox(Vec3f(-30.0f, -0.5f, -30.0f), Vec3f(30.0f, 40.0f, 30.0f)));
 //    scene->GetRoot()->AddChild(fogVolume);

@@ -2,7 +2,7 @@
 
 #ifdef HYP_SCRIPT
 
-#include <script/vm/Value.hpp>
+#include <Lang/vm/Value.hpp>
 
 #include <Core/reflection/ClassUtils.hpp>
 #include <Core/reflection/ClassRegistry.hpp>

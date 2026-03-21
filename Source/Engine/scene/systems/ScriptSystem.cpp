@@ -28,7 +28,7 @@
 #include <engine/Game.hpp>
 
 #ifdef HYP_SCRIPT
-#include <script/HypScript.hpp>
+#include <Lang/HypScript.hpp>
 #endif
 
 #include <ScriptSystem.generated.inl>

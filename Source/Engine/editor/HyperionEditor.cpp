@@ -41,7 +41,7 @@
 #include <scene/world_grid/terrain/TerrainWorldGridLayer.hpp>
 #include <scene/world_grid/WorldGrid.hpp>
 
-#include <script/HypScript.hpp>
+#include <Lang/HypScript.hpp>
 
 #include <asset/AssetBatch.hpp>
 #include <asset/AssetObject.hpp>

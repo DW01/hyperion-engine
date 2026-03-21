@@ -1,22 +1,7 @@
 import Lib.{Logger,LogChannel,LogLevel, EngineDriver, Reflection, Debugger}
-import CfgLoader.{CfgLoader, GlobalCfg, CacheCfg, AppCfg, CfgBase}
 
 Logger := Logger.MakeScriptLogger()
 Channel := new LogChannel()
-
-Logger.LogScript(Channel, LogLevel.Info, "GlobalCfg class = " + string(GlobalCfg.GetName()) + " GlobalCfg IsDerivedFrom CfgBase = " + string(GlobalCfg.IsDerivedFrom(CfgBase)))
-
-Global := CfgLoader.Load(GlobalCfg) as GlobalCfg
-Logger.LogScript(Channel, LogLevel.Info, "Global config = " + string(Global))
-
-Global.App = new AppCfg()
-Global.App.Name = "TestApp"
-
-fieldHandle := Reflection.GetFieldHandle(GlobalCfg, #App)
-Logger.LogScript(Channel, LogLevel.Info, "GlobalCfg App field = " + string(fieldHandle))
-
-appValue := Reflection.GetFieldValue(fieldHandle, Global) as AppCfg
-Logger.LogScript(Channel, LogLevel.Info, "GlobalCfg App field value = " + string(appValue))
 
 f := 123.456
 

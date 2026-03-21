@@ -12,7 +12,7 @@
 #include <dotnet/ManagedClass.hpp>
 
 #ifdef HYP_SCRIPT
-#include <script/HypScript.hpp>
+#include <Lang/HypScript.hpp>
 #endif
 
 namespace Hyperion {
