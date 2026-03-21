@@ -167,6 +167,11 @@ float CalculateAlpha(
 
     // Fade ray hits that approach the maximum iterations
     alpha *= 1.0 - (maxIterations / ssgiConstants.maxIterations);
+    
+    // Fade ray hits that approach the screen edge
+    float2 uvNDC = hit_uv * 2.0 - 1.0;
+    float maxDimension = saturate(max(abs(uvNDC.x), abs(uvNDC.y)));
+    alpha *= 1.0 - max(0.0, maxDimension - 0.95) / 0.1;
 
     return alpha;
 }

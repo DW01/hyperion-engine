@@ -38,10 +38,10 @@
 namespace Hyperion {
 
 static constexpr bool UseTemporalBlending = true;
-static constexpr TextureFormat SSGIFormat = TextureFormat::RGBA16F;
+static constexpr TextureFormat SSGIFormat = TextureFormat::RGBA8;
 static constexpr uint32 MaxLights = 4;
 static constexpr uint32 MaxEnvProbes = 4;
-static constexpr uint32 NumSamples = 64; // temporal sample count
+static constexpr uint32 NumSamples = 32; // temporal sample count
 
 static const ShaderPropertyId s_propMaxLights = InternShaderProperty(ShaderProperty(NAME("MAX_LIGHTS"), int(MaxLights)));
 static const ShaderPropertyId s_propMaxEnvProbes = InternShaderProperty(ShaderProperty(NAME("MAX_ENV_PROBES"), int(MaxEnvProbes)));
@@ -453,8 +453,8 @@ void SSGI::Render(Frame* frame, const RenderSetup& renderSetup)
             SSGIUpsampleConstants upsampleConstants {};
             upsampleConstants.camera = cameraProxy->bufferData;
             upsampleConstants.texelSize = Vec2f::One() / sourceResolution;
-            upsampleConstants.depthThreshold = 0.025f;
-            upsampleConstants.normalThreshold = 2.0f;
+            upsampleConstants.depthThreshold = 0.03f;
+            upsampleConstants.normalThreshold = 4.0f;
 
             g_renderInterface->constantsAllocator->Write(&upsampleConstants);
             g_renderInterface->constantsAllocator->Commit(cBuffer, cBufferOffset, cBufferSize);

@@ -20,38 +20,26 @@
       "EnumValues": []
     }, {
       "$Class": "ShaderProperty",
-      "Name": "SHADING_TYPE",
-      "Flags": 0,
-      "Value": "FORWARD",
-      "EnumValues": []
-    }, {
-      "$Class": "ShaderProperty",
-      "Name": "SKINNING",
+      "Name": "HALFRES",
       "Flags": 0,
       "Value": null,
       "EnumValues": []
-    }, {
-      "$Class": "ShaderProperty",
-      "Name": "MAX_LIGHTS",
-      "Flags": 0,
-      "Value": 4,
-      "EnumValues": []
     }],
   "RevisionNumber": 31459917,
-  "BaseName": "GeometryPass",
+  "BaseName": "HBAO",
   "VertexAttributes": {
-    "FlagMask": 199
+    "FlagMask": 7
   },
   "ShaderInputGroup": {
     "Elements": [{
         "$Class": "ShaderInputSet",
         "SetIndex": 0,
-        "Name": "Default",
+        "Name": "HBAO",
         "Slots": [[{
               "$Class": "ShaderInput",
               "Register": 1,
-              "ElementType": 3,
-              "Name": "EnvProbesBuffer",
+              "ElementType": 5,
+              "Name": "GBufferDepthTexture",
               "Count": 1,
               "Size": 4294967295,
               "IsDynamic": false,
@@ -64,53 +52,11 @@
             }, {
               "$Class": "ShaderInput",
               "Register": 1,
-              "ElementType": 4,
-              "Name": "CurrentEntity",
+              "ElementType": 5,
+              "Name": "GBufferAlbedoTexture",
               "Count": 1,
               "Size": 4294967295,
-              "IsDynamic": true,
-              "StructInfo": {
-                "Name": "",
-                "Size": 4294967295,
-                "FieldNames": [],
-                "FieldTypes": []
-              }
-            }, {
-              "$Class": "ShaderInput",
-              "Register": 1,
-              "ElementType": 4,
-              "Name": "SkeletonsBuffer",
-              "Count": 1,
-              "Size": 4294967295,
-              "IsDynamic": true,
-              "StructInfo": {
-                "Name": "",
-                "Size": 4294967295,
-                "FieldNames": [],
-                "FieldTypes": []
-              }
-            }, {
-              "$Class": "ShaderInput",
-              "Register": 1,
-              "ElementType": 4,
-              "Name": "CurrentEnvProbe",
-              "Count": 1,
-              "Size": 4294967295,
-              "IsDynamic": true,
-              "StructInfo": {
-                "Name": "",
-                "Size": 4294967295,
-                "FieldNames": [],
-                "FieldTypes": []
-              }
-            }, {
-              "$Class": "ShaderInput",
-              "Register": 1,
-              "ElementType": 4,
-              "Name": "MaterialsBuffer",
-              "Count": 1,
-              "Size": 4294967295,
-              "IsDynamic": true,
+              "IsDynamic": false,
               "StructInfo": {
                 "Name": "",
                 "Size": 4294967295,
@@ -135,7 +81,7 @@
               "$Class": "ShaderInput",
               "Register": 1,
               "ElementType": 5,
-              "Name": "EnvProbesTexture",
+              "Name": "GBufferNormalsTexture",
               "Count": 1,
               "Size": 4294967295,
               "IsDynamic": false,
@@ -149,7 +95,7 @@
               "$Class": "ShaderInput",
               "Register": 1,
               "ElementType": 5,
-              "Name": "PointLightShadowMapsTextureArray",
+              "Name": "GBufferVelocityTexture",
               "Count": 1,
               "Size": 4294967295,
               "IsDynamic": false,
@@ -163,7 +109,7 @@
               "$Class": "ShaderInput",
               "Register": 1,
               "ElementType": 5,
-              "Name": "ShadowMapsTextureArray",
+              "Name": "GBufferMaterialTexture",
               "Count": 1,
               "Size": 4294967295,
               "IsDynamic": false,
@@ -190,11 +136,11 @@
             }, {
               "$Class": "ShaderInput",
               "Register": 3,
-              "ElementType": 2,
-              "Name": "CamerasBuffer",
+              "ElementType": 1,
+              "Name": "UniformBuffer",
               "Count": 1,
               "Size": 4294967295,
-              "IsDynamic": true,
+              "IsDynamic": false,
               "StructInfo": {
                 "Name": "",
                 "Size": 4294967295,
@@ -205,7 +151,7 @@
               "$Class": "ShaderInput",
               "Register": 3,
               "ElementType": 2,
-              "Name": "FowardShadingConstants",
+              "Name": "CamerasBuffer",
               "Count": 1,
               "Size": 4294967295,
               "IsDynamic": true,
@@ -245,28 +191,22 @@
               }
             }], []],
         "Flags": 0
-      }, {
-        "$Class": "ShaderInputSet",
-        "SetIndex": 1,
-        "Name": "BindlessResources0",
-        "Slots": [[], [], [], [], []],
-        "Flags": 1
       }]
   },
   "ShaderModuleTypes": [1, 2],
-  "ShaderModuleNames": ["DefaultVertex.hlsl", "GeometryPass.hlsl"],
+  "ShaderModuleNames": ["HBAO.hlsl", "HBAO.hlsl"],
   "EntryPointNames": ["VSMain", "PSMain"],
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
-      "Key": "Engine/Shaders/GeometryPass/GeometryPass_9085333858502016633.VS",
-      "Size": 7980
+      "Key": "Engine/Shaders/HBAO/HBAO_9858093069346154198.VS",
+      "Size": 776
     }, {
       "$Class": "BlobDataReference",
-      "Key": "Engine/Shaders/GeometryPass/GeometryPass_9085333858502016633.PS",
-      "Size": 41204
+      "Key": "Engine/Shaders/HBAO/HBAO_9858093069346154198.PS",
+      "Size": 9432
     }],
   "PropertySetHashCode": {},
-  "Name": "GeometryPass_9085333858502016633",
-  "FriendlyName": "GeometryPass9085333858502016633",
+  "Name": "HBAO_9858093069346154198",
+  "FriendlyName": "HBAO_9858093069346154198",
   "OriginalFilepath": ""
 }
