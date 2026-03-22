@@ -656,85 +656,124 @@
 
                         <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
 
-                        <DockPanel Grid.Row="2">
-                            <Border Classes="panel-header" DockPanel.Dock="Top">
-                                <StackPanel Orientation="Horizontal" Spacing="2" Margin="4,0">
-                                    <ToggleButton
-                                        x:Name="ToggleContentBrowser"
-                                        Classes="panel-toggle"
-                                        IsChecked="True"
-                                        Padding="10,4"
-                                        Content="Content Browser" />
-                                    <ToggleButton
-                                        x:Name="ToggleConsole"
-                                        Classes="panel-toggle"
-                                        IsChecked="True"
-                                        Padding="10,4"
-                                        Content="Console" />
-                                </StackPanel>
-                            </Border>
-
-                            <Grid x:Name="BottomPanelGrid" ColumnDefinitions="*, 2, *">
-                                <!--  Content Browser  -->
-                                <DockPanel x:Name="ContentBrowserPanel" Grid.Column="0">
-                                    <Border Classes="panel-header" DockPanel.Dock="Top" Height="36">
-                                        <Grid VerticalAlignment="Center" ColumnDefinitions="*, Auto">
-                                            <TextBlock
+                        <Grid x:Name="BottomPanelGrid" Grid.Row="2" ColumnDefinitions="*, 2, *">
+                                <!--  Content Browser slot  -->
+                                <Grid Grid.Column="0">
+                                    <DockPanel x:Name="ContentBrowserPanel">
+                                        <Border Classes="panel-header" DockPanel.Dock="Top" Height="36">
+                                            <Grid VerticalAlignment="Center" ColumnDefinitions="Auto, *, Auto">
+                                                <Button
+                                                    x:Name="CollapseContentBrowser"
+                                                    Grid.Column="0"
+                                                    Width="26" Height="26" Padding="0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip.Tip="Collapse">
+                                                    <LucideIcon Kind="ChevronsLeft" Size="14" />
+                                                </Button>
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    Margin="6,0"
+                                                    VerticalAlignment="Center"
+                                                    Classes="header"
+                                                    FontSize="12"
+                                                    Text="Content Browser" />
+                                                <Button
+                                                    Grid.Column="2"
+                                                    Padding="8,2"
+                                                    VerticalAlignment="Center"
+                                                    Command="{Binding ContentBrowser.ImportCommand}"
+                                                    Content="Import"
+                                                    ToolTip.Tip="Import external content into the asset registry." />
+                                            </Grid>
+                                        </Border>
+                                        <Grid ColumnDefinitions="220, *">
+                                            <TreeView
                                                 Grid.Column="0"
-                                                VerticalAlignment="Center"
-                                                Classes="header"
-                                                FontSize="12"
-                                                Text="Content Browser" />
-                                            <Button
-                                                Grid.Column="1"
-                                                Margin="0,0,4,0"
-                                                Padding="8,2"
-                                                HorizontalAlignment="Right"
-                                                VerticalAlignment="Center"
-                                                Command="{Binding ContentBrowser.ImportCommand}"
-                                                Content="Import"
-                                                ToolTip.Tip="Import assets into the current package" />
+                                                ItemsSource="{Binding ContentBrowser.Packages}"
+                                                SelectedItem="{Binding ContentBrowser.CurrentPackage, Mode=TwoWay}">
+                                                <TreeView.ItemTemplate>
+                                                    <TreeDataTemplate x:DataType="vm:AssetPackageViewModel" ItemsSource="{Binding Subpackages}">
+                                                        <TextBlock Text="{Binding Name}" />
+                                                    </TreeDataTemplate>
+                                                </TreeView.ItemTemplate>
+                                            </TreeView>
+                                            <ListBox Grid.Column="1" ItemsSource="{Binding ContentBrowser.Assets}">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:AssetObjectViewModel">
+                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                            <TextBlock Text="{Binding DisplayName}" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
                                         </Grid>
-                                    </Border>
+                                    </DockPanel>
 
-                                    <Grid ColumnDefinitions="220, *">
-                                        <TreeView
-                                            Grid.Column="0"
-                                            ItemsSource="{Binding ContentBrowser.Packages}"
-                                            SelectedItem="{Binding ContentBrowser.CurrentPackage, Mode=TwoWay}">
-                                            <TreeView.ItemTemplate>
-                                                <TreeDataTemplate x:DataType="vm:AssetPackageViewModel" ItemsSource="{Binding Subpackages}">
-                                                    <TextBlock Text="{Binding Name}" />
-                                                </TreeDataTemplate>
-                                            </TreeView.ItemTemplate>
-                                        </TreeView>
-                                        <ListBox Grid.Column="1" ItemsSource="{Binding ContentBrowser.Assets}">
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:AssetObjectViewModel">
-                                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                                        <TextBlock Text="{Binding DisplayName}" />
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
-                                    </Grid>
-                                </DockPanel>
+                                    <!--  Content Browser collapsed strip  -->
+                                    <Border
+                                        x:Name="ContentBrowserCollapsedStrip"
+                                        IsVisible="False"
+                                        Background="{DynamicResource Brush.PanelAlt}"
+                                        BorderBrush="{DynamicResource Brush.Border}"
+                                        BorderThickness="0,0,1,0">
+                                        <Button
+                                            x:Name="ExpandContentBrowser"
+                                            Width="26" Height="26" Padding="0"
+                                            Margin="0,4"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Top"
+                                            ToolTip.Tip="Expand">
+                                            <LucideIcon Kind="ChevronsRight" Size="14" />
+                                        </Button>
+                                    </Border>
+                                </Grid>
 
                                 <GridSplitter x:Name="BottomPanelSplitter" Grid.Column="1" ResizeDirection="Columns" />
 
-                                <!--  Console  -->
-                                <DockPanel x:Name="ConsolePanel" Grid.Column="2">
-                                    <Border Classes="panel-header" DockPanel.Dock="Top" Height="36">
-                                        <TextBlock
-                                            VerticalAlignment="Center"
-                                            Classes="header"
-                                            FontSize="12"
-                                            Text="Console" />
+                                <!--  Console slot  -->
+                                <Grid Grid.Column="2">
+                                    <DockPanel x:Name="ConsolePanel">
+                                        <Border Classes="panel-header" DockPanel.Dock="Top" Height="36">
+                                            <Grid VerticalAlignment="Center" ColumnDefinitions="*, Auto">
+                                                <TextBlock
+                                                    Grid.Column="0"
+                                                    Margin="0,0,6,0"
+                                                    VerticalAlignment="Center"
+                                                    Classes="header"
+                                                    FontSize="12"
+                                                    Text="Console" />
+                                                <Button
+                                                    x:Name="CollapseConsole"
+                                                    Grid.Column="1"
+                                                    Width="26" Height="26" Padding="0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip.Tip="Collapse">
+                                                    <LucideIcon Kind="ChevronsRight" Size="14" />
+                                                </Button>
+                                            </Grid>
+                                        </Border>
+                                        <local:ConsoleView />
+                                    </DockPanel>
+
+                                    <!--  Console collapsed strip  -->
+                                    <Border
+                                        x:Name="ConsoleCollapsedStrip"
+                                        IsVisible="False"
+                                        Background="{DynamicResource Brush.PanelAlt}"
+                                        BorderBrush="{DynamicResource Brush.Border}"
+                                        BorderThickness="1,0,0,0">
+                                        <Button
+                                            x:Name="ExpandConsole"
+                                            Width="26" Height="26" Padding="0"
+                                            Margin="0,4"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Top"
+                                            ToolTip.Tip="Expand">
+                                            <LucideIcon Kind="ChevronsLeft" Size="14" />
+                                        </Button>
                                     </Border>
-                                    <local:ConsoleView />
-                                </DockPanel>
+                                </Grid>
                             </Grid>
-                        </DockPanel>
                     </Grid>
 
                 </Grid>
