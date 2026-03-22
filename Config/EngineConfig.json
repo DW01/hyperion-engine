@@ -19,7 +19,7 @@
       "Radius": 1.500000,
       "Power": 2.500000,
       "UseTemporalBlending": false,
-      "Enabled": true
+      "Enabled": false
     },
     "HBIL": {
       "Enabled": false
@@ -30,7 +30,7 @@
     "TAA": {
       "Enabled": true
     },
-    "IndirectRendering": false,
+    "IndirectRendering": true,
     "ParallelCollection": true,
     "SSR": {
       "Enabled": true,
@@ -62,7 +62,7 @@
       "AO": false
     },
     "Vulkan": {
-      "DebugLayers": true
+      "DebugLayers": false
     }
   },
   "Editor": {

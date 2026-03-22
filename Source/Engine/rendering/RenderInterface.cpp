@@ -989,14 +989,30 @@ RendererResult RenderInterface::Initialize()
         EngineConfig& engineConfig = s_engineConfig[0];
         engineConfig.Load();
 
+        bool disableRayTracing = !GetRenderConfig().rayTracing;
+
+#if HYP_ANDROID
+        disableRayTracing = true;
+
+        // For Android leave these rendering settings off.
+        engineConfig.Set("Rendering.IndirectRendering", false);
+        engineConfig.Set("Rendering.SSGI.Enabled", false);
+        engineConfig.Set("Rendering.SSR.Enabled", false);
+        engineConfig.Set("Rendering.HBAO.Enabled", false);
+        engineConfig.Set("Rendering.TAA.Enabled", false);
+#endif
+
         // if ray tracing is not supported, we need to update the configuration
-        if (!GetRenderConfig().rayTracing)
+        if (!disableRayTracing)
         {
             engineConfig.Set("Rendering.RayTracing.Enabled", false);
             engineConfig.Set("Rendering.RayTracing.Reflections.Enabled", false);
             engineConfig.Set("Rendering.RayTracing.GI.Enabled", false);
             engineConfig.Set("Rendering.RayTracing.PathTracing.Enabled", false);
+        }
 
+        if (engineConfig.IsChanged())
+        {
             engineConfig.Save();
         }
 

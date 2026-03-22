@@ -578,8 +578,6 @@ constexpr void StaticForEach(FunctionType&& function, const Tuple<Types...>& tup
 template <class... Types, class Functor>
 constexpr void WithTupleElement(Tuple<Types...>& tuple, size_t index, Functor&& fn)
 {
-    Assert(index < sizeof...(Types), "Tuple index out of range");
-    
     size_t currIndex = 0;
 
     auto Doer = [&]<size_t... Indices>(std::index_sequence<Indices...>)
@@ -594,8 +592,6 @@ constexpr void WithTupleElement(Tuple<Types...>& tuple, size_t index, Functor&& 
 template <class... Types, class Functor>
 constexpr void WithTupleElement(const Tuple<Types...>& tuple, size_t index, Functor&& fn)
 {
-    Assert(index < sizeof...(Types), "Tuple index out of range");
-    
     size_t currIndex = 0;
 
     auto Doer = [&]<size_t... Indices>(std::index_sequence<Indices...>)

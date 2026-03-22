@@ -312,7 +312,15 @@ file(MAKE_DIRECTORY ${CSHARP_PROJECTS_DIR})
 if(NOT HYP_ANDROID)
     # TODO if not final release build check.
     # for final release follow the android technique
-    add_definitions(-DHYP_ROOT_DIR="${HYP_ROOT_DIR}")
+
+    # we need to escape if on windows:
+    if(WIN32)
+        string(REPLACE "\\" "\\\\" HYP_ROOT_DIR_ESCAPED "${HYP_ROOT_DIR}")
+    else()
+        set(HYP_ROOT_DIR_ESCAPED "${HYP_ROOT_DIR}")
+    endif()
+
+    add_definitions(-DHYP_ROOT_DIR="${HYP_ROOT_DIR_ESCAPED}")
     
     set(HYP_EDITOR 1)
     add_definitions(-DHYP_EDITOR=1)

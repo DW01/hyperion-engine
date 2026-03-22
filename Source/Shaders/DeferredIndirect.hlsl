@@ -140,7 +140,7 @@ PSOutput PSMain(PSInput input)
     const float metalness = materialParams.metalness;
     const uint mask = materialParams.mask;
 
-    float3 result = float3(0.0, 0.0, 0.0);
+    float3 result = (float3)0.0;
 
     float3 N = normalize(normal);
     float3 V = normalize(camera.position.xyz - position.xyz);

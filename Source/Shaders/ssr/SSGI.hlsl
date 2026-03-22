@@ -277,7 +277,8 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
                 * (1.0 - environmentRadiance.a);
         }
         
-        accum_result += environmentRadiance;
+        // use 0 for alpha, so we can blend with other GI if available.
+        accum_result += float4(environmentRadiance.rgb, 0.0);
     }
 
     out_image[coord] = accum_result / float(numRaySamples);

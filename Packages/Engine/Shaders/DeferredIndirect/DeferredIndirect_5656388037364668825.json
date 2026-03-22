@@ -18,15 +18,9 @@
       "Flags": 0,
       "Value": null,
       "EnumValues": []
-    }, {
-      "$Class": "ShaderProperty",
-      "Name": "OUTPUT",
-      "Flags": 0,
-      "Value": "SDR",
-      "EnumValues": []
     }],
   "RevisionNumber": 31459917,
-  "BaseName": "Tonemap",
+  "BaseName": "DeferredIndirect",
   "VertexAttributes": {
     "FlagMask": 7
   },
@@ -34,22 +28,8 @@
     "Elements": [{
         "$Class": "ShaderInputSet",
         "SetIndex": 0,
-        "Name": "Tonemap",
+        "Name": "DeferredPass",
         "Slots": [[{
-              "$Class": "ShaderInput",
-              "Register": 1,
-              "ElementType": 5,
-              "Name": "DeferredResult",
-              "Count": 1,
-              "Size": 4294967295,
-              "IsDynamic": false,
-              "StructInfo": {
-                "Name": "",
-                "Size": 4294967295,
-                "FieldNames": [],
-                "FieldTypes": []
-              }
-            }, {
               "$Class": "ShaderInput",
               "Register": 1,
               "ElementType": 5,
@@ -81,7 +61,7 @@
               "$Class": "ShaderInput",
               "Register": 1,
               "ElementType": 5,
-              "Name": "SSRResultTexture",
+              "Name": "ReflectionProbeResultTexture",
               "Count": 1,
               "Size": 4294967295,
               "IsDynamic": false,
@@ -165,35 +145,7 @@
               "$Class": "ShaderInput",
               "Register": 1,
               "ElementType": 5,
-              "Name": "TAAResultTexture",
-              "Count": 1,
-              "Size": 4294967295,
-              "IsDynamic": false,
-              "StructInfo": {
-                "Name": "",
-                "Size": 4294967295,
-                "FieldNames": [],
-                "FieldTypes": []
-              }
-            }, {
-              "$Class": "ShaderInput",
-              "Register": 1,
-              "ElementType": 5,
               "Name": "GBufferMaterialTexture",
-              "Count": 1,
-              "Size": 4294967295,
-              "IsDynamic": false,
-              "StructInfo": {
-                "Name": "",
-                "Size": 4294967295,
-                "FieldNames": [],
-                "FieldTypes": []
-              }
-            }, {
-              "$Class": "ShaderInput",
-              "Register": 1,
-              "ElementType": 5,
-              "Name": "ShadowMapsTextureArray",
               "Count": 1,
               "Size": 4294967295,
               "IsDynamic": false,
@@ -234,11 +186,11 @@
             }, {
               "$Class": "ShaderInput",
               "Register": 3,
-              "ElementType": 1,
+              "ElementType": 2,
               "Name": "CamerasBuffer",
               "Count": 1,
               "Size": 4294967295,
-              "IsDynamic": false,
+              "IsDynamic": true,
               "StructInfo": {
                 "Name": "",
                 "Size": 4294967295,
@@ -248,11 +200,11 @@
             }, {
               "$Class": "ShaderInput",
               "Register": 3,
-              "ElementType": 1,
-              "Name": "PostProcessingUniforms",
+              "ElementType": 2,
+              "Name": "EnvGridsBuffer",
               "Count": 1,
               "Size": 4294967295,
-              "IsDynamic": false,
+              "IsDynamic": true,
               "StructInfo": {
                 "Name": "",
                 "Size": 4294967295,
@@ -292,19 +244,19 @@
       }]
   },
   "ShaderModuleTypes": [1, 2],
-  "ShaderModuleNames": ["Tonemap.hlsl", "Tonemap.hlsl"],
+  "ShaderModuleNames": ["DeferredIndirect.hlsl", "DeferredIndirect.hlsl"],
   "EntryPointNames": ["VSMain", "PSMain"],
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
-      "Key": "Engine/Shaders/Tonemap/Tonemap_9412718521670965328.VS",
+      "Key": "Engine/Shaders/DeferredIndirect/DeferredIndirect_5656388037364668825.VS",
       "Size": 776
     }, {
       "$Class": "BlobDataReference",
-      "Key": "Engine/Shaders/Tonemap/Tonemap_9412718521670965328.PS",
-      "Size": 1420
+      "Key": "Engine/Shaders/DeferredIndirect/DeferredIndirect_5656388037364668825.PS",
+      "Size": 5636
     }],
   "PropertySetHashCode": {},
-  "Name": "Tonemap_9412718521670965328",
-  "FriendlyName": "Tonemap_9412718521670965328",
+  "Name": "DeferredIndirect_5656388037364668825",
+  "FriendlyName": "DeferredIndirect5656388037364668825",
   "OriginalFilepath": ""
 }
