@@ -56,6 +56,8 @@
 #include <scene/ParticleVolume.hpp>
 #include <scene/LightmapVolume.hpp>
 
+#include <engine/CVarManager.hpp>
+
 #include <engine/config/EngineConfig.hpp>
 
 #include <Core/config/Config.hpp>
@@ -140,6 +142,8 @@ EngineStatCounter<uint32> g_statEnvProbes("Rendering/EnvProbes");
 EngineStatCounter<uint32> g_statEnvGrids("Rendering/EnvGrids");
 EngineStatCounter<uint32> g_statDebugDraws("Rendering/DebugDraws");
 
+CVar<int> g_deferredDebugVis { "DeferredDebugVis", 0 };
+
 namespace DeferredRendererHelpers {
 
 void GetDeferredShaderProperties(
@@ -165,9 +169,6 @@ void GetDeferredShaderProperties(
     DEF_CONFIGURATION_VALUE(ssao, "Rendering.SSAO.Enabled");
     DEF_CONFIGURATION_VALUE(ssgi, "Rendering.SSGI.Enabled");
     DEF_CONFIGURATION_VALUE(pathTracing, "Rendering.RayTracing.PathTracing.Enabled");
-
-    DEF_CONFIGURATION_VALUE(debugReflections, "Rendering.Debug.Reflections");
-    DEF_CONFIGURATION_VALUE(debugIrradiance, "Rendering.Debug.Irradiance");
 
 #undef DEF_CONFIGURATION_VALUE
 
@@ -200,13 +201,19 @@ void GetDeferredShaderProperties(
     {
         outShaderProperties.Add(s_propPathTracer);
     }
-    else if (debugReflections)
+    else
     {
-        outShaderProperties.Add(s_propDebugReflections);
-    }
-    else if (debugIrradiance)
-    {
-        outShaderProperties.Add(s_propDebugIrradiance);
+        switch (g_deferredDebugVis.Get())
+        {
+        case 1: // reflections
+            outShaderProperties.Add(s_propDebugReflections);
+            break;
+        case 2: // irradiance
+            outShaderProperties.Add(s_propDebugIrradiance);
+            break;
+        default:
+            break;
+        }
     }
 
     if (lightType != InvalidLightType)

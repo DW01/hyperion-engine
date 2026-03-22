@@ -83,6 +83,8 @@
 
 #include <engine/EngineStats.hpp>
 #include <engine/EngineDriver.hpp>
+#include <engine/CVarManager.hpp>
+
 #include <engine/config/EngineConfig.hpp>
 
 #include <system/AppContext.hpp>
@@ -1526,6 +1528,8 @@ void RenderInterface::EndFrame()
     DeletionQueue::GetInstance().Iterate();
 
     g_engineStats->Advance();
+
+    CVarManager::GetInstance().Advance();
 
     ReleaseTransientMemory();
     NextFrame();
