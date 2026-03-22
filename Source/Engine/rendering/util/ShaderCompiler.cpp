@@ -308,7 +308,6 @@ static const ShaderPropertyId s_propNumGBufferTextures = InternShaderProperty(Sh
 
 static const ShaderPropertyId s_propBindlessTextures = InternShaderProperty(ShaderProperty(NAME("HYP_FEATURES_BINDLESS_TEXTURES")));
 
-static const ShaderPropertyId s_propDebugReflections = InternShaderProperty(ShaderProperty(NAME("DEBUG_REFLECTIONS")));
 static const ShaderPropertyId s_propDebugIrradiance = InternShaderProperty(ShaderProperty(NAME("DEBUG_IRRADIANCE")));
 static const ShaderPropertyId s_propDebugVelocity = InternShaderProperty(ShaderProperty(NAME("DEBUG_VELOCITY")));
 static const ShaderPropertyId s_propDebugNormals = InternShaderProperty(ShaderProperty(NAME("DEBUG_NORMALS")));
@@ -326,9 +325,6 @@ void MergeGlobalShaderProperties(ShaderPropertySet& out)
 
     if (g_renderInterface->GetRenderConfig().bindlessTextures)
         out.Add(s_propBindlessTextures);
-
-    if (cfg.Get("Rendering.Debug.Reflections").ToBool(false))
-        out.Add(s_propDebugReflections);
 
     if (cfg.Get("Rendering.Debug.Irradiance").ToBool(false))
         out.Add(s_propDebugIrradiance);

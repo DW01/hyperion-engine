@@ -6,6 +6,7 @@
 #include <engine/EngineGlobals.hpp>
 #include <engine/EngineStats.hpp>
 #include <engine/EngineMemory.hpp>
+#include <engine/CVarManager.hpp>
 #include <engine/Game.hpp>
 
 #include <engine/threads/SimThread.hpp>

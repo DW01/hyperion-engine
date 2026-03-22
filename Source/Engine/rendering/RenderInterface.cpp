@@ -1017,6 +1017,8 @@ RendererResult RenderInterface::Initialize()
         {
             engineConfig.Save();
         }
+        
+        CVarManager::GetInstance().InitFromConfig(engineConfig);
 
         for (uint32 i = 1; i < RingBufferDepth; i++)
         {

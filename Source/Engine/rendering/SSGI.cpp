@@ -47,8 +47,8 @@ static constexpr uint32 NumSamples = 32; // temporal sample count
 static const ShaderPropertyId s_propMaxLights = InternShaderProperty(ShaderProperty(NAME("MAX_LIGHTS"), int(MaxLights)));
 static const ShaderPropertyId s_propMaxEnvProbes = InternShaderProperty(ShaderProperty(NAME("MAX_ENV_PROBES"), int(MaxEnvProbes)));
 
-static CVar<float> s_cvSSGIDepthThreshold { "Rendering.SSGI.DepthThreshold", 2.0f };
-static CVar<float> s_cvSSGINormalPower { "Rendering.SSGI.NormalPower", 16.0f };
+static CVar<float> s_cvSSGIDepthThreshold { "Rendering.SSGI.DepthThreshold", 0.2f };
+static CVar<float> s_cvSSGINormalPower { "Rendering.SSGI.NormalPower", 8.0f };
 
 namespace DeferredRendererHelpers {
 

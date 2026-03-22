@@ -51,6 +51,9 @@
         "Enabled": false
       }
     },
+    "Deferred": {
+      "DebugVis": 0
+    },
     "Debug": {
       "Reflections": false,
       "DebugDrawer": {

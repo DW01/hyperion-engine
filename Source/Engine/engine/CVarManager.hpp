@@ -21,11 +21,29 @@ namespace Hyperion {
 
 static constexpr uint32 MaxCVars = 128;
 
+namespace JSON {
+// Fwd declaration for ConfigValue
+class Value;
+} // namespace JSON
+
+namespace config {
+class ConfigBase;
+using ConfigValue = JSON::Value;
+} // namespace config
+
+using config::ConfigValue;
+using config::ConfigBase;
+
 class CVarManager;
 
-using CVarSnapshotValue = Variant<int, float, bool, String>;
+using CVarSnapshotValue = Variant<
+    int8, int16, int32, int64,
+    uint8, uint16, uint32, uint64,
+    float, double,
+    bool,
+    String>;
 
-class HYP_API CVarBase
+class CVarBase
 {
 public:
     friend class CVarManager;
@@ -34,14 +52,13 @@ protected:
     explicit CVarBase(UTF8StringView path);
 
 public:
-    int id;
     Name name;
+    int id;
     bool isHeapAllocated;
 
     virtual ~CVarBase() = default;
 
-    virtual void SetFromString(const String& value) = 0;
-    virtual String ToString() const = 0;
+    virtual void SetFromConfig(const ConfigValue& cfgValue) = 0;
     
 protected:
     virtual void WriteToSnapshot(CVarSnapshotValue& snapshotValue) const = 0;
@@ -62,10 +79,9 @@ public:
         m_value = value;
     }
 
-    T Get() const;
+    const T& Get() const;
 
-    void SetFromString(const String& value) override;
-    String ToString() const override;
+    void SetFromConfig(const ConfigValue& cfgValue) override;
 
 protected:
     void WriteToSnapshot(CVarSnapshotValue& snapshotValue) const override
@@ -80,19 +96,47 @@ private:
     T m_value;
 };
 
-template <> HYP_API void CVar<int>::SetFromString(const String& value);
-template <> HYP_API String CVar<int>::ToString() const;
-template <> HYP_API void CVar<float>::SetFromString(const String& value);
-template <> HYP_API String CVar<float>::ToString() const;
-template <> HYP_API void CVar<bool>::SetFromString(const String& value);
-template <> HYP_API String CVar<bool>::ToString() const;
-template <> HYP_API void CVar<String>::SetFromString(const String& value);
-template <> HYP_API String CVar<String>::ToString() const;
+#pragma region SetFromConfig specializations
 
-template <> HYP_API int CVar<int>::Get() const;
-template <> HYP_API float CVar<float>::Get() const;
-template <> HYP_API bool CVar<bool>::Get() const;
-template <> HYP_API String CVar<String>::Get() const;
+template <> HYP_API void CVar<int8>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API void CVar<int16>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API void CVar<int32>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API void CVar<int64>::SetFromConfig(const ConfigValue& cfgValue);
+
+template <> HYP_API void CVar<uint8>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API void CVar<uint16>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API void CVar<uint32>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API void CVar<uint64>::SetFromConfig(const ConfigValue& cfgValue);
+
+template <> HYP_API void CVar<float>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API void CVar<double>::SetFromConfig(const ConfigValue& cfgValue);
+
+template <> HYP_API void CVar<bool>::SetFromConfig(const ConfigValue& cfgValue);
+
+template <> HYP_API void CVar<String>::SetFromConfig(const ConfigValue& cfgValue);
+
+#pragma endregion SetFromConfig specializations
+
+#pragma region Get specializations
+
+template <> const int8& CVar<int8>::Get() const;
+template <> const int16& CVar<int16>::Get() const;
+template <> const int32& CVar<int32>::Get() const;
+template <> const int64& CVar<int64>::Get() const;
+
+template <> const uint8& CVar<uint8>::Get() const;
+template <> const uint16& CVar<uint16>::Get() const;
+template <> const uint32& CVar<uint32>::Get() const;
+template <> const uint64& CVar<uint64>::Get() const;
+
+template <> const float& CVar<float>::Get() const;
+template <> const double& CVar<double>::Get() const;
+
+template <> const bool& CVar<bool>::Get() const;
+
+template <> const String& CVar<String>::Get() const;
+
+#pragma endregion Get specializations
 
 struct CVarSnapshot
 {
@@ -111,10 +155,12 @@ struct CVarSnapshot
 class CVarManager
 {
 public:
-    static CVarManager &GetInstance();
+    static CVarManager& GetInstance();
 
     CVarManager();
     ~CVarManager();
+
+    void InitFromConfig(const ConfigBase& config);
 
     CVarBase *FindVar(Name name) const;
 
