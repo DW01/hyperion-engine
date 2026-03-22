@@ -196,5 +196,44 @@
 		    <Setter Property="FontFamily" Value="Segoe UI, Helvetica, Arial, sans-serif" />
             <Setter Property="Padding" Value="4,2" />
         </Style>
+
+        <Style Selector="ToggleButton.panel-toggle">
+            <Setter Property="Background" Value="{StaticResource Brush.PanelAlt}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontFamily" Value="Segoe UI, Helvetica, Arial, sans-serif" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}">
+                        <ContentPresenter
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Foreground="{TemplateBinding Foreground}"
+                            Content="{TemplateBinding Content}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="ToggleButton.panel-toggle:pointerover">
+            <Setter Property="Background" Value="{StaticResource Brush.BorderLight}" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+        </Style>
+        <Style Selector="ToggleButton.panel-toggle:checked">
+            <Setter Property="Background" Value="{StaticResource Brush.AccentMuted}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="ToggleButton.panel-toggle:checked:pointerover">
+            <Setter Property="Background" Value="{StaticResource Brush.Accent}" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
     </Application.Styles>
 </Application>

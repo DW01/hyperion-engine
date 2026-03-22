@@ -1488,7 +1488,7 @@
     }, {
       "$Class": "AssetReference",
       "AssetPath": {
-        "Value": "Engine/Shaders/GeometryPass/GeometryPass_13563055627282309548"
+        "Value": "Engine/Shaders/GeometryPass/GeometryPass_16779099286101286529"
       }
     }, {
       "$Class": "AssetReference",
@@ -1588,7 +1588,7 @@
     }, {
       "$Class": "AssetReference",
       "AssetPath": {
-        "Value": "Engine/Shaders/GeometryPass/GeometryPass_16779099286101286529"
+        "Value": "Engine/Shaders/GeometryPass/GeometryPass_13563055627282309548"
       }
     }, {
       "$Class": "AssetReference",

@@ -656,19 +656,46 @@
 
                         <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
 
-                        <TabControl Grid.Row="2">
-                            <TabItem Header="Content Browser">
-                                <DockPanel>
-                                    <StackPanel
-                                        DockPanel.Dock="Top"
-                                        Orientation="Horizontal"
-                                        Spacing="4"
-                                        Margin="4,2">
-                                        <Button
-                                            Command="{Binding ContentBrowser.ImportCommand}"
-                                            Content="Import"
-                                            ToolTip.Tip="Import assets into the current package" />
-                                    </StackPanel>
+                        <DockPanel Grid.Row="2">
+                            <Border Classes="panel-header" DockPanel.Dock="Top">
+                                <StackPanel Orientation="Horizontal" Spacing="2" Margin="4,0">
+                                    <ToggleButton
+                                        x:Name="ToggleContentBrowser"
+                                        Classes="panel-toggle"
+                                        IsChecked="True"
+                                        Padding="10,4"
+                                        Content="Content Browser" />
+                                    <ToggleButton
+                                        x:Name="ToggleConsole"
+                                        Classes="panel-toggle"
+                                        IsChecked="True"
+                                        Padding="10,4"
+                                        Content="Console" />
+                                </StackPanel>
+                            </Border>
+
+                            <Grid x:Name="BottomPanelGrid" ColumnDefinitions="*, 2, *">
+                                <!--  Content Browser  -->
+                                <DockPanel x:Name="ContentBrowserPanel" Grid.Column="0">
+                                    <Border Classes="panel-header" DockPanel.Dock="Top" Height="36">
+                                        <Grid VerticalAlignment="Center" ColumnDefinitions="*, Auto">
+                                            <TextBlock
+                                                Grid.Column="0"
+                                                VerticalAlignment="Center"
+                                                Classes="header"
+                                                FontSize="12"
+                                                Text="Content Browser" />
+                                            <Button
+                                                Grid.Column="1"
+                                                Margin="0,0,4,0"
+                                                Padding="8,2"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                Command="{Binding ContentBrowser.ImportCommand}"
+                                                Content="Import"
+                                                ToolTip.Tip="Import assets into the current package" />
+                                        </Grid>
+                                    </Border>
 
                                     <Grid ColumnDefinitions="220, *">
                                         <TreeView
@@ -692,11 +719,22 @@
                                         </ListBox>
                                     </Grid>
                                 </DockPanel>
-                            </TabItem>
-                            <TabItem Header="Console">
-                                <local:ConsoleView />
-                            </TabItem>
-                        </TabControl>
+
+                                <GridSplitter x:Name="BottomPanelSplitter" Grid.Column="1" ResizeDirection="Columns" />
+
+                                <!--  Console  -->
+                                <DockPanel x:Name="ConsolePanel" Grid.Column="2">
+                                    <Border Classes="panel-header" DockPanel.Dock="Top" Height="36">
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            Classes="header"
+                                            FontSize="12"
+                                            Text="Console" />
+                                    </Border>
+                                    <local:ConsoleView />
+                                </DockPanel>
+                            </Grid>
+                        </DockPanel>
                     </Grid>
 
                 </Grid>
