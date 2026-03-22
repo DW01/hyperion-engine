@@ -13,7 +13,7 @@ namespace Hyperion {
 HYP_DECLARE_LOG_CHANNEL(Engine);
 
 static AtomicVar<int> s_nextCVarId{0};
-static CVarManager* s_instance = nullptr;
+static CVarManager* s_pInstance = nullptr;
 
 #pragma region CVar
 
@@ -65,6 +65,29 @@ String CVar<String>::ToString() const
     return m_value;
 }
 
+template <typename T>
+static const T& ReadCVarValue(const CVar<T>& cvar)
+{
+    if (!s_pInstance || cvar.id < 0)
+    {
+        return cvar.m_value;
+    }
+
+    const CVarSnapshot& snapshot = s_pInstance->GetCurrentSnapshot();
+
+    if (cvar.id >= snapshot.numVars)
+    {
+        return cvar.m_value;
+    }
+
+    return snapshot.values[cvar.id].Get<T>();
+}
+
+template <> int CVar<int>::Get() const { return ReadCVarValue(*this); }
+template <> float CVar<float>::Get() const { return ReadCVarValue(*this); }
+template <> bool CVar<bool>::Get() const { return ReadCVarValue(*this); }
+template <> String CVar<String>::Get() const { return ReadCVarValue(*this); }
+
 #pragma endregion CVar
 
 #pragma region CVarBase
@@ -75,7 +98,7 @@ struct DeferredInitCVar
     String path;
 };
 
-static Array<DeferredInitCVar> &GetDeferredInitCVars()
+static Array<DeferredInitCVar>& GetDeferredInitCVars()
 {
     static Array<DeferredInitCVar> s_deferredInitCVars;
     return s_deferredInitCVars;
@@ -100,12 +123,11 @@ static void InitCVar(CVarManager* manager, CVarBase* cvar, UTF8StringView path)
     manager->vars[cvar->id] = cvar;
 }
 
-CVarBase::CVarBase(Type type, UTF8StringView path)
+CVarBase::CVarBase(UTF8StringView path)
     : id(-1),
-      type(type),
       isHeapAllocated(false)
 {
-    InitCVar(s_instance, this, path);
+    InitCVar(s_pInstance, this, path);
 }
 
 #pragma endregion CVarBase
@@ -114,12 +136,7 @@ CVarBase::CVarBase(Type type, UTF8StringView path)
 
 CVarManager &CVarManager::GetInstance()
 {
-    static CVarManager instance;
-    return instance;
-}
-
-CVarManager *CVarManager::GetInstancePtr()
-{
+    static CVarManager s_instance;
     return s_instance;
 }
 
@@ -127,7 +144,7 @@ CVarManager::CVarManager()
     : vars {},
       m_snapshotIndex(0)
 {
-    s_instance = this;
+    s_pInstance = this;
 
     Array<DeferredInitCVar>& deferredInitCVars = GetDeferredInitCVars();
 
@@ -146,7 +163,7 @@ CVarManager::CVarManager()
 
 CVarManager::~CVarManager()
 {
-    for (CVarBase *var : vars)
+    for (CVarBase* var : vars)
     {
         if (var && var->isHeapAllocated)
         {
@@ -154,7 +171,7 @@ CVarManager::~CVarManager()
         }
     }
 
-    s_instance = nullptr;
+    s_pInstance = nullptr;
 }
 
 CVarBase *CVarManager::FindVar(Name name) const
@@ -184,20 +201,24 @@ void CVarManager::SetVar(Name name, T value)
 }
 
 template <typename T>
-T CVarManager::GetVar(Name name) const
+T CVarManager::GetVar(StringHash nameHash) const
 {
-    const uint32 snapshotIndex = m_snapshotIndex.Get(MemoryOrder::ACQUIRE);
-    const CVarSnapshot &snapshot = m_snapshots[snapshotIndex];
+    int idx = FindVarIndex(nameHash);
 
-    for (int i = 0; i < snapshot.numVars; i++)
+    if (idx < 0)
     {
-        if (snapshot.vars[i] && snapshot.vars[i]->name == name)
-        {
-            return static_cast<CVar<T>*>(snapshot.vars[i])->Get();
-        }
+        return T {};
     }
 
-    return T {};
+    const uint32 snapshotIndex = m_snapshotIndex.Get(MemoryOrder::ACQUIRE);
+    const CVarSnapshot& snapshot = m_snapshots[snapshotIndex];
+
+    if (idx >= snapshot.numVars)
+    {
+        return T {};
+    }
+
+    return snapshot.values[idx].Get<T>();
 }
 
 void CVarManager::Advance()
@@ -213,7 +234,10 @@ void CVarManager::Advance()
 
     for (int i = 0; i < numVars; i++)
     {
-        next.vars[i] = vars[i];
+        if (vars[i])
+        {
+            vars[i]->WriteToSnapshot(next.values[i]);
+        }
     }
 
     next.numVars = numVars;
@@ -227,11 +251,16 @@ uint32 CVarManager::GetVersion() const
     return m_snapshots[m_snapshotIndex.Get(MemoryOrder::ACQUIRE)].version;
 }
 
-int CVarManager::FindVarIndex(Name name) const
+const CVarSnapshot& CVarManager::GetCurrentSnapshot() const
+{
+    return m_snapshots[m_snapshotIndex.Get(MemoryOrder::ACQUIRE)];
+}
+
+int CVarManager::FindVarIndex(StringHash nameHash) const
 {
     for (uint32 i = 0; i < MaxCVars; i++)
     {
-        if (vars[i] && vars[i]->name == name)
+        if (vars[i] && vars[i]->name == nameHash)
         {
             return int(i);
         }
@@ -249,10 +278,10 @@ template void CVarManager::SetVar<float>(Name, float);
 template void CVarManager::SetVar<bool>(Name, bool);
 template void CVarManager::SetVar<String>(Name, String);
 
-template int CVarManager::GetVar<int>(Name) const;
-template float CVarManager::GetVar<float>(Name) const;
-template bool CVarManager::GetVar<bool>(Name) const;
-template String CVarManager::GetVar<String>(Name) const;
+template int CVarManager::GetVar<int>(StringHash) const;
+template float CVarManager::GetVar<float>(StringHash) const;
+template bool CVarManager::GetVar<bool>(StringHash) const;
+template String CVarManager::GetVar<String>(StringHash) const;
 
 #pragma endregion Explicit template instantiations
 

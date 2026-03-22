@@ -142,7 +142,7 @@ EngineStatCounter<uint32> g_statEnvProbes("Rendering/EnvProbes");
 EngineStatCounter<uint32> g_statEnvGrids("Rendering/EnvGrids");
 EngineStatCounter<uint32> g_statDebugDraws("Rendering/DebugDraws");
 
-CVar<int> g_deferredDebugVis { "DeferredDebugVis", 0 };
+static CVar<int> s_cvDeferredDebugVis { "Rendering.Deferred.DebugVis", 0 };
 
 namespace DeferredRendererHelpers {
 
@@ -203,7 +203,7 @@ void GetDeferredShaderProperties(
     }
     else
     {
-        switch (g_deferredDebugVis.Get())
+        switch (s_cvDeferredDebugVis.Get())
         {
         case 1: // reflections
             outShaderProperties.Add(s_propDebugReflections);

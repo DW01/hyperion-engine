@@ -5,6 +5,7 @@
 #include <Core/Defines.hpp>
 #include <Core/Constants.hpp>
 #include <Core/Types.hpp>
+#include <Core/Util.hpp>
 
 #include <Core/containers/FixedArray.hpp>
 #include <Core/containers/String.hpp>
@@ -22,51 +23,37 @@ static constexpr uint32 MaxCVars = 128;
 
 class CVarManager;
 
+using CVarSnapshotValue = Variant<int, float, bool, String>;
+
 class HYP_API CVarBase
 {
 public:
-    enum Type : int
-    {
-        Type_Invalid = -1,
-        Type_Int = 0,
-        Type_Float,
-        Type_Bool,
-        Type_String,
-        Type_Max
-    };
+    friend class CVarManager;
 
 protected:
-    CVarBase(Type type, UTF8StringView path);
+    explicit CVarBase(UTF8StringView path);
 
 public:
     int id;
     Name name;
-    Type type;
     bool isHeapAllocated;
 
     virtual ~CVarBase() = default;
 
     virtual void SetFromString(const String& value) = 0;
     virtual String ToString() const = 0;
+    
+protected:
+    virtual void WriteToSnapshot(CVarSnapshotValue& snapshotValue) const = 0;
 };
 
 template <typename T>
-class CVar : public CVarBase
+class CVar final : public CVarBase
 {
-    static constexpr Type GetVarType()
-    {
-        if constexpr (std::is_same_v<T, int>) return Type_Int;
-        else if constexpr (std::is_same_v<T, float>) return Type_Float;
-        else if constexpr (std::is_same_v<T, bool>) return Type_Bool;
-        else if constexpr (std::is_same_v<T, String>) return Type_String;
-        else return Type_Invalid;
-    }
-
 public:
     explicit CVar(UTF8StringView path, T defaultValue = T {})
-        : CVarBase(GetVarType(), path),
-          m_value(defaultValue),
-          m_defaultValue(defaultValue)
+        : CVarBase(path),
+          m_value(defaultValue)
     {
     }
 
@@ -75,17 +62,22 @@ public:
         m_value = value;
     }
 
-    HYP_FORCE_INLINE T Get() const
-    {
-        return m_value;
-    }
+    T Get() const;
 
     void SetFromString(const String& value) override;
     String ToString() const override;
 
+protected:
+    void WriteToSnapshot(CVarSnapshotValue& snapshotValue) const override
+    {
+        snapshotValue.Set(m_value);
+    }
+
 private:
+    template <typename U>
+    friend const U& ReadCVarValue(const CVar<U>& cvar);
+
     T m_value;
-    T m_defaultValue;
 };
 
 template <> HYP_API void CVar<int>::SetFromString(const String& value);
@@ -97,14 +89,19 @@ template <> HYP_API String CVar<bool>::ToString() const;
 template <> HYP_API void CVar<String>::SetFromString(const String& value);
 template <> HYP_API String CVar<String>::ToString() const;
 
+template <> HYP_API int CVar<int>::Get() const;
+template <> HYP_API float CVar<float>::Get() const;
+template <> HYP_API bool CVar<bool>::Get() const;
+template <> HYP_API String CVar<String>::Get() const;
+
 struct CVarSnapshot
 {
-    CVarBase *vars[MaxCVars];
+    CVarSnapshotValue values[MaxCVars];
     int numVars;
     uint32 version;
 
     CVarSnapshot()
-        : vars {},
+        : values {},
           numVars(0),
           version(0)
     {
@@ -115,7 +112,6 @@ class CVarManager
 {
 public:
     static CVarManager &GetInstance();
-    static CVarManager *GetInstancePtr();
 
     CVarManager();
     ~CVarManager();
@@ -126,7 +122,7 @@ public:
     void SetVar(Name name, T value);
 
     template <typename T>
-    T GetVar(Name name) const;
+    T GetVar(StringHash nameHash) const;
 
     /*! \brief Publishes the cvar states so they're visible to other threads.
      *  Call once per frame at end of frame. */
@@ -134,10 +130,12 @@ public:
 
     uint32 GetVersion() const;
 
+    const CVarSnapshot& GetCurrentSnapshot() const;
+
     FixedArray<CVarBase *, MaxCVars> vars;
 
 private:
-    int FindVarIndex(Name name) const;
+    int FindVarIndex(StringHash nameHash) const;
 
     CVarSnapshot m_snapshots[RingBufferDepth];
     AtomicVar<uint32> m_snapshotIndex;
