@@ -1,5 +1,7 @@
 /* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
 
+#include <HyperionPch.hpp>
+
 #include <engine/CVarManager.hpp>
 
 #include <Core/config/Config.hpp>
@@ -14,33 +16,53 @@ namespace Hyperion {
 
 HYP_DECLARE_LOG_CHANNEL(Engine);
 
-static AtomicVar<int> s_nextCVarId{0};
+static AtomicVar<int> s_nextCVarId = 0;
 static CVarManager* s_pInstance = nullptr;
 
 #pragma region CVar
 
 template <>
-void CVar<int>::SetFromConfig(const ConfigValue& cfgValue)
+bool CVar<int>::SetFromConfig(const ConfigValue& cfgValue)
 {
+    if (!cfgValue.IsNumber())
+        return false;
+
     m_value = cfgValue.ToInt32();
+
+    return true;
 }
 
 template <>
-void CVar<float>::SetFromConfig(const ConfigValue& cfgValue)
+bool CVar<float>::SetFromConfig(const ConfigValue& cfgValue)
 {
+    if (!cfgValue.IsNumber())
+        return false;
+
     m_value = cfgValue.ToFloat();
+
+    return true;
 }
 
 template <>
-void CVar<bool>::SetFromConfig(const ConfigValue& cfgValue)
+bool CVar<bool>::SetFromConfig(const ConfigValue& cfgValue)
 {
+    if (!cfgValue.IsBool())
+        return false;
+
     m_value = cfgValue.ToBool();
+
+    return true;
 }
 
 template <>
-void CVar<String>::SetFromConfig(const ConfigValue& cfgValue)
+bool CVar<String>::SetFromConfig(const ConfigValue& cfgValue)
 {
+    if (!cfgValue.IsString())
+        return false;
+
     m_value = cfgValue.ToString();
+
+    return true;
 }
 
 template <typename T>
@@ -108,7 +130,7 @@ static void InitCVar(CVarManager* manager, CVarBase* cvar, UTF8StringView path)
     }
 
     cvar->name = CreateNameFromDynamicString(path);
-    cvar->id = s_nextCVarId.Increment(1, MemoryOrder::RELAXED);
+    cvar->id = s_nextCVarId.Increment(1, MemoryOrder::ACQUIRE_RELEASE);
 
     manager->vars[cvar->id] = cvar;
 }
@@ -166,7 +188,7 @@ CVarManager::~CVarManager()
 
 void CVarManager::InitFromConfig(const ConfigBase& config)
 {
-    const int numVars = s_nextCVarId.Get(MemoryOrder::RELAXED);
+    const int numVars = s_nextCVarId.Get(MemoryOrder::ACQUIRE);
 
     for (int i = 0; i < numVars; i++)
     {
@@ -196,23 +218,19 @@ void CVarManager::InitFromConfig(const ConfigBase& config)
     }
 }
 
-CVarBase *CVarManager::FindVar(Name name) const
+HYP_NODISCARD CVarBase* CVarManager::FindVar(const ANSIString& name) const
 {
-    for (uint32 i = 0; i < MaxCVars; i++)
-    {
-        if (vars[i] && vars[i]->name == name)
-        {
-            return vars[i];
-        }
-    }
+    const int idx = FindVarIndex(name);
+    if (idx < 0)
+        return nullptr;
 
-    return nullptr;
+    return vars[idx];
 }
 
 template <typename T>
-void CVarManager::SetVar(Name name, T value)
+void CVarManager::SetVar(StringHash nameHash, const T& value)
 {
-    int idx = FindVarIndex(name);
+    int idx = FindVarIndex(nameHash);
 
     if (idx < 0)
     {
@@ -232,7 +250,7 @@ T CVarManager::GetVar(StringHash nameHash) const
         return T {};
     }
 
-    const uint32 snapshotIndex = m_snapshotIndex.Get(MemoryOrder::ACQUIRE);
+    const uint32 snapshotIndex = m_snapshotIndex.Get(MemoryOrder::RELAXED);
     const CVarSnapshot& snapshot = m_snapshots[snapshotIndex];
 
     if (idx >= snapshot.numVars)
@@ -247,12 +265,12 @@ void CVarManager::Advance()
 {
     Mutex::Guard lock(m_mutex);
 
-    const uint32 currentIdx = m_snapshotIndex.Get(MemoryOrder::ACQUIRE);
+    const uint32 currentIdx = m_snapshotIndex.Get(MemoryOrder::RELAXED);
     const uint32 nextIdx = (currentIdx + 1) % RingBufferDepth;
 
     CVarSnapshot& next = m_snapshots[nextIdx];
 
-    const int numVars = s_nextCVarId.Get(MemoryOrder::RELAXED);
+    const int numVars = s_nextCVarId.Get(MemoryOrder::ACQUIRE);
 
     for (int i = 0; i < numVars; i++)
     {
@@ -268,17 +286,36 @@ void CVarManager::Advance()
     m_snapshotIndex.Set(nextIdx, MemoryOrder::RELEASE);
 }
 
-uint32 CVarManager::GetVersion() const
-{
-    return m_snapshots[m_snapshotIndex.Get(MemoryOrder::ACQUIRE)].version;
-}
-
 const CVarSnapshot& CVarManager::GetCurrentSnapshot() const
 {
-    return m_snapshots[m_snapshotIndex.Get(MemoryOrder::ACQUIRE)];
+    return m_snapshots[m_snapshotIndex.Get(MemoryOrder::RELAXED)];
 }
 
-int CVarManager::FindVarIndex(StringHash nameHash) const
+HYP_NODISCARD int CVarManager::FindVarIndex(const ANSIString& name) const
+{
+    ANSIString inNameLower = name.ToLower();
+
+    for (uint32 i = 0; i < MaxCVars; i++)
+    {
+        if (!vars[i])
+            continue;
+
+        const ANSIString varNameLower = ANSIString(*vars[i]->name).ToLower();
+
+        if (varNameLower == inNameLower)
+            return int(i);
+
+        // 'Foo.Bar.Test' should match with 'Test' as input name.
+        const size_t lastSeparatorIndex = varNameLower.FindLastIndex('.');
+
+        if (lastSeparatorIndex != ANSIString::NotFound && varNameLower.Substr(lastSeparatorIndex + 1) == inNameLower)
+            return int(i);
+    }
+
+    return -1;
+}
+
+HYP_NODISCARD int CVarManager::FindVarIndex(StringHash nameHash) const
 {
     for (uint32 i = 0; i < MaxCVars; i++)
     {
@@ -295,22 +332,26 @@ int CVarManager::FindVarIndex(StringHash nameHash) const
 
 #pragma region Explicit template instantiations
 
-template void CVarManager::SetVar<int8>(Name, int8);
-template void CVarManager::SetVar<int16>(Name, int16);
-template void CVarManager::SetVar<int32>(Name, int32);
-template void CVarManager::SetVar<int64>(Name, int64);
+// SetVar
 
-template void CVarManager::SetVar<uint8>(Name, uint8);
-template void CVarManager::SetVar<uint16>(Name, uint16);
-template void CVarManager::SetVar<uint32>(Name, uint32);
-template void CVarManager::SetVar<uint64>(Name, uint64);
+template void CVarManager::SetVar<int8>(StringHash, const int8&);
+template void CVarManager::SetVar<int16>(StringHash, const int16&);
+template void CVarManager::SetVar<int32>(StringHash, const int32&);
+template void CVarManager::SetVar<int64>(StringHash, const int64&);
 
-template void CVarManager::SetVar<float>(Name, float);
-template void CVarManager::SetVar<double>(Name, double);
+template void CVarManager::SetVar<uint8>(StringHash, const uint8&);
+template void CVarManager::SetVar<uint16>(StringHash, const uint16&);
+template void CVarManager::SetVar<uint32>(StringHash, const uint32&);
+template void CVarManager::SetVar<uint64>(StringHash, const uint64&);
 
-template void CVarManager::SetVar<bool>(Name, bool);
+template void CVarManager::SetVar<float>(StringHash, const float&);
+template void CVarManager::SetVar<double>(StringHash, const double&);
 
-template void CVarManager::SetVar<String>(Name, String);
+template void CVarManager::SetVar<bool>(StringHash, const bool&);
+
+template void CVarManager::SetVar<String>(StringHash, const String&);
+
+// GetVar
 
 template int8 CVarManager::GetVar<int8>(StringHash) const;
 template int16 CVarManager::GetVar<int16>(StringHash) const;

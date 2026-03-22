@@ -20,15 +20,15 @@
       "EnumValues": []
     }, {
       "$Class": "ShaderProperty",
-      "Name": "DEBUG_REFLECTIONS",
-      "Flags": 0,
-      "Value": null,
-      "EnumValues": []
-    }, {
-      "$Class": "ShaderProperty",
       "Name": "LIGHT_TYPE",
       "Flags": 0,
       "Value": "DIRECTIONAL",
+      "EnumValues": []
+    }, {
+      "$Class": "ShaderProperty",
+      "Name": "DEBUG_REFLECTIONS",
+      "Flags": 0,
+      "Value": null,
       "EnumValues": []
     }],
   "RevisionNumber": 31459917,

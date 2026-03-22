@@ -100,18 +100,18 @@ namespace Hyperion.Editor
             // Check if we are near the bottom
             bool isAtBottom = _scrollViewer.Offset.Y >= (_scrollViewer.Extent.Height - _scrollViewer.Viewport.Height - 5);
 
-            if (isAtBottom)
-            {
+            // if (isAtBottom)
+            // {
                 _autoScroll = true;
-            }
-            else
-            {
-                // Only disable auto-scroll if we have scrollable content
-                if (_scrollViewer.Extent.Height > _scrollViewer.Viewport.Height)
-                {
-                    _autoScroll = false;
-                }
-            }
+            // }
+            // else
+            // {
+            //     // Only disable auto-scroll if we have scrollable content
+            //     if (_scrollViewer.Extent.Height > _scrollViewer.Viewport.Height)
+            //     {
+            //         _autoScroll = false;
+            //     }
+            // }
         }
 
         private void OnLogsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)

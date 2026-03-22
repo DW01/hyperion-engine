@@ -998,14 +998,14 @@ bool World::HasScene(ObjId<Scene> sceneId) const
         != m_scenes.End();
 }
 
-const Handle<Scene>& World::GetSceneByName(Name name) const
+const Handle<Scene>& World::GetSceneByName(StringHash nameHash) const
 {
-    const auto it = m_scenes.FindIf([name](const Handle<Scene>& scene)
+    const auto it = m_scenes.FindIf([nameHash](const Handle<Scene>& scene)
         {
-            return scene->GetName() == name;
+            return scene->GetName() == nameHash;
         });
 
-    return it != m_scenes.End() ? *it : Handle<Scene>::empty;
+    return it != m_scenes.End() ? *it : Handle<Scene>::Null();
 }
 
 void World::AddView(View* view)

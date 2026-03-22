@@ -242,10 +242,10 @@ public:
     bool HasScene(ObjId<Scene> sceneId) const;
 
     /*! \brief Find a Scene by its Name property. If no Scene with the given name exists, an empty handle is returned. Must be called on the sim thread.
-     *  \param name The name of the Scene to find.
+     *  \param nameHash The hashed name of the Scene to find.
      *  \return The Scene with the given name, or an empty handle if no Scene with the given name exists. */
     HYP_METHOD()
-    const Handle<Scene>& GetSceneByName(Name name) const;
+    const Handle<Scene>& GetSceneByName(StringHash nameHash) const;
 
     HYP_METHOD()
     const Array<Handle<Scene>>& GetScenes() const

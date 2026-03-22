@@ -7,6 +7,7 @@
 #include <engine/EngineDriver.hpp>
 #include <engine/EngineStats.hpp>
 #include <engine/Game.hpp>
+#include <engine/CVarManager.hpp>
 
 #include <engine/threads/MainThread.hpp>
 #include <engine/threads/SimThread.hpp>
@@ -775,6 +776,20 @@ extern "C"
             {
                 commandLine += ' ';
             }
+        }
+
+        // Look for a CVar with the name of commandName
+        CVarBase* cvar = CVarManager::GetInstance().FindVar(commandName);
+        if (cvar != nullptr)
+        {
+            if (cvar->SetFromString(commandLine))
+            {
+                return 0;
+            }
+
+            HYP_LOG(Engine, Error, "Failed to set console variable `{}`. Input is not valid.", cvar->name);
+
+            return 1;
         }
 
         CommandLineArgumentDefinitions argumentDefinitions {};

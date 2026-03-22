@@ -118,7 +118,7 @@ SSGI::~SSGI()
 void SSGI::Create()
 {
     Assert(m_gbuffer != nullptr);
-    m_extent = m_gbuffer->GetExtent() / 2;
+    m_extent = MathUtil::Max(m_gbuffer->GetExtent() / 2, Vec2u::One());
 
     m_resultTexture = MakeHandle<Texture>(TextureDesc {
         TextureType::Texture2D,
@@ -138,7 +138,7 @@ void SSGI::Create()
         m_downsampleTextures[i] = MakeHandle<Texture>(TextureDesc {
             TextureType::Texture2D,
             SSGIFormat,
-            Vec3u(m_extent / (2 * (i + 1)), 1),
+            Vec3u(MathUtil::Max(m_extent / (2 * (i + 1)), Vec2u::One()), 1),
             TFM_LINEAR,
             TFM_LINEAR,
             TWM_CLAMP_TO_EDGE,
@@ -156,7 +156,7 @@ void SSGI::Create()
             ? m_extent
             : m_extent / (2 * (NumDownsamplePasses - i - 1));
 
-        m_upsamplePasses[i] = MakeUnique<FullScreenPass>(SSGIFormat, targetExtent, nullptr, FSP_NONE);
+        m_upsamplePasses[i] = MakeUnique<FullScreenPass>(SSGIFormat, MathUtil::Max(targetExtent, Vec2u::One()), nullptr, FSP_NONE);
         m_upsamplePasses[i]->SetShaderDesc(ShaderDesc(NAME("SSGIUpsample"), ShaderPropertySet {}));
         m_upsamplePasses[i]->Create();
     }
@@ -437,7 +437,7 @@ void SSGI::Render(Frame* frame, const RenderSetup& renderSetup)
     {
         FullScreenPass* pass = m_upsamplePasses[i].Get();
 
-        const Vec2f sourceResolution = Vec2f(pass->GetExtent()) / 2;
+        const Vec2f sourceResolution = MathUtil::Max(Vec2f(pass->GetExtent()) / 2, Vec2f::One());
 
         // Need new cbuffer
         cBuffer = nullptr;

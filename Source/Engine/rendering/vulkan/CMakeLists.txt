@@ -17,6 +17,10 @@ add_definitions(-DHYP_VULKAN=1)
 
 add_definitions(-DVMA_DYNAMIC_VULKAN_FUNCTIONS=1)
 
+if(HYP_AFTERMATH)
+    add_definitions(-DHYP_AFTERMATH=1)
+endif()
+
 include_directories(
     ${Vulkan_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}

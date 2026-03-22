@@ -286,7 +286,8 @@ DeferredPass::DeferredPass(DeferredPassMode mode, Vec2u extent, GBuffer* gbuffer
 
     if (mode == DPM_DIRECT_LIGHTING)
     {
-        SetBlendFunction(BlendFunction::Additive());
+        // BMF_ZERO for dst alpha so we dont keep accumulating alpha
+        SetBlendFunction(BlendFunction(BMF_ONE, BMF_ONE, BMF_ONE, BMF_ZERO));
     }
 }
 

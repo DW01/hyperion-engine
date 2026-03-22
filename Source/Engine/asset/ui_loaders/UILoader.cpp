@@ -269,7 +269,10 @@ static Optional<Color> ParseColor(const String& str)
             return {};
         }
 
-        if (!StringUtil::Parse<uint8>(split[0], &values[0]) || !StringUtil::Parse<uint8>(split[1], &values[1]) || !StringUtil::Parse<uint8>(split[2], &values[2]) || !StringUtil::Parse<uint8>(split[3], &values[3]))
+        if (!StringUtil::Parse(split[0], &values[0])
+            || !StringUtil::Parse(split[1], &values[1])
+            || !StringUtil::Parse(split[2], &values[2])
+            || !StringUtil::Parse(split[3], &values[3]))
         {
             return {};
         }
@@ -318,7 +321,7 @@ static Optional<Pair<int32, uint32>> ParseUIObjectSizeElement(String str)
     {
         String sub = str.Substr(0, percentIndex);
 
-        if (!StringUtil::Parse<int32>(sub, &parsedInt))
+        if (!StringUtil::Parse(sub, &parsedInt))
         {
             return {};
         }
@@ -326,7 +329,7 @@ static Optional<Pair<int32, uint32>> ParseUIObjectSizeElement(String str)
         return Pair<int32, uint32> { parsedInt, UIObjectSize::PERCENT };
     }
 
-    if (!StringUtil::Parse<int32>(str, &parsedInt))
+    if (!StringUtil::Parse(str, &parsedInt))
     {
         return {};
     }

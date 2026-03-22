@@ -230,30 +230,58 @@ static inline containers::String<TStringType> TakeWhile(const containers::String
     return dst;
 }
 
-static inline bool Parse(const String& str, int* outValue)
+static inline bool Parse(const String& str, int8* outValue)
 {
-    *outValue = int(strtol(str.Data(), nullptr, 0));
+    *outValue = int8(strtol(str.Data(), nullptr, 0));
 
     return true;
 }
 
-static inline bool Parse(const String& str, long* outValue)
+static inline bool Parse(const String& str, int16* outValue)
 {
-    *outValue = strtol(str.Data(), nullptr, 0);
+    *outValue = int16(strtol(str.Data(), nullptr, 0));
 
     return true;
 }
 
-static inline bool Parse(const String& str, long long* outValue)
+static inline bool Parse(const String& str, int32* outValue)
 {
-    *outValue = strtoll(str.Data(), nullptr, 0);
+    *outValue = int32(strtol(str.Data(), nullptr, 0));
 
     return true;
 }
 
-static inline bool Parse(const String& str, unsigned int* outValue)
+static inline bool Parse(const String& str, int64* outValue)
 {
-    *outValue = unsigned(strtoul(str.Data(), nullptr, 0));
+    *outValue = int64(strtoll(str.Data(), nullptr, 0));
+
+    return true;
+}
+
+static inline bool Parse(const String& str, uint8* outValue)
+{
+    *outValue = uint8(strtoul(str.Data(), nullptr, 0));
+
+    return true;
+}
+
+static inline bool Parse(const String& str, uint16* outValue)
+{
+    *outValue = uint16(strtoul(str.Data(), nullptr, 0));
+
+    return true;
+}
+
+static inline bool Parse(const String& str, uint32* outValue)
+{
+    *outValue = uint32(strtoul(str.Data(), nullptr, 0));
+
+    return true;
+}
+
+static inline bool Parse(const String& str, uint64* outValue)
+{
+    *outValue = uint64(strtoull(str.Data(), nullptr, 0));
 
     return true;
 }
@@ -268,22 +296,6 @@ static inline bool Parse(const String& str, float* outValue)
 static inline bool Parse(const String& str, double* outValue)
 {
     *outValue = strtod(str.Data(), nullptr);
-
-    return true;
-}
-
-template <typename T>
-static inline bool Parse(const String& str, T* outValue)
-{
-    std::istringstream ss(str.Data());
-    T value;
-
-    if (!(ss >> std::boolalpha >> value))
-    {
-        return false;
-    }
-
-    *outValue = value;
 
     return true;
 }

@@ -489,12 +489,31 @@ RendererResult VulkanDevice::Create(VkSurfaceKHR surface)
     VkDeviceCreateInfo createInfo { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
     createInfo.pQueueCreateInfos = queueCreateInfos.Data();
     createInfo.queueCreateInfoCount = uint32(queueCreateInfos.Size());
+    
+#if defined(HYP_AFTERMATH) && HYP_AFTERMATH
+    extensionNames.PushBack(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME);
+    extensionNames.PushBack(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME);
+    
+    /// https://docs.nvidia.com/nsight-aftermath/SDK/index.html
+    VkDeviceDiagnosticsConfigFlagsNV aftermathFlags =
+        VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_AUTOMATIC_CHECKPOINTS_BIT_NV |  // Enable automatic call stack checkpoints.
+        VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_RESOURCE_TRACKING_BIT_NV |      // Enable tracking of resources.
+        VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_DEBUG_INFO_BIT_NV |      // Generate debug information for shaders.
+        VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_ERROR_REPORTING_BIT_NV;  // Enable additional runtime shader error reporting.
+
+    VkDeviceDiagnosticsConfigCreateInfoNV aftermathInfo { VK_STRUCTURE_TYPE_DEVICE_DIAGNOSTICS_CONFIG_CREATE_INFO_NV };
+    aftermathInfo.flags = aftermathFlags;
+
+    VulkanHelpers::ChainNext(createInfo, &aftermathInfo);
+#endif
+
     // Setup Device extensions
     createInfo.enabledExtensionCount = uint32(extensionNames.Size());
     createInfo.ppEnabledExtensionNames = extensionNames.Data();
     // Setup Device Features
     // createInfo.pEnabledFeatures        = &features->GetPhysicalDeviceFeatures();
-    createInfo.pNext = &m_features->GetPhysicalDeviceFeatures2();
+
+    VulkanHelpers::ChainNext(createInfo, const_cast<VkPhysicalDeviceFeatures2*>(&m_features->GetPhysicalDeviceFeatures2()));
 
     VULKAN_CHECK_MSG(
         vkCreateDevice(m_physical, &createInfo, nullptr, &m_device),

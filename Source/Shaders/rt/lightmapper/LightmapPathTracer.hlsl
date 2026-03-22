@@ -317,6 +317,8 @@ void RayGenMain()
         float4 Li = (float4)0.0;
         float3 beta = (float3)1.0;
 
+        bool sampleIsMiss = true;
+
         for (int bounceIndex = 0; bounceIndex < NUM_BOUNCES; ++bounceIndex)
         {
             // prepare payload and trace
@@ -345,16 +347,15 @@ void RayGenMain()
                     environmentRadiance += env;
                 }
 
-                // we use 0.0 so that probes can blend between each other.
-                // we still want to keep the environment contribution, as we can use it as indirect lighting
-                // (plus we can keep the data of the env radiance around in the color channels so it can be used)
-                Li += float4(beta * environmentRadiance.rgb, 0.0);
+                Li += float4(beta * environmentRadiance.rgb, 1.0);
 
                 break;
             }
 
-            // mark sample valid for color.
-            Li.a = 1.0;
+            // hit something, so this sample is not a miss.
+            // we can use environment probes for indirect lighting,
+            // but bounces that hit e.g the sky should be left with alpha = 0 so that they can be blended with other probes.
+            sampleIsMiss = false;
 
             // hit data
             float3 hitPos = origin + direction * payload.distance;
@@ -479,14 +480,12 @@ void RayGenMain()
             origin = hitPos + N * RAY_OFFSET;
             direction = wi;
         }
-
+        
+        Li.a = sampleIsMiss ? 0.0 : 1.0; // if the ray never hit anything, set alpha to 0 so that probes can blend between each other. If it hit something, set alpha to 1 so that the result is not blended with other probes.
         accumRadiance += Li;
     }
 
     float4 finalColor = accumRadiance / float(NUM_SAMPLES);
-
-    // make sure alpha is in [0, 1], it is used for blending between probes, so we need to make sure this won't
-    // cause lerp() to get borked.
     finalColor.a = saturate(finalColor.a);
 
 #else

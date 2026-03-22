@@ -66,7 +66,7 @@ DECLARE_SRV(DDGI, PointLightShadowMapsTextureArray) TextureCubeArray point_shado
 
 #define RAY_OFFSET 0.025
 #define NUM_SAMPLES 1
-#define NUM_BOUNCES 4
+#define NUM_BOUNCES 1
 
 void SetProbeRayData(uint2 coord, ProbeRayData ray_data)
 {
@@ -174,7 +174,6 @@ void RayGenMain()
             float hitMetalness = saturate(payload.throughput.a);
             
             float3 diffuseColor = hitAlbedo * (1.0 - hitMetalness);
-            float3 f0 = CalculateF0(hitAlbedo, hitMetalness);
 
             for (uint light_index = 0; light_index < ddgiConstants.numBoundLights; light_index++)
             {
@@ -198,14 +197,7 @@ void RayGenMain()
                             float LdotH = max(dot(L, H), 0.0);
                             float NdotV = max(dot(N, -localDirection), 0.0);
                             
-                            float3 F = F_Schlick(f0, LdotH);
-                            float G = V_SmithGGXCorrelated(hitRoughness, NdotV, NdotL);
-                            float D = DistributionGGX(NdotH, hitRoughness);
-                            
-                            radiance += beta * shadow * light_color * NdotL * (
-                                (1.0 - F) * diffuseColor * HYP_FMATH_ONE_OVER_PI + 
-                                F * G * D
-                            );
+                            radiance += beta * light_color * shadow * NdotL * diffuseColor * HYP_FMATH_ONE_OVER_PI;
                         }
                     }
                 }
@@ -228,14 +220,7 @@ void RayGenMain()
                         float LdotH = max(dot(L, H), 0.0);
                         float NdotV = max(dot(N, -localDirection), 0.0);
                         
-                        float3 F = F_Schlick(f0, LdotH);
-                        float G = V_SmithGGXCorrelated(hitRoughness, NdotV, NdotL);
-                        float D = DistributionGGX(NdotH, hitRoughness);
-                        
-                        radiance += beta * light_color * attenuation * shadow * NdotL * (
-                            (1.0 - F) * diffuseColor * HYP_FMATH_ONE_OVER_PI + 
-                            F * G * D
-                        );
+                        radiance += beta * light_color * attenuation * shadow * NdotL * diffuseColor * HYP_FMATH_ONE_OVER_PI;
                     }
                 }
             }

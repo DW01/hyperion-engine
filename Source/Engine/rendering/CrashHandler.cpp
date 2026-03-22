@@ -240,7 +240,7 @@ void CrashHandler::Dump()
     const auto start = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::milliseconds::zero();
 
-    while (status != GFSDK_Aftermath_CrashDump_Status_CollectingDataFailed && status != GFSDK_Aftermath_CrashDump_Status_Finished && elapsed.count() < 10000)
+    while (status != GFSDK_Aftermath_CrashDump_Status_CollectingDataFailed && status != GFSDK_Aftermath_CrashDump_Status_Finished && elapsed.count() < 30000)
     {
         ThreadSleep(30);
 

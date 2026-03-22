@@ -15,6 +15,8 @@
 
 #include <Core/name/Name.hpp>
 
+#include <Core/utilities/StringUtil.hpp>
+
 #include <type_traits>
 
 namespace Hyperion {
@@ -33,6 +35,8 @@ using ConfigValue = JSON::Value;
 
 using config::ConfigValue;
 using config::ConfigBase;
+
+struct BoxedValue;
 
 class CVarManager;
 
@@ -58,7 +62,9 @@ public:
 
     virtual ~CVarBase() = default;
 
-    virtual void SetFromConfig(const ConfigValue& cfgValue) = 0;
+    virtual bool SetFromConfig(const ConfigValue& cfgValue) = 0;
+    virtual bool SetFromBoxed(const BoxedValue& boxed) = 0;
+    virtual bool SetFromString(const String& str) = 0;
     
 protected:
     virtual void WriteToSnapshot(CVarSnapshotValue& snapshotValue) const = 0;
@@ -81,7 +87,9 @@ public:
 
     const T& Get() const;
 
-    void SetFromConfig(const ConfigValue& cfgValue) override;
+    bool SetFromConfig(const ConfigValue& cfgValue) override;
+    bool SetFromBoxed(const BoxedValue& boxed) override;
+    bool SetFromString(const String& str) override;
 
 protected:
     void WriteToSnapshot(CVarSnapshotValue& snapshotValue) const override
@@ -98,22 +106,132 @@ private:
 
 #pragma region SetFromConfig specializations
 
-template <> HYP_API void CVar<int8>::SetFromConfig(const ConfigValue& cfgValue);
-template <> HYP_API void CVar<int16>::SetFromConfig(const ConfigValue& cfgValue);
-template <> HYP_API void CVar<int32>::SetFromConfig(const ConfigValue& cfgValue);
-template <> HYP_API void CVar<int64>::SetFromConfig(const ConfigValue& cfgValue);
+// SetFromConfig
 
-template <> HYP_API void CVar<uint8>::SetFromConfig(const ConfigValue& cfgValue);
-template <> HYP_API void CVar<uint16>::SetFromConfig(const ConfigValue& cfgValue);
-template <> HYP_API void CVar<uint32>::SetFromConfig(const ConfigValue& cfgValue);
-template <> HYP_API void CVar<uint64>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API bool CVar<int8>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API bool CVar<int16>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API bool CVar<int32>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API bool CVar<int64>::SetFromConfig(const ConfigValue& cfgValue);
 
-template <> HYP_API void CVar<float>::SetFromConfig(const ConfigValue& cfgValue);
-template <> HYP_API void CVar<double>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API bool CVar<uint8>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API bool CVar<uint16>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API bool CVar<uint32>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API bool CVar<uint64>::SetFromConfig(const ConfigValue& cfgValue);
 
-template <> HYP_API void CVar<bool>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API bool CVar<float>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API bool CVar<double>::SetFromConfig(const ConfigValue& cfgValue);
 
-template <> HYP_API void CVar<String>::SetFromConfig(const ConfigValue& cfgValue);
+template <> HYP_API bool CVar<bool>::SetFromConfig(const ConfigValue& cfgValue);
+
+template <> HYP_API bool CVar<String>::SetFromConfig(const ConfigValue& cfgValue);
+
+// SetFromBoxed
+
+template <typename T>
+inline bool CVar<T>::SetFromBoxed(const BoxedValue& boxed)
+{
+    if (!boxed.Is<T>())
+    {
+        return false;
+    }
+    
+    m_value = boxed.Get<T>();
+
+    return true;
+}
+
+// SetFromString
+
+// default impl
+template <typename T>
+inline bool CVar<T>::SetFromString(const String& str)
+{
+    return false;
+}
+
+template <>
+inline bool CVar<int8>::SetFromString(const String& str)
+{
+    return StringUtil::Parse(str, &m_value);
+}
+
+template <>
+inline bool CVar<int16>::SetFromString(const String& str)
+{
+    return StringUtil::Parse(str, &m_value);
+}
+
+template <>
+inline bool CVar<int32>::SetFromString(const String& str)
+{
+    return StringUtil::Parse(str, &m_value);
+}
+
+template <>
+inline bool CVar<int64>::SetFromString(const String& str)
+{
+    return StringUtil::Parse(str, &m_value);
+}
+
+template <>
+inline bool CVar<uint8>::SetFromString(const String& str)
+{
+    return StringUtil::Parse(str, &m_value);
+}
+
+template <>
+inline bool CVar<uint16>::SetFromString(const String& str)
+{
+    return StringUtil::Parse(str, &m_value);
+}
+
+template <>
+inline bool CVar<uint32>::SetFromString(const String& str)
+{
+    return StringUtil::Parse(str, &m_value);
+}
+
+template <>
+inline bool CVar<uint64>::SetFromString(const String& str)
+{
+    return StringUtil::Parse(str, &m_value);
+}
+
+template <>
+inline bool CVar<float>::SetFromString(const String& str)
+{
+    return StringUtil::Parse(str, &m_value);
+}
+
+template <>
+inline bool CVar<double>::SetFromString(const String& str)
+{
+    return StringUtil::Parse(str, &m_value);
+}
+
+template <>
+inline bool CVar<bool>::SetFromString(const String& str)
+{
+    if (str == "true" || str == "1")
+    {
+        m_value = true;
+        return true;
+    }
+    else if (str == "false" || str == "0")
+    {
+        m_value = false;
+        return true;
+    }
+
+    return false;
+}
+
+template <>
+inline bool CVar<String>::SetFromString(const String& str)
+{
+    m_value = str;
+    return true;
+}
 
 #pragma endregion SetFromConfig specializations
 
@@ -162,10 +280,10 @@ public:
 
     void InitFromConfig(const ConfigBase& config);
 
-    CVarBase *FindVar(Name name) const;
+    HYP_NODISCARD CVarBase* FindVar(const ANSIString& name) const;
 
     template <typename T>
-    void SetVar(Name name, T value);
+    void SetVar(StringHash nameHash, const T& value);
 
     template <typename T>
     T GetVar(StringHash nameHash) const;
@@ -174,14 +292,13 @@ public:
      *  Call once per frame at end of frame. */
     void Advance();
 
-    uint32 GetVersion() const;
-
     const CVarSnapshot& GetCurrentSnapshot() const;
 
-    FixedArray<CVarBase *, MaxCVars> vars;
+    FixedArray<CVarBase*, MaxCVars> vars;
 
 private:
-    int FindVarIndex(StringHash nameHash) const;
+    HYP_NODISCARD int FindVarIndex(const ANSIString& name) const;
+    HYP_NODISCARD int FindVarIndex(StringHash nameHash) const;
 
     CVarSnapshot m_snapshots[RingBufferDepth];
     AtomicVar<uint32> m_snapshotIndex;

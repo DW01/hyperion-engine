@@ -75,7 +75,7 @@ DECLARE_BUFFER_DYNAMIC(RTReflections, CBuffer) cbuffer CBuffer
 
 #define RAY_OFFSET 0.01
 #define NUM_SAMPLES 2
-#define NUM_BOUNCES 4
+#define NUM_BOUNCES 6
 
 [shader("raygeneration")]
 void RayGenMain()
@@ -156,6 +156,10 @@ void RayGenMain()
             direction = normalize(SampleCosineDir(rnd, N0));
         }
 
+        if (dot(N0, direction) <= 0.0)
+        {
+            continue;
+        }
 
         float3 radiance = (float3)0;
         float3 beta = (float3)1.0;
@@ -174,9 +178,6 @@ void RayGenMain()
                 float3 F = F_Schlick(F0_init, LdotH);
                 float D = DistributionGGX(NdotH, roughness);
                 float G = V_SmithGGXCorrelated(roughness, NdotV, NdotL);
-
-                // do I need to divide by PI here?
-                // @TODO come back to this
                 
                 float3 specularBrdf = F * D * G;
                 float3 diffuseBrdf = (1.0 - F) * (1.0 - metalness) * albedo * HYP_FMATH_ONE_OVER_PI;
@@ -234,8 +235,8 @@ void RayGenMain()
 
             float3 hitAlbedo = payload.throughput.rgb;
             
-            float hitRoughness = 1.0;
-            float hitMetalness = 0.0;
+            float hitRoughness = payload.roughness;
+            float hitMetalness = payload.throughput.w;
             
             float3 diffuseColor = hitAlbedo * (1.0 - hitMetalness);
             float3 f0 = CalculateF0(hitAlbedo, hitMetalness);
@@ -307,7 +308,7 @@ void RayGenMain()
             // Russian Roulette
             if (bounceIndex >= 3)
             {
-                float p = clamp(max(max(beta.r, beta.g), beta.b), 0.05, 0.99);
+                float p = clamp(max(max(beta.r, beta.g), beta.b), 0.05, 1.0);
                 if (RandomFloat(ray_seed) > p) {
                     break;
                 }

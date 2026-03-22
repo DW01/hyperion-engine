@@ -197,6 +197,14 @@ void BakerBase::Initialize()
             .bounds = bounds
         };
 
+        // look for backdrop scene
+        // @TODO : Fix this up, this is temp debug stuff
+        const Handle<Scene>& backdropScene = m_scene->GetWorld()->GetSceneByName("SkyVisScene"_sh);
+        if (backdropScene.IsValid())
+        {
+            viewDesc.scenes.PushBack(backdropScene.Get());
+        }
+
         m_view = MakeHandle<View>(viewDesc);
         m_view->SetName(NAME_FMT("{}_View", InstanceClass()->GetName()));
         InitObject(m_view);

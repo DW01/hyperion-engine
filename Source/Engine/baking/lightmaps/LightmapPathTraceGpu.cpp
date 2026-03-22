@@ -351,8 +351,6 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
         HYP_DEFER({ rpl.EndRead(); });
 
         RayTracingConstants constants {};
-        Memory::Zero(&constants, sizeof(constants));
-
         constants.rayOffset = rayOffset;
         
         Array<Pair<Light*, LightShaderData*>, RenderAllocator> tempLights;
