@@ -153,7 +153,7 @@ function(RunCodeGen version_major version_minor)
         set(HYP_CODEGEN_BUILD_SCRIPT_PATH "${CMAKE_SOURCE_DIR}/../Tools/Scripts/BuildCodeGen.sh")
     endif()
 
-    message(STATUS "Running CodeGen: ${HYP_CODEGEN_RUN_SCRIPT_PATH}")
+    message(STATUS "Running CodeGen: ${HYP_CODEGEN_RUN_SCRIPT_PATH} with version ${version_major}.${version_minor}")
 
     if(NOT EXISTS ${HYP_CODEGEN_RUN_SCRIPT_PATH})
         message(FATAL_ERROR "RunCodeGen script not found in ${CMAKE_SOURCE_DIR}/../Tools/Scripts! Expected path: ${HYP_CODEGEN_RUN_SCRIPT_PATH}")
@@ -218,7 +218,7 @@ if(HYP_MSVC)
     add_definitions("/D_HAS_EXCEPTIONS=0")
     add_definitions("/DNOMINMAX")
 
-    set(CMAKE_CXX_FLAGS "/Zc:preprocessor /Zc:__cplusplus /O2 /MD /Z7 /constexpr:depth1024 /bigobj /MP")
+    set(CMAKE_CXX_FLAGS "/Zc:preprocessor /Zc:__cplusplus /O2 /MD /Z7 /constexpr:depth1024 /bigobj /MP /arch:AVX2")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG /NATVIS:${CMAKE_SOURCE_DIR}/Engine/Hyperion.natvis")
     # if(HYP_DEBUG_MODE)
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DEBUG")

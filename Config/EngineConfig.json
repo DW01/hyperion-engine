@@ -10,7 +10,7 @@
       "GI": {
         "Enabled": false
       },
-      "Enabled": true
+      "Enabled": false
     },
     "SSAO": {
       "Enabled": false

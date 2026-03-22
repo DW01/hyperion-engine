@@ -1845,6 +1845,8 @@ int main(int argc, char** argv)
 
     CommandLineParser commandLineParser { &definitions };
 
+    HYP_LOG(Tool, Info, "Starting CodeGenTool...");
+
     if (auto parseResult = commandLineParser.Parse(argc, argv))
     {
         TaskSystem::GetInstance().Start();
@@ -1918,6 +1920,8 @@ int main(int argc, char** argv)
 
         if (res.HasError())
         {
+            HYP_LOG(Tool, Error, "Tool execution failed: {}", res.GetError().GetMessage());
+
             return 1;
         }
     }

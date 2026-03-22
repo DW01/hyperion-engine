@@ -495,7 +495,7 @@ static HYP_FORCE_INLINE void ExecuteBreakpointOnce()
 
 #pragma region Symbol Visibility
 
-#ifdef HYP_MSVC
+#ifdef HYP_WINDOWS
 #define HYP_EXPORT __declspec(dllexport)
 #define HYP_IMPORT __declspec(dllimport)
 #elif defined(HYP_CLANG_OR_GCC)

@@ -1797,58 +1797,59 @@ bool ShaderCompiler::HandleBundle(
 {
     Assert(inOutBundle.IsValid());
 
-    // Check that each version specified is present in the ShaderBundle.
-    // OR any src files have been changed since the object file was compiled.
-    // if not, we need to recompile those versions.
-
-    Time maxSourceFileLastModified = Time(0);
-
-    for (const auto& sourceFile : decl.sources)
-    {
-        maxSourceFileLastModified = MathUtil::Max(maxSourceFileLastModified, FilePath(sourceFile.second).LastModifiedTimestamp());
-    }
-
-    if (maxSourceFileLastModified > lastSavedTimestamp)
-    {
-        HYP_LOG(ShaderCompiler, Verbose,
-            "Source file in bundle {} has been modified since the bundle was "
-            "last compiled, recompiling...",
-            *decl.name);
-
-        return CompileBundle(decl, shaderRequest, inOutBundle, !ShouldCompileEntireBundle);
-    }
-
     // find variants for the bundle that are not in the compiled bundle
     Array<ShaderVariantPerms> missingPerms;
-
-    if (ShouldCompileMissingVariants)
+    
+    if (CanCompileShaders())
     {
-        ForEachPermutation(
-            decl.variantPerms,
-            [&](const ShaderVariantPerms& perm)
+            // Check that each version specified is present in the ShaderBundle.
+            // OR any src files have been changed since the object file was compiled.
+            // if not, we need to recompile those versions.
+
+            Time maxSourceFileLastModified = Time(0);
+
+            for (const auto& sourceFile : decl.sources)
             {
-                // get hashcode for this permutation
-                // only care about the property set (not vertex attributes), as we will
-                // only have access to those from the bundle plus, changing vertex
-                // attributes will cause a recompile anyway due to shaders' file
-                // contents changing
-                const HashCode propertySetHashCode = perm.GetPropertySetHashCode();
+                maxSourceFileLastModified = MathUtil::Max(maxSourceFileLastModified, FilePath(sourceFile.second).LastModifiedTimestamp());
+            }
 
-                const auto it = inOutBundle->compiledShaders.FindIf(
-                    [propertySetHashCode](const Handle<Shader>& item)
-                    {
-                        return item->propertySetHashCode == propertySetHashCode;
-                    });
+            if (maxSourceFileLastModified > lastSavedTimestamp)
+            {
+                HYP_LOG(ShaderCompiler, Verbose,
+                    "Source file in bundle {} has been modified since the bundle was "
+                    "last compiled, recompiling...",
+                    *decl.name);
 
-                if (it == inOutBundle->compiledShaders.End())
+                return CompileBundle(decl, shaderRequest, inOutBundle, !ShouldCompileEntireBundle);
+            }
+
+        if (ShouldCompileMissingVariants)
+        {
+            ForEachPermutation(
+                decl.variantPerms,
+                [&](const ShaderVariantPerms& perm)
                 {
-                    missingPerms.PushBack(perm);
-                }
-            },
-            false);
-    }
+                    // get hashcode for this permutation
+                    // only care about the property set (not vertex attributes), as we will
+                    // only have access to those from the bundle plus, changing vertex
+                    // attributes will cause a recompile anyway due to shaders' file
+                    // contents changing
+                    const HashCode propertySetHashCode = perm.GetPropertySetHashCode();
 
-    const bool anyMissing = missingPerms.Any();
+                    const auto it = inOutBundle->compiledShaders.FindIf(
+                        [propertySetHashCode](const Handle<Shader>& item)
+                        {
+                            return item->propertySetHashCode == propertySetHashCode;
+                        });
+
+                    if (it == inOutBundle->compiledShaders.End())
+                    {
+                        missingPerms.PushBack(perm);
+                    }
+                },
+                false);
+        }
+    }
 
     const bool requestedFound = shaderRequest.HasValue() &&
         inOutBundle->compiledShaders.FindIf([&shaderRequest](const Handle<Shader>& shader)
@@ -1860,10 +1861,9 @@ bool ShaderCompiler::HandleBundle(
             })
             != inOutBundle->compiledShaders.End();
 
-    if ((ShouldCompileMissingVariants && anyMissing) || (shaderRequest.HasValue() && !requestedFound))
+    if ((ShouldCompileMissingVariants && missingPerms.Any()) || (shaderRequest.HasValue() && !requestedFound))
     {
-
-        if (ShouldCompileMissingVariants && anyMissing)
+        if (ShouldCompileMissingVariants && missingPerms.Any())
         {
             size_t index = 0;
             String missingPermsString;

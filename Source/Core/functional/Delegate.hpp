@@ -46,7 +46,7 @@ class IDelegate;
 template <class ReturnType, class... Args>
 class Delegate;
 
-class DelegateHandler;
+struct DelegateHandler;
 
 // Flag to set while deleting an entry - prevents read scopes from entering
 // the critical section while the entry is potentially being deleted.

@@ -9,7 +9,7 @@
 namespace Hyperion {
 
 template <class T>
-struct EnumRegistration;
+class EnumRegistration;
 
 class Enum : protected Class
 {

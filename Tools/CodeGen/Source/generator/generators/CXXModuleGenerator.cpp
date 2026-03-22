@@ -481,7 +481,10 @@ Result CXXModuleGenerator::GenerateInline(const Analyzer& analyzer, const Module
 
         if (cls.namespaceParts.Any() && (cls.namespaceParts.Size() > 1 || cls.namespaceParts[0] != BaseNamespace))
         {
-            writer.WriteString(HYP_FORMAT("using namespace {};\n", BuildNamespaceString(cls.namespaceParts)));
+            writer.WriteString(HYP_FORMAT("using {} = {}::{};\n",
+                cls.name,
+                BuildNamespaceString(cls.namespaceParts),
+                cls.name));
         }
         
         writer.WriteString(HYP_FORMAT("using {}::Class;\n", BaseNamespace)); // to resolve ambiguity in intellisense
@@ -506,6 +509,12 @@ Result CXXModuleGenerator::GenerateInline(const Analyzer& analyzer, const Module
         writer.WriteString(HYP_FORMAT("namespace {}", BuildNamespaceString(cls.namespaceParts)) + " {\n");
         writer.WriteString(HYP_FORMAT("extern const Class* g_cls{};\n", cls.name));
         writer.WriteString("} " + HYP_FORMAT("// namespace {}\n\n", BuildNamespaceString(cls.namespaceParts)));
+
+        if (cls.namespaceParts.Any() && (cls.namespaceParts.Size() > 1 || cls.namespaceParts[0] != BaseNamespace))
+        {
+            // alias the global g_clsXXX to the namespaced one to avoid having to qualify it everywhere in the generated code
+            writer.WriteString(HYP_FORMAT("static const Class*& g_cls{} = {}::g_cls{};\n\n", cls.name, BuildNamespaceString(cls.namespaceParts), cls.name));
+        }
 
         writer.WriteString(HYP_FORMAT("#pragma region {} Reflection Data\n\n", cls.name));
 
@@ -860,7 +869,11 @@ Result CXXModuleGenerator::Generate(const Analyzer& analyzer, const Module& mod,
 
         if (cls.namespaceParts.Any() && (cls.namespaceParts.Size() > 1 || cls.namespaceParts[0] != BaseNamespace))
         {
-            writer.WriteString(HYP_FORMAT("using namespace {};\n", BuildNamespaceString(cls.namespaceParts)));
+            // bring the class into the current namespace to avoid having to qualify it everywhere in the generated code
+            writer.WriteString(HYP_FORMAT("using {} = {}::{};\n",
+                cls.name,
+                BuildNamespaceString(cls.namespaceParts),
+                cls.name));
         }
         
         writer.WriteString(HYP_FORMAT("using {}::Class;\n", BaseNamespace)); // to resolve ambiguity in intellisense
@@ -884,6 +897,12 @@ Result CXXModuleGenerator::Generate(const Analyzer& analyzer, const Module& mod,
         writer.WriteString(HYP_FORMAT("namespace {}", BuildNamespaceString(cls.namespaceParts)) + " {\n");
         writer.WriteString(HYP_FORMAT("extern const Class* g_cls{};\n", cls.name));
         writer.WriteString("} " + HYP_FORMAT("// namespace {}\n\n", BuildNamespaceString(cls.namespaceParts)));
+        
+        if (cls.namespaceParts.Any() && (cls.namespaceParts.Size() > 1 || cls.namespaceParts[0] != BaseNamespace))
+        {
+            // alias the global g_clsXXX to the namespaced one to avoid having to qualify it everywhere in the generated code
+            writer.WriteString(HYP_FORMAT("static const Class*& g_cls{} = {}::g_cls{};\n\n", cls.name, BuildNamespaceString(cls.namespaceParts), cls.name));
+        }
 
         writer.WriteString(HYP_FORMAT("#pragma region {} Reflection Data\n\n", cls.name));
 

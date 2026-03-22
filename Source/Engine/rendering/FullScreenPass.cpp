@@ -491,8 +491,6 @@ void FullScreenPass::CopyResultToPreviousTexture(Frame* frame, const RenderSetup
     HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
-    const uint32 frameIndex = frame->GetFrameIndex();
-
     CommandRecorder& cr = frame->cr;
 
     Assert(m_historyTexture.IsValid());
@@ -542,8 +540,6 @@ void FullScreenPass::Render(Frame* frame, const RenderSetup& renderSetup)
 
     AssertDebug(!(m_flags & FSP_EXTERNAL_RENDERTARGET), "Cannot use Render() with external target, use RenderToFramebuffer() instead");
     AssertDebug(m_framebuffer != nullptr);
-
-    const uint32 frameIndex = frame->GetFrameIndex();
 
     RenderToFramebuffer(frame, renderSetup, m_framebuffer);
 
@@ -681,7 +677,6 @@ void FullScreenPass::Begin(Frame* frame, const RenderSetup& renderSetup)
     AssertDebug(!(m_flags & FSP_EXTERNAL_RENDERTARGET), "Cannot use Begin()/End() with external target, use RenderToFramebuffer() instead");
     AssertDebug(m_framebuffer != nullptr);
 
-    const uint32 frameIndex = frame->GetFrameIndex();
     CommandRecorder& cr = frame->cr;
 
     cr << SetCurrentFramebuffer(m_framebuffer);
@@ -726,8 +721,6 @@ void FullScreenPass::End(Frame* frame, const RenderSetup& renderSetup)
 
     AssertDebug(!(m_flags & FSP_EXTERNAL_RENDERTARGET), "Cannot use Begin()/End() with external target, use RenderToFramebuffer() instead");
     AssertDebug(m_framebuffer != nullptr);
-
-    const uint32 frameIndex = frame->GetFrameIndex();
 
     CommandRecorder& cr = frame->cr;
 

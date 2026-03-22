@@ -104,7 +104,7 @@ struct HYP_API TimeDiff
 };
 
 HYP_STRUCT(Serialize = "bitwise")
-class HYP_API Time
+class Time
 {
     HYP_STRUCT_BODY(Time);
 
@@ -113,10 +113,13 @@ public:
 
     Time();
     Time(uint64 timestamp);
+    
     Time(const Time& other) = default;
     Time& operator=(const Time& other) = default;
+
     Time(Time&& other) noexcept = default;
     Time& operator=(Time&& other) noexcept = default;
+
     ~Time() = default;
 
     HYP_FORCE_INLINE explicit operator uint64() const

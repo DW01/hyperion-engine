@@ -30,8 +30,9 @@ enum BvhFlags : uint32
 HYP_MAKE_ENUM_FLAGS(BvhFlags)
 
 HYP_STRUCT()
-struct HYP_API BVHNode
+class HYP_API BVHNode
 {
+public:
     HYP_STRUCT_BODY(BVHNode);
 
     HYP_FIELD(Serialize)

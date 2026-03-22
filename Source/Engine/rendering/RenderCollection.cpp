@@ -651,8 +651,6 @@ static void SetForwardShadingUniforms(
 
     for (Light* light : rpl.GetLights())
     {
-        const LightType lightType = light->GetLightType();
-
         if (forwardShadingConstants->numBoundLights >= MaxBoundLightsForwardShading)
         {
             break;
@@ -751,9 +749,6 @@ static void RenderAll(
 
     const RenderGroup& renderGroup = drawCallCollection.renderGroup;
     const RenderableAttributeSet& renderableAttributes = renderGroup.renderableAttributes;
-
-    const MeshAttributes& meshAttributes = renderableAttributes.GetMeshAttributes();
-    const MaterialAttributes& materialAttributes = renderableAttributes.GetMaterialAttributes();
 
     uint32 numShaderUniforms = 0;
     
@@ -1125,12 +1120,12 @@ RenderCollector::~RenderCollector()
             {
                 const auto DestructCommandRecorders = [&allLocalQueues]() -> void
                 {
-                    static thread_local uint32 s_currRenderThreadThreadIndex = CurrentRenderThreadIndex();
-                    Assert(s_currRenderThreadThreadIndex < ParallelRenderingState::MaxBatches);
+                    const uint32 currRenderThreadThreadIndex = CurrentRenderThreadIndex();
+                    Assert(currRenderThreadThreadIndex < ParallelRenderingState::MaxBatches);
 
                     for (FixedArray<ParallelRenderingState::LocalQueue*, ParallelRenderingState::MaxBatches>& queues : allLocalQueues)
                     {
-                        ParallelRenderingState::LocalQueue* currQueue = queues[s_currRenderThreadThreadIndex];
+                        ParallelRenderingState::LocalQueue* currQueue = queues[currRenderThreadThreadIndex];
 
                         if (currQueue != nullptr)
                         {
@@ -1486,8 +1481,6 @@ bool RenderCollector::BeginRecordDrawCalls(
             DrawCallCollection& drawCallCollection = it.second;
             AssertDebug(drawCallCollection.IsValid());
 
-            const RenderBucket rb = attributes.GetMaterialAttributes().bucket;
-
             RenderGroup& renderGroup = drawCallCollection.renderGroup;
             AssertDebug(renderGroup.valid);
 
@@ -1573,8 +1566,6 @@ void RenderCollector::ExecuteDrawCalls(
     {
         bucketBits = AllBucketsMask;
     }
-
-    const uint32 frameIndex = frame->GetFrameIndex();
 
     Span<HashMap<RenderableAttributeSet, DrawCallCollection, NodeAllocator<RenderAllocator>>> groupsView;
 
@@ -1745,8 +1736,6 @@ void RenderCollector::BuildDrawCalls(uint32 bucketBits)
 
     for (IteratorType it : iterators)
     {
-        const RenderableAttributeSet& attributes = it->first;
-
         DrawCallCollection& drawCallCollection = it->second;
         AssertDebug(drawCallCollection.IsValid());
 

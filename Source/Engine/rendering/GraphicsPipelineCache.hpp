@@ -78,7 +78,7 @@ public:
 class GraphicsPipelineCache
 {
 public:
-    friend struct GraphicsPipelineCacheHandle;
+    friend class GraphicsPipelineCacheHandle;
 
     GraphicsPipelineCache();
     

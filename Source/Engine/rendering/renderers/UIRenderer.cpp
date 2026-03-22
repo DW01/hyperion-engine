@@ -159,8 +159,6 @@ void UIRenderCollector::ExecuteDrawCalls(Frame* frame, const RenderSetup& render
     rpl.BeginRead();
     HYP_DEFER({ rpl.EndRead(); });
 
-    const uint32 frameIndex = frame->GetFrameIndex();
-
     if (framebuffer != nullptr)
     {
         frame->cr << SetCurrentFramebuffer(framebuffer);
