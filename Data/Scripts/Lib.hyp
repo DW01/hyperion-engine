@@ -690,7 +690,7 @@ extern class World
     AddScene(scene : Scene, addToStreamingLayer : bool) -> void
     RemoveScene(scene : Scene, removeFromStreamingLayer : bool) -> bool
     HasScene(sceneId : any) -> bool
-    GetSceneByName(name : Name) -> Scene
+    GetSceneByName(nameHash : any) -> Scene
     GetScenes() -> Array<Scene>
     AddView(view : View) -> void
     RemoveView(view : View) -> void

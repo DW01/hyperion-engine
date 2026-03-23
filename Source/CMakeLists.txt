@@ -1090,6 +1090,12 @@ remove_definitions(-DHYP_BUILD_LIBRARY)
 
 add_subdirectory(Sample)
 
+# If editor build, add the commandlet targets.
+# otherwise, we don't want 'em
+if(HYP_EDITOR)
+    add_subdirectory(Commandlets)
+endif()
+
 # # copy sample scripts to the output directory
 # file(GLOB SAMPLE_SCRIPTS "${CMAKE_SOURCE_DIR}/../Data/Scripts/*.hyp")
 # foreach(SAMPLE_SCRIPT ${SAMPLE_SCRIPTS})

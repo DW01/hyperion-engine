@@ -537,7 +537,7 @@ public:
     ~ShaderCompiler();
 
     HYP_API bool CanCompileShaders() const;
-    HYP_API bool LoadShaderDefinitions(bool precompileShaders = false);
+    HYP_API bool LoadShaderDefinitions(bool precompileShaders = false, bool compileAllVariants = false);
 
     HYP_API bool RequestShader(
         Name name,
@@ -584,6 +584,7 @@ private:
 
     INIFile* m_definitions;
     Array<ShaderBundleDecl> m_shaderBundleDecls;
+    bool m_compileAllVariants = false;
 };
 
 } // namespace Hyperion

@@ -66,7 +66,7 @@ bool CVar<String>::SetFromConfig(const ConfigValue& cfgValue)
 }
 
 template <typename T>
-static const T& ReadCVarValue(const CVar<T>& cvar)
+inline const T& ReadCVarValue(const CVar<T>& cvar)
 {
     if (!s_pInstance || cvar.id < 0)
     {
@@ -80,7 +80,7 @@ static const T& ReadCVarValue(const CVar<T>& cvar)
         return cvar.m_value;
     }
 
-    return snapshot.values[cvar.id].Get<T>();
+    return snapshot.values[cvar.id].template Get<T>();
 }
 
 template <> const int8& CVar<int8>::Get() const { return ReadCVarValue(*this); }

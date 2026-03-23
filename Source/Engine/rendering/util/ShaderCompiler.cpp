@@ -70,7 +70,6 @@ namespace Hyperion {
 HYP_DEFINE_LOG_SUBCHANNEL(ShaderCompiler, Core);
 
 static constexpr bool ShouldCompileMissingVariants = false;
-static constexpr bool ShouldCompileEntireBundle = false; // aggressively compile all permutations defined
 
 // #define HYP_SHADER_COMPILER_LOGGING
 
@@ -261,8 +260,6 @@ static String BuildAttributesDefines(
                 "Shader property {} defined multiple times in shader properties! This may cause shader compilation errors.",
                 property.name);
 
-            HYP_BREAKPOINT;
-
             continue;
         }
 
@@ -323,7 +320,7 @@ void MergeGlobalShaderProperties(ShaderPropertySet& out)
 
     const EngineConfig& cfg = GetEngineConfig();
 
-    if (g_renderInterface->GetRenderConfig().bindlessTextures)
+    if (g_renderInterface && g_renderInterface->GetRenderConfig().bindlessTextures)
         out.Add(s_propBindlessTextures);
 
     if (cfg.Get("Rendering.Debug.Irradiance").ToBool(false))
@@ -1816,7 +1813,7 @@ bool ShaderCompiler::HandleBundle(
                     "last compiled, recompiling...",
                     *decl.name);
 
-                return CompileBundle(decl, shaderRequest, inOutBundle, !ShouldCompileEntireBundle);
+                return CompileBundle(decl, shaderRequest, inOutBundle, !m_compileAllVariants);
             }
 
         if (ShouldCompileMissingVariants)
@@ -1911,7 +1908,7 @@ bool ShaderCompiler::HandleBundle(
                 decl,
                 shaderRequest,
                 inOutBundle,
-                !ShouldCompileEntireBundle);
+                !m_compileAllVariants);
         }
 
         return false;
@@ -1978,7 +1975,7 @@ bool ShaderCompiler::LoadBundle(
             return false;
         }
 
-        if (!CompileBundle(decl, shaderRequest, outBundle, !ShouldCompileEntireBundle))
+        if (!CompileBundle(decl, shaderRequest, outBundle, !m_compileAllVariants))
         {
             HYP_LOG(ShaderCompiler, Error, "Failed to compile shader bundle {}", name);
 
@@ -2008,44 +2005,42 @@ bool ShaderCompiler::LoadBundle(
     return HandleBundle(decl, shaderRequest, lastSavedTimestamp, outBundle);
 }
 
-bool ShaderCompiler::LoadShaderDefinitions(bool precompileShaders)
+bool ShaderCompiler::LoadShaderDefinitions(bool precompileShaders, bool compileAllVariants)
 {
-    if (m_definitions && m_definitions->IsValid())
+    if (!m_definitions || !m_definitions->IsValid())
     {
-        return true;
-    }
+        if (m_definitions)
+        {
+            delete m_definitions;
+        }
 
-    if (m_definitions)
-    {
-        delete m_definitions;
-    }
+        m_definitions = new INIFile(GetShaderSourceDirectory() / "Shaders.ini");
 
-    m_definitions = new INIFile(GetShaderSourceDirectory() / "Shaders.ini");
+        if (!m_definitions->IsValid())
+        {
+            HYP_LOG(ShaderCompiler, Warning,
+                "Failed to load shader definitions file at path: {}",
+                m_definitions->GetFilePath());
 
-    if (!m_definitions->IsValid())
-    {
-        HYP_LOG(ShaderCompiler, Warning,
-            "Failed to load shader definitions file at path: {}",
-            m_definitions->GetFilePath());
+            delete m_definitions;
+            m_definitions = nullptr;
 
-        delete m_definitions;
-        m_definitions = nullptr;
+            return false;
+        }
 
-        return false;
-    }
+        m_shaderBundleDecls.Clear();
+        m_shaderBundleDecls.Reserve(m_definitions->GetSections().Size());
 
-    m_shaderBundleDecls.Clear();
-    m_shaderBundleDecls.Reserve(m_definitions->GetSections().Size());
+        for (const auto& it : m_definitions->GetSections())
+        {
+            const String& key = it.first;
+            const INIFile::Section& section = it.second;
 
-    for (const auto& it : m_definitions->GetSections())
-    {
-        const String& key = it.first;
-        const INIFile::Section& section = it.second;
+            const Name nameFromString = CreateNameFromDynamicString(ANSIString(key));
 
-        const Name nameFromString = CreateNameFromDynamicString(ANSIString(key));
-
-        ShaderBundleDecl& decl = m_shaderBundleDecls.EmplaceBack(nameFromString);
-        ParseDefinitionSection(section, decl);
+            ShaderBundleDecl& decl = m_shaderBundleDecls.EmplaceBack(nameFromString);
+            ParseDefinitionSection(section, decl);
+        }
     }
 
     if (!precompileShaders)
@@ -2053,9 +2048,9 @@ bool ShaderCompiler::LoadShaderDefinitions(bool precompileShaders)
         return true;
     }
 
-    HYP_LOG(ShaderCompiler, Verbose, "Precompiling shaders...");
+    m_compileAllVariants = compileAllVariants;
 
-    const bool supportsRtShaders = g_renderInterface->GetRenderConfig().rayTracing;
+    HYP_LOG(ShaderCompiler, Verbose, "Precompiling shaders...");
 
     HashMap<const ShaderBundleDecl*, bool> results;
     Mutex resultsMutex;
@@ -2063,17 +2058,7 @@ bool ShaderCompiler::LoadShaderDefinitions(bool precompileShaders)
     // Compile all shaders ahead of time
     TaskSystem::GetInstance().ParallelForEach(m_shaderBundleDecls, [&](const ShaderBundleDecl& decl, uint32, uint32)
         {
-            if (decl.HasRTShaders() && !supportsRtShaders)
-            {
-                HYP_LOG(ShaderCompiler, Warning,
-                    "Not compiling shader {} because it contains ray tracing "
-                    "shaders and ray tracing is not supported on this device.",
-                    decl.name);
-
-                return;
-            }
-
-            // @TODO Just use LoadBundle with empty Optional<ShaderRequest>
+            // @TODO Just use LoadBundle with empty Optional<ShaderRequest>?
 
             ForEachPermutation(
                 decl.variantPerms,
@@ -2115,6 +2100,8 @@ bool ShaderCompiler::LoadShaderDefinitions(bool precompileShaders)
             allResults = false;
         }
     }
+
+    m_compileAllVariants = false;
 
     return allResults;
 }
@@ -2905,8 +2892,6 @@ bool ShaderCompiler::CompileBundle(
             HYP_LOG(ShaderCompiler, Error, "\t{}", error.errorMessage);
         }
 
-        HYP_BREAKPOINT;
-
         return false;
     }
 
@@ -3047,8 +3032,6 @@ bool ShaderCompiler::CompileBundle(
                     "Failed to merge additional shader property {} into final properties: {}",
                     additionalProperty.name,
                     mergeResult.GetError().GetMessage());
-
-                HYP_BREAKPOINT;
             }
         }
     }
@@ -3383,7 +3366,7 @@ bool ShaderCompiler::CompileBundle(
             HYP_LOG(ShaderCompiler, Error, "\t{}", errorMessage);
         }
 
-        HYP_BREAKPOINT;
+        //HYP_BREAKPOINT;
 
         return false;
     }

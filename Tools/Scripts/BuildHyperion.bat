@@ -21,7 +21,7 @@ if "%HYP_ANDROID%"=="1" (
     if not exist Build\Android\%HYP_BUILD_TYPE% mkdir Build\Android\%HYP_BUILD_TYPE%
     pushd Build\Android\%HYP_BUILD_TYPE%
 ) else (
-    if not exist Build\Windows%HYP_BUILD_TYPE% mkdir Build\Windows\%HYP_BUILD_TYPE%
+    if not exist Build\Windows\%HYP_BUILD_TYPE% mkdir Build\Windows\%HYP_BUILD_TYPE%
     pushd Build\Windows\%HYP_BUILD_TYPE%
 )
 

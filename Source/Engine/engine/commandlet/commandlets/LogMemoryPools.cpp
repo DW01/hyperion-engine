@@ -9,8 +9,6 @@
 
 namespace Hyperion {
 
-HYP_DECLARE_LOG_CHANNEL(Console);
-
 class LogMemoryPools : public CommandletBase
 {
     HYP_OBJECT_BODY(LogMemoryPools);
