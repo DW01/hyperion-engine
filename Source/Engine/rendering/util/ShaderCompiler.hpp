@@ -499,7 +499,6 @@ public:
 };
 
 void MergeGlobalShaderProperties(ShaderPropertySet& out);
-void MergeGlobalShaderProperties(ShaderVariantPerms& out);
 
 class ShaderCompiler
 {
@@ -537,7 +536,7 @@ public:
     ~ShaderCompiler();
 
     HYP_API bool CanCompileShaders() const;
-    HYP_API bool LoadShaderDefinitions(bool precompileShaders = false, bool compileAllVariants = false);
+    HYP_API bool LoadShaderDefinitions(bool precompileShaders = false);
 
     HYP_API bool RequestShader(
         Name name,
@@ -562,7 +561,7 @@ private:
         ShaderBundleDecl& decl,
         Handle<ShaderBundle>& outBundle)
     {
-        return CompileBundle(decl, {}, outBundle, false);
+        return CompileBundle(decl, {}, outBundle);
     }
 
     bool HandleBundle(
@@ -574,8 +573,7 @@ private:
     bool CompileBundle(
         const ShaderBundleDecl& decl,
         Optional<ShaderRequest> shaderRequest,
-        Handle<ShaderBundle>& outBundle,
-        bool onlyCompileRequested = false);
+        Handle<ShaderBundle>& outBundle);
 
     bool LoadBundle(
         Name name,
@@ -584,7 +582,7 @@ private:
 
     INIFile* m_definitions;
     Array<ShaderBundleDecl> m_shaderBundleDecls;
-    bool m_compileAllVariants = false;
+    bool m_isPrecompilingShaders;
 };
 
 } // namespace Hyperion

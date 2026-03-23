@@ -336,10 +336,20 @@ void MergeGlobalShaderProperties(ShaderPropertySet& out)
         out.Add(s_propDebugAO);
 }
 
-void MergeGlobalShaderProperties(ShaderVariantPerms& inOutPerm)
+static void MergeGlobalShaderProperties(bool shouldCompileEntireBundle, ShaderVariantPerms& inOutPerm)
 {
     ShaderPropertySet props;
     MergeGlobalShaderProperties(props);
+
+    if (shouldCompileEntireBundle)
+    {
+        // if compiling the entire bundle (like with PrecompileShaders.exe),
+        // we want to add some of these properties as a permutation, rather than as a static property.
+
+        inOutPerm.Set(NAME("HYP_FEATURES_BINDLESS_TEXTURES"), true, SPF_PERMUTATION);
+
+        props.Set(s_propBindlessTextures, false);
+    }
 
     for (const ShaderPropertyId& propertyId : props.ToArray())
     {
@@ -1324,7 +1334,10 @@ static void ForEachPermutation(
             {
                 AssertDebug(!variableProperties[j].IsValueGroup());
 
-                currentProperties.Insert(variableProperties[j]);
+                ShaderProperty newProperty = variableProperties[j];
+                newProperty.flags = SPF_NONE; // have to make sure it is not a permutable property anymore.
+
+                currentProperties.Add(newProperty);
             }
         }
 
@@ -1357,9 +1370,9 @@ static void ForEachPermutation(
 
                     AssertDebug(!merged.Has(valueGroup.name), "Duplicate shader property name detected for {}! This will cause shader compilation errors", valueGroup.name);
 
-                    const ShaderProperty::Value& shaderVal = valueGroup.enumValues[valueIndex];
+                    const ShaderProperty::Value& valueAtIndex = valueGroup.enumValues[valueIndex];
 
-                    merged.Set(ShaderProperty(valueGroup.name, shaderVal));
+                    merged.Set(ShaderProperty(valueGroup.name, valueAtIndex));
 
                     currentGroupPerms[existingCombinationIndex + (valueIndex * currentCombinations->Size())] = std::move(merged);
                 }
@@ -1652,7 +1665,8 @@ HashCode ShaderBundle::GetHashCode() const
 #pragma region ShaderCompiler
 
 ShaderCompiler::ShaderCompiler()
-    : m_definitions(nullptr)
+    : m_definitions(nullptr),
+      m_isPrecompilingShaders(false)
 {
 #if HYP_GLSLANG
     ShInitialize();
@@ -1813,7 +1827,7 @@ bool ShaderCompiler::HandleBundle(
                     "last compiled, recompiling...",
                     *decl.name);
 
-                return CompileBundle(decl, shaderRequest, inOutBundle, !m_compileAllVariants);
+                return CompileBundle(decl, shaderRequest, inOutBundle);
             }
 
         if (ShouldCompileMissingVariants)
@@ -1907,8 +1921,7 @@ bool ShaderCompiler::HandleBundle(
             return CompileBundle(
                 decl,
                 shaderRequest,
-                inOutBundle,
-                !m_compileAllVariants);
+                inOutBundle);
         }
 
         return false;
@@ -1954,7 +1967,7 @@ bool ShaderCompiler::LoadBundle(
     }
 
     ShaderBundleDecl decl { name };
-    MergeGlobalShaderProperties(decl.variantPerms);
+    MergeGlobalShaderProperties(m_isPrecompilingShaders, decl.variantPerms);
 
     // apply each permutable property from the definitions file
     const INIFile::Section& section = m_definitions->GetSection(nameString);
@@ -1975,7 +1988,7 @@ bool ShaderCompiler::LoadBundle(
             return false;
         }
 
-        if (!CompileBundle(decl, shaderRequest, outBundle, !m_compileAllVariants))
+        if (!CompileBundle(decl, shaderRequest, outBundle))
         {
             HYP_LOG(ShaderCompiler, Error, "Failed to compile shader bundle {}", name);
 
@@ -2005,7 +2018,7 @@ bool ShaderCompiler::LoadBundle(
     return HandleBundle(decl, shaderRequest, lastSavedTimestamp, outBundle);
 }
 
-bool ShaderCompiler::LoadShaderDefinitions(bool precompileShaders, bool compileAllVariants)
+bool ShaderCompiler::LoadShaderDefinitions(bool precompileShaders)
 {
     if (!m_definitions || !m_definitions->IsValid())
     {
@@ -2043,12 +2056,12 @@ bool ShaderCompiler::LoadShaderDefinitions(bool precompileShaders, bool compileA
         }
     }
 
+    m_isPrecompilingShaders = precompileShaders;
+
     if (!precompileShaders)
     {
         return true;
     }
-
-    m_compileAllVariants = compileAllVariants;
 
     HYP_LOG(ShaderCompiler, Verbose, "Precompiling shaders...");
 
@@ -2058,31 +2071,17 @@ bool ShaderCompiler::LoadShaderDefinitions(bool precompileShaders, bool compileA
     // Compile all shaders ahead of time
     TaskSystem::GetInstance().ParallelForEach(m_shaderBundleDecls, [&](const ShaderBundleDecl& decl, uint32, uint32)
         {
-            // @TODO Just use LoadBundle with empty Optional<ShaderRequest>?
+            Handle<ShaderBundle> bundle;
+            if (!LoadBundle(decl.name, Optional<ShaderRequest>(), bundle))
+            {
+                Mutex::Guard guard(resultsMutex);
+                results[&decl] = false;
 
-            ForEachPermutation(
-                decl.variantPerms,
-                [&](const ShaderVariantPerms& shaderVariant)
-                {
-                    ShaderPropertySet properties;
-                    for (const ShaderProperty& property : shaderVariant.GetPropertySet())
-                    {
-                        properties.Add(InternShaderProperty(property));
-                    }
-
-                    VertexAttributeSet vertexAttributes;
-                    for (const VertexAttribute* attr : shaderVariant.GetRequiredVertexAttributes().BuildAttributes())
-                    {
-                        vertexAttributes.Set(*attr);
-                    }
-
-                    Shader* shader = nullptr;
-                    bool result = RequestShader(decl.name, properties, vertexAttributes, shader);
-
-                    Mutex::Guard guard(resultsMutex);
-                    results[&decl] = result;
-                },
-                false); // true);
+                return;
+            }
+            
+            Mutex::Guard guard(resultsMutex);
+            results[&decl] = true;
         });
 
     bool allResults = true;
@@ -2101,7 +2100,7 @@ bool ShaderCompiler::LoadShaderDefinitions(bool precompileShaders, bool compileA
         }
     }
 
-    m_compileAllVariants = false;
+    m_isPrecompilingShaders = false;
 
     return allResults;
 }
@@ -2720,8 +2719,7 @@ ShaderCompiler::ProcessResult ShaderCompiler::ProcessShaderSource(
 bool ShaderCompiler::CompileBundle(
     const ShaderBundleDecl& decl,
     Optional<ShaderRequest> shaderRequest,
-    Handle<ShaderBundle>& outBundle,
-    bool onlyCompileRequested)
+    Handle<ShaderBundle>& outBundle)
 {
     if (!CanCompileShaders())
     {
@@ -2897,9 +2895,9 @@ bool ShaderCompiler::CompileBundle(
 
     // grab each defined property, and iterate over each combination
     ShaderVariantPerms permsToCompile;
-    MergeGlobalShaderProperties(permsToCompile);
+    MergeGlobalShaderProperties(m_isPrecompilingShaders, permsToCompile);
 
-    if (!onlyCompileRequested)
+    if (m_isPrecompilingShaders)
     {
         permsToCompile.Merge(decl.variantPerms);
     }
@@ -2937,10 +2935,7 @@ bool ShaderCompiler::CompileBundle(
     {
         const auto MergeProperty = [](ShaderVariantPerms& target, const ShaderProperty& additional) -> Result
         {
-            if (additional.IsPermutable())
-            {
-                return HYP_MAKE_ERROR(Error, "Requested shader with permutable property {} (which is not allowed)", additional.name);
-            }
+            AssertDebug(!additional.IsPermutable());
 
             auto targetIt = target.Find(StringHash(additional.name));
 
@@ -3021,6 +3016,8 @@ bool ShaderCompiler::CompileBundle(
                 return false;
             }
 
+            AssertDebug(!property.IsPermutable());
+
             additionalProperties.PushBack(std::move(property));
         }
 
@@ -3063,6 +3060,9 @@ bool ShaderCompiler::CompileBundle(
 
             for (const ShaderProperty& shaderProperty : perm.GetPropertySet())
             {
+                // must be made static by the time we get here (by ForEachPermutation)
+                AssertDebug(shaderProperty.IsStatic());
+
                 const ShaderPropertyId propertyId = InternShaderProperty(shaderProperty);
                 shader->properties.Add(propertyId);
             }

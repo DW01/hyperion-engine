@@ -962,7 +962,7 @@ Handle<AssetObject> AssetPackage::GetAssetObject(UTF8StringView assetName, bool 
                 {
                     HYP_LOG(Assets, Error, "Failed to read asset manifest: {}", readManifestResult.GetError().GetMessage());
 
-                    return Handle<AssetObject>::empty;
+                    return Handle<AssetObject>::Null();
                 }
                 
                 Result loadResult = AssetObject::Load(manifestData, assetObject);
@@ -971,7 +971,7 @@ Handle<AssetObject> AssetPackage::GetAssetObject(UTF8StringView assetName, bool 
                 {
                     HYP_LOG(Assets, Error, "Failed to load asset: {}", loadResult.GetError().GetMessage());
 
-                    return Handle<AssetObject>::empty;
+                    return Handle<AssetObject>::Null();
                 }
 
                 assetObject->m_package = WeakHandleFromThis();
@@ -1011,7 +1011,7 @@ Handle<AssetObject> AssetPackage::GetAssetObject(UTF8StringView assetName, bool 
         m_loadedMutex.Unlock();
     }
 
-    return Handle<AssetObject>::empty;
+    return Handle<AssetObject>::Null();
 }
 
 Result AssetPackage::MergePackage(const Handle<AssetPackage>& package)
@@ -2763,9 +2763,7 @@ Handle<AssetObject> AssetRegistry::GetAssetFromPath(const UTF8StringView& path, 
         return asset;
     }
 
-    HYP_LOG(Assets, Error, "Could not get asset at path '{}'", path);
-
-    return Handle<AssetObject>::empty;
+    return Handle<AssetObject>::Null();
 }
 
 Handle<AssetObject> AssetRegistry::GetAssetFromPath_Internal(
@@ -2786,7 +2784,7 @@ Handle<AssetObject> AssetRegistry::GetAssetFromPath_Internal(
 
             if (!currentPackage)
             {
-                return Handle<AssetObject>::empty;
+                return Handle<AssetObject>::Null();
             }
 
             continue;
@@ -2802,7 +2800,7 @@ Handle<AssetObject> AssetRegistry::GetAssetFromPath_Internal(
         return currentPackage->GetAssetObject(outAssetName, attemptLoading);
     }
 
-    return Handle<AssetObject>::empty;
+    return Handle<AssetObject>::Null();
 }
 
 Handle<AssetPackage> AssetRegistry::GetPackage(
