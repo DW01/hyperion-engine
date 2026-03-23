@@ -28,7 +28,7 @@
       "$Class": "ShaderProperty",
       "Name": "LIGHT_TYPE",
       "Flags": 0,
-      "Value": "DIRECTIONAL",
+      "Value": "POINT",
       "EnumValues": []
     }],
   "RevisionNumber": 31459917,
@@ -260,15 +260,15 @@
   "EntryPointNames": ["VSMain", "PSMain"],
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
-      "Key": "Engine/Shaders/DeferredDirect/DeferredDirect_863480168066122909.VS",
+      "Key": "Engine/Shaders/DeferredDirect/DeferredDirect_9258422335389110242.VS",
       "Size": 776
     }, {
       "$Class": "BlobDataReference",
-      "Key": "Engine/Shaders/DeferredDirect/DeferredDirect_863480168066122909.PS",
+      "Key": "Engine/Shaders/DeferredDirect/DeferredDirect_9258422335389110242.PS",
       "Size": 352
     }],
   "PropertySetHashCode": {},
-  "Name": "DeferredDirect_863480168066122909",
-  "FriendlyName": "DeferredDirect_863480168066122909",
+  "Name": "DeferredDirect_9258422335389110242",
+  "FriendlyName": "DeferredDirect_9258422335389110242",
   "OriginalFilepath": ""
 }

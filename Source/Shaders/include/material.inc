@@ -26,9 +26,6 @@
     #if HAS_ROUGHNESS_MAP
         DECLARE_SRV(Material, RoughnessMap) uniform texture2D RoughnessMap;
     #endif
-    #if HAS_AO_MAP
-        DECLARE_SRV(Material, AoMap) uniform texture2D AoMap;
-    #endif
 #endif
 
 #endif

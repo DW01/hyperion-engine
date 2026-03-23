@@ -1335,7 +1335,7 @@ static void ForEachPermutation(
                 AssertDebug(!variableProperties[j].IsValueGroup());
 
                 ShaderProperty newProperty = variableProperties[j];
-                newProperty.flags = SPF_NONE; // have to make sure it is not a permutable property anymore.
+                ((uint8&)newProperty.flags) &= ~SPF_PERMUTATION; // have to make sure it is not a permutable property anymore.
 
                 currentProperties.Add(newProperty);
             }
@@ -3060,8 +3060,8 @@ bool ShaderCompiler::CompileBundle(
 
             for (const ShaderProperty& shaderProperty : perm.GetPropertySet())
             {
-                // must be made static by the time we get here (by ForEachPermutation)
-                AssertDebug(shaderProperty.IsStatic());
+                // should be no longer permutable or value group by the time we get here.
+                AssertDebug(!shaderProperty.IsPermutable() && !shaderProperty.IsValueGroup());
 
                 const ShaderPropertyId propertyId = InternShaderProperty(shaderProperty);
                 shader->properties.Add(propertyId);

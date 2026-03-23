@@ -5,26 +5,6 @@
       "AssetPath": {
         "Value": "Engine/Shaders/LightmapPathTracer/LightmapPathTracer_6746685599656616209"
       }
-    }, {
-      "$Class": "AssetReference",
-      "AssetPath": {
-        "Value": "Engine/Shaders/LightmapPathTracer/LightmapPathTracer_4324962684896062991"
-      }
-    }, {
-      "$Class": "AssetReference",
-      "AssetPath": {
-        "Value": "Engine/Shaders/LightmapPathTracer/LightmapPathTracer_12398611739765556897"
-      }
-    }, {
-      "$Class": "AssetReference",
-      "AssetPath": {
-        "Value": "Engine/Shaders/LightmapPathTracer/LightmapPathTracer_1027844939338778806"
-      }
-    }, {
-      "$Class": "AssetReference",
-      "AssetPath": {
-        "Value": "Engine/Shaders/LightmapPathTracer/LightmapPathTracer_10052432351400791672"
-      }
     }],
   "Name": "LightmapPathTracer",
   "FriendlyName": "LightmapPathTracer",

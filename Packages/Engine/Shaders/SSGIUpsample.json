@@ -3,17 +3,7 @@
   "CompiledShaders": [{
       "$Class": "AssetReference",
       "AssetPath": {
-        "Value": "Engine/Shaders/SSGIUpsample/SSGIUpsample_9429953578406145867"
-      }
-    }, {
-      "$Class": "AssetReference",
-      "AssetPath": {
         "Value": "Engine/Shaders/SSGIUpsample/SSGIUpsample_5656388037364668825"
-      }
-    }, {
-      "$Class": "AssetReference",
-      "AssetPath": {
-        "Value": "Engine/Shaders/SSGIUpsample/SSGIUpsample_16173391864471278026"
       }
     }],
   "Name": "SSGIUpsample",
