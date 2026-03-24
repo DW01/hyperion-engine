@@ -28,6 +28,8 @@
 
 #include <rendering/util/DeletionQueue.hpp>
 
+#include <engine/CVarManager.hpp>
+
 #include <scene/View.hpp>
 #include <scene/Light.hpp>
 #include <scene/EnvProbe.hpp>
@@ -41,6 +43,8 @@ namespace Hyperion {
 
 static const Name s_shaderNames[] = { NAME("RayTracedReflections"), NAME("PathTracer") };
 static constexpr uint32 MaxLights = 4;
+
+extern CVar<bool> cvPathTracing;
 
 namespace DeferredRendererHelpers {
 
@@ -78,7 +82,6 @@ const GpuImageViewRef& RayTracingReflections::GetFinalImageView() const
 void RayTracingReflections::Create()
 {
     CreateImages();
-    CreateTemporalBlending();
 }
 
 void RayTracingReflections::Render(Frame* frame, const RenderSetup& renderSetup)
@@ -100,8 +103,11 @@ void RayTracingReflections::Render(Frame* frame, const RenderSetup& renderSetup)
     const GpuBufferRef& meshDescriptionsBuffer = tlas->GetMeshDescriptionsBuffer();
     Assert(meshDescriptionsBuffer != nullptr && meshDescriptionsBuffer->IsCreated());
 
+    const bool isPathTracer = cvPathTracing.Get();
+    InitTemporalBlending(isPathTracer);
+
     // Reset progressive blending if the camera view matrix has changed (for path tracing)
-    if (IsPathTracer())
+    if (isPathTracer)
     {
         RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(renderSetup.view->GetCamera()));
         Assert(cameraProxy != nullptr);
@@ -127,7 +133,7 @@ void RayTracingReflections::Render(Frame* frame, const RenderSetup& renderSetup)
     if (renderSetup.envProbe != nullptr)
         shaderProperties.Add(InternShaderProperty(ShaderProperty(NAME("HAS_ENV_PROBE"))));
 
-    frame->cr << SetCurrentShader(ShaderDesc(s_shaderNames[IsPathTracer()], shaderProperties));
+    frame->cr << SetCurrentShader(ShaderDesc(s_shaderNames[isPathTracer ? 1 : 0], shaderProperties));
 
     AssertDebug(parentPass->view.IsValid());
 
@@ -284,14 +290,22 @@ void RayTracingReflections::CreateImages()
     CheckResult(m_texture->Create());
 }
 
-void RayTracingReflections::CreateTemporalBlending()
+void RayTracingReflections::InitTemporalBlending(bool isPathTracer)
 {
+    const TemporalBlendTechnique technique = isPathTracer
+        ? TemporalBlendTechnique::TECHNIQUE_4 // progressive blending
+        : TemporalBlendTechnique::TECHNIQUE_1;
+
+    if (m_temporalBlending != nullptr && m_temporalBlending->GetTechnique() == technique)
+    {
+        // already created and technique is the same
+        return;
+    }
+
     m_temporalBlending = MakeUnique<TemporalBlending>(
         m_config.extent,
         TextureFormat::RGBA8,
-        IsPathTracer()
-            ? TemporalBlendTechnique::TECHNIQUE_4 // progressive blending
-            : TemporalBlendTechnique::TECHNIQUE_1,
+        technique,
         DefaultTemporalBlendingFeedback,
         g_renderInterface->textureViewCache->GetOrCreate(m_texture),
         m_gbuffer);

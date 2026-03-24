@@ -1186,14 +1186,9 @@ extern enum GlobalRenderBuffer : uint8
     GRB_MAX
 end
 extern struct RendererConfig
-    PathTracer : bool
-    RayTracingReflections : bool
-    RayTracingGlobalIllumination : bool
     SsaoEnabled : bool
     HbaoEnabled : bool
     HbilEnabled : bool
-    SsgiEnabled : bool
-    TaaEnabled : bool
 end
 extern enum RenderBucket : uint8
     Opaque,
@@ -1232,7 +1227,6 @@ extern enum MaterialAttributeFlags : uint8
 end
 extern struct RayTracingReflectionsConfig
     Extent : Vec2u
-    PathTracing : bool
 end
 extern enum GpuImageFlags : uint32
     NONE = 0x0

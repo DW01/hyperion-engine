@@ -8,6 +8,7 @@
 - Cascaded shadow maps, screen space ambient occlusion (SSAO), screen space reflections (SSR), and more.
 - Level streaming and world partitioning system to enable efficient memory usage and larger worlds
 - Scripting via C# or our custom scripting language, HypScript.
+- Hot reloading for shaders and scripts to speed up development time.
 
 ## Platforms
 Currently, we are focusing our efforts on developing the engine for *Windows*, *macOS* and *Android*. Editor support is available on Windows and macOS.
@@ -23,3 +24,7 @@ If you want to contribute please feel free to submit a pull request! However if 
 
 ## Getting started
 [Definitions and Terminology](Documentation/Definitions.md) provides definitions and explanations for various terms and concepts used within the engine.
+
+## Console commands and console variables (CVars)
+
+[Console Commands](Documentation/Console.md) are commands that can be executed in the editor's console window to perform various actions or set global states that the engine can use to modify rendering, physics, gameplay, etc.

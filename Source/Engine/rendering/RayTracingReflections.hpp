@@ -24,9 +24,6 @@ struct RayTracingReflectionsConfig : public Config<RayTracingReflectionsConfig>
     HYP_FIELD(JsonIgnore)
     Vec2u extent = { 1280, 720 };
 
-    HYP_FIELD(JsonPath = "PathTracing.Enabled")
-    bool pathTracing = false;
-
     virtual ~RayTracingReflectionsConfig() override = default;
 
     bool Validate() const
@@ -49,11 +46,6 @@ public:
 
     ~RayTracingReflections();
 
-    HYP_FORCE_INLINE bool IsPathTracer() const
-    {
-        return m_config.pathTracing;
-    }
-
     const GpuImageViewRef& GetFinalImageView() const;
 
     void Create();
@@ -61,7 +53,8 @@ public:
 
 private:
     void CreateImages();
-    void CreateTemporalBlending();
+
+    void InitTemporalBlending(bool isPathTracer);
 
     RayTracingReflectionsConfig m_config;
 

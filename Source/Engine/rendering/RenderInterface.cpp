@@ -620,10 +620,10 @@ RendererResult RenderInterface::Initialize()
 
         // For Android leave these rendering settings off.
         engineConfig.Set("Rendering.IndirectRendering", false);
-        engineConfig.Set("Rendering.SSGI.Enabled", false);
+        engineConfig.Set("Rendering.SSGI", false);
+        engineConfig.Set("Rendering.TAA", false);
         engineConfig.Set("Rendering.SSR.Enabled", false);
         engineConfig.Set("Rendering.HBAO.Enabled", false);
-        engineConfig.Set("Rendering.TAA.Enabled", false);
 #endif
 
         // if ray tracing is not supported, we need to update the configuration

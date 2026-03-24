@@ -142,7 +142,14 @@ EngineStatCounter<uint32> g_statEnvProbes("Rendering/EnvProbes");
 EngineStatCounter<uint32> g_statEnvGrids("Rendering/EnvGrids");
 EngineStatCounter<uint32> g_statDebugDraws("Rendering/DebugDraws");
 
-static CVar<int> s_cvDeferredDebugVis { "Rendering.Deferred.DebugVis", 0 };
+CVar<int> cvDeferredDebugVis { "Rendering.Deferred.DebugVis", 0 };
+
+CVar<bool> cvRayTracingEnabled { "Rendering.RayTracedEnabled", true };
+CVar<bool> cvRayTracedGI { "Rendering.RayTracedGI", false };
+CVar<bool> cvRayTracedReflections { "Rendering.RayTracing.RayTracedReflections", false };
+CVar<bool> cvPathTracing { "Rendering.PathTracing", false };
+CVar<bool> cvSSGI { "Rendering.SSGI", true };
+CVar<bool> cvTAA { "Rendering.TAA", true };
 
 namespace DeferredRendererHelpers {
 
@@ -162,13 +169,9 @@ void GetDeferredShaderProperties(
     const ConfigValue& cfg##name = cfg.Get(path);    \
     const bool name = cfg##name.ToBool()
 
-    DEF_CONFIGURATION_VALUE(rayTracingReflections, "Rendering.RayTracing.Reflections.Enabled");
-    DEF_CONFIGURATION_VALUE(rayTracingGlobalIllumination, "Rendering.RayTracing.GI.Enabled");
     DEF_CONFIGURATION_VALUE(hbil, "Rendering.HBIL.Enabled");
     DEF_CONFIGURATION_VALUE(hbao, "Rendering.HBAO.Enabled");
     DEF_CONFIGURATION_VALUE(ssao, "Rendering.SSAO.Enabled");
-    DEF_CONFIGURATION_VALUE(ssgi, "Rendering.SSGI.Enabled");
-    DEF_CONFIGURATION_VALUE(pathTracing, "Rendering.RayTracing.PathTracing.Enabled");
 
 #undef DEF_CONFIGURATION_VALUE
 
@@ -183,9 +186,9 @@ void GetDeferredShaderProperties(
 
     if (mode == DPM_INDIRECT_LIGHTING)
     {
-        outShaderProperties.Set(s_propRayTracingReflections, s_renderConfig.rayTracing && rayTracingReflections);
+        outShaderProperties.Set(s_propRayTracingReflections, s_renderConfig.rayTracing && cvRayTracedReflections.Get());
 
-        if (s_renderConfig.rayTracing && rayTracingGlobalIllumination)
+        if (s_renderConfig.rayTracing && cvRayTracedGI.Get())
         {
             outShaderProperties.Add(s_propRayTracingGlobalIllumination);
 
@@ -194,16 +197,16 @@ void GetDeferredShaderProperties(
         }
 
         outShaderProperties.Set(s_propHBILEnabled, hbil);
-        outShaderProperties.Set(s_propSSGIEnabled, ssgi);
+        outShaderProperties.Set(s_propSSGIEnabled, cvSSGI.Get());
     }
 
-    if (s_renderConfig.rayTracing && pathTracing)
+    if (s_renderConfig.rayTracing && cvPathTracing.Get())
     {
         outShaderProperties.Add(s_propPathTracer);
     }
     else
     {
-        switch (s_cvDeferredDebugVis.Get())
+        switch (cvDeferredDebugVis.Get())
         {
         case 1: // reflections
             outShaderProperties.Add(s_propDebugReflections);
@@ -1131,9 +1134,8 @@ void ReflectionsPass::Create()
 bool ReflectionsPass::ShouldRenderSSR() const
 {
     const ConfigValue& ssrEnabled = GetEngineConfig().Get("Rendering.SSR.Enabled");
-    const ConfigValue& rayTracingReflectionsEnabled = GetEngineConfig().Get("Rendering.RayTracing.Reflections.Enabled");
 
-    return ssrEnabled.ToBool(true) && !rayTracingReflectionsEnabled.ToBool(false);
+    return ssrEnabled.ToBool(true) && !cvRayTracedReflections.Get();
 }
 
 void ReflectionsPass::CreateSSRPass()
@@ -1555,7 +1557,7 @@ void DeferredRenderer::CreateViewRayTracingPasses(View* view, DeferredRendererPa
     }
 
     const bool shouldEnableRayTracingForView = view->GetRayTracingView().IsValid()
-        && GetEngineConfig().Get("Rendering.RayTracing.Enabled").ToBool();
+        && cvRayTracingEnabled.Get();
 
     if (!shouldEnableRayTracingForView)
     {
@@ -1960,15 +1962,15 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
     const bool doParticles = true;
 
-    const bool useRayTracingReflections = (m_rendererConfig.pathTracer || m_rendererConfig.rayTracingReflections)
+    const bool useRayTracingReflections = (cvPathTracing.Get() || cvRayTracedReflections.Get())
         && view->GetRayTracingView().IsValid()
         && passData.rayTracingReflections != nullptr;
 
-    const bool useRayTracingGlobalIllumination = m_rendererConfig.rayTracingGlobalIllumination
+    const bool useRayTracingGlobalIllumination = cvRayTracedGI.Get()
         && view->GetRayTracingView().IsValid()
         && passData.ddgi != nullptr;
 
-    if (passData.taaPass != nullptr && m_rendererConfig.taaEnabled)
+    if (passData.taaPass != nullptr && cvTAA.Get())
     {
         // apply jitter to camera for TAA
         RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(view->GetCamera()));
@@ -2070,7 +2072,7 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         passData.hbao->Render(frame, rs);
     }
 
-    if (m_rendererConfig.ssgiEnabled)
+    if (cvSSGI.Get())
     {
         RenderSetup newRenderSetup = rs;
 
@@ -2210,7 +2212,7 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
     passData.tonemapPass->Render(frame, rs);
 
-    if (passData.taaPass != nullptr && m_rendererConfig.taaEnabled)
+    if (passData.taaPass != nullptr && cvTAA.Get())
     {
         passData.taaPass->Render(frame, rs);
     }

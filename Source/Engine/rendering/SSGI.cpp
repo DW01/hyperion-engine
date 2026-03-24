@@ -47,8 +47,8 @@ static constexpr uint32 NumSamples = 32; // temporal sample count
 static const ShaderPropertyId s_propMaxLights = InternShaderProperty(ShaderProperty(NAME("MAX_LIGHTS"), int(MaxLights)));
 static const ShaderPropertyId s_propMaxEnvProbes = InternShaderProperty(ShaderProperty(NAME("MAX_ENV_PROBES"), int(MaxEnvProbes)));
 
-static CVar<float> s_cvSSGIDepthThreshold { "Rendering.SSGI.DepthThreshold", 0.2f };
-static CVar<float> s_cvSSGINormalPower { "Rendering.SSGI.NormalPower", 8.0f };
+CVar<float> cvSSGIDepthThreshold { "Rendering.SSGI.DepthThreshold", 0.2f };
+CVar<float> cvSSGINormalPower { "Rendering.SSGI.NormalPower", 8.0f };
 
 namespace DeferredRendererHelpers {
 
@@ -457,8 +457,8 @@ void SSGI::Render(Frame* frame, const RenderSetup& renderSetup)
             SSGIUpsampleConstants upsampleConstants {};
             upsampleConstants.camera = cameraProxy->bufferData;
             upsampleConstants.texelSize = Vec2f::One() / sourceResolution;
-            upsampleConstants.depthThreshold = s_cvSSGIDepthThreshold.Get();
-            upsampleConstants.normalThreshold = s_cvSSGINormalPower.Get();
+            upsampleConstants.depthThreshold = cvSSGIDepthThreshold.Get();
+            upsampleConstants.normalThreshold = cvSSGINormalPower.Get();
 
             g_renderInterface->constantsAllocator->Write(&upsampleConstants);
             g_renderInterface->constantsAllocator->Commit(cBuffer, cBufferOffset, cBufferSize);

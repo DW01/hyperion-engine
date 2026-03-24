@@ -31,12 +31,15 @@
 #include <system/AppContext.hpp>
 
 #include <engine/EngineDriver.hpp>
+#include <engine/CVarManager.hpp>
 
 #define HYP_RENDER_UI_IN_FINAL_PASS
 
 namespace Hyperion {
 
 HYP_DECLARE_LOG_CHANNEL(Rendering);
+
+extern CVar<bool> cvTAA;
 
 #pragma region FinalPass
 
@@ -131,7 +134,7 @@ void FinalPass::Render(Frame* frame, const RenderSetup& rs)
         DeferredRendererPassData* pd = it.second;
         AssertDebug(pd != nullptr);
 
-        GpuImageView* inputImageView = dr->GetRendererConfig().taaEnabled
+        GpuImageView* inputImageView = cvTAA.Get()
             ? g_renderInterface->textureViewCache->GetOrCreate(pd->taaPass->GetResultTexture())
             : pd->tonemapPass->GetFinalImageView();
 

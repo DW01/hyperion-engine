@@ -52,15 +52,6 @@ struct RendererConfig : public Config<RendererConfig>
 {
     HYP_STRUCT_BODY(RendererConfig);
 
-    HYP_FIELD(JsonPath = "RayTracing.PathTracing.Enabled")
-    bool pathTracer = false;
-
-    HYP_FIELD(JsonPath = "RayTracing.Reflections.Enabled")
-    bool rayTracingReflections = false;
-
-    HYP_FIELD(JsonPath = "RayTracing.GI.Enabled")
-    bool rayTracingGlobalIllumination = false;
-
     HYP_FIELD(JsonPath = "SSAO.Enabled")
     bool ssaoEnabled = false;
 
@@ -69,12 +60,6 @@ struct RendererConfig : public Config<RendererConfig>
 
     HYP_FIELD(JsonPath = "HBIL.Enabled")
     bool hbilEnabled = false;
-
-    HYP_FIELD(JsonPath = "SSGI.Enabled")
-    bool ssgiEnabled = true;
-
-    HYP_FIELD(JsonPath = "TAA.Enabled")
-    bool taaEnabled = true;
 
     virtual ~RendererConfig() override = default;
 };

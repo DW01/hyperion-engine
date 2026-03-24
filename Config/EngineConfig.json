@@ -1,17 +1,5 @@
 {
   "Rendering": {
-    "RayTracing": {
-      "PathTracing": {
-        "Enabled": true
-      },
-      "Reflections": {
-        "Enabled": false
-      },
-      "GI": {
-        "Enabled": false
-      },
-      "Enabled": true
-    },
     "SSAO": {
       "Enabled": false
     },
@@ -24,12 +12,12 @@
     "HBIL": {
       "Enabled": false
     },
-    "SSGI": {
-      "Enabled": true
-    },
-    "TAA": {
-      "Enabled": true
-    },
+    "SSGI": "true",
+    "TAA": true,
+    "PathTracing": false,
+    "RayTracedReflections": false,
+    "RayTracedGI": false,
+    "RayTracingEnabled": true,
     "IndirectRendering": true,
     "ParallelCollection": true,
     "SSR": {
