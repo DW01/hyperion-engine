@@ -1,12 +1,9 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
-using System.Windows.Input;
 using Avalonia.Threading;
 using DynamicData;
 using Hyperion.Editor.Commands;
@@ -15,12 +12,15 @@ namespace Hyperion.Editor.Services
 {
     public struct LogEntry
     {
-        private static readonly ImmutableDictionary<LogLevel, string> LogLevelColors = new Dictionary<LogLevel, string>
+        private static readonly string[] LogLevelColorTable =
         {
-            { LogLevel.Fatal, "#4c0b0b" },
-            { LogLevel.Error, "#FF0000" },
-            { LogLevel.Warning, "#ffc65d" }
-        }.ToImmutableDictionary();
+            "#4c0b0b",  // Fatal
+            "#FF0000",  // Error
+            "#ffc65d",  // Warning
+            "#FFFFFF",  // Info
+            "#FFFFFF",  // Verbose
+            "#FFFFFF",  // Debug
+        };
 
         public string Channel { get; set; }
         public LogLevel Level { get; set; }
@@ -29,25 +29,12 @@ namespace Hyperion.Editor.Services
         public int LineNumber { get; set; }
         public string Message { get; set; }
 
-        public string Color => LogLevelColors.TryGetValue(Level, out string? color) ? color : "#FFFFFF";
+        private string _color;
+        private string _fileLocationText;
 
+        public string Color => _color;
         public bool HasFileLocation => !string.IsNullOrEmpty(FileName);
-        private static ReadOnlySpan<char> GetDisplayFileName(string? filePath)
-        {
-            if (string.IsNullOrEmpty(filePath))
-            {
-                return ReadOnlySpan<char>.Empty;
-            }
-
-            int lastSeparatorIndex = Math.Max(filePath.LastIndexOf('/'), filePath.LastIndexOf('\\'));
-            if (lastSeparatorIndex >= 0 && lastSeparatorIndex + 1 < filePath.Length)
-            {
-                return filePath.AsSpan(lastSeparatorIndex + 1);
-            }
-            return filePath.AsSpan();
-        }
-
-        public string FileLocationText => HasFileLocation ? $"[{GetDisplayFileName(FileName)}:{LineNumber}]" : string.Empty;
+        public string FileLocationText => _fileLocationText;
 
         public NavigateToFileCommand NavigateToFileCommand => NavigateToFileCommand.DefaultInstance;
 
@@ -59,6 +46,39 @@ namespace Hyperion.Editor.Services
             FileName = string.Empty;
             LineNumber = 0;
             Message = string.Empty;
+            _color = "#FFFFFF";
+            _fileLocationText = string.Empty;
+        }
+
+        internal static LogEntry Create(string channel, LogLevel level, double timestamp, string fileName, int lineNumber, string message)
+        {
+            LogEntry entry = new LogEntry
+            {
+                Channel = channel,
+                Level = level,
+                Timestamp = timestamp,
+                FileName = fileName,
+                LineNumber = lineNumber,
+                Message = message
+            };
+
+            int idx = (int)level;
+            entry._color = (uint)idx < (uint)LogLevelColorTable.Length ? LogLevelColorTable[idx] : "#FFFFFF";
+            entry._fileLocationText = ComputeFileLocationText(fileName, lineNumber);
+            return entry;
+        }
+
+        private static string ComputeFileLocationText(string fileName, int lineNumber)
+        {
+            if (string.IsNullOrEmpty(fileName))
+                return string.Empty;
+
+            int lastSep = Math.Max(fileName.LastIndexOf('/'), fileName.LastIndexOf('\\'));
+            string displayName = lastSep >= 0 && lastSep + 1 < fileName.Length
+                ? fileName[(lastSep + 1)..]
+                : fileName;
+
+            return $"[{displayName}:{lineNumber}]";
         }
     }
 
@@ -72,8 +92,11 @@ namespace Hyperion.Editor.Services
         public ReadOnlyObservableCollection<LogEntry> Logs => _logs;
 
         private LogCallbackDelegate _logCallback;
-        private ConcurrentQueue<LogEntry> _logQueue = new ConcurrentQueue<LogEntry>();
-        private List<LogEntry> _pendingEntries = new List<LogEntry>();
+
+        private readonly LogEntryRingBuffer _ringBuffer = new LogEntryRingBuffer(4096);
+
+        private List<LogEntry> _pendingEntries = new List<LogEntry>(256);
+        private List<LogEntry> _submittingEntries = new List<LogEntry>(256);
         private int _isSubmittingPendingEntries = 0; // atomic
 
         public ConsoleService()
@@ -83,7 +106,7 @@ namespace Hyperion.Editor.Services
                 .Subscribe();
 
             _logCallback = OnLogMessage;
-            
+
             try
             {
                 NativeBindings.Editor_RegisterLogCallback(_logCallback);
@@ -96,39 +119,32 @@ namespace Hyperion.Editor.Services
 
         private void OnLogMessage(string channel, LogLevel level, double timestamp, string fileName, int lineNumber, string message)
         {
-            _logQueue.Enqueue(new LogEntry
-            {
-                Channel = channel,
-                Level = level,
-                Timestamp = timestamp,
-                FileName = fileName,
-                LineNumber = lineNumber,
-                Message = message.TrimEnd(),
-            });
+            // avoid TrimEnd allocation when the string doesn't need trimming
+            string msg = message.Length > 0 && char.IsWhiteSpace(message[^1]) ? message.TrimEnd() : message;
+            _ringBuffer.Enqueue(LogEntry.Create(channel, level, timestamp, fileName, lineNumber, msg));
         }
 
         public void ExecuteCommand(ReadOnlySpan<string> args)
         {
+            Debug.Assert(args.Length > 0, "Command arguments cannot be empty.");
+
             // make char** from List<string>
             int argc = args.Length;
 
-            IntPtr argvPtr = Marshal.AllocHGlobal(argc * IntPtr.Size);
+            IntPtr argvPtr = stackalloc IntPtr[argc];
 
             try
             {
-                IntPtr[] stringPointers = new IntPtr[argc];
-
                 for (int i = 0; i < argc; i++)
                 {
-                    byte[] utf8Bytes = System.Text.Encoding.UTF8.GetBytes(args[i] + "\0");
+                    byte[] utf8Bytes = System.Text.Encoding.UTF8.GetBytes(args[i]);
 
-                    IntPtr stringPtr = Marshal.AllocHGlobal(utf8Bytes.Length);
+                    IntPtr stringPtr = Marshal.AllocHGlobal(utf8Bytes.Length + 1);
                     Marshal.Copy(utf8Bytes, 0, stringPtr, utf8Bytes.Length);
+                    Marshal.WriteByte(stringPtr + utf8Bytes.Length, 0); // null terminator
 
-                    stringPointers[i] = stringPtr;
+                    argvPtr[i] = stringPtr;
                 }
-
-                Marshal.Copy(stringPointers, 0, argvPtr, argc);
 
                 // execute with int argc, char** argv
                 int returnValue = NativeBindings.Editor_ExecuteConsoleCommand(argc, argvPtr);
@@ -139,13 +155,11 @@ namespace Hyperion.Editor.Services
             }
             finally
             {
-                // free all unmanaged memory
-                for (int i = 0; i < args.Length; i++)
+                // free the strings we allocated
+                for (int i = 0; i < argc; i++)
                 {
-                    Marshal.FreeHGlobal(Marshal.ReadIntPtr(argvPtr, i * IntPtr.Size));
+                    Marshal.FreeHGlobal(argvPtr[i]);
                 }
-
-                Marshal.FreeHGlobal(argvPtr);
             }
         }
 
@@ -159,17 +173,10 @@ namespace Hyperion.Editor.Services
 
         public void ProcessLogQueue()
         {
-            LogEntry[]? entriesArray = null;
-
-            while (_logQueue.TryDequeue(out LogEntry logEntry))
-            {
-                _pendingEntries.Add(logEntry);
-            }
+            _ringBuffer.DrainTo(_pendingEntries);
 
             if (_pendingEntries.Count == 0)
-            {
                 return;
-            }
 
             if (Interlocked.CompareExchange(ref _isSubmittingPendingEntries, 1, 0) == 1)
             {
@@ -177,23 +184,80 @@ namespace Hyperion.Editor.Services
                 return;
             }
 
-            entriesArray = _pendingEntries.ToArray();
-            _pendingEntries.Clear();
+            List<LogEntry> toSubmit = _pendingEntries;
+            _pendingEntries = _submittingEntries;
+            _submittingEntries = toSubmit;
 
             Dispatcher.UIThread.Post(() =>
+            {
+                _logsSource.Edit(list =>
                 {
-                    _logsSource.Edit(list =>
+                    list.AddRange(toSubmit);
+
+                    if (list.Count > 1000)
                     {
-                        list.AddRange(entriesArray!);
-
-                        if (list.Count > 1000)
-                        {
-                            list.RemoveRange(0, list.Count - 1000);
-                        }
-                    });
-
-                    _isSubmittingPendingEntries = 0;
+                        list.RemoveRange(0, list.Count - 1000);
+                    }
                 });
+
+                toSubmit.Clear(); // return to pool for next swap
+                _isSubmittingPendingEntries = 0;
+            });
+        }
+
+        private sealed class LogEntryRingBuffer
+        {
+            private readonly LogEntry[] _entries;
+            private readonly int _mask;
+            private int _head;
+            private int _tail;
+            private SpinLock _spinLock = new SpinLock(enableThreadOwnerTracking: false);
+
+            public LogEntryRingBuffer(int capacity)
+            {
+                Debug.Assert(capacity > 0 && (capacity & (capacity - 1)) == 0,
+                    "Ring buffer capacity must be a power of 2.");
+                _entries = new LogEntry[capacity];
+                _mask = capacity - 1;
+            }
+
+            public void Enqueue(in LogEntry entry)
+            {
+                bool lockTaken = false;
+                try
+                {
+                    _spinLock.Enter(ref lockTaken);
+                    _entries[_tail & _mask] = entry;
+                    _tail++;
+                    
+                    // buffer full
+                    if (_tail - _head > _entries.Length)
+                        _head = _tail - _entries.Length;
+                }
+                finally
+                {
+                    if (lockTaken)
+                        _spinLock.Exit(useMemoryBarrier: false);
+                }
+            }
+
+            public void DrainTo(List<LogEntry> target)
+            {
+                bool lockTaken = false;
+                try
+                {
+                    _spinLock.Enter(ref lockTaken);
+                    int count = _tail - _head;
+                    for (int i = 0; i < count; i++)
+                        target.Add(_entries[(_head + i) & _mask]);
+                    _head = _tail;
+                }
+                finally
+                {
+                    if (lockTaken)
+                        _spinLock.Exit(useMemoryBarrier: false);
+                }
+            }
         }
     }
 }
