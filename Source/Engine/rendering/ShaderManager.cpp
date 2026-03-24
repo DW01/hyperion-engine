@@ -16,6 +16,8 @@
 
 #include <Core/threading/util/ThreadId.hpp>
 
+#include <engine/EngineStats.hpp>
+
 #if HYP_EDITOR
 #include <editor/EditorTask.hpp>
 #endif
@@ -23,6 +25,8 @@
 #include <semaphore>
 
 namespace Hyperion {
+
+static EngineStatTimer s_statShaderCompilation { "Rendering/ShaderCompilation", /* resetPerFrame */ false };
 
 static ShaderCacheId GenerateShaderCacheId()
 {
@@ -253,6 +257,8 @@ public:
 
         void Wait()
         {
+            ENGINE_STAT_SCOPE(&s_statShaderCompilation);
+
             if (task.IsValid())
             {
                 task.Await();

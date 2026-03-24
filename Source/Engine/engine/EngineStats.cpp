@@ -19,6 +19,7 @@ HYP_DECLARE_LOG_CHANNEL(Engine);
 
 static constexpr size_t StatPoolBlockSize = 1 << 18;
 static constexpr const char* RootStatGroupName = "Root";
+static constexpr utf::Char32 PathSeparator = utf::Char32('/');
 
 static constexpr int NumReservedStatIds = 5;
 
@@ -96,7 +97,7 @@ static void InitStat(EngineStats* stats, EngineStatBase* stat, UTF8StringView pa
 
         for (utf::Char32 ch : remainingPath)
         {
-            if (ch == utf::Char32('/'))
+            if (ch == PathSeparator)
             {
                 curr = remainingPath.Substr(0, characterIndex);
                 remainingPath = remainingPath.Substr(characterIndex + 1, SIZE_MAX);
@@ -206,8 +207,6 @@ EngineStats::~EngineStats()
 EngineStatBase* EngineStats::GetStat(UTF8StringView path) const
 {
     HYP_SCOPE;
-
-    static constexpr utf::Char32 PathSeparator = utf::Char32('/');
 
     EngineStatBase* currentStat = root;
 
@@ -433,7 +432,12 @@ void EngineStats::Advance()
         }
 
         double value = stat->GetValue();
-        stat->Reset();
+
+        // reset stats that have resetPerFrame as true.
+        if (stat->resetPerFrame)
+        {
+            stat->Reset();
+        }
 
         const double currValue = GetSampleData(statId, sampleIdx);
         SetSampleData(statId, sampleIdx, value + currValue);
@@ -500,16 +504,16 @@ void EngineStats::Advance()
 
 #pragma region EngineStatBase
 
-EngineStatBase::EngineStatBase(EngineStatType type, UTF8StringView path, EngineStatThreadType threadType)
-    : EngineStatBase(type, path, threadType, false)
+EngineStatBase::EngineStatBase(EngineStatType type, UTF8StringView path)
+    : EngineStatBase(type, path, false)
 {
 }
 
-EngineStatBase::EngineStatBase(EngineStatType type, UTF8StringView path, EngineStatThreadType threadType, bool skipPathParsing)
+EngineStatBase::EngineStatBase(EngineStatType type, UTF8StringView path,bool skipPathParsing)
     : id(-1),
       type(type),
-      threadType(threadType),
-      isHeapAllocated(false)
+      isHeapAllocated(false),
+      resetPerFrame(false)
 {
     if (skipPathParsing)
     {

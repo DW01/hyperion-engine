@@ -26,39 +26,27 @@ static constexpr uint32 EngineStatsMaxStats = 32;
 static constexpr int StatIdMsPerFrame = 0;
 static constexpr int StatIdFps = 1;
 
-enum EngineStatType : int
+enum EngineStatType : uint8
 {
-    EST_INVALID = -1,
-
     EST_TIMER = 0,
     EST_COUNTER,
     EST_GROUP,
-
     EST_MAX
 };
 
-enum EngineStatThreadType : int
-{
-    ESTT_INVALID = -1,
-
-    ESTT_RENDER = 0,
-    ESTT_GAME,
-
-    ESTT_MAX
-};
-
-class HYP_API EngineStatBase
+class EngineStatBase
 {
 protected:
-    EngineStatBase(EngineStatType type, UTF8StringView path, EngineStatThreadType threadType);
-    EngineStatBase(EngineStatType type, UTF8StringView path, EngineStatThreadType threadType, bool skipPathParsing);
+    EngineStatBase(EngineStatType type, UTF8StringView path);
+    EngineStatBase(EngineStatType type, UTF8StringView path, bool skipPathParsing);
 
 public:
     int id;
     Name name;
-    EngineStatType type;
-    EngineStatThreadType threadType;
-    bool isHeapAllocated;
+
+    EngineStatType type : 2;
+    bool isHeapAllocated : 1;
+    bool resetPerFrame : 1;
 
     virtual ~EngineStatBase() = default;
 
@@ -79,12 +67,12 @@ public:
     friend class EngineStatBase;
 
     explicit EngineStatGroup(UTF8StringView path)
-        : EngineStatBase(EST_GROUP, path, ESTT_INVALID)
+        : EngineStatBase(EST_GROUP, path)
     {
     }
 
     EngineStatGroup(UTF8StringView path, bool skipPathParsing)
-        : EngineStatBase(EST_GROUP, path, ESTT_INVALID, skipPathParsing)
+        : EngineStatBase(EST_GROUP, path, skipPathParsing)
     {
     }
 
@@ -98,82 +86,91 @@ template <class T>
 class HYP_API EngineStatCounter : public EngineStatBase
 {
 public:
-    explicit EngineStatCounter(UTF8StringView path, EngineStatThreadType threadType = ESTT_RENDER)
-        : EngineStatBase(EST_COUNTER, path, threadType)
+    static_assert(sizeof(T) <= 8, "sizeof(T) must be <= 8");
+    static_assert(std::is_integral_v<T>, "EngineStatCounter can only be instantiated with integral types");
+
+    explicit EngineStatCounter(UTF8StringView path, bool resetPerFrame = true)
+        : EngineStatBase(EST_COUNTER, path)
     {
+        EngineStatBase::resetPerFrame = resetPerFrame;
     }
 
     HYP_FORCE_INLINE EngineStatCounter& operator+=(T amount)
     {
-        m_value += amount;
+        AtomicAdd(&m_value, static_cast<InternalType>(amount));
         return *this;
     }
 
     HYP_FORCE_INLINE EngineStatCounter& operator++()
     {
-        ++m_value;
+        AtomicIncrement(&m_value);
         return *this;
     }
 
     HYP_FORCE_INLINE T operator++(int)
     {
-        T oldValue = m_value;
-        ++m_value;
-        return oldValue;
+        InternalType oldValue = AtomicAdd(&m_value, 1);
+        return static_cast<T>(oldValue);
     }
 
     HYP_FORCE_INLINE EngineStatCounter& operator-=(T amount)
     {
-        m_value -= amount;
+        AtomicSub(&m_value, static_cast<InternalType>(amount));
         return *this;
     }
 
     HYP_FORCE_INLINE EngineStatCounter& operator--()
     {
-        --m_value;
+        AtomicDecrement(&m_value);
         return *this;
     }
 
     HYP_FORCE_INLINE T operator--(int)
     {
-        T oldValue = m_value;
-        --m_value;
-        return oldValue;
+        InternalType oldValue = AtomicSub(&m_value, 1);
+        return static_cast<T>(oldValue);
     }
 
     HYP_FORCE_INLINE EngineStatCounter& operator=(T value)
     {
-        m_value = value;
+        AtomicExchange(&m_value, static_cast<InternalType>(value));
         return *this;
     }
 
     HYP_FORCE_INLINE explicit operator T() const
     {
-        return m_value;
+        return static_cast<T>(AtomicAdd(const_cast<volatile InternalType*>(&m_value), 0));
     }
 
     virtual double GetValue() const override
     {
-        return static_cast<double>(m_value);
+        return static_cast<double>(static_cast<T>(AtomicAdd(const_cast<volatile InternalType*>(&m_value), InternalType(0))));
     }
 
     virtual void Reset() override
     {
-        m_value = 0;
+        AtomicExchange(&m_value, InternalType(0));
     }
 
 private:
-    T m_value;
+    using InternalType = std::conditional_t<sizeof(T) == 8, int64, int32>;
+
+    volatile InternalType m_value;
 };
 
 class HYP_API EngineStatTimer : public EngineStatBase
 {
 public:
-    explicit EngineStatTimer(UTF8StringView path, EngineStatThreadType threadType = ESTT_RENDER)
-        : EngineStatBase(EST_TIMER, path, threadType),
+    explicit EngineStatTimer(UTF8StringView path, bool resetPerFrame = true)
+        : EngineStatBase(EST_TIMER, path),
           m_clock()
     {
+        EngineStatBase::resetPerFrame = resetPerFrame;
     }
+
+    /// @TODO Make thread safe with atomics.
+    /// Just record the duration, use EngineStatScope to handle the actual timing and recording of the value.
+    /// Then use uint64 for the value and convert to double in GetValue() to avoid issues with atomics and floating point types.
 
     void StartTiming()
     {
