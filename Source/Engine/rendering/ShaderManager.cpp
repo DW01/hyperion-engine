@@ -7,6 +7,8 @@
 #include <rendering/RenderInterface.hpp>
 #include <rendering/ShaderInstance.hpp>
 #include <rendering/Shader.hpp>
+#include <rendering/GraphicsPipelineCache.hpp>
+#include <rendering/GenericPipelineCache.hpp>
 
 #include <rendering/util/ShaderPropertyDictionary.hpp>
 
@@ -17,6 +19,9 @@
 #include <Core/threading/util/ThreadId.hpp>
 
 #include <engine/EngineStats.hpp>
+#include <engine/EngineGlobals.hpp>
+
+#include <engine/threads/RenderThread.hpp>
 
 #if HYP_EDITOR
 #include <editor/EditorTask.hpp>
@@ -609,6 +614,8 @@ public:
             }
         }
 
+        HashSet<Shader*> shadersToExpire;
+
         for (ShaderMapEntry* entry : staleEntries)
         {
             int32 expected = ShaderMapEntry::State::LOADED;
@@ -623,6 +630,7 @@ public:
             HYP_LOG(ShaderCompiler, Info,
                 "Reloading shader '{}' ...",
                 entry->shader->baseName);
+            
 
             bool isValid = g_shaderCompiler->RequestShader(
                 entry->shader->baseName,
@@ -648,8 +656,23 @@ public:
 
             entry->shaderInstance = std::move(newShaderInstance);
 
+            shadersToExpire.Add(entry->shader);
+
             // now mark loaded so other threads can use it.
             AtomicExchange(&entry->state, ShaderMapEntry::State::LOADED);
+        }
+
+        if (shadersToExpire.Any())
+        {
+            g_renderThreadInstance->GetScheduler().Enqueue([shadersToExpire = std::move(shadersToExpire)]()
+                {
+                    for (Shader* shader : shadersToExpire)
+                    {
+                        g_renderInterface->graphicsPipelineCache->ExpirePipelinesForShader(shader);
+                        //g_renderInterface->computePipelineCache->ExpirePipelinesForShader(shader);
+                        //g_renderInterface->rayTracingPipelineCache->ExpirePipelinesForShader(shader);
+                    }
+                }, TaskEnqueueFlags::FIRE_AND_FORGET);
         }
     }
 #endif // HYP_ENABLE_SHADER_RELOAD

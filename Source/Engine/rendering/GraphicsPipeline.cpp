@@ -24,6 +24,9 @@ PSOCacheKey::PSOCacheKey(
 {
     hashCode = HashCode::GetHashCode(attributes.GetHashCode())
         .Combine(renderTargetDesc.GetHashCode());
+
+    shaderName = attributes.GetMaterialAttributes().shaderName;
+    shaderProperties = attributes.GetMaterialAttributes().shaderProperties;
 }
 
 #pragma endregion PSOCacheKey

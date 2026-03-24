@@ -20,7 +20,7 @@ namespace Hyperion {
 
 class RenderableAttributeSet;
 class CachedPipelinesMap;
-struct ShaderInputGroup;
+class Shader;
 
 class GraphicsPipelineCacheHandle
 {
@@ -98,6 +98,8 @@ public:
         const RenderableAttributeSet& attributes,
         const RenderTargetDesc& renderTargetDesc,
         GraphicsPipelineCacheHandle& outCacheHandle);
+
+    void ExpirePipelinesForShader(const Shader* shader);
 
     int RunCleanupCycle(int maxIter = 10);
 

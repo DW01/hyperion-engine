@@ -20,6 +20,10 @@ struct ShaderInputGroup;
 struct PSOCacheKey
 {
     HashCode hashCode;
+    
+    // keep shader name and properties around so we can expire PSOs when shaders are reloaded
+    Name shaderName;
+    ShaderPropertySet shaderProperties;
 
     PSOCacheKey()
     {
