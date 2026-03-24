@@ -38,7 +38,8 @@ enum class SceneFlags : uint32
     NONE = 0x0,
 
     FOREGROUND = 0x1, //!< Scene is a foreground scene (i.e., it is rendered normally).
-    DETACHED = 0x2,   //!< Scene is not attached to any World.
+    BACKDROP = 0x2,   //!< Scene contains backdrop nodes (e.g skybox). Can also be FOREGROUND (not mutually exclusive)
+    DETACHED = 0x4,   //!< Scene is not attached to any World.
     UI = 0x8,         //!< Scene is created for UI (see UIStage).
     EDITOR = 0x10,    //!< Scene is an editor-owned scene.
 

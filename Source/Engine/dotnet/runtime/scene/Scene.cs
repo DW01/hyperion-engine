@@ -9,8 +9,17 @@ namespace Hyperion
     {
         None = 0,
         Foreground = 0x1,
-        Detached = 0x2,
-        UI = 0x8
+        Backdrop = 0x2,
+        Detached = 0x4,
+        UI = 0x8,
+        Editor = 0x10,
+
+        Streamed = 0x20,
+        HasOctree = 0x40,
+
+        AudioListener = 0x80,
+
+        Default = Foreground | Streamed | HasOctree
     }
 
     [ClassBinding(Name = "FogParams")]
@@ -46,6 +55,12 @@ namespace Hyperion
             {
                 return this.GetRoot();
             }
+        }
+
+        public SceneFlags SceneFlags
+        {
+            get => this.GetSceneFlags();
+            set => this.SetSceneFlags(value);
         }
     }
 }

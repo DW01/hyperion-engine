@@ -71,7 +71,7 @@ DECLARE_BUFFER_DYNAMIC(LightmapPathTracer, CBuffer) cbuffer CBuffer
 #elif defined(MODE_FULL)
 #define RAY_OFFSET 0.005
 #define NUM_BOUNCES 8
-#define NUM_SAMPLES 4
+#define NUM_SAMPLES 1
 #else
 #define RAY_OFFSET 0.01
 #define NUM_BOUNCES 1
@@ -144,7 +144,7 @@ void RayGenMain()
 
     const RAY_FLAG flags = RAY_FLAG_FORCE_OPAQUE;
     const float tmin = 0.01;
-    const float tmax = 1000.0;
+    const float tmax = 10000.0;
 
     const float3 N0 = normalize(ray.direction);
 
@@ -442,7 +442,7 @@ void RayGenMain()
             }
 
             // Russian roulette
-            if (bounceIndex >= 4)
+            if (bounceIndex >= 2)
             {
                 float p = clamp(max(max(beta.r, beta.g), beta.b), 0.05, 0.99);
                 if (RandomFloat(ray_seed) > p)

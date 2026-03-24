@@ -294,6 +294,9 @@ PSOutput PSMain(PSInput input)
     roughness = roughness_sample;
 #endif
 
+    // temp debug
+    roughness = 0.001;
+
     // https://www.elopezr.com/temporal-aa-and-the-quest-for-the-holy-trail/
     // see: "Motion Vectors" section
     float2 velocity = float2(((input.position_ndc.xy / input.position_ndc.w) * 0.5 + 0.5) - ((input.previous_position_ndc.xy / input.previous_position_ndc.w) * 0.5 + 0.5));

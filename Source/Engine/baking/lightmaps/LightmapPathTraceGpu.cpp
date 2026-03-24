@@ -220,6 +220,14 @@ void LightmapRenderer_GpuPathTracing::CreateAccelerationStructures()
     {
         AssertDebug(entity != nullptr);
 
+        if (entity->GetScene()->GetSceneFlags() & SceneFlags::BACKDROP)
+        {
+            // Do NOT add entities that are part of a backdrop to the ray trace scene (for now)
+            // currently we just use the SkyProbes, at some point it could be nice to include backdrop
+            // scenes meshes
+            continue;
+        }
+
         RenderProxyMesh* meshProxy = rpl.GetMeshEntities().GetProxy(entity->Id());
         Assert(meshProxy != nullptr);
 
@@ -395,6 +403,31 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
                 Assert(envProbeProxy != nullptr);
 
                 tempEnvProbes.EmplaceBack(envProbe, &envProbeProxy->bufferData);
+
+                ++numBoundEnvProbes;
+            }
+        }
+
+        if (renderSetup.envProbe != nullptr
+            && renderSetup.envProbe != m_lightmapper->GetSource()
+            && numBoundEnvProbes < MaxBoundEnvProbes)
+        {
+            auto it = tempEnvProbes.FindIf([envProbe = renderSetup.envProbe](const auto& pair)
+                {
+                    if (pair.first == envProbe)
+                    {
+                        return true;
+                    }
+
+                    return false;
+                });
+
+            if (it == tempEnvProbes.End())
+            {
+                RenderProxyEnvProbe* envProbeProxy = static_cast<RenderProxyEnvProbe*>(GetRenderProxy(renderSetup.envProbe));
+                Assert(envProbeProxy != nullptr);
+
+                tempEnvProbes.EmplaceBack(renderSetup.envProbe, &envProbeProxy->bufferData);
 
                 ++numBoundEnvProbes;
             }

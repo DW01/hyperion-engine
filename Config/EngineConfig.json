@@ -78,7 +78,7 @@
     "OnlyGenerateUVs": false,
     "Radiance": true,
     "Irradiance": true,
-    "NumSamples": 1,
+    "NumSamples": 8,
     "MaxTexelsPerFrame": 100000,
     "IdealTrianglesPerJob": 16000,
     "NumThreadsPerJob": 4

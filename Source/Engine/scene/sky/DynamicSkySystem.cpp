@@ -114,7 +114,7 @@ void DynamicSkySystem::Init()
         // enable depth test but not write. we want skybox to be behind everything else, but rendered last to avoid overdraw.
         materialAttributes.flags = MAF_DEPTH_TEST;
 
-        m_visScene = MakeHandle<Scene>(NAME("SkyVisScene"), SceneFlags::FOREGROUND);
+        m_visScene = MakeHandle<Scene>(NAME("SkyVisScene"), SceneFlags::FOREGROUND | SceneFlags::BACKDROP);
         m_visScene->SetAssetFlags(AssetObjectFlags::Transient); // don't save; it's generated at runtime
         m_visScene->GetRoot()->AddChild(m_skyboxEntity);
 

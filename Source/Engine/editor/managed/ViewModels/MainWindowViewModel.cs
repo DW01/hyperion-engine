@@ -129,8 +129,12 @@ namespace Hyperion.Editor.ViewModels
             set
             {
                 Logger.Log(LogLevel.Info, $"Setting ActiveScene to {(value != null ? value.Scene.Name.ToString() : "null")}");
+                
                 if (_activeScene == value)
                     return;
+
+                Debug.Assert(value == null || (Scenes.Contains(value) && value.Scene.SceneFlags.HasFlag(SceneFlags.Foreground)),
+                    "ActiveScene must be one of the scenes in the Scenes collection or null (only foreground scenes can be active)");
 
                 _activeScene = value;
 
@@ -334,7 +338,8 @@ namespace Hyperion.Editor.ViewModels
                     return;
                 }
 
-                if (scene == null)
+                // only attach scenes that have the FOREGROUND flag
+                if (scene == null || !scene.SceneFlags.HasFlag(SceneFlags.Foreground))
                 {
                     ActiveScene = null;
                     return;
@@ -424,6 +429,12 @@ namespace Hyperion.Editor.ViewModels
                 {
                     foreach (Scene scene in project.World.GetScenes())
                     {
+                        // ONLY add scenes that have FOREGROUND flag.
+                        if (!scene.SceneFlags.HasFlag(SceneFlags.Foreground))
+                        {
+                            continue;
+                        }
+
                         Scenes.Add(new SceneViewModel(scene, isActive: _activeScene?.Scene?.Id == scene.Id));
                     }
                 }
@@ -459,17 +470,21 @@ namespace Hyperion.Editor.ViewModels
         {
             Action action = () =>
             {
-                foreach (SceneViewModel svm in Scenes)
+                // we only want scenes that have the FOREGROUND flag.
+                if (_activeScene != null && _activeScene.Scene.SceneFlags.HasFlag(SceneFlags.Foreground))
                 {
-                    if (svm.Scene.Id == scene.Id)
+                    foreach (SceneViewModel svm in Scenes)
                     {
-                        return; // already exists
+                        if (svm.Scene.Id == scene.Id)
+                        {
+                            return; // already exists
+                        }
                     }
+                    
+                    Scenes.Add(new SceneViewModel(scene, isActive: _activeScene.Scene?.Id == scene.Id));
+
+                    OnPropertyChanged(nameof(Scenes));
                 }
-
-                Scenes.Add(new SceneViewModel(scene, isActive: _activeScene?.Scene?.Id == scene.Id));
-
-                OnPropertyChanged(nameof(Scenes));
             };
 
             if (Dispatcher.UIThread.CheckAccess())
