@@ -327,5 +327,9 @@ void RayGenMain()
 
     float3 finalColor = accumRadiance.rgb / float(NUM_SAMPLES);
 
+    // temp debug
+
+    //finalColor = float3(1.0f, 0.0, 1.0);
+
     image[storage_coord] = float4(finalColor, 1.0);
 }

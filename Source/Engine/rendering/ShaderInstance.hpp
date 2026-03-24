@@ -9,6 +9,10 @@
 
 #include <Core/Defines.hpp>
 
+#if HYP_ENABLE_SHADER_RELOAD
+#include <Core/utilities/Time.hpp>
+#endif
+
 #include <rendering/RenderObject.hpp>
 
 #include <Core/HashCode.hpp>
@@ -41,6 +45,18 @@ public:
     virtual bool IsCreated() const = 0;
 
     virtual RendererResult Create() = 0;
+
+#if HYP_ENABLE_SHADER_RELOAD
+    HYP_FORCE_INLINE Time GetCompiledTimestamp() const
+    {
+        return m_compiledTimestamp;
+    }
+
+    HYP_FORCE_INLINE void SetCompiledTimestamp(Time timestamp)
+    {
+        m_compiledTimestamp = timestamp;
+    }
+#endif
     
 #if HYP_DEBUG_MODE
     Name GetDebugName() const
@@ -61,6 +77,10 @@ protected:
     }
 
     const Shader* m_shader;
+
+#if HYP_ENABLE_SHADER_RELOAD
+    Time m_compiledTimestamp;
+#endif
     
 #if HYP_DEBUG_MODE
     Name m_debugName;

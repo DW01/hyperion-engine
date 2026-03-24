@@ -203,6 +203,7 @@ public:
     static Time Now();
 
 private:
+    HYP_FIELD()
     uint64 m_value;
 };
 

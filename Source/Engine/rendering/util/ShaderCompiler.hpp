@@ -544,6 +544,10 @@ public:
         const VertexAttributeSet& vertexAttributes,
         Shader*& outShader);
 
+#if HYP_ENABLE_SHADER_RELOAD
+    HYP_API bool IsShaderBundleOutdated(Name name, const Time& lastCompiledTimestamp) const;
+#endif
+
 private:
     ProcessResult ProcessShaderSource(
         ProcessShaderSourcePhase phase,

@@ -412,10 +412,12 @@ Time FilePath::LastModifiedTimestamp() const
         return Time(0);
     }
 
+    // Time is in ms
+
 #ifdef HYP_MACOS
-    return Time(st.st_mtimespec.tv_sec);
+    return Time(st.st_mtimespec.tv_sec * 1000 + st.st_mtimespec.tv_nsec / 1000000);
 #else
-    return Time(st.st_mtime);
+    return Time(st.st_mtime * 1000);
 #endif
 }
 

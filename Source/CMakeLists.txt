@@ -324,6 +324,8 @@ if(NOT HYP_ANDROID)
     
     set(HYP_EDITOR 1)
     add_definitions(-DHYP_EDITOR=1)
+
+    add_definitions(-DHYP_ENABLE_SHADER_RELOAD=1)
 endif()
 
 # enable HypScript

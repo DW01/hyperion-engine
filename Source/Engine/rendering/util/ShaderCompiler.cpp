@@ -3047,6 +3047,14 @@ bool ShaderCompiler::CompileBundle(
     Array<Handle<Shader>> existingShadersToRemove;
     HashSet<Name> usedNames;
 
+#if HYP_ENABLE_SHADER_RELOAD
+    Time maxSourceFileLastModified = Time(0);
+    for (const LoadedSourceFile& sourceFile : loadedSourceFiles)
+    {
+        maxSourceFileLastModified = MathUtil::Max(maxSourceFileLastModified, sourceFile.lastModifiedTimestamp);
+    }
+#endif
+
     // compile shader with each permutation of properties
     ForEachPermutation(
         permsToCompile,
@@ -3332,6 +3340,10 @@ bool ShaderCompiler::CompileBundle(
                 shader->inputGroup = ShaderInputGroup();
                 descriptorUsageSetsMerged.BuildDescriptorTableDeclaration(shader->inputGroup);
 
+#if HYP_ENABLE_SHADER_RELOAD
+                shader->lastCompiledTimestamp = maxSourceFileLastModified;
+#endif
+
                 Mutex::Guard guard(compiledShadersMutex);
 
                 AssertDebug(!usedNames.Contains(shader->GetName()));
@@ -3550,5 +3562,44 @@ bool ShaderCompiler::RequestShader(
 }
 
 #pragma endregion ShaderCompiler
+
+#if HYP_ENABLE_SHADER_RELOAD
+
+bool ShaderCompiler::IsShaderBundleOutdated(Name name, const Time& lastCompiledTimestamp) const
+{
+    if (!CanCompileShaders())
+    {
+        return false;
+    }
+
+    const ShaderBundleDecl* foundDecl = nullptr;
+
+    for (const ShaderBundleDecl& decl : m_shaderBundleDecls)
+    {
+        if (decl.name == name)
+        {
+            foundDecl = &decl;
+            break;
+        }
+    }
+
+    if (foundDecl == nullptr)
+    {
+        return false;
+    }
+
+    Time maxSourceFileLastModified = Time(0);
+
+    for (const auto& sourceFile : foundDecl->sources)
+    {
+        maxSourceFileLastModified = MathUtil::Max(
+            maxSourceFileLastModified,
+            FilePath(sourceFile.second).LastModifiedTimestamp());
+    }
+
+    return maxSourceFileLastModified > lastCompiledTimestamp;
+}
+
+#endif // HYP_ENABLE_SHADER_RELOAD
 
 } // namespace Hyperion

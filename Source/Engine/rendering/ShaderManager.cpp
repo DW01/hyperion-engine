@@ -26,6 +26,10 @@
 
 namespace Hyperion {
 
+#if HYP_ENABLE_SHADER_RELOAD
+HYP_DECLARE_LOG_CHANNEL(ShaderCompiler);
+#endif
+
 static EngineStatTimer s_statShaderCompilation { "Rendering/ShaderCompilation", /* resetPerFrame */ false };
 
 static ShaderCacheId GenerateShaderCacheId()
@@ -49,7 +53,7 @@ class ShaderManagerImpl
 public:
     struct ShaderMapEntry
     {
-        enum class State : uint8
+        enum State : int32
         {
             UNLOADED = 0,
             LOADING = 1,
@@ -59,8 +63,9 @@ public:
         ShaderCacheId cacheId = InvalidShaderCacheId;
         ShaderInstanceRef shaderInstance;
         Shader* shader = nullptr;
-        AtomicVar<State> state = State::UNLOADED;
         ThreadId loadingThreadId;
+        
+        volatile int32 state = int32(State::UNLOADED);
     };
 
     struct CompileShaderRequest
@@ -89,6 +94,26 @@ public:
     HashMap<String, Array<CompileShaderRequest*>> m_compilingShaders;
     std::binary_semaphore m_activeCompilationTask { 0 };
 
+#if HYP_ENABLE_SHADER_RELOAD
+    static constexpr uint32 ShaderReloadIntervalMs = 3000;
+    AtomicVar<bool> m_shaderReloadShouldStop { false };
+    Task<void> m_shaderReloadTask;
+#endif
+
+    ShaderManagerImpl()
+    {
+#if HYP_ENABLE_SHADER_RELOAD
+        StartShaderReloadThread();
+#endif
+    }
+
+    ~ShaderManagerImpl()
+    {
+#if HYP_ENABLE_SHADER_RELOAD
+        StopShaderReloadThread();
+#endif
+    }
+
     static void CompileShader(CompileShaderRequest& request)
     {
         bool isValid = true;
@@ -104,7 +129,14 @@ public:
 
         // Update the entry
         request.entry->shaderInstance = request.shaderInstance;
-        request.entry->state.Set(ShaderMapEntry::State::LOADED, MemoryOrder::SEQUENTIAL);
+        AtomicExchange(&request.entry->state, ShaderMapEntry::State::LOADED);
+
+#if HYP_ENABLE_SHADER_RELOAD
+        if (request.entry->shader && request.shaderInstance.IsValid())
+        {
+            request.shaderInstance->SetCompiledTimestamp(request.entry->shader->lastCompiledTimestamp);
+        }
+#endif
     }
 
     void CompileShaders()
@@ -328,7 +360,8 @@ public:
             int numSpins = 0;
 
             // loading from another thread -- wait until state is no longer LOADING
-            while (entry->state.Get(MemoryOrder::SEQUENTIAL) == ShaderMapEntry::State::LOADING)
+            int32 currState;
+            while ((currState = AtomicAdd(&entry->state, 0)) == ShaderMapEntry::State::LOADING)
             {
                 // sanity check - should never happen
                 Assert(entry->loadingThreadId != CurrentThreadId());
@@ -341,8 +374,9 @@ public:
                         entry->loadingThreadId.GetName(),
                         CurrentThreadId().GetName());
 
+                    // make new entry (this thread only)
                     entry = MakeRefCountedPtr<ShaderMapEntry>();
-                    entry->state.Set(ShaderMapEntry::State::LOADING, MemoryOrder::SEQUENTIAL);
+                    entry->state = ShaderMapEntry::State::LOADING;
                     entry->loadingThreadId = CurrentThreadId();
 
                     shouldAddEntryToCache = false;
@@ -377,7 +411,8 @@ public:
 
             if (doLoadShader)
             {
-                entry->state.Set(ShaderMapEntry::State::LOADING, MemoryOrder::SEQUENTIAL);
+                // @FIXME should do compare exchange here
+                AtomicExchange(&entry->state, ShaderMapEntry::State::LOADING);
                 entry->loadingThreadId = CurrentThreadId();
             }
         }
@@ -508,6 +543,116 @@ public:
 
         return totalMemoryUsage;
     }
+
+#if HYP_ENABLE_SHADER_RELOAD
+    void StartShaderReloadThread()
+    {
+        m_shaderReloadShouldStop.Set(false, MemoryOrder::RELAXED);
+
+        m_shaderReloadTask = TaskSystem::GetInstance().Enqueue(
+            [this]()
+            {
+                while (!m_shaderReloadShouldStop.Get(MemoryOrder::RELAXED))
+                {
+                    ThreadSleep(ShaderReloadIntervalMs);
+
+                    if (m_shaderReloadShouldStop.Get(MemoryOrder::RELAXED))
+                    {
+                        break;
+                    }
+
+                    RecheckLoadedShaders();
+                }
+            },
+            TaskThreadPoolName::THREAD_POOL_BACKGROUND);
+    }
+
+    void StopShaderReloadThread()
+    {
+        m_shaderReloadShouldStop.Set(true, MemoryOrder::RELAXED);
+
+        if (m_shaderReloadTask.IsValid())
+        {
+            m_shaderReloadTask.Await();
+        }
+    }
+
+    void RecheckLoadedShaders()
+    {
+        Array<ShaderMapEntry*> staleEntries;
+
+        {
+            TSharedLock lock(m_mutex);
+
+            for (const auto& it : m_entryMap)
+            {
+                ShaderMapEntry* entry = it.second;
+
+                if (!entry || AtomicAdd(&entry->state, 0) != ShaderMapEntry::State::LOADED)
+                {
+                    continue;
+                }
+
+                if (!entry->shader)
+                {
+                    continue;
+                }
+
+                if (!g_shaderCompiler->IsShaderBundleOutdated(
+                        entry->shader->baseName,
+                        entry->shader->lastCompiledTimestamp))
+                {
+                    continue;
+                }
+
+                staleEntries.PushBack(entry);
+            }
+        }
+
+        for (ShaderMapEntry* entry : staleEntries)
+        {
+            int32 expected = ShaderMapEntry::State::LOADED;
+
+            if (!AtomicCompareExchange(&entry->state, expected, ShaderMapEntry::State::LOADING))
+            {
+                continue;
+            }
+
+            entry->loadingThreadId = CurrentThreadId();
+
+            HYP_LOG(ShaderCompiler, Info,
+                "Reloading shader '{}' ...",
+                entry->shader->baseName);
+
+            bool isValid = g_shaderCompiler->RequestShader(
+                entry->shader->baseName,
+                entry->shader->properties,
+                entry->shader->vertexAttributes,
+                entry->shader);
+
+            if (!isValid || !entry->shader->IsValid())
+            {
+                HYP_LOG(ShaderCompiler, Error,
+                    "Failed to reload shader '{}'",
+                    entry->shader->baseName);
+
+                AtomicExchange(&entry->state, ShaderMapEntry::State::LOADED);
+
+                continue;
+            }
+
+            ShaderInstanceRef newShaderInstance = g_renderInterface->MakeShader(entry->shader);
+            CheckResult(newShaderInstance->Create());
+
+            newShaderInstance->SetCompiledTimestamp(entry->shader->lastCompiledTimestamp);
+
+            entry->shaderInstance = std::move(newShaderInstance);
+
+            // now mark loaded so other threads can use it.
+            AtomicExchange(&entry->state, ShaderMapEntry::State::LOADED);
+        }
+    }
+#endif // HYP_ENABLE_SHADER_RELOAD
 };
 
 ShaderManager::ShaderManager()

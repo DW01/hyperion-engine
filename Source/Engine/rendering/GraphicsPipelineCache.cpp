@@ -502,6 +502,21 @@ int GraphicsPipelineCache::RunCleanupCycle(int maxIter)
             continue;
         }
 
+#if HYP_ENABLE_SHADER_RELOAD
+        {
+            const ShaderInstanceRef& si = graphicsPipeline->GetShader();
+
+            if (si.IsValid() && si->GetShader() != nullptr
+                && si->GetCompiledTimestamp() != si->GetShader()->lastCompiledTimestamp)
+            {
+                const size_t index = m_cachedPipelines->IndexOf(m_cachedPipelines->cleanupIterator);
+                Assert(index != SIZE_MAX);
+
+                m_cachedPipelines->Remove(index);
+            }
+        }
+#endif
+
         // signed as graphics pipelines that haven't been used yet have -1 as their lastFrame value
         const int64 frameDiff = int64(currFrame) - int64(graphicsPipeline->lastFrame);
 

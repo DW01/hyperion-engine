@@ -8,6 +8,7 @@
 #include <Core/containers/String.hpp>
 
 #include <Core/utilities/Pair.hpp>
+#include <Core/utilities/Time.hpp>
 
 #include <asset/AssetObject.hpp>
 
@@ -79,6 +80,9 @@ public:
 
     HYP_FIELD(Property = "PropertySetHashCode")
     HashCode propertySetHashCode;
+
+    HYP_FIELD(Property = "LastCompiledTimestamp")
+    Time lastCompiledTimestamp;
 
     HYP_FIELD(Transient = true)
     ShaderPropertySet properties; // dependent on cache; so we serialize the actual properties (below)

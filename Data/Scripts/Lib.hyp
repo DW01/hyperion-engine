@@ -1906,7 +1906,8 @@ end
 extern enum SceneFlags : uint32
     NONE = 0x0,
     FOREGROUND = 0x1,
-    DETACHED = 0x2,
+    BACKDROP = 0x2,
+    DETACHED = 0x4,
     UI = 0x8,
     EDITOR = 0x10,
     STREAMED = 0x20,
@@ -2355,6 +2356,7 @@ extern class Shader : AssetObject
     EntryPointNames : Array<string>
     ShaderBlobs : Array<BlobDataReference>
     PropertySetHashCode : HashCode
+    LastCompiledTimestamp : Time
     Properties : ShaderPropertySet
     SerializeProperties() -> Array<ShaderProperty>
     DeserializeProperties(properties : Array<ShaderProperty>) -> void
@@ -2484,6 +2486,7 @@ extern struct UUID
     ToString() -> string
 end
 extern struct Time
+    Value : uint64
 end
 extern struct Result
     HasValue() -> bool
