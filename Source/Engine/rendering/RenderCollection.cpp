@@ -29,7 +29,7 @@
 #include <rendering/renderers/DeferredRenderer.hpp>
 
 #include <rendering/util/DeletionQueue.hpp>
-#include <rendering/util/ResourceTracker.hpp>
+#include <engine/resources/ResourceTracker.hpp>
 #include <rendering/util/ShaderPropertyDictionary.hpp>
 
 #include <scene/Scene.hpp>
@@ -792,7 +792,7 @@ static void RenderAll(
     {
         AssertDebug(drawCalls.entityIds[i].GetTypeId() == TypeId::ForType<Entity>());
 
-        const uint32 materialBoundIndex = Resources::RetrieveResourceBinding(drawCalls.materials[i]);
+        const uint32 materialBoundIndex = Resources::GetBinding(drawCalls.materials[i]);
         AssertDebug(materialBoundIndex != ~0u);
 
         uint32 numDrawCallUniforms = numShaderUniforms;
@@ -883,7 +883,7 @@ static void RenderAll(
             drawCallCollection.batchAllocator->GetGpuBufferHolder()->GetBuffer(frameIndex),
             ShaderDataOffset(entityInstanceBatch->batchIndex * stride, stride));
 
-        const uint32 materialBoundIndex = Resources::RetrieveResourceBinding(instancedDrawCalls.materials[i]);
+        const uint32 materialBoundIndex = Resources::GetBinding(instancedDrawCalls.materials[i]);
         AssertDebug(materialBoundIndex != ~0u);
 
         cr << SetShaderUniform(numDrawCallUniforms++, "MaterialsBuffer"_sh,

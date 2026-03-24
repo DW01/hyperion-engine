@@ -201,7 +201,7 @@ void AmbientProbeDebugDrawShape::UpdateBufferData(DebugDrawCommand* cmd, Immedia
 {
     IDebugDrawShape::UpdateBufferData(cmd, bufferData);
 
-    const uint32 envProbeIndex = Resources::RetrieveResourceBinding(static_cast<DebugDrawCommand_Probe*>(cmd)->envProbe);
+    const uint32 envProbeIndex = Resources::GetBinding(static_cast<DebugDrawCommand_Probe*>(cmd)->envProbe);
 
     bufferData->envProbeType = EPT_AMBIENT;
     bufferData->envProbeIndex = envProbeIndex;
@@ -250,7 +250,7 @@ void ReflectionProbeDebugDrawShape::UpdateBufferData(DebugDrawCommand* cmd, Imme
 {
     IDebugDrawShape::UpdateBufferData(cmd, bufferData);
 
-    const uint32 envProbeIndex = Resources::RetrieveResourceBinding(static_cast<DebugDrawCommand_Probe*>(cmd)->envProbe);
+    const uint32 envProbeIndex = Resources::GetBinding(static_cast<DebugDrawCommand_Probe*>(cmd)->envProbe);
 
     bufferData->envProbeType = EPT_REFLECTION;
     bufferData->envProbeIndex = envProbeIndex;

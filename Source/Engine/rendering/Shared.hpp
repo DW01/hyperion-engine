@@ -23,7 +23,7 @@ namespace Hyperion {
 class ObjectBase;
 
 namespace Resources {
-extern uint32 RetrieveResourceBinding(const ObjectBase* resource);
+extern uint32 GetBinding(const ObjectBase* resource);
 } // namespace Resources
 
 HYP_ENUM()
@@ -1149,7 +1149,7 @@ struct TShaderDataOffset : ShaderDataOffset
     explicit TShaderDataOffset(const ObjectBase* resource)
         : ShaderDataOffset(size_t(-1), sizeof(T))
     {
-        uint32 idx = Resources::RetrieveResourceBinding(resource);
+        uint32 idx = Resources::GetBinding(resource);
         AssertDebug(idx != ~0u, "Invalid resource binding returned");
 
         if (idx != ~0u)

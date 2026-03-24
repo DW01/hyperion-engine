@@ -55,7 +55,7 @@
       "DebugVis": 0
     },
     "Debug": {
-      "Reflections": false,
+      "Reflections": true,
       "DebugDrawer": {
         "Enabled": false,
         "EnvGridProbes": false
@@ -78,7 +78,7 @@
     "OnlyGenerateUVs": false,
     "Radiance": true,
     "Irradiance": true,
-    "NumSamples": 8,
+    "NumSamples": 1,
     "MaxTexelsPerFrame": 100000,
     "IdealTrianglesPerJob": 16000,
     "NumThreadsPerJob": 4

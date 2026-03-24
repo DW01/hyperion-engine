@@ -219,7 +219,7 @@ void ConvolveEnvProbeCubemap(
     // Update in env probes texture array if bound
     if (envProbe.IsA(SkyProbe::StaticClass()) || envProbe.IsA(ReflectionProbe::StaticClass()))
     {
-        const uint32 boundIndex = Resources::RetrieveResourceBinding(&envProbe);
+        const uint32 boundIndex = Resources::GetBinding(&envProbe);
 
         if (boundIndex != ~0u)
         {
@@ -405,7 +405,7 @@ void ReflectionProbeRenderer::RenderProbe(Frame* frame, const RenderSetup& rende
         AssertDebug(lightProxy != nullptr);
 
 #if HYP_DEBUG_MODE
-        AssertDebug(Resources::RetrieveResourceBinding(renderSetup.light) != ~0u);
+        AssertDebug(Resources::GetBinding(renderSetup.light) != ~0u);
 #endif
 
         if (lightProxy->bufferData.positionIntensity == pd->cachedLightDirIntensity
@@ -566,7 +566,7 @@ void ReflectionProbeRenderer::ComputeSH(Frame* frame, const RenderSetup& renderS
         if (light->GetLightType() == LightType::Directional)
         {
 #if HYP_DEBUG_MODE
-            AssertDebug(Resources::RetrieveResourceBinding(light) != ~0u, "Light not bound!");
+            AssertDebug(Resources::GetBinding(light) != ~0u, "Light not bound!");
 #endif
 
             directionalLight = light;
@@ -593,7 +593,7 @@ void ReflectionProbeRenderer::ComputeSH(Frame* frame, const RenderSetup& renderS
         uint32 envProbeIndex;
     } uniforms;
 
-    uniforms.envProbeIndex = Resources::RetrieveResourceBinding(envProbe);
+    uniforms.envProbeIndex = Resources::GetBinding(envProbe);
     uniforms.probeGridPosition = { 0, 0, 0, 0 };
     uniforms.cubemapDimensions = Vec4u { cubemapDimensions, 0, 0 };
     uniforms.worldPosition = envProbeProxy->bufferData.worldPosition;
@@ -713,7 +713,7 @@ void ReflectionProbeRenderer::ComputeSH(Frame* frame, const RenderSetup& renderS
                   shTilesBuffers = std::move(shTilesBuffers),
                   uniformBuffers = std::move(uniformBuffers)]() mutable
             {
-                //const uint32 boundIndex = RetrieveResourceBinding(envProbe);
+                //const uint32 boundIndex = GetBinding(envProbe);
                 //Assert(boundIndex != ~0u);
 
                 // @TODO! Copy to cpu side data

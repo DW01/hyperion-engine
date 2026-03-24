@@ -532,7 +532,20 @@ void Texture::GenerateMipmaps(TextureDesc& desc, ByteBuffer& imageData)
                 // initialize f32 data from f16
                 for (size_t byteIndex = 0; byteIndex < srcMipSize; byteIndex += sizeof(Float16))
                 {
-                    *(reinterpret_cast<float32*>(scratchBuffer + (byteIndex * 2))) = *(float16Data + (byteIndex / sizeof(Float16)));
+                    float32& f32Value = (*(reinterpret_cast<float32*>(scratchBuffer + (byteIndex * 2))) = *(float16Data + (byteIndex / sizeof(Float16))));
+                    
+                    if (f32Value < -FLT16_MAX)
+                    {
+                        f32Value = -FLT16_MAX;
+                    }
+                    else if (f32Value > FLT16_MAX)
+                    {
+                        f32Value = FLT16_MAX;
+                    }
+                    else if (f32Value == static_cast<float32>(Float16::FromRaw(65504))) // nan
+                    {
+                        f32Value = 0.0f;
+                    }
                 }
 
                 result = stbir_resize_float(

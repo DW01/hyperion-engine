@@ -66,12 +66,12 @@ DECLARE_BUFFER_DYNAMIC(LightmapPathTracer, CBuffer) cbuffer CBuffer
 #ifdef MODE_IRRADIANCE
 
 #define RAY_OFFSET 0.005
-#define NUM_BOUNCES 8
+#define NUM_BOUNCES 4
 #define NUM_SAMPLES 1
 #elif defined(MODE_FULL)
 #define RAY_OFFSET 0.005
 #define NUM_BOUNCES 8
-#define NUM_SAMPLES 1
+#define NUM_SAMPLES 4
 #else
 #define RAY_OFFSET 0.01
 #define NUM_BOUNCES 1
@@ -193,8 +193,11 @@ void RayGenMain()
                 for (uint envProbeIdx = 0; envProbeIdx < rayTracingConstants.numBoundEnvProbes && environmentRadiance.a < 1.0; envProbeIdx++)
                 {
                     const EnvProbe envProbe = envProbes[envProbeIdx];
-                    float4 env = EnvProbeSample(sampler_linear, envProbesTexture, envProbe.texture_index, direction, 0.0) * (1.0 - environmentRadiance.a);
-                    environmentRadiance += env;
+                    if (envProbe.texture_index != ~0u)
+                    {
+                        float4 env = EnvProbeSample(sampler_linear, envProbesTexture, envProbe.texture_index, direction, 0.0) * (1.0 - environmentRadiance.a);
+                        environmentRadiance += env;
+                    }
                 }
                 
                 radiance += beta * environmentRadiance.rgb;
@@ -266,7 +269,7 @@ void RayGenMain()
         accumRadiance.rgb += radiance;
     } // end samples
 
-    float3 finalColor = accumRadiance.rgb / float(NUM_SAMPLES);
+    float4 finalColor = float4(accumRadiance.rgb / float(NUM_SAMPLES), 1.0);
 #elif defined(MODE_RADIANCE)
     // direct shading
 
@@ -302,7 +305,7 @@ void RayGenMain()
         }
     }
 
-    float3 finalColor = radiance;
+    float4 finalColor = float4(radiance, 1.0);
 #elif defined(MODE_FULL)
     // full path tracing with diffuse/specular bounces
     float4 accumRadiance = (float4)0.0;
@@ -343,8 +346,13 @@ void RayGenMain()
                 for (uint envProbeIdx = 0; envProbeIdx < rayTracingConstants.numBoundEnvProbes && environmentRadiance.a < 1.0; envProbeIdx++)
                 {
                     const EnvProbe envProbe = envProbes[envProbeIdx];
-                    float4 env = EnvProbeSample(sampler_linear, envProbesTexture, envProbe.texture_index, direction, 0.0) * (1.0 - environmentRadiance.a);
-                    environmentRadiance += env;
+                    
+                    if (envProbe.texture_index != ~0u)
+                    {
+                        float4 env = EnvProbeSample(sampler_linear, envProbesTexture, envProbe.texture_index, direction, 0.0);
+                        env *= (1.0 - environmentRadiance.a);
+                        environmentRadiance += env;
+                    }
                 }
 
                 Li += float4(beta * environmentRadiance.rgb, 1.0);
@@ -434,7 +442,7 @@ void RayGenMain()
             }
 
             // Russian roulette
-            if (bounceIndex >= 3)
+            if (bounceIndex >= 4)
             {
                 float p = clamp(max(max(beta.r, beta.g), beta.b), 0.05, 0.99);
                 if (RandomFloat(ray_seed) > p)
@@ -481,16 +489,17 @@ void RayGenMain()
             direction = wi;
         }
         
-        Li.a = sampleIsMiss ? 0.0 : 1.0; // if the ray never hit anything, set alpha to 0 so that probes can blend between each other. If it hit something, set alpha to 1 so that the result is not blended with other probes.
+        // if the ray never hit anything, set alpha to 0 so that probes can blend between each other. If it hit something, set alpha to 1 so that the result is not blended with other probes.
+        Li.a = sampleIsMiss ? 0.0 : 1.0;
+
         accumRadiance += Li;
     }
 
     float4 finalColor = accumRadiance / float(NUM_SAMPLES);
-    finalColor.a = saturate(finalColor.a);
 
 #else
     // shouldn't get here; output green so it's really obvious
-    float4 finalColor = float3(0.0, 1.0, 0.0, 1.0);
+    float4 finalColor = float4(0.0, 1.0, 0.0, 1.0);
 #endif
 
     hits[ray_index] = finalColor;

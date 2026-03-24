@@ -114,9 +114,9 @@ void SetForceRebind(ObjectBase* resource, bool forceRebind = true);
 
 namespace Resources {
 // used on render thread only - assigns all render proxy for the given object to the given binding
-void AssignResourceBinding(ObjectBase* resource, uint32 binding);
+void SetBinding(ObjectBase* resource, uint32 binding);
 // used on render thread only - retrieves the binding set for the given resource (~0u if unset)
-uint32 RetrieveResourceBinding(const ObjectBase* resource);
+uint32 GetBinding(const ObjectBase* resource);
 } // namespace Resources
 
 WorldShaderData* GetWorldBufferData();

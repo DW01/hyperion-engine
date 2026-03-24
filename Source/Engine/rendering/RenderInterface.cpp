@@ -38,11 +38,11 @@
 #include <rendering/BLASCache.hpp>
 #include <rendering/CrashHandler.hpp>
 
-#include <rendering/util/ResourceTracker.hpp>
+#include <engine/resources/ResourceTracker.hpp>
 #include <rendering/util/DeletionQueue.hpp>
 #include <rendering/util/ShaderPropertyDictionary.hpp>
 #include <rendering/util/ShaderCompiler.hpp>
-#include <rendering/util/ResourceBinder.hpp>
+#include <engine/resources/ResourceBinder.hpp>
 
 #include <rendering/renderers/EnvProbeRenderer.hpp>
 #include <rendering/renderers/DeferredRenderer.hpp>
@@ -52,7 +52,7 @@
 
 #include <rendering/shadows/ShadowMapCache.hpp>
 
-#include <rendering/ResourceBindings.hpp>
+#include <rendering/resources/ResourceBindings.hpp>
 
 #include <scene/View.hpp>
 #include <scene/World.hpp>
@@ -324,391 +324,6 @@ static BufferedViewData* GetBufferedViewData(View* view, uint32 slot)
 
 } // namespace FrameData
 
-namespace Resources {
-
-#pragma region ResourceContainer
-
-struct ResourceData final
-{
-    ObjectBase* resource;
-    uint32 useCount;
-
-    ResourceData(ObjectBase* resource)
-        : resource(resource),
-          useCount(0)
-    {
-        AssertDebug(resource != nullptr);
-    }
-
-    ResourceData(const ResourceData& other) = delete;
-    ResourceData& operator=(const ResourceData& other) = delete;
-
-    ResourceData(ResourceData&& other) noexcept = delete;
-    ResourceData& operator=(ResourceData&& other) noexcept = delete;
-
-    ~ResourceData() = default;
-};
-
-struct ResourceSubtypeData final
-{
-    static constexpr int MaxResourceBindersPerType = 3;
-
-    const TypeInfo* typeInfo;
-
-    // Map from id -> ResourceData
-    SparsePagedArray<ResourceData, 1024, RenderAllocator> data;
-
-    Bitset indicesPendingDelete;
-    Bitset indicesPendingUpdate;
-
-    // reserve 1 extra for easier iteration without bounds checking
-    ResourceBinderBase* resourceBinders[MaxResourceBindersPerType + 1];
-    GpuBufferHolderBase* gpuBufferHolder;
-
-    WriteBufferDataFunction writeBufferDataFn;
-
-    // == optional render proxy data ==
-    SparsePagedArray<IRenderProxy*, 1024, RenderAllocator> proxies;
-    bool hasProxyData : 1;
-
-    template <class ResourceType, class ProxyType, size_t NumResourceBinders>
-    ResourceSubtypeData(
-        TypeWrapper<ResourceType>,
-        TypeWrapper<ProxyType>,
-        GpuBufferHolderBase* gpuBufferHolder = nullptr,
-        FixedArray<ResourceBinderBase*, NumResourceBinders> resourceBinders = {},
-        WriteBufferDataFunction writeBufferDataFn = nullptr)
-        : typeInfo(&TypeInfo::ForType<ResourceType>()),
-          hasProxyData(false),
-          gpuBufferHolder(gpuBufferHolder),
-          resourceBinders { nullptr },
-          writeBufferDataFn(writeBufferDataFn)
-    {
-        static_assert(NumResourceBinders <= MaxResourceBindersPerType,
-            "Number of resource binders exceeds MaxResourceBindersPerType!");
-
-        // copy resource binders
-        for (size_t i = 0; i < NumResourceBinders; i++)
-        {
-            this->resourceBinders[i] = resourceBinders[i];
-
-            if (resourceBinders[i])
-            {
-                resourceBinders[i]->Initialize();
-            }
-        }
-
-        // if ProxyType != NullProxy then we setup proxy pool
-        if constexpr (!std::is_same_v<ProxyType, NullProxy>)
-        {
-            hasProxyData = true;
-
-            // set the WriteBufferData function pointer to some default if one has not been provided
-            if (!writeBufferDataFn)
-            {
-                this->writeBufferDataFn = &WriteBufferData_Default<ProxyType>;
-            }
-        }
-    }
-
-    ResourceSubtypeData(const ResourceSubtypeData& other) = delete;
-    ResourceSubtypeData& operator=(const ResourceSubtypeData& other) = delete;
-
-    ResourceSubtypeData(ResourceSubtypeData&& other) noexcept = default;
-    ResourceSubtypeData& operator=(ResourceSubtypeData&& other) noexcept = default;
-
-    ~ResourceSubtypeData() = default;
-
-    HYP_FORCE_INLINE void SetGpuElem(uint32 idx, IRenderProxy* proxy)
-    {
-        AssertDebug(writeBufferDataFn != nullptr);
-        AssertDebug(gpuBufferHolder != nullptr);
-        AssertDebug(idx != ~0u);
-
-        writeBufferDataFn(gpuBufferHolder, idx, proxy);
-    }
-};
-
-struct ResourceContainer
-{
-    ResourceSubtypeData& GetSubtypeData(const Class* cls)
-    {
-        AssertDebug(cls != nullptr);
-
-        int staticIndex = cls->GetStaticIndex();
-        AssertDebug(staticIndex >= 0, "Invalid class: '{}' has no assigned static index!", *cls->GetName());
-
-        AssertDebug(dataByType.HasIndex(staticIndex), "Missing resource data for {}", *cls->GetName());
-
-        return dataByType.Get(staticIndex);
-    }
-
-    SparsePagedArray<ResourceSubtypeData, 64, RenderAllocator> dataByType;
-};
-
-struct ResourceContainerFactoryRegistry
-{
-    Array<Proc<void(ResourceContainer&)>> funcs;
-
-    static ResourceContainerFactoryRegistry& GetInstance()
-    {
-        static ResourceContainerFactoryRegistry s_instance;
-        return s_instance;
-    }
-
-    void InvokeAll(ResourceContainer& resourceContainer)
-    {
-        for (auto& func : funcs)
-        {
-            func(resourceContainer);
-        }
-    }
-};
-
-template <class ResourceType, class ProxyType>
-struct ResourceContainerFactory
-{
-public:
-    static const Class* GetResourceClass()
-    {
-        return ResourceType::StaticClass();
-    }
-
-    template <class... ResourceBinderTypes>
-    ResourceContainerFactory(
-        GlobalRenderBuffer buf,
-        WriteBufferDataFunction writeBufferDataFn,
-        ResourceBinderTypes*... resourceBinders)
-    {
-        ResourceContainerFactoryRegistry::GetInstance().funcs.PushBack(
-            [=](ResourceContainer& container)
-            {
-                const Class* resourceClass = GetResourceClass();
-                AssertDebug(resourceClass != nullptr);
-
-                const int staticIndex = resourceClass->GetStaticIndex();
-                AssertDebug(staticIndex >= 0, "Invalid class: '{}' has no assigned static index!", *resourceClass->GetName());
-
-                GpuBufferHolderBase* gpuBufferHolder = buf < GRB_MAX ? g_renderInterface->gpuBuffers[buf] : nullptr;
-
-                if (!s_subtypeBindings.HasIndex(staticIndex))
-                {
-                    // add new ResourceSubtypeBindings slot for the given class
-                    s_subtypeBindings.Emplace(staticIndex, resourceClass, gpuBufferHolder);
-                }
-
-                AssertDebug(!container.dataByType.HasIndex(staticIndex),
-                    "ResourceSubtypeData for resource class '{}' has already been registered!",
-                    *resourceClass->GetName());
-
-                container.dataByType.Emplace(
-                    staticIndex,
-                    TypeWrapper<ResourceType>(),
-                    TypeWrapper<ProxyType>(),
-                    gpuBufferHolder,
-                    FixedArray<ResourceBinderBase*, sizeof...(ResourceBinderTypes)> {
-                        static_cast<ResourceBinderBase*>(resourceBinders)... },
-                    writeBufferDataFn);
-
-                HYP_LOG(Rendering, Verbose, "Registered resource container for resource class '{}'",
-                    *resourceClass->GetName());
-            });
-    }
-};
-
-#define DECLARE_RENDER_DATA_CONTAINER(ResourceType, ProxyType, ...)                                           \
-    static ResourceContainerFactory<class ResourceType, class ProxyType> g_##ResourceType##ContainerFactory { \
-        __VA_ARGS__                                                                                           \
-    };
-
-#pragma endregion ResourceContainer
-
-template <class ElementType, class ProxyType>
-static HYP_FORCE_INLINE void CopyRenderProxy(ResourceSubtypeData& subtypeData, const ObjId<ElementType>& id, ProxyType* newProxy)
-{
-    AssertDebug(newProxy != nullptr);
-
-    const uint32 idx = id.ToIndex();
-
-    AssertDebug(subtypeData.typeInfo->id == id.GetTypeId(),
-        "Attempting to use ID for type {} as index into proxy collection that requires index type {}",
-        LookupTypeName(id.GetTypeId()),
-        subtypeData.typeInfo->name);
-
-    subtypeData.proxies.Set(idx, newProxy);
-    subtypeData.indicesPendingUpdate.Set(idx, true);
-}
-
-template <class AllocatorType, class ElementType, class ProxyType>
-static HYP_FORCE_INLINE void SyncResourcesImpl(
-    ResourceTracker<AllocatorType, ObjId<ElementType>, ElementType*, ProxyType>& resourceTracker,
-    const typename ResourceTracker<AllocatorType, ObjId<ElementType>, ElementType*, ProxyType>::Impl& impl)
-{
-    if (impl.elements.Empty())
-    {
-        return;
-    }
-
-    for (Bitset::BitIndex i : impl.next)
-    {
-        ElementType* elem = impl.elements.Get(i);
-        const int version = impl.versions.Get(i);
-
-        resourceTracker.Track(elem->Id(), elem, &version);
-    }
-}
-
-template <class AllocatorType, class ElementType, class ProxyType>
-static void SyncResources(
-    ResourceContainer& resources,
-    ResourceTracker<AllocatorType, ObjId<ElementType>, ElementType*, ProxyType>& dst,
-    const ResourceTracker<AllocatorType, ObjId<ElementType>, ElementType*, ProxyType>& src)
-{
-    SyncResourcesImpl(dst, src.GetSubclassImpl(-1));
-
-    for (Bitset::BitIndex subclassIndex : src.GetSubclassIndices())
-    {
-        SyncResourcesImpl(dst, src.GetSubclassImpl(int(subclassIndex)));
-    }
-
-    const ResourceTrackerDiff& diff = dst.GetDiff();
-
-    if (!diff.NeedsUpdate())
-    {
-        return;
-    }
-
-    Array<ElementType*, RenderTempAllocator> removed;
-    dst.GetRemoved(removed, false);
-
-    Array<ElementType*, RenderTempAllocator> added;
-    dst.GetAdded(added, false);
-
-    for (ElementType* pResource : added)
-    {
-        AssertDebug(pResource != nullptr);
-
-        const ObjId<ElementType> resourceId = pResource->Id();
-        AssertDebug(resourceId.IsValid());
-
-        ResourceSubtypeData& subtypeData = resources.GetSubtypeData(pResource->InstanceClass());
-        AssertDebug(resourceId.GetTypeId() == subtypeData.typeInfo->id);
-
-        ResourceData* rd = subtypeData.data.TryGet(resourceId.ToIndex());
-
-        if (!rd)
-        {
-            rd = &*subtypeData.data.Emplace(resourceId.ToIndex(), pResource);
-        }
-
-        subtypeData.indicesPendingDelete.Set(resourceId.ToIndex(), false);
-
-        ++rd->useCount;
-
-        if constexpr (!std::is_same_v<ProxyType, NullProxy>)
-        {
-            const ProxyType* pSrcProxy = src.GetProxy(resourceId);
-            AssertDebug(pSrcProxy != nullptr);
-
-            ProxyType* pDstProxy = dst.SetProxy(resourceId, *pSrcProxy);
-            CopyRenderProxy(subtypeData, resourceId, pDstProxy);
-        }
-    }
-
-    for (ElementType* pResource : removed)
-    {
-        AssertDebug(pResource != nullptr);
-
-        const ObjId<ElementType> resourceId = pResource->Id();
-        AssertDebug(resourceId.IsValid());
-
-        ResourceSubtypeData& subtypeData = resources.GetSubtypeData(pResource->InstanceClass());
-        AssertDebug(resourceId.GetTypeId() == subtypeData.typeInfo->id);
-
-        ResourceData* rd = subtypeData.data.TryGet(resourceId.ToIndex());
-        AssertDebug(rd != nullptr, "No resource data for {}", resourceId);
-
-        if (!rd)
-        {
-            continue;
-        }
-
-        AssertDebug(rd->useCount != 0);
-
-        if (!(--rd->useCount))
-        {
-            subtypeData.indicesPendingDelete.Set(resourceId.ToIndex(), true);
-        }
-    }
-
-    Array<ElementType*, RenderTempAllocator> changed;
-
-    if constexpr (!std::is_same_v<ProxyType, NullProxy>)
-    {
-        dst.GetChanged(changed);
-
-        if (changed.Any())
-        {
-            for (ElementType* pResource : changed)
-            {
-                ObjId<ElementType> resourceId = pResource->Id();
-
-                const ProxyType* pSrcProxy = src.GetProxy(resourceId);
-                AssertDebug(pSrcProxy != nullptr);
-
-                ResourceSubtypeData& subtypeData = resources.GetSubtypeData(pResource->InstanceClass());
-
-                ProxyType* pDstProxy = dst.SetProxy(resourceId, *pSrcProxy);
-                CopyRenderProxy(subtypeData, resourceId, pDstProxy);
-            }
-        }
-    }
-
-    //    if (added.Any() || removed.Any() || changedIds.Any())
-    //    {
-    //        HYP_LOG_TEMP("Updated resources for {}: added={}, removed={}, changed={}",
-    //            TypeNameWithoutNamespace<ElementType>().Data(),
-    //            added.Size(), removed.Size(), changedIds.Size());
-    //    }
-}
-
-template <class AllocatorType, size_t... Indices>
-static inline void SyncResourcesT(
-    ResourceContainer& resources,
-    ResourceTrackerBase<AllocatorType>** dstResourceTrackers,
-    ResourceTrackerBase<AllocatorType>** srcResourceTrackers,
-    std::index_sequence<Indices...>)
-{
-    (SyncResources(
-         resources,
-         static_cast<typename TupleElement_Tuple<Indices, RenderProxyList::ResourceTrackerTypes>::Type&>(*dstResourceTrackers[Indices]),
-         static_cast<const typename TupleElement_Tuple<Indices, RenderProxyList::ResourceTrackerTypes>::Type&>(*srcResourceTrackers[Indices])),
-        ...);
-}
-
-static inline void CopyDependencies(
-    ResourceContainer& resources,
-    RenderProxyList& dst,
-    RenderProxyList& src)
-{
-    AssertDebug(dst.resourceTrackers.Size() == TupleSize<RenderProxyList::ResourceTrackerTypes>::value);
-    AssertDebug(src.resourceTrackers.Size() == TupleSize<RenderProxyList::ResourceTrackerTypes>::value);
-
-    // Copy src -> dst
-    SyncResourcesT(
-        resources,
-        dst.resourceTrackers.Data(),
-        src.resourceTrackers.Data(),
-        std::make_index_sequence<TupleSize<RenderProxyList::ResourceTrackerTypes>::value>());
-
-    if (src.useOrdering)
-    {
-        dst.meshEntityOrdering = src.meshEntityOrdering;
-    }
-}
-
-} // namespace Resources
-
 uint32 GetRingIndex()
 {
     if (HYP_UNLIKELY(!Framework::s_threadFrameIndex))
@@ -840,7 +455,7 @@ void UpdateGpuData(const ObjectBase* resource)
         "Cannot use UpdateGpuData() for type which does not have a RenderProxy! Type: {}",
         subtypeData.typeInfo->name);
 
-    const uint32 bindingIndex = Resources::RetrieveResourceBinding(resource);
+    const uint32 bindingIndex = Resources::GetBinding(resource);
     AssertDebug(bindingIndex != ~0u);
 
     const uint32 idx = resourceId.ToIndex();
@@ -1372,7 +987,7 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
 
                 AssertDebug(subtypeData.hasProxyData);
 
-                const uint32 bindingIndex = Resources::RetrieveResourceBinding(resource);
+                const uint32 bindingIndex = Resources::GetBinding(resource);
                 AssertDebug(bindingIndex != ~0u,
                     "Failed to retrieve binding for resource: {} in frame {}, but it is marked as bound (index: {})",
                     i, slot, i);
@@ -2267,7 +1882,7 @@ void RenderInterface::CreateSphereSamplesBuffer()
 void RenderInterface::CreateEnvProbesTexture()
 {
     TextureDesc textureDesc;
-    textureDesc.format = TextureFormat::RGBA8;
+    textureDesc.format = TextureFormat::RGBA16F;
     textureDesc.extent = Vec3u { 128, 128, 1 };
     textureDesc.imageUsage = IU_SAMPLED;
     textureDesc.type = TextureType::CubemapArray;

@@ -240,7 +240,7 @@ void DDGI::UpdateUniforms(Frame* frame, const RenderSetup& renderSetup)
             sizeof(LightShaderData),
             &lightProxy->bufferData);
 
-        lightIndicesU32[uniforms.numBoundLights++] = Resources::RetrieveResourceBinding(light);
+        lightIndicesU32[uniforms.numBoundLights++] = Resources::GetBinding(light);
     }
     
     m_lightsBuffers[frameIndex]->Flush(0, uniforms.numBoundLights * sizeof(LightShaderData));

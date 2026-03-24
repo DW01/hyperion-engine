@@ -123,11 +123,11 @@
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/SSGIUpsample/SSGIUpsample_5656388037364668825.VS",
-      "Size": 776
+      "Size": 36820
     }, {
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/SSGIUpsample/SSGIUpsample_5656388037364668825.PS",
-      "Size": 5332
+      "Size": 58920
     }],
   "PropertySetHashCode": {},
   "Name": "SSGIUpsample_5656388037364668825",

@@ -67,9 +67,8 @@ struct Light
 
     float2 area_size;           // for area lights = area size, for spot lights = spot angles
     float2 _pad0;
-    float4 _pad1;
-    float4 _pad2;
-    float4 _pad3;
+    
+    float4 _pad1[3];
 };
 
 // Maps to LightFlags

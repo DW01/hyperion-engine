@@ -232,7 +232,7 @@ void LightmapRenderer_GpuPathTracing::CreateAccelerationStructures()
 
         if (meshProxy->material != nullptr)
         {
-            const uint32 materialBinding = Resources::RetrieveResourceBinding(meshProxy->material);
+            const uint32 materialBinding = Resources::GetBinding(meshProxy->material);
             blas->SetMaterialBinding(materialBinding);
         }
 
@@ -383,7 +383,7 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
 
         for (EnvProbe* envProbe : rpl.GetEnvProbes())
         {
-            if ((envProbe->IsA(ReflectionProbe::StaticClass()) || envProbe->IsA(SkyProbe::StaticClass()))
+            if ((envProbe->IsA(SkyProbe::StaticClass()) /* || envProbe->IsA(ReflectionProbe::StaticClass()) */)
                 && envProbe != m_lightmapper->GetSource()) // we don't want to bind a probe if it is being baked!
             {
                 if (numBoundEnvProbes >= MaxBoundEnvProbes)
@@ -458,7 +458,6 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
 
         g_renderInterface->constantsAllocator->Commit(cBuffer, cBufferOffset, cBufferSize);
     }
-
 
     JobData& jd = m_jobData[job];
 

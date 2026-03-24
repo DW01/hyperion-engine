@@ -1117,6 +1117,11 @@ static ByteBuffer CompileHLSL(
 
     args.PushBack(L"-HV 2021");
 
+    // enable debug info in HYP_DEBUG_MODE.
+#if HYP_DEBUG_MODE
+    args.PushBack(L"-Zi");
+#endif
+
 #if HYP_VULKAN
     if (outputType == HLSLOutputType::SPIRV)
     {

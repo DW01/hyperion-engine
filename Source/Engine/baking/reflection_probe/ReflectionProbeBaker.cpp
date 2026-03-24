@@ -30,7 +30,7 @@ void ConvolveEnvProbeCubemap(
 
 namespace Baking {
 
-constexpr TextureFormat ReflectionProbeTextureFormat = TextureFormat::RGBA8;
+constexpr TextureFormat ReflectionProbeTextureFormat = TextureFormat::RGBA16F;
 
 Baker<ReflectionProbe>::Baker(LightmapperConfig&& config, const Handle<ReflectionProbe>& envProbe)
     : BakerBase(std::move(config), envProbe, MakeStrongRef(envProbe->GetScene()), envProbe->GetWorldBounds()),

@@ -16,7 +16,7 @@
 #include <rendering/RenderableAttributes.hpp>
 #include <rendering/Shared.hpp>
 
-#include <rendering/util/ResourceTracker.hpp>
+#include <engine/resources/ResourceTracker.hpp>
 
 namespace Hyperion {
 
