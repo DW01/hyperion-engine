@@ -76,6 +76,7 @@ DECLARE_BUFFER_DYNAMIC(RTReflections, CBuffer) cbuffer CBuffer
 #define RAY_OFFSET 0.01
 #define NUM_SAMPLES 2
 #define NUM_BOUNCES 6
+#define ENVIRONMENT_INTENSITY 20.0
 
 [shader("raygeneration")]
 void RayGenMain()
@@ -219,7 +220,7 @@ void RayGenMain()
                 if (current_env_probe.texture_index != ~0u)
                 {
                     uint probe_texture_index = max(0, min(current_env_probe.texture_index, HYP_MAX_BOUND_REFLECTION_PROBES - 1));
-                    float3 env = EnvProbeSample(sampler_linear, envProbesTexture, probe_texture_index, direction, 0.0).rgb;
+                    float3 env = EnvProbeSample(sampler_linear, envProbesTexture, probe_texture_index, direction, 0.0).rgb * ENVIRONMENT_INTENSITY;
                     radiance += beta * env;
                 }
                 break;

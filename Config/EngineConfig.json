@@ -2,7 +2,7 @@
   "Rendering": {
     "RayTracing": {
       "PathTracing": {
-        "Enabled": false
+        "Enabled": true
       },
       "Reflections": {
         "Enabled": false
@@ -57,7 +57,7 @@
     "Debug": {
       "Reflections": true,
       "DebugDrawer": {
-        "Enabled": false,
+        "Enabled": true,
         "EnvGridProbes": false
       },
       "Irradiance": false,

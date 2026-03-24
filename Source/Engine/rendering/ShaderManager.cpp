@@ -97,12 +97,14 @@ public:
     Mutex m_compilingShadersMutex; // mutex for tracking shaders we're compiling + editor task
     uint32 m_numCompilingShaders = 0;
     HashMap<String, Array<CompileShaderRequest*>> m_compilingShaders;
-    std::binary_semaphore m_activeCompilationTask { 0 };
+    std::binary_semaphore m_spActiveCompilationTask { 0 };
 
 #if HYP_ENABLE_SHADER_RELOAD
     static constexpr uint32 ShaderReloadIntervalMs = 3000;
     AtomicVar<bool> m_shaderReloadShouldStop { false };
     Task<void> m_shaderReloadTask;
+
+    volatile int32 m_isReloadingShaders = 0;
 #endif
 
     ShaderManagerImpl()
@@ -146,7 +148,7 @@ public:
 
     void CompileShaders()
     {
-        m_activeCompilationTask.acquire();
+        m_spActiveCompilationTask.acquire();
 
 #if HYP_EDITOR
         UpdateEditorTask();
@@ -161,7 +163,7 @@ public:
 
                 if (m_compilingShaders.Empty())
                 {
-                    m_activeCompilationTask.release();
+                    m_spActiveCompilationTask.release();
 
                     return;
                 }
@@ -243,6 +245,7 @@ public:
             }
         }
     }
+
 #endif
 
     // scope to inc/dec atomic counter for number of shaders actively being compiled
@@ -255,36 +258,47 @@ public:
 
         CompilingShaderScope(
             ShaderManagerImpl* impl,
-            Name shaderName,
-            const ShaderPropertySet& properties,
-            const VertexAttributeSet& attributes,
-            ShaderMapEntry* entry)
-            : impl(impl)
+            const CompileShaderRequest& request,
+            const ProcRef<void()>& taskFunction = nullptr,
+            bool useTask = true)
+            : impl(impl),
+              request(request)
         {
-            Assert(entry != nullptr);
-
-            request = {};
-            request.shaderName = shaderName;
-            request.properties = properties;
-            request.attributes = attributes;
-            request.entry = entry;
+            Assert(request.entry != nullptr);
 
             {
                 Mutex::Guard guard(impl->m_compilingShadersMutex);
 
-                const String shaderNameStr = *shaderName;
+                const String shaderNameStr = *request.shaderName;
 
                 impl->m_numCompilingShaders++;
-                impl->m_compilingShaders[shaderNameStr].PushBack(&request);
-
-                impl->m_activeCompilationTask.release();
+                impl->m_compilingShaders[shaderNameStr].PushBack(&this->request);
             }
 
-            task = TaskSystem::GetInstance().Enqueue([impl, req = &request]()
+            if (taskFunction)
+            {
+                if (useTask)
+                {
+                    task = TaskSystem::GetInstance().Enqueue([&taskFunction] { taskFunction(); }, TaskThreadPoolName::THREAD_POOL_BACKGROUND);
+                }
+                else
+                {
+                    taskFunction();
+                }
+            }
+            else
+            {
+                impl->m_spActiveCompilationTask.release();
+
+                if (useTask)
+                {
+                    task = TaskSystem::GetInstance().Enqueue([impl] { impl->CompileShaders(); }, TaskThreadPoolName::THREAD_POOL_BACKGROUND);
+                }
+                else
                 {
                     impl->CompileShaders();
-                },
-                TaskThreadPoolName::THREAD_POOL_BACKGROUND);
+                }
+            }
         }
 
         ~CompilingShaderScope()
@@ -443,8 +457,15 @@ public:
         {
             return ShaderInstanceRef::Null();
         }
+        
 
-        CompilingShaderScope compilingShaderScope(this, name, properties, vertexAttributes, entry);
+        CompileShaderRequest request {};
+        request.shaderName = name;
+        request.properties = properties;
+        request.attributes = vertexAttributes;
+        request.entry = entry;
+
+        CompilingShaderScope compilingShaderScope { this, request };
         compilingShaderScope.Wait();
 
         return entry->shaderInstance;
@@ -584,7 +605,15 @@ public:
 
     void RecheckLoadedShaders()
     {
-        Array<ShaderMapEntry*> staleEntries;
+        {
+            int32 expected = 0;
+            if (!AtomicCompareExchange(&m_isReloadingShaders, expected, 1))
+            {
+                return;
+            }
+        }
+
+        Array<CompileShaderRequest> requests;
 
         {
             TSharedLock lock(m_mutex);
@@ -610,70 +639,99 @@ public:
                     continue;
                 }
 
-                staleEntries.PushBack(entry);
+                CompileShaderRequest& request = requests.EmplaceBack();
+                request.shaderName = entry->shader->baseName;
+                request.properties = entry->shader->properties;
+                request.attributes = entry->shader->vertexAttributes;
+                request.entry = entry;
             }
         }
 
+        if (requests.Empty())
+        {
+            AtomicExchange(&m_isReloadingShaders, 0);
+
+            return;
+        }
+
+#if 0//HYP_EDITOR
+        {
+            Array<String> reloadingShaderNames;
+            reloadingShaderNames.Reserve(staleEntries.Size());
+
+            for (ShaderMapEntry* entry : staleEntries)
+            {
+                reloadingShaderNames.PushBack(*entry->shader->baseName);
+            }
+
+            const String descText = String::Join(reloadingShaderNames, "\n");
+
+            if (!m_editorTask.GetEditorTask())
+            {
+                m_editorTask = EditorTaskScope(
+                    TickableEditorTask::StaticClass(),
+                    []()
+                    { /* no tick function */ },
+                    "Reloading shaders",
+                    descText,
+                    /* isForegroundTask */ true);
+            }
+            else
+            {
+                m_editorTask.GetEditorTask()->SetDescription(descText);
+            }
+        }
+#endif
+
+        HYP_LOG(ShaderCompiler, Info, "Reloading {} shaders...", requests.Size());
+            
         HashSet<Shader*> shadersToExpire;
 
-        for (ShaderMapEntry* entry : staleEntries)
+        for (CompileShaderRequest& request : requests)
         {
             int32 expected = ShaderMapEntry::State::LOADED;
 
-            if (!AtomicCompareExchange(&entry->state, expected, ShaderMapEntry::State::LOADING))
+            if (!AtomicCompareExchange(&request.entry->state, expected, ShaderMapEntry::State::LOADING))
             {
                 continue;
             }
 
-            entry->loadingThreadId = CurrentThreadId();
+            request.entry->loadingThreadId = CurrentThreadId();
 
-            HYP_LOG(ShaderCompiler, Info,
-                "Reloading shader '{}' ...",
-                entry->shader->baseName);
-            
+            CompilingShaderScope compilingShaderScope(
+                this,
+                request,
+                nullptr,
+                /* useTask */ false);
 
-            bool isValid = g_shaderCompiler->RequestShader(
-                entry->shader->baseName,
-                entry->shader->properties,
-                entry->shader->vertexAttributes,
-                entry->shader);
+            compilingShaderScope.Wait();
 
-            if (!isValid || !entry->shader->IsValid())
-            {
-                HYP_LOG(ShaderCompiler, Error,
-                    "Failed to reload shader '{}'",
-                    entry->shader->baseName);
+            Assert(request.entry->shader != nullptr);
 
-                AtomicExchange(&entry->state, ShaderMapEntry::State::LOADED);
-
-                continue;
-            }
-
-            ShaderInstanceRef newShaderInstance = g_renderInterface->MakeShader(entry->shader);
-            CheckResult(newShaderInstance->Create());
-
-            newShaderInstance->SetCompiledTimestamp(entry->shader->lastCompiledTimestamp);
-
-            entry->shaderInstance = std::move(newShaderInstance);
-
-            shadersToExpire.Add(entry->shader);
+            shadersToExpire.Add(request.entry->shader);
 
             // now mark loaded so other threads can use it.
-            AtomicExchange(&entry->state, ShaderMapEntry::State::LOADED);
+            AtomicExchange(&request.entry->state, ShaderMapEntry::State::LOADED);
         }
 
         if (shadersToExpire.Any())
         {
-            g_renderThreadInstance->GetScheduler().Enqueue([shadersToExpire = std::move(shadersToExpire)]()
+            g_renderThreadInstance->GetScheduler().Enqueue([this, shadersToExpire = std::move(shadersToExpire)]()
                 {
                     for (Shader* shader : shadersToExpire)
                     {
                         g_renderInterface->graphicsPipelineCache->ExpirePipelinesForShader(shader);
-                        //g_renderInterface->computePipelineCache->ExpirePipelinesForShader(shader);
-                        //g_renderInterface->rayTracingPipelineCache->ExpirePipelinesForShader(shader);
+                        g_renderInterface->computePipelineCache->ExpirePipelinesForShader(shader);
+                        g_renderInterface->rayTracingPipelineCache->ExpirePipelinesForShader(shader);
                     }
+                    
+                    AtomicExchange(&m_isReloadingShaders, 0);
                 }, TaskEnqueueFlags::FIRE_AND_FORGET);
+
+            return;
         }
+        
+        AtomicExchange(&m_isReloadingShaders, 0);
     }
 #endif // HYP_ENABLE_SHADER_RELOAD
 };

@@ -276,6 +276,9 @@
       "Size": 36776
     }],
   "PropertySetHashCode": {},
+  "LastCompiledTimestamp": {
+    "Value": 13418835301796
+  },
   "Name": "LightmapPathTracer_12398611739765556897",
   "FriendlyName": "LightmapPathTracer12398611739765556897",
   "OriginalFilepath": ""

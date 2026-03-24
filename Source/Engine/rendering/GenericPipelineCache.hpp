@@ -13,6 +13,8 @@
 
 namespace Hyperion {
 
+class Shader;
+
 template <class PipelineType>
 class GenericPipelineCache
 {
@@ -42,6 +44,8 @@ public:
 
     /*! \brief Finds an existing pipeline by shader definition, returns nullptr if not found. */
     PipelineType* Find(Name shaderName, const ShaderPropertySet& properties) const;
+
+    void ExpirePipelinesForShader(const Shader* shader);
 
     /*! \brief Runs cleanup cycle to remove unused pipelines.
      *  \param maxIter Maximum number of pipelines to check this cycle

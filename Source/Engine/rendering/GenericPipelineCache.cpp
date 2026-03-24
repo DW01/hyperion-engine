@@ -12,6 +12,7 @@
 #include <rendering/RenderMemory.hpp>
 #include <rendering/ShaderManager.hpp>
 #include <rendering/ShaderInstance.hpp>
+#include <rendering/Shader.hpp>
 
 #include <rendering/util/DeletionQueue.hpp>
 
@@ -129,6 +130,46 @@ auto GenericPipelineCache<PipelineType>::Find(Name shaderName, const ShaderPrope
     }
 
     return nullptr;
+}
+
+template <class PipelineType>
+void GenericPipelineCache<PipelineType>::ExpirePipelinesForShader(const Shader* shader)
+{
+    if (!shader)
+    {
+        return;
+    }
+
+    AssertOnThread(g_renderThread);
+
+    TUniqueLock guard(m_mutex);
+
+    // find all pipelines that use this shader and remove them, so they will be recreated with the new shader instance when requested again.
+    for (auto it = m_keyToIndex.Begin(); it != m_keyToIndex.End();)
+    {
+        const HashCode key = it->first;
+
+        // check if this pipeline corresponds to the shader we are expiring
+        if (key == ComputeHashKey(shader->baseName, shader->properties))
+        {
+            const uint32 index = it->second;
+            CachedPipeline& cached = m_pipelines.Get(index);
+
+            if (cached.pipeline.IsValid())
+            {
+                EnqueueDeletion(std::move(cached.pipeline));
+            }
+
+            m_idGenerator.ReleaseId(index + 1);
+            it = m_keyToIndex.Erase(it);
+
+            m_pipelines.EraseAt(index);
+        }
+        else
+        {
+            ++it;
+        }
+    }
 }
 
 template <class PipelineType>
