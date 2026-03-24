@@ -69,9 +69,9 @@ DECLARE_BUFFER_DYNAMIC(LightmapPathTracer, CBuffer) cbuffer CBuffer
 #define NUM_BOUNCES 3
 #define NUM_SAMPLES 1
 #elif defined(MODE_FULL)
-#define RAY_OFFSET 0.005
-#define NUM_BOUNCES 3
-#define NUM_SAMPLES 1
+#define RAY_OFFSET 0.01
+#define NUM_BOUNCES 4
+#define NUM_SAMPLES 4
 #else
 #define RAY_OFFSET 0.01
 #define NUM_BOUNCES 1
@@ -82,6 +82,7 @@ DECLARE_BUFFER_DYNAMIC(LightmapPathTracer, CBuffer) cbuffer CBuffer
 #define MAX_SAMPLE_LUMINANCE 20.0
 #define MAX_THROUGHPUT_LUMINANCE 10.0
 #define ROUGHNESS_FLOOR 0.001
+#define ENVIRONMENT_INTENSITY 20.0
 
 float3 ClampLuminance(in float3 c, float max_lum)
 {
@@ -310,24 +311,7 @@ void RayGenMain()
     // full path tracing with diffuse/specular bounces
     float4 accumRadiance = (float4)0.0;
 
-    // /// TEMP: Debug
-    // float4 environmentRadiance = (float4)0.0;
-    // for (uint envProbeIdx = 0; envProbeIdx < rayTracingConstants.numBoundEnvProbes && environmentRadiance.a < 1.0; envProbeIdx++)
-    // {
-    //     const EnvProbe envProbe = envProbes[envProbeIdx];
-    //     if (envProbe.texture_index != ~0u)
-    //     {
-    //         float4 env = EnvProbeSample(sampler_linear, envProbesTexture, envProbe.texture_index, firstRayDirection, 0.0);
-    //         env *= (1.0 - environmentRadiance.a);
-    //         environmentRadiance += env;
-    //     }
-    // }
-    // // set the out color to env probe radiance
-    // accumRadiance += float4(environmentRadiance.rgb, 1.0);
-    // // set hit to debug
-    // hits[ray_index] = accumRadiance;
-    // return;
-
+#if 0 // old ver
     for (uint sample_index = 0; sample_index < NUM_SAMPLES; sample_index++)
     {
         float2 rnd0 = float2(RandomFloat(ray_seed), RandomFloat(ray_seed));
@@ -367,9 +351,9 @@ void RayGenMain()
                     
                     if (envProbe.texture_index != ~0u)
                     {
-                        float4 env = EnvProbeSample(sampler_linear, envProbesTexture, envProbe.texture_index, direction, 0.0);
+                        float4 env = EnvProbeSample(sampler_linear, envProbesTexture, envProbe.texture_index, direction, 6.0);
                         env *= (1.0 - environmentRadiance.a);
-                        environmentRadiance += env;
+                        environmentRadiance += env * ENVIRONMENT_INTENSITY;
                     }
                 }
 
@@ -388,7 +372,7 @@ void RayGenMain()
             float3 N = normalize(payload.normal);
             float3 baseColor = clamp(payload.throughput.rgb, float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0));
             float metalness = clamp(payload.throughput.a, 0.0, 1.0);
-            float roughness = clamp(payload.roughness, ROUGHNESS_FLOOR, 1.0);
+            float roughness = clamp(payload.roughness, 0.0, 1.0);
 
             // emissive contribution
             if (any(payload.emissive.rgb > float3(0.0, 0.0, 0.0)))
@@ -413,17 +397,21 @@ void RayGenMain()
                     if (NdotL > 0.0 && visibility > 0.0)
                     {
                         float3 light_color = light.color.rgb * light.position_intensity.w;
+
                         float3 H = normalize(V + L);
+
                         float NdotH = max(dot(N, H), 0.0);
                         float HdotV = max(dot(H, V), 0.0);
-                        float3 F = F_Schlick(F0, HdotV);
-                        // Diffuse: (1-F) * albedo/pi * NdotL
-                        float3 Lo_d = (1.0 - F) * diffuseColor * (NdotL * HYP_FMATH_ONE_OVER_PI);
-                        // Specular GGX: DGF/(4*NdotL*NdotV) * NdotL
+                        float LdotH = max(dot(L, H), 0.0);
+
+                        float3 F = F_Schlick(F0, LdotH);
                         float D = DistributionGGX(NdotH, roughness);
-                        float G = G_Smith(NdotV, NdotL, roughness);
-                        float3 Lo_s = (D * G) * F / max(4.0 * NdotL * NdotV, 1e-6);
-                        Li += float4(beta * (Lo_d + Lo_s * NdotL) * light_color * visibility, 1.0);
+                        float G = V_SmithGGXCorrelated(roughness, NdotV, NdotL);
+
+                        Li += float4(beta * visibility * light_color * NdotL * (
+                            (1.0 - F) * diffuseColor * HYP_FMATH_ONE_OVER_PI + 
+                            F * G * D
+                        ), 1.0);
                     }
                 }
                 else if (light.type == HYP_LIGHT_TYPE_POINT)
@@ -433,22 +421,29 @@ void RayGenMain()
                     float d = sqrt(d2);
                     float3 L = toLight / d;
                     float visibility = 1.0 - CheckInShadow(hitPos, N, L, max(0.0, d - RAY_OFFSET));
+                    
                     float NdotL = max(dot(N, L), 0.0);
+
                     if (NdotL > 0.0 && visibility > 0.0)
                     {
                         float3 light_color = light.color.rgb * light.position_intensity.w;
+
                         float attenuation = 1.0 / d2;
-                        float3 H = normalize(V + L);
+                        
+                        float3 H = normalize(-direction + L);
+
                         float NdotH = max(dot(N, H), 0.0);
-                        float HdotV = max(dot(H, V), 0.0);
-                        float3 F = F_Schlick(F0, HdotV);
-                        // Diffuse: (1-F) * albedo/pi * NdotL
-                        float3 Lo_d = (1.0 - F) * diffuseColor * (NdotL * HYP_FMATH_ONE_OVER_PI);
-                        // Specular GGX: DGF/(4*NdotL*NdotV) * NdotL
+                        float LdotH = max(dot(L, H), 0.0);
+                        float NdotV = max(dot(N, -direction), 0.0);
+                        
+                        float3 F = F_Schlick(F0, LdotH);
+                        float G = V_SmithGGXCorrelated(roughness, NdotV, NdotL);
                         float D = DistributionGGX(NdotH, roughness);
-                        float G = G_Smith(NdotV, NdotL, roughness);
-                        float3 Lo_s = (D * G) * F / max(4.0 * NdotL * NdotV, 1e-6);
-                        Li += float4(beta * (Lo_d + Lo_s * NdotL) * light_color * attenuation * visibility, 1.0);
+                        
+                        Li += float4(beta * light_color * attenuation * visibility * NdotL * (
+                            (1.0 - F) * diffuseColor * HYP_FMATH_ONE_OVER_PI + 
+                            F * G * D
+                        ), 1.0);
                     }
                 }
                 else
@@ -468,39 +463,11 @@ void RayGenMain()
                 beta /= float3(p, p, p);
             }
 
-            float Fv = max(max(F_Schlick(F0, NdotV).r, F_Schlick(F0, NdotV).g), F_Schlick(F0, NdotV).b);
-            float specProb = clamp(lerp(0.2, 1.0, metalness) * Fv, 0.02, 0.98);
-            float diffProb = 1.0 - specProb;
-
             float2 rnd = float2(RandomFloat(ray_seed), RandomFloat(ray_seed));
-            float choose = RandomFloat(ray_seed);
             float3 wi;
 
-            if (choose < specProb)
-            {
-                float3 H = SampleGGX(rnd, roughness, N);
-                wi = normalize(reflect(-V, H));
-                float NdotL = max(dot(N, wi), 0.0);
-
-                if (NdotL <= 0.0)
-                {
-                    break;
-                }
-
-                float NdotH = max(dot(N, H), 0.0);
-                float HdotV = max(dot(H, V), 0.0);
-                float G = G_Smith(NdotV, NdotL, roughness);
-                float3 F = F_Schlick(F0, HdotV);
-                
-                float3 weight = (F * G) * (HdotV / max(NdotV * NdotH, 1e-6));
-                beta *= weight / specProb;
-            }
-            else
-            {
-                wi = normalize(SampleCosineDir(rnd, N));
-
-                beta *= diffuseColor / max(diffProb, 1e-6);
-            }
+            wi = normalize(SampleCosineDir(rnd, N));
+            beta *= diffuseColor;
 
             origin = hitPos + N * RAY_OFFSET;
             direction = wi;
@@ -508,9 +475,126 @@ void RayGenMain()
         
         // if the ray never hit anything, set alpha to 0 so that probes can blend between each other. If it hit something, set alpha to 1 so that the result is not blended with other probes.
         Li.a = sampleIsMiss ? 0.0 : 1.0;
+        //Li.a = 1.0;
 
         accumRadiance += Li;
     }
+#else // !old ver
+
+    for (uint sample_index = 0; sample_index < NUM_SAMPLES; sample_index++)
+    {
+        float2 rnd0 = float2(RandomFloat(ray_seed), RandomFloat(ray_seed));
+
+        float3 direction = firstRayDirection;
+        float3 origin = ray.origin + firstRayDirection * RAY_OFFSET;
+
+        float4 radiance = (float4)0.0;
+
+        bool sampleIsMiss = true;
+
+        // prepare payload and trace
+        payload.distance = -1.0;
+        payload.throughput = float4(1.0, 1.0, 1.0, 1.0);
+        payload.emissive = float4(0.0, 0.0, 0.0, 0.0);
+        payload.normal = float3(0.0, 0.0, 0.0);
+
+        RayDesc rayDesc;
+        rayDesc.Origin = origin;
+        rayDesc.Direction = direction;
+        rayDesc.TMin = tmin;
+        rayDesc.TMax = tmax;
+
+        TraceRay(tlas, flags, 0xff, 0, 1, 0, rayDesc, payload);
+
+        float4 environmentRadiance = (float4)0.0;
+
+        for (uint envProbeIdx = 0; envProbeIdx < rayTracingConstants.numBoundEnvProbes && environmentRadiance.a < 1.0; envProbeIdx++)
+        {
+            const EnvProbe envProbe = envProbes[envProbeIdx];
+            
+            if (envProbe.texture_index != ~0u)
+            {
+                float4 env = EnvProbeSample(sampler_linear, envProbesTexture, envProbe.texture_index, direction, 6.0);
+                env *= (1.0 - environmentRadiance.a);
+                environmentRadiance += env * ENVIRONMENT_INTENSITY;
+            }
+        }
+
+        radiance += float4(environmentRadiance.rgb, 1.0);
+
+        // miss
+        if (payload.distance < 0.0)
+        {
+            accumRadiance += radiance;
+
+            break;
+        }
+
+        // hit something, so this sample is not a miss.
+        // we can use environment probes for indirect lighting,
+        // but bounces that hit e.g the sky should be left with alpha = 0 so that they can be blended with other probes.
+        sampleIsMiss = false;
+
+        // hit data
+        float3 hitPos = origin + direction * payload.distance;
+        float3 N = normalize(payload.normal);
+        float3 baseColor = clamp(payload.throughput.rgb, float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0));
+        float metalness = clamp(payload.throughput.a, 0.0, 1.0);
+        float roughness = clamp(payload.roughness, 0.0, 1.0);
+
+        // emissive contribution
+        if (any(payload.emissive.rgb > float3(0.0, 0.0, 0.0)))
+        {
+            radiance += float4(payload.emissive.rgb, 1.0);
+        }
+
+        for (uint light_index = 0; light_index < rayTracingConstants.numBoundLights; light_index++)
+        {
+            const Light light = lights[light_index];
+
+            if (light.type == HYP_LIGHT_TYPE_DIRECTIONAL)
+            {
+                float3 L = normalize(light.position_intensity.xyz);
+                float visibility = 1.0 - CheckInShadow(hitPos, N, L);
+                float NdotL = max(dot(N, L), 0.0);
+                if (NdotL > 0.0 && visibility > 0.0)
+                {
+                    float3 light_color = light.color.rgb * light.position_intensity.w;
+
+                    radiance += float4(light_color * visibility * NdotL, 1.0);
+                }
+            }
+            else if (light.type == HYP_LIGHT_TYPE_POINT)
+            {
+                float3 toLight = light.position_intensity.xyz - hitPos;
+                float d2 = max(dot(toLight, toLight), 1e-6);
+                float d = sqrt(d2);
+                float3 L = toLight / d;
+                float visibility = 1.0 - CheckInShadow(hitPos, N, L, max(0.0, d - RAY_OFFSET));
+                
+                float NdotL = max(dot(N, L), 0.0);
+
+                if (NdotL > 0.0 && visibility > 0.0)
+                {
+                    float3 light_color = light.color.rgb * light.position_intensity.w;
+
+                    float attenuation = 1.0 / d2;
+                    
+                    radiance += float4(light_color * attenuation * visibility * NdotL, 1.0);
+                }
+            }
+            else
+            {
+                // TODO: area/spotlights
+            }
+        }
+
+        radiance.a = sampleIsMiss ? 0.0 : 1.0;
+
+        float3 diffuseColor = baseColor * (1.0 - metalness);
+        accumRadiance += radiance * float4(diffuseColor * HYP_FMATH_ONE_OVER_PI, 1.0);
+    }
+#endif
 
     float4 finalColor = accumRadiance / float(NUM_SAMPLES);
 

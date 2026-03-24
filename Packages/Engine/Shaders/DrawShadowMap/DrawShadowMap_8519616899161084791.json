@@ -128,6 +128,9 @@
       "Size": 50436
     }],
   "PropertySetHashCode": {},
+  "LastCompiledTimestamp": {
+    "Value": 1774378282000
+  },
   "Name": "DrawShadowMap_8519616899161084791",
   "FriendlyName": "DrawShadowMap8519616899161084791",
   "OriginalFilepath": ""

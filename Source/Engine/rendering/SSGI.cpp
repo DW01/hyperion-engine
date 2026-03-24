@@ -167,7 +167,7 @@ void SSGI::Create()
             m_extent,
             SSGIFormat,
             TemporalBlendTechnique::TECHNIQUE_1,
-            0.98,
+            0.9,
             m_upsamplePasses[NumDownsamplePasses - 1]->GetAttachment(0)->GetImageView(),//g_renderInterface->textureViewCache->GetOrCreate(m_resultTexture),
             m_gbuffer);
 

@@ -124,7 +124,7 @@ PSOutput PSMain(PSInput input)
 
     float roughness = materialParams.roughness;
 
-    const float lod = roughness * 7.0; // log2(128) = 7, where 128 is the maximum mip level of the environment map
+    const float lod = roughness * 7.0;
 
     float4 ibl = float4(0.0, 0.0, 0.0, 0.0);
 

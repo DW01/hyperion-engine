@@ -116,7 +116,7 @@ static Array<DeferredInitCVar>& GetDeferredInitCVars()
     return s_deferredInitCVars;
 }
 
-static void InitCVar(CVarManager* manager, CVarBase* cvar, UTF8StringView path)
+static void InitCVar(CVarManager* manager, CVarBase* cvar, const UTF8StringView& path)
 {
     AssertDebug(cvar != nullptr);
 
@@ -135,9 +135,10 @@ static void InitCVar(CVarManager* manager, CVarBase* cvar, UTF8StringView path)
     manager->vars[cvar->id] = cvar;
 }
 
-CVarBase::CVarBase(UTF8StringView path)
+CVarBase::CVarBase(const UTF8StringView& path, const UTF8StringView& configPath)
     : id(-1),
-      isHeapAllocated(false)
+      isHeapAllocated(false),
+      configPath(configPath.Length() != 0 ? configPath : path) // use normal path if configPath is not provided
 {
     InitCVar(s_pInstance, this, path);
 }
@@ -199,7 +200,9 @@ void CVarManager::InitFromConfig(const ConfigBase& config)
             continue;
         }
 
-        const char* path = cvar->name.LookupString();
+        const char* path = cvar->configPath.Length() != 0
+            ? *cvar->configPath
+            : cvar->name.LookupString();
 
         if (!path || path[0] == '\0')
         {

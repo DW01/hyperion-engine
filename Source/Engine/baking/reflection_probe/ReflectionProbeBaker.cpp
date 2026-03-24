@@ -30,7 +30,7 @@ void ConvolveEnvProbeCubemap(
 
 namespace Baking {
 
-constexpr TextureFormat ReflectionProbeTextureFormat = TextureFormat::RGBA16F;
+constexpr TextureFormat ReflectionProbeTextureFormat = TextureFormat::RGBA32F; // TextureFormat::RGBA16F;
 
 Baker<ReflectionProbe>::Baker(LightmapperConfig&& config, const Handle<ReflectionProbe>& envProbe)
     : BakerBase(std::move(config), envProbe, MakeStrongRef(envProbe->GetScene()), envProbe->GetWorldBounds()),
@@ -136,7 +136,7 @@ void Baker<ReflectionProbe>::OnCompleted_Internal()
         }
     };
 
-    //PUSH_RENDER_COMMAND(ConvolveProbeCommand, m_envProbe, cubemap);
+    PUSH_RENDER_COMMAND(ConvolveProbeCommand, m_envProbe, cubemap);
 
     HYP_LOG(Lightmap, Verbose, "EnvProbe {} lightmap baking complete! Radiance and irradiance textures created.", m_envProbe->Id());
 }

@@ -66,7 +66,7 @@ DECLARE_SRV(DDGI, PointLightShadowMapsTextureArray) TextureCubeArray point_shado
 
 #define RAY_OFFSET 0.025
 #define NUM_SAMPLES 1
-#define NUM_BOUNCES 1
+#define ENVIRONMENT_INTENSITY 20.0
 
 void SetProbeRayData(uint2 coord, ProbeRayData ray_data)
 {
@@ -117,132 +117,107 @@ void RayGenMain()
             world_shader_data.frame_counter);
         
         float2 rnd = float2(RandomFloat(ray_seed), RandomFloat(ray_seed));
-        
-        float3 radiance = (float3)0.0;
-        float3 beta = (float3)1.0;
 
         RayPayload payload = (RayPayload)0;
         
-        for (int bounceIndex = 0; bounceIndex < NUM_BOUNCES; ++bounceIndex)
+        payload.distance = -1.0;
+        payload.throughput = (float4)1.0;
+        payload.color = (float4)0.0;
+        payload.distance = -1.0;
+        payload.normal = (float3)0.0;
+        payload.roughness = 0.0;
+        payload.emissive = (float4)0.0;
+
+        RayDesc ray;
+        ray.Origin = localOrigin;
+        ray.Direction = localDirection;
+        ray.TMin = tmin;
+        ray.TMax = tmax;
+
+        TraceRay(tlas, flags, 0xff, 0, 1, 0, ray, payload);
+        
+        float3 radiance = (float3)0.0;
+        
+        if (payload.distance < 0.0)
         {
-            payload.distance = -1.0;
-            payload.throughput = (float4)1.0;
-            payload.color = (float4)0.0;
-            payload.distance = -1.0;
-            payload.normal = (float3)0.0;
-            payload.roughness = 0.0;
-            payload.emissive = (float4)0.0;
-
-            RayDesc ray;
-            ray.Origin = localOrigin;
-            ray.Direction = localDirection;
-            ray.TMin = tmin;
-            ray.TMax = tmax;
-
-            TraceRay(tlas, flags, 0xff, 0, 1, 0, ray, payload);
-
-            if (payload.distance < 0.0)
-            {
 #if HAS_ENV_PROBE
-                if (current_env_probe.texture_index != ~0u)
-                {
-                    uint probe_texture_index = max(0, min(current_env_probe.texture_index, HYP_MAX_BOUND_REFLECTION_PROBES - 1));
-                    float3 env = EnvProbeSample(sampler_linear, envProbesTexture, probe_texture_index, localDirection, 0.0).rgb;
-                    radiance += beta * env;
-                }
+            if (current_env_probe.texture_index != ~0u)
+            {
+                uint probe_texture_index = max(0, min(current_env_probe.texture_index, HYP_MAX_BOUND_REFLECTION_PROBES - 1));
+                float3 env = EnvProbeSample(sampler_linear, envProbesTexture, probe_texture_index, localDirection, 0.0).rgb * ENVIRONMENT_INTENSITY;
+                radiance += env;
+            }
 #endif
-                break;
-            }
+            accumRadiance += float4(radiance, 1.0);
+            break;
+        }
 
-            float3 hitPos = localOrigin + localDirection * payload.distance;
-            float3 N = normalize(payload.normal);
+        float3 hitPos = localOrigin + localDirection * payload.distance;
+        float3 N = normalize(payload.normal);
             
-            if (bounceIndex == 0)
-            {
-                ray_data.normal += float4(N, 0.0);
-                ray_data.direction_depth += float4(localDirection, payload.distance);
-            }
+        ray_data.normal += float4(N, 0.0);
+        ray_data.direction_depth += float4(localDirection, payload.distance);
 
-            if (length(payload.emissive.rgb) > 0.0)
-            {
-                radiance += beta * payload.emissive.rgb;
-            }
-
-            float3 hitAlbedo = saturate(payload.throughput.rgb);
+        float3 hitAlbedo = saturate(payload.throughput.rgb);
             
-            float hitRoughness = payload.roughness;
-            float hitMetalness = saturate(payload.throughput.a);
+        float hitRoughness = payload.roughness;
+        float hitMetalness = saturate(payload.throughput.a);
             
-            float3 diffuseColor = hitAlbedo * (1.0 - hitMetalness);
+        float3 diffuseColor = hitAlbedo * (1.0 - hitMetalness);
+        
+        radiance += payload.emissive.rgb;
 
-            for (uint light_index = 0; light_index < ddgiConstants.numBoundLights; light_index++)
+        for (uint light_index = 0; light_index < ddgiConstants.numBoundLights; light_index++)
+        {
+            const Light light = lights[light_index];
+            float3 light_color = light.color.rgb * light.position_intensity.w;
+
+            if (light.type == HYP_LIGHT_TYPE_DIRECTIONAL)
             {
-                const Light light = lights[light_index];
-                float3 light_color = light.color.rgb * light.position_intensity.w;
+                float3 light_direction = normalize(light.position_intensity.xyz);
+                float3 L = light_direction;
 
-                if (light.type == HYP_LIGHT_TYPE_DIRECTIONAL)
+                float shadow = 1.0 - CheckInShadow(hitPos, N, L);
+                if (shadow > 0.0)
                 {
-                    float3 light_direction = normalize(light.position_intensity.xyz);
-                    float3 L = light_direction;
-
-                    float shadow = 1.0 - CheckInShadow(hitPos, N, L);
-                    if (shadow > 0.0)
-                    {
-                        float NdotL = max(dot(N, L), 0.0);
-                        
-                        if (NdotL > 0.0)
-                        {
-                            float3 H = normalize(-localDirection + L);
-                            float NdotH = max(dot(N, H), 0.0);
-                            float LdotH = max(dot(L, H), 0.0);
-                            float NdotV = max(dot(N, -localDirection), 0.0);
-                            
-                            radiance += beta * light_color * shadow * NdotL * diffuseColor * HYP_FMATH_ONE_OVER_PI;
-                        }
-                    }
-                }
-                else if (light.type == HYP_LIGHT_TYPE_POINT)
-                {
-                    float3 toLight = light.position_intensity.xyz - hitPos;
-                    float d2 = max(dot(toLight, toLight), 1e-6);
-                    float d = sqrt(d2);
-                    float3 L = toLight / d;
-                    
-                    float shadow = 1.0 - CheckInShadow(hitPos, N, L, max(0.0, d - RAY_OFFSET));
                     float NdotL = max(dot(N, L), 0.0);
-
-                    if (shadow > 0.0 && NdotL > 0.0)
-                    {
-                        float attenuation = 1.0 / d2;
                         
+                    if (NdotL > 0.0)
+                    {
                         float3 H = normalize(-localDirection + L);
                         float NdotH = max(dot(N, H), 0.0);
                         float LdotH = max(dot(L, H), 0.0);
                         float NdotV = max(dot(N, -localDirection), 0.0);
-                        
-                        radiance += beta * light_color * attenuation * shadow * NdotL * diffuseColor * HYP_FMATH_ONE_OVER_PI;
+                            
+                        radiance += light_color * shadow * NdotL;
                     }
                 }
             }
-
-            // Russian Roulette
-            if (bounceIndex >= 2)
+            else if (light.type == HYP_LIGHT_TYPE_POINT)
             {
-                float p = clamp(max(max(beta.r, beta.g), beta.b), 0.05, 0.99);
-                if (RandomFloat(ray_seed) > p) {
-                    break;
+                float3 toLight = light.position_intensity.xyz - hitPos;
+                float d2 = max(dot(toLight, toLight), 1e-6);
+                float d = sqrt(d2);
+                float3 L = toLight / d;
+                    
+                float shadow = 1.0 - CheckInShadow(hitPos, N, L, max(0.0, d - RAY_OFFSET));
+                float NdotL = max(dot(N, L), 0.0);
+
+                if (shadow > 0.0 && NdotL > 0.0)
+                {
+                    float attenuation = 1.0 / d2;
+                        
+                    float3 H = normalize(-localDirection + L);
+                    float NdotH = max(dot(N, H), 0.0);
+                    float LdotH = max(dot(L, H), 0.0);
+                    float NdotV = max(dot(N, -localDirection), 0.0);
+                        
+                    radiance += light_color * attenuation * shadow * NdotL;
                 }
-                beta /= float3(p, p, p);
             }
-            
-            localDirection = normalize(SampleCosineDir(rnd, N));
-
-            beta *= diffuseColor;
-
-            localOrigin = hitPos + N * RAY_OFFSET;
-        } // end bounces
-
-        accumRadiance.rgb += radiance;
+        }
+        
+        accumRadiance += float4(radiance * diffuseColor * HYP_FMATH_ONE_OVER_PI, 1.0);
     } // end samples
     
 #if NUM_SAMPLES > 1

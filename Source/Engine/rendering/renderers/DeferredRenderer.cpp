@@ -149,7 +149,9 @@ CVar<bool> cvRayTracedGI { "Rendering.RayTracedGI", false };
 CVar<bool> cvRayTracedReflections { "Rendering.RayTracing.RayTracedReflections", false };
 CVar<bool> cvPathTracing { "Rendering.PathTracing", false };
 CVar<bool> cvSSGI { "Rendering.SSGI", true };
+CVar<bool> cvSSR { "Rendering.SSR", true, "Rendering.SSR.Enabled" };
 CVar<bool> cvTAA { "Rendering.TAA", true };
+CVar<bool> cvEnableLightmapVolumes { "Rendering.LightmapVolumes", true };
 
 namespace DeferredRendererHelpers {
 
@@ -383,15 +385,16 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
     cr << SetStencilTest(true);
     cr << SetDepthWrite(false);
     cr << SetDepthTest(false);
-    cr << SetStencilFunction(StencilFunction {
-        .passOp = SO_KEEP,
-        .failOp = SO_KEEP,
-        .depthFailOp = SO_KEEP,
-        .compareOp = SCO_EQUAL
-    });
 
-    // stencil state: only render where stencil == 0 (non-lightmapped geometry)
-    cr << SetStencilState(0, LightmapStencilMask, 0x0);
+        cr << SetStencilFunction(StencilFunction {
+            .passOp = SO_KEEP,
+            .failOp = SO_KEEP,
+            .depthFailOp = SO_KEEP,
+            .compareOp = SCO_EQUAL
+        });
+
+        // stencil state: only render where stencil == 0 (non-lightmapped geometry)
+        cr << SetStencilState(0, LightmapStencilMask, 0x0);
 
     HYP_DEFER({
         // reset states
@@ -1133,9 +1136,7 @@ void ReflectionsPass::Create()
 
 bool ReflectionsPass::ShouldRenderSSR() const
 {
-    const ConfigValue& ssrEnabled = GetEngineConfig().Get("Rendering.SSR.Enabled");
-
-    return ssrEnabled.ToBool(true) && !cvRayTracedReflections.Get();
+    return cvSSR.Get() && !cvRayTracedReflections.Get();
 }
 
 void ReflectionsPass::CreateSSRPass()
@@ -1970,7 +1971,7 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         && view->GetRayTracingView().IsValid()
         && passData.ddgi != nullptr;
 
-    if (passData.taaPass != nullptr && cvTAA.Get())
+    if (cvTAA.Get())
     {
         // apply jitter to camera for TAA
         RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(view->GetCamera()));
@@ -1990,15 +1991,21 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
             UpdateGpuData(view->GetCamera());
         }
     }
-    
+
     // if no opaque objects will be rendered, we need to clear the color target anyway
     // as other passes are using load ops
-    if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Any())
+    if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Any()
+        || (!cvEnableLightmapVolumes.Get() && renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any()))
     {
         // render opaque objects into separate framebuffer
         frame->cr << SetCurrentFramebuffer(opaquePassFramebuffer);
 
         renderCollector.ExecuteDrawCalls(frame, rs, RenderBucketMask<RenderBucket::Opaque>);
+
+        if (!cvEnableLightmapVolumes.Get())
+        {
+            renderCollector.ExecuteDrawCalls(frame, rs, RenderBucketMask<RenderBucket::Lightmapped>);
+        }
 
         frame->cr << SetCurrentFramebuffer(nullptr);
     }
@@ -2007,15 +2014,18 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         frame->cr << ClearFramebuffer(opaquePassFramebuffer, 0x1);
     }
     
-    // render objects to be lightmapped, separate from the opaque objects.
-    // The lightmap bucket's framebuffer has a color attachment that will write into the opaque framebuffer's color attachment.
-    if (renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any())
+    if (cvEnableLightmapVolumes.Get())
     {
-        frame->cr << SetCurrentFramebuffer(lightmapPassFramebuffer);
+        // render objects to be lightmapped, separate from the opaque objects.
+        // The lightmap bucket's framebuffer has a color attachment that will write into the opaque framebuffer's color attachment.
+        if (renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any())
+        {
+            frame->cr << SetCurrentFramebuffer(lightmapPassFramebuffer);
 
-        renderCollector.ExecuteDrawCalls(frame, rs, RenderBucketMask<RenderBucket::Lightmapped>);
+            renderCollector.ExecuteDrawCalls(frame, rs, RenderBucketMask<RenderBucket::Lightmapped>);
 
-        frame->cr << SetCurrentFramebuffer(nullptr);
+            frame->cr << SetCurrentFramebuffer(nullptr);
+        }
     }
 
     passData.reflectionsPass->Render(frame, rs);
@@ -2101,15 +2111,18 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         passData.indirectPass->RenderToFramebuffer(frame, rs, passData.deferredShadingFramebuffer);
         passData.directPass->RenderToFramebuffer(frame, rs, passData.deferredShadingFramebuffer);
 
-        // apply baked lighting over lightmapped objects
-        for (LightmapVolume* lightmapVolume : rpl.GetLightmapVolumes())
+        if (cvEnableLightmapVolumes.Get())
         {
-            RenderSetup lightmapPassRS = rs.Fork();
-            lightmapPassRS.volume = lightmapVolume;
+            // apply baked lighting over lightmapped objects
+            for (LightmapVolume* lightmapVolume : rpl.GetLightmapVolumes())
+            {
+                RenderSetup lightmapPassRS = rs.Fork();
+                lightmapPassRS.volume = lightmapVolume;
 
-            // Render the objects to have lightmaps applied into the translucent pass framebuffer with a full screen quad.
-            // Apply lightmaps over the now shaded opaque objects.
-            passData.lightmapPass->RenderToFramebuffer(frame, lightmapPassRS, passData.deferredShadingFramebuffer);
+                // Render the objects to have lightmaps applied into the translucent pass framebuffer with a full screen quad.
+                // Apply lightmaps over the now shaded opaque objects.
+                passData.lightmapPass->RenderToFramebuffer(frame, lightmapPassRS, passData.deferredShadingFramebuffer);
+            }
         }
 
         frame->cr << SetCurrentFramebuffer(nullptr);

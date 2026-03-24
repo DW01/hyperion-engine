@@ -97,6 +97,8 @@ DECLARE_SRV_DYNAMIC(Default, MaterialsBuffer) StructuredBuffer<Material> materia
 #include "include/parallax.inc"
 #endif
 
+// #define DEBUG_RAW_REFLECTIONS
+
 PSOutput PSMain(PSInput input)
 {
     PSOutput output;
@@ -147,9 +149,11 @@ PSOutput PSMain(PSInput input)
 
     float4 normals_texture = float4(0.0, 0.0, 0.0, 0.0);
 
+#ifndef DEBUG_RAW_REFLECTIONS
 #if HAS_NORMAL_MAP
     normals_texture = SAMPLE_MATERIAL_TEXTURE(CURRENT_MATERIAL, NormalMap, texcoord) * 2.0 - 1.0;
     N = normalize(mul(normals_texture.xyz, tbn_matrix));
+#endif
 #endif
 
 #if SHADING_TYPE_FORWARD
@@ -294,8 +298,9 @@ PSOutput PSMain(PSInput input)
     roughness = roughness_sample;
 #endif
 
-    // temp
-    //roughness = 0.001;
+#ifdef DEBUG_RAW_REFLECTIONS
+    roughness = 0.001;
+#endif
 
     // https://www.elopezr.com/temporal-aa-and-the-quest-for-the-holy-trail/
     // see: "Motion Vectors" section

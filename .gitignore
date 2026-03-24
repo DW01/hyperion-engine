@@ -69,6 +69,7 @@ Source/Generated/**/*
 
 Data/Models/Testbed/**/*
 Data/Models/Sponza/**/*
+Data/Models/lostempire/**/*
 
 Binaries/**/*
 

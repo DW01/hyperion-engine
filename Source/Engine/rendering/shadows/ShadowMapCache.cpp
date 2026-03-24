@@ -367,7 +367,7 @@ HYP_NODISCARD View* ShadowMapCache::GetOrCreateShadowView(
         
         shadowMap = m_impl->allocator.AllocateShadowMap(
             light->GetLightType() == LightType::Point ? ShadowMapType::SMT_OMNI : ShadowMapType::SMT_DIRECTIONAL,
-            light->GetShadowMapFilter(),
+            light->GetLightType() == LightType::Directional ? SMF_CONTACT_HARDENED : SMF_STANDARD,//light->GetShadowMapFilter(),
             light->GetShadowMapDimensions());
     };
 

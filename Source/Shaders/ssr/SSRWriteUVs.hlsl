@@ -244,7 +244,7 @@ PSOutput PSMain(PSInput input)
     float hit_weight;
     float num_iterations;
 
-    bool intersect = TraceRays(ray_origin, ray_direction, rnd.x, roughness, hit_pixel, hit_point, hit_weight, num_iterations);
+    bool intersect = TraceRays(ray_origin, ray_direction, rnd.x, sqrt(roughness), hit_pixel, hit_point, hit_weight, num_iterations);
 
     float dist = distance(ray_origin, hit_point);
 

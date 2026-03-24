@@ -53,12 +53,13 @@ public:
     friend class CVarManager;
 
 protected:
-    explicit CVarBase(UTF8StringView path);
+    explicit CVarBase(const UTF8StringView& path, const UTF8StringView& configPath = {});
 
 public:
     Name name;
     int id;
     bool isHeapAllocated;
+    UTF8StringView configPath;
 
     virtual ~CVarBase() = default;
 
@@ -74,8 +75,8 @@ template <typename T>
 class CVar final : public CVarBase
 {
 public:
-    explicit CVar(UTF8StringView path, T defaultValue = T {})
-        : CVarBase(path),
+    explicit CVar(const UTF8StringView& path, T defaultValue = T {}, const UTF8StringView& configPath = {})
+        : CVarBase(path, configPath),
           m_value(defaultValue)
     {
     }

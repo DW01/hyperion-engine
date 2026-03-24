@@ -136,17 +136,16 @@
                             </Button>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                          <DropDownButton
+                          <!-- <DropDownButton
                               Background="Transparent"
                               BorderThickness="0"
                               Content="Show Flags">
-                            <!-- @TODO populate dynamically -->
                             <DropDownButton.Flyout>
                               <MenuFlyout>
                                 <MenuItem Header="Unlit" />
                               </MenuFlyout>
                             </DropDownButton.Flyout>
-                          </DropDownButton>
+                          </DropDownButton> -->
                         </StackPanel>
                     </StackPanel>
 

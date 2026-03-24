@@ -71,10 +71,10 @@ namespace Hyperion.Editor
             //project.World.WorldGrid.AddLayer(new TerrainWorldGridLayer());
 
             // tmp debug
-            // AssetBatch ab = new AssetBatch();
-            // ab.Add("test_model", "Models/Sponza/sponza.obj");//"Models/SanMiguel/san-miguel.obj");
-            // ab.Add("guy", "models/ZombieGuy/guy.mesh.xml");
-            // _assetBatchTask = ab.Load();
+            AssetBatch ab = new AssetBatch();
+            ab.Add("test_model", "Models/SanMiguel/san-miguel.obj"); //"Models/Sponza/sponza.obj");
+            ab.Add("guy", "models/ZombieGuy/guy.mesh.xml");
+            _assetBatchTask = ab.Load();
         }
 
         protected override void OnUpdate(float deltaTime)
@@ -101,7 +101,7 @@ namespace Hyperion.Editor
                     Assert.Throw(testModelAsset.Value != null);
 
                     Node n = _editorSubsystem!.GetActiveScene().RootNode.AddChild((Node)testModelAsset.Value);
-                    n.SetLocalScale(new Vec3f(0.03f));//3.0f));
+                    n.SetLocalScale(new Vec3f(3.0f));
                 }
                 else
                 {
