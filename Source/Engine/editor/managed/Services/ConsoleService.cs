@@ -131,34 +131,40 @@ namespace Hyperion.Editor.Services
             // make char** from List<string>
             int argc = args.Length;
 
-            IntPtr argvPtr = stackalloc IntPtr[argc];
-
-            try
+            unsafe
             {
-                for (int i = 0; i < argc; i++)
-                {
-                    byte[] utf8Bytes = System.Text.Encoding.UTF8.GetBytes(args[i]);
+                Span<IntPtr> argvPtr = stackalloc IntPtr[argc];
 
-                    IntPtr stringPtr = Marshal.AllocHGlobal(utf8Bytes.Length + 1);
-                    Marshal.Copy(utf8Bytes, 0, stringPtr, utf8Bytes.Length);
-                    Marshal.WriteByte(stringPtr + utf8Bytes.Length, 0); // null terminator
-
-                    argvPtr[i] = stringPtr;
-                }
-
-                // execute with int argc, char** argv
-                int returnValue = NativeBindings.Editor_ExecuteConsoleCommand(argc, argvPtr);
-                if (returnValue != 0)
+                fixed (IntPtr* argv = &argvPtr[0])
                 {
-                    throw new Exception("The command returned with error code: " + returnValue);
-                }
-            }
-            finally
-            {
-                // free the strings we allocated
-                for (int i = 0; i < argc; i++)
-                {
-                    Marshal.FreeHGlobal(argvPtr[i]);
+                    try
+                    {
+                        for (int i = 0; i < argc; i++)
+                        {
+                            byte[] utf8Bytes = System.Text.Encoding.UTF8.GetBytes(args[i]);
+
+                            IntPtr stringPtr = Marshal.AllocHGlobal(utf8Bytes.Length + 1);
+                            Marshal.Copy(utf8Bytes, 0, stringPtr, utf8Bytes.Length);
+                            Marshal.WriteByte(stringPtr + utf8Bytes.Length, 0); // null terminator
+
+                            argv[i] = stringPtr;
+                        }
+
+                        // execute with int argc, char** argv
+                        int returnValue = NativeBindings.Editor_ExecuteConsoleCommand(argc, (nint)argv);
+                        if (returnValue != 0)
+                        {
+                            throw new Exception("The command returned with error code: " + returnValue);
+                        }
+                    }
+                    finally
+                    {
+                        // free the strings we allocated
+                        for (int i = 0; i < argc; i++)
+                        {
+                            Marshal.FreeHGlobal(argvPtr[i]);
+                        }
+                    }
                 }
             }
         }
