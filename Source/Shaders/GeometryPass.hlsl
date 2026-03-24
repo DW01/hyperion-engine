@@ -149,11 +149,23 @@ PSOutput PSMain(PSInput input)
 
     float4 normals_texture = float4(0.0, 0.0, 0.0, 0.0);
 
-#ifndef DEBUG_RAW_REFLECTIONS
+// #ifndef DEBUG_RAW_REFLECTIONS
 #if HAS_NORMAL_MAP
     normals_texture = SAMPLE_MATERIAL_TEXTURE(CURRENT_MATERIAL, NormalMap, texcoord) * 2.0 - 1.0;
-    N = normalize(mul(normals_texture.xyz, tbn_matrix));
+    N = normalize(lerp(mul(normals_texture.xyz, tbn_matrix), input.normal, 1.0 - normal_map_intensity));
 #endif
+// #endif
+
+#if HAS_METALNESS_MAP
+    float metalness_sample = SAMPLE_MATERIAL_TEXTURE(CURRENT_MATERIAL, MetalnessMap, texcoord).r;
+
+    metalness = metalness_sample;
+#endif
+
+#if HAS_ROUGHNESS_MAP
+    float roughness_sample = SAMPLE_MATERIAL_TEXTURE(CURRENT_MATERIAL, RoughnessMap, texcoord).r;
+
+    roughness = roughness_sample;
 #endif
 
 #if SHADING_TYPE_FORWARD
@@ -286,20 +298,8 @@ PSOutput PSMain(PSInput input)
     }
 #endif
 
-#if HAS_METALNESS_MAP
-    float metalness_sample = SAMPLE_MATERIAL_TEXTURE(CURRENT_MATERIAL, MetalnessMap, texcoord).r;
-
-    metalness = metalness_sample;
-#endif
-
-#if HAS_ROUGHNESS_MAP
-    float roughness_sample = SAMPLE_MATERIAL_TEXTURE(CURRENT_MATERIAL, RoughnessMap, texcoord).r;
-
-    roughness = roughness_sample;
-#endif
-
 #ifdef DEBUG_RAW_REFLECTIONS
-    roughness = 0.001;
+    // roughness = 0.001;
 #endif
 
     // https://www.elopezr.com/temporal-aa-and-the-quest-for-the-holy-trail/

@@ -217,7 +217,7 @@
     }, {
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/SSRWriteUVs/SSRWriteUVs_6076243050612183518.PS",
-      "Size": 184192
+      "Size": 183464
     }],
   "PropertySetHashCode": {},
   "LastCompiledTimestamp": {

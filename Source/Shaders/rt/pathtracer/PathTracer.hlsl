@@ -76,7 +76,7 @@ DECLARE_BUFFER_DYNAMIC(RTReflections, CBuffer) cbuffer CBuffer
 #define RAY_OFFSET 0.01
 #define NUM_SAMPLES 4
 #define NUM_BOUNCES 4
-#define ENVIRONMENT_INTENSITY 10.0
+#define ENVIRONMENT_INTENSITY 25.0
 
 [shader("raygeneration")]
 void RayGenMain()
@@ -115,6 +115,8 @@ void RayGenMain()
 
     const float roughness = materialParams.roughness;
     const float metalness = materialParams.metalness;
+
+    const float roughnessLinear = roughness * roughness;
 
     const float3 V = normalize(camera.position.xyz - worldPosition.xyz);
     const float3 R = reflect(-V, normal);
@@ -177,8 +179,8 @@ void RayGenMain()
                 float LdotH = max(dot(L, H), 0.0);
                 
                 float3 F = F_Schlick(F0_init, LdotH);
-                float D = DistributionGGX(NdotH, roughness);
-                float G = V_SmithGGXCorrelated(roughness, NdotV, NdotL);
+                float D = DistributionGGX(NdotH, roughnessLinear);
+                float G = V_SmithGGXCorrelated(roughnessLinear, NdotV, NdotL);
                 
                 float3 specularBrdf = F * D * G;
                 float3 diffuseBrdf = (1.0 - F) * (1.0 - metalness) * albedo * HYP_FMATH_ONE_OVER_PI;
@@ -238,6 +240,8 @@ void RayGenMain()
             
             float hitRoughness = payload.roughness;
             float hitMetalness = payload.throughput.w;
+
+            const float hitRoughnessLinear = hitRoughness * hitRoughness;
             
             float3 diffuseColor = hitAlbedo * (1.0 - hitMetalness);
             float3 f0 = CalculateF0(hitAlbedo, hitMetalness);
@@ -265,8 +269,8 @@ void RayGenMain()
                             float NdotV = max(dot(N, -direction), 0.0);
                             
                             float3 F = F_Schlick(f0, LdotH);
-                            float G = V_SmithGGXCorrelated(hitRoughness, NdotV, NdotL);
-                            float D = DistributionGGX(NdotH, hitRoughness);
+                            float G = V_SmithGGXCorrelated(hitRoughnessLinear, NdotV, NdotL);
+                            float D = DistributionGGX(NdotH, hitRoughnessLinear);
                             
                             radiance += beta * shadow * light_color * NdotL * (
                                 (1.0 - F) * diffuseColor * HYP_FMATH_ONE_OVER_PI + 
@@ -295,8 +299,8 @@ void RayGenMain()
                         float NdotV = max(dot(N, -direction), 0.0);
                         
                         float3 F = F_Schlick(f0, LdotH);
-                        float G = V_SmithGGXCorrelated(hitRoughness, NdotV, NdotL);
-                        float D = DistributionGGX(NdotH, hitRoughness);
+                        float G = V_SmithGGXCorrelated(hitRoughnessLinear, NdotV, NdotL);
+                        float D = DistributionGGX(NdotH, hitRoughnessLinear);
                         
                         radiance += beta * light_color * attenuation * shadow * NdotL * (
                             (1.0 - F) * diffuseColor * HYP_FMATH_ONE_OVER_PI + 

@@ -71,7 +71,7 @@ DECLARE_BUFFER_DYNAMIC(LightmapPathTracer, CBuffer) cbuffer CBuffer
 #elif defined(MODE_FULL)
 #define RAY_OFFSET 0.01
 #define NUM_BOUNCES 4
-#define NUM_SAMPLES 4
+#define NUM_SAMPLES 8
 #else
 #define RAY_OFFSET 0.01
 #define NUM_BOUNCES 1
@@ -311,7 +311,7 @@ void RayGenMain()
     // full path tracing with diffuse/specular bounces
     float4 accumRadiance = (float4)0.0;
 
-#if 0 // old ver
+#if 1 // old ver
     for (uint sample_index = 0; sample_index < NUM_SAMPLES; sample_index++)
     {
         float2 rnd0 = float2(RandomFloat(ray_seed), RandomFloat(ray_seed));
@@ -374,6 +374,8 @@ void RayGenMain()
             float metalness = clamp(payload.throughput.a, 0.0, 1.0);
             float roughness = clamp(payload.roughness, 0.0, 1.0);
 
+            const float roughnessLinear = roughness * roughness;
+
             // emissive contribution
             if (any(payload.emissive.rgb > float3(0.0, 0.0, 0.0)))
             {
@@ -405,8 +407,8 @@ void RayGenMain()
                         float LdotH = max(dot(L, H), 0.0);
 
                         float3 F = F_Schlick(F0, LdotH);
-                        float D = DistributionGGX(NdotH, roughness);
-                        float G = V_SmithGGXCorrelated(roughness, NdotV, NdotL);
+                        float D = DistributionGGX(NdotH, roughnessLinear);
+                        float G = V_SmithGGXCorrelated(roughnessLinear, NdotV, NdotL);
 
                         Li += float4(beta * visibility * light_color * NdotL * (
                             (1.0 - F) * diffuseColor * HYP_FMATH_ONE_OVER_PI + 
@@ -437,8 +439,8 @@ void RayGenMain()
                         float NdotV = max(dot(N, -direction), 0.0);
                         
                         float3 F = F_Schlick(F0, LdotH);
-                        float G = V_SmithGGXCorrelated(roughness, NdotV, NdotL);
-                        float D = DistributionGGX(NdotH, roughness);
+                        float G = V_SmithGGXCorrelated(roughnessLinear, NdotV, NdotL);
+                        float D = DistributionGGX(NdotH, roughnessLinear);
                         
                         Li += float4(beta * light_color * attenuation * visibility * NdotL * (
                             (1.0 - F) * diffuseColor * HYP_FMATH_ONE_OVER_PI + 

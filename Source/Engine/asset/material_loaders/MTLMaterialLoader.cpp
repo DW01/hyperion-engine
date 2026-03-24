@@ -105,6 +105,11 @@ static bool IsTransparencyModel(IlluminationModel illumModel)
         || illumModel == ILLUM_TRANSPARENT_REFLECTIVE_GLASS;
 }
 
+static float MapSpecularToRoughness(int spec)
+{
+    return MathUtil::Sqrt(1.0f - MathUtil::Min(spec / 1000.0f, 1.0f));
+}
+
 AssetLoadResult MTLMaterialLoader::LoadAsset(LoaderState& state) const
 {
     Assert(state.assetManager != nullptr);
@@ -219,7 +224,7 @@ AssetLoadResult MTLMaterialLoader::LoadAsset(LoaderState& state) const
             const int spec = StringUtil::Parse<int>(tokens[1].Data());
 
             LastMaterial(library).parameters[MATERIAL_KEY_ROUGHNESS] = ParameterDef {
-                .values = { MathUtil::Sqrt(2.0f / (MathUtil::Clamp(float(spec) / 1000.0f, 0.0f, 1.0f) + 2.0f)) }
+                .values = { MapSpecularToRoughness(spec) }
             };
 
             continue;

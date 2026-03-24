@@ -46,8 +46,9 @@ float4 ConvolveProbe(uint2 local_coord, uint face)
     float3 V = R;
 
     const float roughness = LOBE_SIZE;
+    const float roughnessLinear = roughness * roughness;
 
-    float omegaP = 4.0 * HYP_FMATH_PI / float(6 * in_image_dimensions.x * in_image_dimensions.y);
+    float omegaP = 4.0 * HYP_FMATH_PI / float(in_image_dimensions.x * in_image_dimensions.y);
 
     float4 sum_radiance = float4(0.0, 0.0, 0.0, 0.0);
     float total_weight = 0.0;
@@ -67,7 +68,7 @@ float4 ConvolveProbe(uint2 local_coord, uint face)
             float NdotH = saturate(dot(N, H));
             float HdotV = saturate(dot(H, V));
 
-            float pdf = GGX_PDF(NdotH, HdotV, roughness);
+            float pdf = GGX_PDF(NdotH, HdotV, roughnessLinear);
             float omegaS = 1.0 / (float(num_samples) * max(pdf, 0.0001));
             float mipLevel = roughness == 0.0 ? 0.0 : max(0.5 * log2(omegaS / omegaP), 0.0);
 

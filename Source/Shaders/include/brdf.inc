@@ -70,10 +70,10 @@ vec3 ImportanceSampleGTR2(float rgh, float r1, float r2)
     return vec3(sinTheta * cosPhi, sinTheta * sinPhi, cosTheta);
 }
 
-float V_SmithGGXCorrelated(float roughness, float NoV, float NoL)
+float V_SmithGGXCorrelated(float linearRoughness, float NoV, float NoL)
 {
     // Heitz 2014, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"
-    float a2 = roughness * roughness;
+    float a2 = linearRoughness * linearRoughness;
     // TODO: lambdaV can be pre-computed for all the lights, it should be moved out of this function
     float lambdaV = NoL * sqrt((NoV - a2 * NoV) * NoV + a2);
     float lambdaL = NoV * sqrt((NoL - a2 * NoL) * NoL + a2);
@@ -84,32 +84,17 @@ float V_SmithGGXCorrelated(float roughness, float NoV, float NoL)
     return v;
 }
 
-float DistributionGGX(vec3 N, vec3 H, float roughness)
+float DistributionGGX(float NdotH, float linearRoughness)
 {
-    // Walter et al. 2007, "Microfacet Models for Refraction through Rough Surfaces"
-
-    float NdotH = max(dot(N, H), 0.0);
-
-    float a = roughness * roughness;
-    float a2 = a * a;
-    float d = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
-    return a2 / (HYP_FMATH_PI * d * d);
+    float a = NdotH * linearRoughness;
+    float k = linearRoughness / (1.0 - NdotH * NdotH + a * a);
+    return k * k * (1.0 / HYP_FMATH_PI);
 }
 
-float DistributionGGX(float NdotH, float roughness)
+float GGX_PDF(float NdotH, float HdotV, float linearRoughness)
 {
-    float a = roughness * roughness;
-    float a2 = a * a;
-    float d = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
-    return a2 / (HYP_FMATH_PI * d * d);
-}
-
-float GGX_PDF(float NdotH, float HdotV, float roughness)
-{
-    float a = roughness * roughness;
-    float a2 = a * a;
-    float D = a2 / (HYP_FMATH_PI * pow(NdotH * NdotH * (a2 - 1.0) + 1.0, 2.0));
-    return (D * NdotH) / (4.0 * HdotV);
+    float D = DistributionGGX(NdotH, linearRoughness);
+    return D * NdotH / (4.0 * HdotV);
 }
 
 vec3 SampleGGX(vec2 xi, float roughness, vec3 N)
@@ -140,10 +125,8 @@ float G_SchlickGGX(float NdotX, float k)
 
 float G_Smith(float NdotV, float NdotL, float roughness)
 {
-    float a = roughness;
-    float k = (a + 1.0);
-    k = (k * k) * 0.125; // (a+1)^2 / 8
-    return G_SchlickGGX(NdotV, k) * G_SchlickGGX(NdotL, k);
+    float a = (roughness * roughness) / 2.0;
+    return (NdotV / (NdotV * (1.0 - a) + a)) * (NdotL / (NdotL * (1.0 - a) + a));
 }
 
 float Trowbridge(float NdotH, float roughness)

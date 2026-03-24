@@ -206,6 +206,8 @@ struct PSOutput
     float4 output_color : SV_Target0;
 };
 
+#define ATOMSPHERE_INTENSITY 20.0
+
 PSOutput PSMain(PSInput input)
 {
     PSOutput output;
@@ -223,7 +225,7 @@ PSOutput PSMain(PSInput input)
         float3 light_direction = normalize(light.position_intensity.xyz);
         float3 ray_direction = normalize(input.v_position);
 
-        float3 atmosphere = GetAtmosphere(ray_direction, light_direction, light.position_intensity.w);
+        float3 atmosphere = GetAtmosphere(ray_direction, light_direction, ATOMSPHERE_INTENSITY);
 
         sky_color = float4(atmosphere, 1.0);
 #ifdef CUTOFF
