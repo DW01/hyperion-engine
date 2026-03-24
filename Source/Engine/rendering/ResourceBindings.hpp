@@ -13,6 +13,8 @@
 
 namespace Hyperion {
 
+namespace Resources {
+
 #pragma region ResourceBindings
 
 #include <rendering/ResourceBindings.inc>
@@ -101,5 +103,7 @@ uint32 RetrieveResourceBinding(const ObjectBase* resource)
 }
 
 #pragma endregion ResourceBindings
+
+} // namespace Resources
 
 } // namespace Hyperion

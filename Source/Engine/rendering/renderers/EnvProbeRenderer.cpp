@@ -219,7 +219,7 @@ void ConvolveEnvProbeCubemap(
     // Update in env probes texture array if bound
     if (envProbe.IsA(SkyProbe::StaticClass()) || envProbe.IsA(ReflectionProbe::StaticClass()))
     {
-        const uint32 boundIndex = RetrieveResourceBinding(&envProbe);
+        const uint32 boundIndex = Resources::RetrieveResourceBinding(&envProbe);
 
         if (boundIndex != ~0u)
         {
@@ -403,7 +403,10 @@ void ReflectionProbeRenderer::RenderProbe(Frame* frame, const RenderSetup& rende
 
         RenderProxyLight* lightProxy = static_cast<RenderProxyLight*>(GetRenderProxy(renderSetup.light));
         AssertDebug(lightProxy != nullptr);
-        AssertDebug(RetrieveResourceBinding(renderSetup.light) != ~0u);
+
+#if HYP_DEBUG_MODE
+        AssertDebug(Resources::RetrieveResourceBinding(renderSetup.light) != ~0u);
+#endif
 
         if (lightProxy->bufferData.positionIntensity == pd->cachedLightDirIntensity
             && !rpl.GetMeshEntities().GetDiff().NeedsUpdate())
@@ -562,7 +565,9 @@ void ReflectionProbeRenderer::ComputeSH(Frame* frame, const RenderSetup& renderS
     {
         if (light->GetLightType() == LightType::Directional)
         {
-            AssertDebug(RetrieveResourceBinding(light) != ~0u, "Light not bound!");
+#if HYP_DEBUG_MODE
+            AssertDebug(Resources::RetrieveResourceBinding(light) != ~0u, "Light not bound!");
+#endif
 
             directionalLight = light;
 
@@ -588,7 +593,7 @@ void ReflectionProbeRenderer::ComputeSH(Frame* frame, const RenderSetup& renderS
         uint32 envProbeIndex;
     } uniforms;
 
-    uniforms.envProbeIndex = RetrieveResourceBinding(envProbe);
+    uniforms.envProbeIndex = Resources::RetrieveResourceBinding(envProbe);
     uniforms.probeGridPosition = { 0, 0, 0, 0 };
     uniforms.cubemapDimensions = Vec4u { cubemapDimensions, 0, 0 };
     uniforms.worldPosition = envProbeProxy->bufferData.worldPosition;

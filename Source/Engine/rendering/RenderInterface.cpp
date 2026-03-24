@@ -98,8 +98,6 @@
 
 namespace Hyperion {
 
-// @TODO Move below to EngineDriver
-
 static_assert(RingBufferDepth <= MinSafeDeleteCycles,
     "RingBufferDepth must be less than or equal to MinSafeDeleteCycles to ensure safe deletion of resources.");
 
@@ -112,6 +110,13 @@ static_assert(MaxFramesBeforeDiscard >= MinSafeDeleteCycles,
 
 // iterations per frame for cleaning up unused resources for passes
 static constexpr int FrameCleanupBudget = 16;
+
+
+
+EngineStatTimer g_statRenderThreadSync("Render/Sync");
+static EngineStatTimer s_statViewDataAllocTime { "Rendering/ViewData/AllocTime", /* resetPerFrame */ false };
+
+namespace Framework {
 
 static volatile int64 s_frameCounter; // atomic
 
@@ -126,17 +131,200 @@ static thread_local uint32 s_currentRenderThreadIndex;
 
 static EngineConfig s_engineConfig[RingBufferDepth];
 
-EngineStatTimer g_statRenderThreadSync("Render/Sync");
-
 enum
 {
-    PRODUCER,
-    CONSUMER
+    TT_FrameDataProducer,
+    TT_FrameDataConsumer
 };
 
-namespace CoreApi {
-extern void UpdateGlobalConfig(const ConfigBase& mergeValues);
-} // namespace CoreApi
+static inline int CurrentThreadType()
+{
+    const ThreadId& threadId = CurrentThreadId();
+
+    if (threadId == g_renderThread)
+    {
+        return TT_FrameDataConsumer;
+    }
+
+    if (threadId == g_simThread)
+    {
+        return TT_FrameDataProducer;
+    }
+
+    // invalid
+    return -1;
+}
+
+// Render thread owned View data
+struct ViewData
+{
+    View* view = nullptr;
+    RenderProxyList rplRender;
+    RenderCollector renderCollector;
+    uint32 lastUsedFrame = ~0u;
+    uint32 numRefs = 0; // number of BufferedViewData holding refs to this
+
+    ViewData()
+        : rplRender(g_renderPool, /* isShared */ false, /* useRefCounting */ false)
+    {
+    }
+
+    ViewData(const ViewData& other) = delete;
+    ViewData& operator=(const ViewData& other) = delete;
+
+    ViewData(ViewData&& other) noexcept = delete;
+    ViewData& operator=(ViewData&& other) noexcept = delete;
+
+    HYP_FORCE_INLINE void AddRef()
+    {
+        ++numRefs;
+    }
+
+    HYP_FORCE_INLINE uint32 Release()
+    {
+        if (--numRefs == 0)
+        {
+            view->Release();
+            view = nullptr;
+        }
+
+        return numRefs;
+    }
+};
+
+static HashMap<View*, ViewData*> s_viewData;
+
+static ViewData* GetViewData(View* view, bool createIfNotExist)
+{
+    if (createIfNotExist)
+    {
+        AssertOnThread(g_renderThread);
+    }
+    else
+    {
+        AssertOnThread(g_renderThread | ThreadCategory::THREAD_CATEGORY_TASK);
+    }
+
+    AssertDebug(view != nullptr);
+
+    auto viewDataIt = s_viewData.Find(view);
+
+    if (viewDataIt == s_viewData.End())
+    {
+        if (!createIfNotExist)
+        {
+            return nullptr;
+        }
+        
+        ENGINE_STAT_SCOPE(&s_statViewDataAllocTime);
+
+        ViewData* viewData = HYP_POOL_NEW(g_renderPool, ViewData);
+        viewData->view = view;
+        viewData->lastUsedFrame = GetFrameCounter();
+
+        view->AddRef();
+
+        HYP_LOG(Rendering, Verbose, "Allocating new ViewData {} for View {} at frame {}\t(Camera : {})",
+            (void*)viewData,
+            view->Id(),
+            GetFrameCounter(),
+            view->GetCamera() ? *view->GetCamera()->GetName() : "null");
+
+        if (view->GetViewDesc().entityBatchClass != nullptr)
+        {
+            viewData->renderCollector.batchAllocator = GetOrCreateEntityBatchAllocator(view->GetViewDesc().entityBatchClass->GetTypeId());
+        }
+        else
+        {
+            viewData->renderCollector.batchAllocator = GetOrCreateEntityBatchAllocator<MeshEntityInstanceBatch>();
+        }
+
+        AssertDebug(viewData->renderCollector.batchAllocator != nullptr);
+
+        auto insertResult = s_viewData.Insert(view, viewData);
+        AssertDebug(insertResult.second);
+
+        return viewData;
+    }
+
+    return viewDataIt->second;
+}
+
+// Data for views that is buffered over multiple frames
+struct BufferedViewData
+{
+    View* view = nullptr;
+    Viewport viewport {};
+    RenderProxyList* rplShared = nullptr;
+
+    // Only render thread touches this member, since ViewData is created from the render thread
+    ViewData* viewData = nullptr;
+};
+
+struct BufferedData
+{
+    HashMap<View*, BufferedViewData*> perViewData;
+    SharedMutex viewFrameDataMutex;
+
+    Array<World*> activeWorlds;
+
+    Array<RenderProxyList*> ownedLists; // render thread side owned lists
+    Array<RenderProxyList*> sharedLists;
+
+    WorldShaderData worldBufferData {};
+};
+
+static BufferedData s_bufferedData[RingBufferDepth];
+
+static BufferedViewData* GetBufferedViewData(View* view, uint32 slot)
+{
+    AssertDebug(view != nullptr);
+
+    BufferedData& bufferedData = s_bufferedData[slot];
+
+    TSharedLock<SharedMutex> sharedLock;
+    TUniqueLock<SharedMutex> uniqueLock;
+
+    // need to lock IFF on task thread
+    if (Framework::s_threadFrameIndex == nullptr)
+    {
+        sharedLock.Reset(bufferedData.viewFrameDataMutex);
+    }
+
+    auto it = bufferedData.perViewData.Find(view);
+    if (it != bufferedData.perViewData.End())
+    {
+        return it->second;
+    }
+
+    if (sharedLock)
+    {
+        sharedLock.Reset();
+        uniqueLock.Reset(bufferedData.viewFrameDataMutex);
+
+        it = bufferedData.perViewData.Find(view);
+
+        if (it != bufferedData.perViewData.End())
+        {
+            return it->second;
+        }
+    }
+
+    BufferedViewData* bufferedViewData = new BufferedViewData;
+    bufferedViewData->view = view;
+
+    bufferedViewData->rplShared = view->GetRenderProxyList(slot);
+    AssertDebug(bufferedViewData->rplShared != nullptr);
+    AssertDebug(bufferedViewData->rplShared->isShared, "Expected isShared to be true to ensure multiple threads don't access the list concurrently");
+
+    bufferedData.perViewData[view] = bufferedViewData;
+
+    return bufferedViewData;
+}
+
+} // namespace FrameData
+
+namespace Resources {
 
 #pragma region ResourceContainer
 
@@ -328,181 +516,12 @@ public:
     }
 };
 
-#define DECLARE_RENDER_DATA_CONTAINER(ResourceType, ProxyType, ...)                                             \
-    static ResourceContainerFactory<class ResourceType, class ProxyType> g_##ResourceType##ContainerFactory {   \
-        __VA_ARGS__                                                                                             \
+#define DECLARE_RENDER_DATA_CONTAINER(ResourceType, ProxyType, ...)                                           \
+    static ResourceContainerFactory<class ResourceType, class ProxyType> g_##ResourceType##ContainerFactory { \
+        __VA_ARGS__                                                                                           \
     };
 
 #pragma endregion ResourceContainer
-
-// Render thread owned View data
-struct ViewData
-{
-    View* view = nullptr;
-    RenderProxyList rplRender;
-    RenderCollector renderCollector;
-    uint32 lastUsedFrame = ~0u;
-    uint32 numRefs = 0; // number of BufferedViewData holding refs to this
-
-    ViewData()
-        : rplRender(g_renderPool, /* isShared */ false, /* useRefCounting */ false)
-    {
-    }
-
-    ViewData(const ViewData& other) = delete;
-    ViewData& operator=(const ViewData& other) = delete;
-
-    ViewData(ViewData&& other) noexcept = delete;
-    ViewData& operator=(ViewData&& other) noexcept = delete;
-
-    HYP_FORCE_INLINE void AddRef()
-    {
-        ++numRefs;
-    }
-
-    HYP_FORCE_INLINE uint32 Release()
-    {
-        if (--numRefs == 0)
-        {
-            view->Release();
-            view = nullptr;
-        }
-
-        return numRefs;
-    }
-};
-
-// Data for views that is buffered over multiple frames
-struct BufferedViewData
-{
-    View* view = nullptr;
-    Viewport viewport {};
-    RenderProxyList* rplShared = nullptr;
-
-    // Only render thread touches this member, since ViewData is created from the render thread
-    ViewData* viewData = nullptr;
-};
-
-struct BufferedData
-{
-    HashMap<View*, BufferedViewData*> perViewData;
-    SharedMutex viewFrameDataMutex;
-
-    Array<World*> activeWorlds;
-
-    Array<RenderProxyList*> ownedLists; // render thread side owned lists
-    Array<RenderProxyList*> sharedLists;
-
-    WorldShaderData worldBufferData {};
-};
-
-static BufferedData s_bufferedData[RingBufferDepth];
-
-static HashMap<View*, ViewData*> s_viewData;
-
-static ViewData* GetViewData(View* view, bool createIfNotExist)
-{
-    HYP_SCOPE;
-
-    if (createIfNotExist)
-    {
-        AssertOnThread(g_renderThread);
-    }
-    else
-    {
-        AssertOnThread(g_renderThread | ThreadCategory::THREAD_CATEGORY_TASK);
-    }
-
-    AssertDebug(view != nullptr);
-
-    auto viewDataIt = s_viewData.Find(view);
-
-    if (viewDataIt == s_viewData.End())
-    {
-        if (!createIfNotExist)
-        {
-            return nullptr;
-        }
-
-        ViewData* viewData = HYP_POOL_NEW(g_renderPool, ViewData);
-        viewData->view = view;
-        viewData->lastUsedFrame = GetFrameCounter();
-
-        view->AddRef();
-
-        HYP_LOG(Rendering, Verbose, "Allocating new ViewData {} for View {} at frame {}\t(Camera : {})",
-            (void*)viewData,
-            view->Id(),
-            GetFrameCounter(),
-            view->GetCamera() ? *view->GetCamera()->GetName() : "null");
-
-        if (view->GetViewDesc().entityBatchClass != nullptr)
-        {
-            viewData->renderCollector.batchAllocator = GetOrCreateEntityBatchAllocator(view->GetViewDesc().entityBatchClass->GetTypeId());
-        }
-        else
-        {
-            viewData->renderCollector.batchAllocator = GetOrCreateEntityBatchAllocator<MeshEntityInstanceBatch>();
-        }
-
-        AssertDebug(viewData->renderCollector.batchAllocator != nullptr);
-
-        auto insertResult = s_viewData.Insert(view, viewData);
-        AssertDebug(insertResult.second);
-
-        return viewData;
-    }
-
-    return viewDataIt->second;
-}
-
-static BufferedViewData* GetBufferedViewData(View* view, uint32 slot)
-{
-    HYP_SCOPE;
-
-    AssertDebug(view != nullptr);
-
-    BufferedData& bufferedData = s_bufferedData[slot];
-
-    TSharedLock<SharedMutex> sharedLock;
-    TUniqueLock<SharedMutex> uniqueLock;
-
-    // need to lock IFF on task thread
-    if (s_threadFrameIndex == nullptr)
-    {
-        sharedLock.Reset(bufferedData.viewFrameDataMutex);
-    }
-
-    auto it = bufferedData.perViewData.Find(view);
-    if (it != bufferedData.perViewData.End())
-    {
-        return it->second;
-    }
-
-    if (sharedLock)
-    {
-        sharedLock.Reset();
-        uniqueLock.Reset(bufferedData.viewFrameDataMutex);
-
-        it = bufferedData.perViewData.Find(view);
-
-        if (it != bufferedData.perViewData.End())
-        {
-            return it->second;
-        }
-    }
-
-    BufferedViewData* bufferedViewData = new BufferedViewData;
-    bufferedViewData->view = view;
-
-    bufferedViewData->rplShared = view->GetRenderProxyList(slot);
-    AssertDebug(bufferedViewData->rplShared != nullptr);
-    AssertDebug(bufferedViewData->rplShared->isShared, "Expected isShared to be true to ensure multiple threads don't access the list concurrently");
-
-    bufferedData.perViewData[view] = bufferedViewData;
-
-    return bufferedViewData;
-}
 
 template <class ElementType, class ProxyType>
 static HYP_FORCE_INLINE void CopyRenderProxy(ResourceSubtypeData& subtypeData, const ObjId<ElementType>& id, ProxyType* newProxy)
@@ -688,40 +707,24 @@ static inline void CopyDependencies(
     }
 }
 
-static inline int CurrentThreadType()
-{
-    const ThreadId& threadId = CurrentThreadId();
-
-    if (threadId == g_renderThread)
-    {
-        return CONSUMER;
-    }
-
-    if (threadId == g_simThread)
-    {
-        return PRODUCER;
-    }
-
-    // invalid
-    return -1;
-}
+} // namespace Resources
 
 uint32 GetRingIndex()
 {
-    if (HYP_UNLIKELY(!s_threadFrameIndex))
+    if (HYP_UNLIKELY(!Framework::s_threadFrameIndex))
     {
-        const int threadType = CurrentThreadType();
+        const int threadType = Framework::CurrentThreadType();
         Assert(threadType >= 0, "GetRingIndex called from an invalid thread!");
 
-        s_threadFrameIndex = &s_frameIndex[threadType];
+        Framework::s_threadFrameIndex = &Framework::s_frameIndex[threadType];
     }
 
-    return *s_threadFrameIndex;
+    return *Framework::s_threadFrameIndex;
 }
 
 uint32 GetFrameCounter()
 {
-    return (uint32)AtomicAdd(&s_frameCounter, 0);
+    return (uint32)AtomicAdd(&Framework::s_frameCounter, 0);
 }
 
 RenderProxyList& GetProducerProxyList(View* view)
@@ -731,7 +734,10 @@ RenderProxyList& GetProducerProxyList(View* view)
     // can be called on sim thread or on task thread for tasks enqueued and awaited by sim thread, **exclusively**
     AssertOnThread(g_simThread | ThreadCategory::THREAD_CATEGORY_TASK);
 
-    BufferedViewData* vd = GetBufferedViewData(view, s_frameIndex[PRODUCER]);
+    Framework::BufferedViewData* vd = Framework::GetBufferedViewData(
+        view,
+        Framework::s_frameIndex[Framework::TT_FrameDataProducer]);
+
     Assert(vd != nullptr);
 
     return *vd->rplShared;
@@ -744,7 +750,7 @@ RenderProxyList& GetConsumerProxyList(View* view)
 
     AssertDebug(view != nullptr);
 
-    ViewData* vd = GetViewData(view, false);
+    Framework::ViewData* vd = Framework::GetViewData(view, false);
 
     if (vd == nullptr)
     {
@@ -760,7 +766,7 @@ RenderCollector& GetRenderCollector(View* view)
     HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
-    ViewData* vd = GetViewData(view, false);
+    Framework::ViewData* vd = Framework::GetViewData(view, false);
     
     if (vd == nullptr)
     {
@@ -778,7 +784,7 @@ Array<Pair<View*, RenderCollector*>> GetAllRenderCollectors()
 
     Array<Pair<View*, RenderCollector*>> result;
 
-    for (auto& it : s_viewData)
+    for (auto& it : Framework::s_viewData)
     {
         result.PushBack(Pair<View*, RenderCollector*>(it.first, &it.second->renderCollector));
     }
@@ -793,7 +799,7 @@ IRenderProxy* GetRenderProxy(const ObjectBase* resource)
 
     AssertDebug(resource != nullptr);
 
-    ResourceSubtypeData& subtypeData = g_renderInterface->resources->GetSubtypeData(resource->InstanceClass());
+    Resources::ResourceSubtypeData& subtypeData = g_renderInterface->resources->GetSubtypeData(resource->InstanceClass());
     AssertDebug(subtypeData.hasProxyData,
         "Cannot use GetRenderProxy() for type which does not have a RenderProxy! Type name: {}",
         subtypeData.typeInfo->name);
@@ -823,7 +829,7 @@ void UpdateGpuData(const ObjectBase* resource)
 
     const ObjIdBase resourceId = resource->Id();
 
-    ResourceSubtypeData& subtypeData = g_renderInterface->resources->GetSubtypeData(resource->InstanceClass());
+    Resources::ResourceSubtypeData& subtypeData = g_renderInterface->resources->GetSubtypeData(resource->InstanceClass());
     AssertDebug(resourceId.GetTypeId() == subtypeData.typeInfo->id);
 
     AssertDebug(subtypeData.gpuBufferHolder != nullptr,
@@ -834,7 +840,7 @@ void UpdateGpuData(const ObjectBase* resource)
         "Cannot use UpdateGpuData() for type which does not have a RenderProxy! Type: {}",
         subtypeData.typeInfo->name);
 
-    const uint32 bindingIndex = RetrieveResourceBinding(resource);
+    const uint32 bindingIndex = Resources::RetrieveResourceBinding(resource);
     AssertDebug(bindingIndex != ~0u);
 
     const uint32 idx = resourceId.ToIndex();
@@ -855,11 +861,11 @@ void SetForceRebind(ObjectBase* resource, bool forceRebind)
 
     AssertDebug(resource != nullptr);
 
-    ResourceSubtypeData& subtypeData = g_renderInterface->resources->GetSubtypeData(resource->InstanceClass());
+    Resources::ResourceSubtypeData& subtypeData = g_renderInterface->resources->GetSubtypeData(resource->InstanceClass());
 
-    for (ResourceBinderBase** it = subtypeData.resourceBinders; *it; ++it)
+    for (Resources::ResourceBinderBase** it = subtypeData.resourceBinders; *it; ++it)
     {
-        ResourceBinderBase* resourceBinder = *it;
+        Resources::ResourceBinderBase* resourceBinder = *it;
         resourceBinder->SetForceRebind(resource, forceRebind);
     }
 }
@@ -869,7 +875,7 @@ WorldShaderData* GetWorldBufferData()
     HYP_SCOPE;
     AssertOnThread(g_simThread | g_renderThread);
 
-    return &s_bufferedData[*s_threadFrameIndex].worldBufferData;
+    return &Framework::s_bufferedData[*Framework::s_threadFrameIndex].worldBufferData;
 }
 
 void CommitActiveWorlds(Span<World*> activeWorlds)
@@ -877,7 +883,7 @@ void CommitActiveWorlds(Span<World*> activeWorlds)
     HYP_SCOPE;
     AssertOnThread(g_simThread);
 
-    BufferedData& bufferedData = s_bufferedData[s_frameIndex[PRODUCER]];
+    Framework::BufferedData& bufferedData = Framework::s_bufferedData[Framework::s_frameIndex[Framework::TT_FrameDataProducer]];
     bufferedData.activeWorlds = Array<World*>(activeWorlds);
 }
 
@@ -886,7 +892,7 @@ Span<World*> GetActiveWorlds()
     HYP_SCOPE;
     AssertOnThread(g_simThread | g_renderThread);
 
-    return s_bufferedData[*s_threadFrameIndex].activeWorlds.ToSpan();
+    return Framework::s_bufferedData[*Framework::s_threadFrameIndex].activeWorlds.ToSpan();
 }
 
 Viewport& GetViewport(View* view)
@@ -894,26 +900,26 @@ Viewport& GetViewport(View* view)
     HYP_SCOPE;
     AssertOnThread(g_simThread | g_renderThread);
 
-    return GetBufferedViewData(view, *s_threadFrameIndex)->viewport;
+    return Framework::GetBufferedViewData(view, *Framework::s_threadFrameIndex)->viewport;
 }
 
 uint32 CurrentRenderThreadIndex()
 {
-    if (s_currentRenderThreadIndex == 0)
+    if (Framework::s_currentRenderThreadIndex == 0)
     {
-        s_currentRenderThreadIndex = 1 + (IsOnThread(g_renderThread) ? 0 : GetCurrentThreadIndex() + 1);
+        Framework::s_currentRenderThreadIndex = 1 + (IsOnThread(g_renderThread) ? 0 : GetCurrentThreadIndex() + 1);
     }
 
-    return s_currentRenderThreadIndex - 1;
+    return Framework::s_currentRenderThreadIndex - 1;
 }
 
 void BeginFrameSim()
 {
     HYP_SCOPE;
 
-    s_threadFrameIndex = &s_frameIndex[PRODUCER];
+    Framework::s_threadFrameIndex = &Framework::s_frameIndex[Framework::TT_FrameDataProducer];
 
-    s_freeSemaphore.acquire();
+    Framework::s_freeSemaphore.acquire();
 }
 
 void EndFrameSim()
@@ -921,19 +927,20 @@ void EndFrameSim()
     HYP_SCOPE;
     AssertOnThread(g_simThread);
 
-    const uint32 slot = s_frameIndex[PRODUCER];
-    BufferedData& bufferedData = s_bufferedData[slot];
+    const uint32 slot = Framework::s_frameIndex[Framework::TT_FrameDataProducer];
+
+    Framework::BufferedData& bufferedData = Framework::s_bufferedData[slot];
 
     g_sceneArena->Reset();
 
-    s_frameIndex[PRODUCER] = (s_frameIndex[PRODUCER] + 1) % RingBufferDepth;
+    Framework::s_frameIndex[Framework::TT_FrameDataProducer] = (Framework::s_frameIndex[Framework::TT_FrameDataProducer] + 1) % RingBufferDepth;
 
-    s_fullSemaphore.release();
+    Framework::s_fullSemaphore.release();
 }
 
 EngineConfig& GetEngineConfig()
 {
-    return s_engineConfig[s_threadFrameIndex ? *s_threadFrameIndex : s_frameIndex[CONSUMER]];
+    return Framework::s_engineConfig[Framework::s_threadFrameIndex ? *Framework::s_threadFrameIndex : Framework::s_frameIndex[Framework::TT_FrameDataConsumer]];
 }
 
 #pragma region RenderInterface
@@ -966,7 +973,7 @@ RendererResult RenderInterface::Initialize()
 {
     HYP_LOG(Rendering, Verbose, "Initializing base render interface");
 
-    s_threadFrameIndex = &s_frameIndex[CONSUMER];
+    Framework::s_threadFrameIndex = &Framework::s_frameIndex[Framework::TT_FrameDataConsumer];
 
     gpuBuffers.buffers[GRB_WORLDS] = gpuBufferHolders->GetOrCreate<WorldShaderData, GpuBufferType::CONSTANT_BUFFER>(16, /* cpuAccessible */ true);
     gpuBuffers.buffers[GRB_CAMERAS] = gpuBufferHolders->GetOrCreate<CameraShaderData, GpuBufferType::CONSTANT_BUFFER>(1024, /* cpuAccessible */ true);
@@ -980,15 +987,15 @@ RendererResult RenderInterface::Initialize()
 
     crashHandler->Initialize();
 
-    resources = PoolNew<ResourceContainer>(*g_renderPool);
+    resources = PoolNew<Resources::ResourceContainer>(*g_renderPool);
 
-    for (ResourceBinderBase* resourceBinder : s_resourceBinders)
+    for (Resources::ResourceBinderBase* resourceBinder : Resources::s_resourceBinders)
     {
         resourceBinder->Initialize();
     }
 
     {
-        EngineConfig& engineConfig = s_engineConfig[0];
+        EngineConfig& engineConfig = Framework::s_engineConfig[0];
         engineConfig.Load();
 
         bool shouldDisableRayTracing = !GetRenderConfig().rayTracing;
@@ -1022,14 +1029,14 @@ RendererResult RenderInterface::Initialize()
 
         for (uint32 i = 1; i < RingBufferDepth; i++)
         {
-            s_engineConfig[i] = engineConfig;
+            Framework::s_engineConfig[i] = engineConfig;
         }
     }
 
     finalPass = PoolNew<FinalPass>(*g_renderPool);
     finalPass->Create();
 
-    ResourceContainerFactoryRegistry& registry = ResourceContainerFactoryRegistry::GetInstance();
+    Resources::ResourceContainerFactoryRegistry& registry = Resources::ResourceContainerFactoryRegistry::GetInstance();
     registry.InvokeAll(*resources);
 
     registry.funcs.Clear();
@@ -1077,17 +1084,17 @@ void RenderInterface::Shutdown()
 {
     for (uint32 i = 0; i < RingBufferDepth; i++)
     {
-        for (auto& it : s_bufferedData[i].perViewData)
+        for (auto& it : Framework::s_bufferedData[i].perViewData)
         {
             delete it.second;
         }
 
-        s_bufferedData[i].perViewData.Clear();
+        Framework::s_bufferedData[i].perViewData.Clear();
     }
 
-    for (auto& it : s_viewData)
+    for (auto& it : Framework::s_viewData)
     {
-        ViewData* vd = it.second;
+        Framework::ViewData* vd = it.second;
 
         if (!vd)
         {
@@ -1097,14 +1104,14 @@ void RenderInterface::Shutdown()
         PoolDelete(*g_renderPool, vd);
     }
 
-    s_viewData.Clear();
+    Framework::s_viewData.Clear();
 
-    for (ResourceBinderBase* resourceBinder : s_resourceBinders)
+    for (Resources::ResourceBinderBase* resourceBinder : Resources::s_resourceBinders)
     {
         resourceBinder->Shutdown();
     }
 
-    ClearSubtypeBindings();
+    Resources::ClearSubtypeBindings();
 
     commandRecorderAllocator.Shutdown();
 
@@ -1193,7 +1200,7 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
     {
         ENGINE_STAT_SCOPE(&g_statRenderThreadSync);
 
-        while (!s_fullSemaphore.try_acquire())
+        while (!Framework::s_fullSemaphore.try_acquire())
         {
             if (pCancelFlag != nullptr && pCancelFlag->Load())
             {
@@ -1204,10 +1211,10 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
         }
     }
 
-    const uint32 slot = s_frameIndex[CONSUMER];
+    const uint32 slot = Framework::s_frameIndex[Framework::TT_FrameDataConsumer];
     const uint32 currFrame = GetFrameCounter();
 
-    BufferedData& bufferedData = s_bufferedData[slot];
+    Framework::BufferedData& bufferedData = Framework::s_bufferedData[slot];
 
     constantsAllocator->OnFrameStart();
     descriptorSetCache->OnFrameStart();
@@ -1221,12 +1228,12 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
     for (View* view : activeViews)
     {
         // ensure BufferedViewData exists
-        BufferedViewData& bufferedViewData = *GetBufferedViewData(view, slot);
+        Framework::BufferedViewData& bufferedViewData = *Framework::GetBufferedViewData(view, slot);
         AssertDebug(bufferedViewData.rplShared != nullptr);
         
         if (!bufferedViewData.viewData)
         {
-            bufferedViewData.viewData = GetViewData(view, /* createIfNotExist */ true);
+            bufferedViewData.viewData = Framework::GetViewData(view, /* createIfNotExist */ true);
             AssertDebug(bufferedViewData.viewData != nullptr);
 
             bufferedViewData.viewData->AddRef();
@@ -1285,9 +1292,9 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
     {
         HYP_NAMED_SCOPE("Resource bindings - select candidates");
 
-        for (ResourceSubtypeData& subtypeData : resources->dataByType)
+        for (Resources::ResourceSubtypeData& subtypeData : resources->dataByType)
         {
-            for (ResourceData& elem : subtypeData.data)
+            for (Resources::ResourceData& elem : subtypeData.data)
             {
                 AssertDebug(elem.resource != nullptr);
 
@@ -1307,9 +1314,9 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
                     }
                 }
 
-                for (ResourceBinderBase** it = subtypeData.resourceBinders; *it; ++it)
+                for (Resources::ResourceBinderBase** it = subtypeData.resourceBinders; *it; ++it)
                 {
-                    ResourceBinderBase* resourceBinder = *it;
+                    Resources::ResourceBinderBase* resourceBinder = *it;
                     resourceBinder->Consider(elem.resource, forceRebind);
                 }
             }
@@ -1317,22 +1324,22 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
     }
 
     // assign the actual bindings:
-    for (ResourceBinderBase* resourceBinder : s_resourceBinders)
+    for (Resources::ResourceBinderBase* resourceBinder : Resources::s_resourceBinders)
     {
         resourceBinder->ApplyUpdates();
     }
     
     TBitset<RenderAllocator> currentBoundIndices;
 
-    for (ResourceSubtypeData& subtypeData : resources->dataByType)
+    for (Resources::ResourceSubtypeData& subtypeData : resources->dataByType)
     {
         if (subtypeData.indicesPendingUpdate.Count() != 0)
         {
             currentBoundIndices.Clear();
 
-            for (ResourceBinderBase** it = subtypeData.resourceBinders; *it; ++it)
+            for (Resources::ResourceBinderBase** it = subtypeData.resourceBinders; *it; ++it)
             {
-                ResourceBinderBase* resourceBinder = *it;
+                Resources::ResourceBinderBase* resourceBinder = *it;
                 currentBoundIndices |= resourceBinder->GetBoundIndices(subtypeData.typeInfo->id);
             }
 
@@ -1365,7 +1372,7 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
 
                 AssertDebug(subtypeData.hasProxyData);
 
-                const uint32 bindingIndex = RetrieveResourceBinding(resource);
+                const uint32 bindingIndex = Resources::RetrieveResourceBinding(resource);
                 AssertDebug(bindingIndex != ~0u,
                     "Failed to retrieve binding for resource: {} in frame {}, but it is marked as bound (index: {})",
                     i, slot, i);
@@ -1382,11 +1389,11 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
     // Build draw call lists
     for (View* view : activeViews)
     {
-        BufferedViewData& bufferedViewData = *GetBufferedViewData(view, slot);
+        Framework::BufferedViewData& bufferedViewData = *Framework::GetBufferedViewData(view, slot);
         AssertDebug(bufferedViewData.rplShared != nullptr);
         AssertDebug(bufferedViewData.viewData != nullptr);
 
-        ViewData& vd = *bufferedViewData.viewData;
+        Framework::ViewData& vd = *bufferedViewData.viewData;
 
         if (bufferedViewData.rplShared->disableBuildRenderCollection || (bufferedViewData.view->GetFlags() & ViewFlags::NO_DRAW_CALLS))
         {
@@ -1409,9 +1416,9 @@ void RenderInterface::EndFrame()
     HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
-    const uint32 slot = s_frameIndex[CONSUMER];
+    const uint32 slot = Framework::s_frameIndex[Framework::TT_FrameDataConsumer];
 
-    BufferedData& bufferedData = s_bufferedData[slot];
+    Framework::BufferedData& bufferedData = Framework::s_bufferedData[slot];
     bufferedData.activeWorlds.Clear();
 
     const uint32 currFrame = GetFrameCounter();
@@ -1419,11 +1426,11 @@ void RenderInterface::EndFrame()
     // cull ViewData that hasn't been written to for a while, as well as remove unused render groups.
     for (auto it = bufferedData.perViewData.Begin(); it != bufferedData.perViewData.End();)
     {
-        BufferedViewData* bufferedViewData = it->second;
+        Framework::BufferedViewData* bufferedViewData = it->second;
 
         if (bufferedViewData->viewData != nullptr)
         {
-            ViewData* viewData = bufferedViewData->viewData;
+            Framework::ViewData* viewData = bufferedViewData->viewData;
 
             View* view = viewData->view;
             AssertDebug(view != nullptr);
@@ -1451,10 +1458,10 @@ void RenderInterface::EndFrame()
                 {
                     HYP_LOG(Rendering, Verbose, "Discarding ViewData {} for view {} at frame {}", (void*)viewData, view->Id(), GetFrameCounter());
 
-                    auto viewDataIt = s_viewData.Find(view);
-                    AssertDebug(viewDataIt != s_viewData.End() && viewDataIt->second == viewData);
+                    auto viewDataIt = Framework::s_viewData.Find(view);
+                    AssertDebug(viewDataIt != Framework::s_viewData.End() && viewDataIt->second == viewData);
 
-                    s_viewData.Erase(viewDataIt);
+                    Framework::s_viewData.Erase(viewDataIt);
 
                     PoolDelete(*g_renderPool, viewData);
                 }
@@ -1488,11 +1495,11 @@ void RenderInterface::EndFrame()
     numCleanupCycles -= computePipelineCache->RunCleanupCycle(4);
     numCleanupCycles -= rayTracingPipelineCache->RunCleanupCycle(1);
 
-    for (ResourceSubtypeData& subtypeData : resources->dataByType)
+    for (Resources::ResourceSubtypeData& subtypeData : resources->dataByType)
     {
         for (Bitset::BitIndex i : subtypeData.indicesPendingDelete)
         {
-            ResourceData& rd = subtypeData.data.Get(i);
+            Resources::ResourceData& rd = subtypeData.data.Get(i);
             AssertDebug(rd.resource != nullptr);
             AssertDebug(rd.useCount == 0, "Use count should be 0 before deletion");
 
@@ -1500,9 +1507,9 @@ void RenderInterface::EndFrame()
             // dead items)
             subtypeData.indicesPendingUpdate.Set(i, false);
 
-            for (ResourceBinderBase** it = subtypeData.resourceBinders; *it; ++it)
+            for (Resources::ResourceBinderBase** it = subtypeData.resourceBinders; *it; ++it)
             {
-                ResourceBinderBase* resourceBinder = *it;
+                Resources::ResourceBinderBase* resourceBinder = *it;
                 resourceBinder->Deconsider(rd.resource);
             }
 
@@ -1543,16 +1550,16 @@ void RenderInterface::EndFrame()
 
     textureViewCache->CleanupUnusedTextures();
 
-    const uint32 nextFrameIndex = (s_frameIndex[CONSUMER] + 1) % RingBufferDepth;
+    const uint32 nextFrameIndex = (Framework::s_frameIndex[Framework::TT_FrameDataConsumer] + 1) % RingBufferDepth;
 
     /// Sync the engine config for the current frame to prev frame
-    s_engineConfig[nextFrameIndex] = s_engineConfig[slot];
+    Framework::s_engineConfig[nextFrameIndex] = Framework::s_engineConfig[slot];
 
-    s_frameIndex[CONSUMER] = nextFrameIndex;
+    Framework::s_frameIndex[Framework::TT_FrameDataConsumer] = nextFrameIndex;
 
-    AtomicIncrement(&s_frameCounter);
+    AtomicIncrement(&Framework::s_frameCounter);
 
-    s_freeSemaphore.release();
+    Framework::s_freeSemaphore.release();
 }
 
 void RenderInterface::AddRenderer(GlobalRendererType globalRendererType, RendererBase* renderer)
@@ -2276,7 +2283,7 @@ void RenderInterface::CreateEnvProbesTexture()
 
 #pragma endregion RenderInterface
 
-namespace {
+namespace Resources {
 
 DECLARE_RENDER_DATA_CONTAINER(Entity, RenderProxyMesh, GRB_ENTITIES, &WriteBufferData_MeshEntity, &s_meshEntityBinder);
 
@@ -2322,6 +2329,9 @@ DECLARE_RENDER_DATA_CONTAINER(Skeleton, RenderProxySkeleton, GRB_SKELETONS, null
 #define DECLARE_BUFFER(setName, name, type, count, size, isDynamic) DECLARE_BUFFER_COND(setName, name, type, count, size, isDynamic, true)
 #define DECLARE_SAMPLER(setName, name, type, count) DECLARE_SAMPLER_COND(setName, name, type, count, true)
 
+} // namespace Resources
+
+namespace {
 static struct GlobalDescriptorSetsDeclarations
 {
     GlobalDescriptorSetsDeclarations()
@@ -2329,7 +2339,6 @@ static struct GlobalDescriptorSetsDeclarations
 #include <rendering/inl/DescriptorSets.inl>
     }
 } s_globalDescriptorSetsDeclarations;
-
 } // namespace
 
 } // namespace Hyperion

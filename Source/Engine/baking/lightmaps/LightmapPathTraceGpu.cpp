@@ -232,7 +232,7 @@ void LightmapRenderer_GpuPathTracing::CreateAccelerationStructures()
 
         if (meshProxy->material != nullptr)
         {
-            const uint32 materialBinding = RetrieveResourceBinding(meshProxy->material);
+            const uint32 materialBinding = Resources::RetrieveResourceBinding(meshProxy->material);
             blas->SetMaterialBinding(materialBinding);
         }
 

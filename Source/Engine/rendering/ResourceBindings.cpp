@@ -24,6 +24,7 @@
 
 namespace Hyperion {
 
+namespace Resources {
 extern ResourceBinderBase* g_reflectionProbeTextureBinder;
 
 void OnBindingChanged_MeshEntity(Entity* entity, uint32 prev, uint32 next)
@@ -177,7 +178,7 @@ void WriteBufferData_EnvProbe(GpuBufferHolderBase* gpuBufferHolder, uint32 idx, 
 
     if (proxyCasted->envProbe.GetUnsafe()->IsA<SkyProbe>() || proxyCasted->envProbe.GetUnsafe()->IsA<ReflectionProbe>())
     {
-        const uint32 textureBinding = g_reflectionProbeTextureBinder->GetBindingForObject(proxyCasted->envProbe.GetUnsafe());
+        const uint32 textureBinding = Resources::g_reflectionProbeTextureBinder->GetBindingForObject(proxyCasted->envProbe.GetUnsafe());
         Assert(textureBinding != ~0u);
 
         proxyCasted->bufferData.textureIndex = textureBinding;
@@ -304,4 +305,5 @@ void OnBindingChanged_Texture(Texture* texture, uint32 prev, uint32 next)
     AssignResourceBinding(texture, next);
 }
 
+} // namespace Resources
 } // namespace Hyperion

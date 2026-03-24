@@ -12,9 +12,9 @@ namespace Hyperion {
 HYP_API extern size_t GetNumDescendants(TypeId typeId);
 HYP_API extern int GetSubclassIndex(TypeId baseTypeId, TypeId subclassTypeId);
 
-class RenderGlobalState;
-
 HYP_DECLARE_LOG_CHANNEL(Rendering);
+
+namespace Resources {
 
 struct ResourceBindingAllocatorBase
 {
@@ -615,5 +615,7 @@ protected:
 
     BitsetType* m_emptyBitset;
 };
+
+} // namespace Resources
 
 } // namespace Hyperion

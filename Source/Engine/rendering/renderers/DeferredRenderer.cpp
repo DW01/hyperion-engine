@@ -542,7 +542,7 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
                     if (materialProxy->attributes.textureMask & uint32(MaterialTextureKey::Diffuse))
                     {
-                        const uint32 materialBoundIndex = RetrieveResourceBinding(lightProxy->lightMaterial);
+                        const uint32 materialBoundIndex = Resources::RetrieveResourceBinding(lightProxy->lightMaterial);
                         AssertDebug(materialBoundIndex != ~0u);
 
                         Span<const GpuImageViewRef> imageViews = g_renderInterface->materialTextureCache->imageViews.Get(materialBoundIndex);
@@ -1010,7 +1010,7 @@ void FogVolumePass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup
 
         tempLightsArray.EmplaceBack(light, &lightProxy->bufferData);
 
-        lightIndicesU32[numBoundLights++] = RetrieveResourceBinding(light);
+        lightIndicesU32[numBoundLights++] = Resources::RetrieveResourceBinding(light);
     }
 
     GpuBuffer* cBuffer = nullptr;
@@ -2307,14 +2307,14 @@ void DeferredRenderer::UpdateRayTracingView(Frame* frame, const RenderSetup& rs)
         {
             blas->SetTransform(meshProxy->bufferData.modelMatrix);
 
-            const uint32 materialBinding = RetrieveResourceBinding(meshProxy->material);
+            const uint32 materialBinding = Resources::RetrieveResourceBinding(meshProxy->material);
             blas->SetMaterialBinding(materialBinding);
 
             CheckResult(blas->Create());
         }
         else
         {
-            const uint32 materialBinding = RetrieveResourceBinding(meshProxy->material);
+            const uint32 materialBinding = Resources::RetrieveResourceBinding(meshProxy->material);
 
             blas->SetMaterialBinding(materialBinding);
             blas->SetTransform(meshProxy->bufferData.modelMatrix);

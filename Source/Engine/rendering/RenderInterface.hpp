@@ -38,7 +38,6 @@ class RenderCollector;
 struct WorldShaderData;
 struct Viewport;
 class FinalPass;
-class ResourceBinderBase;
 class World;
 class ConstantsAllocator;
 class DescriptorSetCache;
@@ -59,6 +58,10 @@ class EngineConfig;
 enum class GpuBufferType : uint8;
 enum RenderTargetType : uint8;
 
+namespace Resources {
+struct ResourceContainer;
+class ResourceBinderBase;
+
 extern ResourceBinderBase* g_meshEntityBinder;
 extern ResourceBinderBase* g_meshBinder;
 extern ResourceBinderBase* g_cameraBinder;
@@ -71,6 +74,7 @@ extern ResourceBinderBase* g_particleVolumeBinder;
 extern ResourceBinderBase* g_materialBinder;
 extern ResourceBinderBase* g_textureBinder;
 extern ResourceBinderBase* g_skeletonBinder;
+} // namespace Resources
 
 /*! \brief Get the current ring buffer index for the current thread (can be called from the game or render threads).
  *  \note This is thread-safe only if called from the game or render thread. Other threads should not call this function. */
@@ -105,12 +109,15 @@ IRenderProxy* GetRenderProxy(const ObjectBase* resource);
 /*! \brief Render thread only - update GPU data to match RenderProxy's buffer data for the resource */
 void UpdateGpuData(const ObjectBase* resource);
 
+// used on render thread only - set whether the given resource should be forced to rebind on next ApplyUpdates() call
+void SetForceRebind(ObjectBase* resource, bool forceRebind = true);
+
+namespace Resources {
 // used on render thread only - assigns all render proxy for the given object to the given binding
 void AssignResourceBinding(ObjectBase* resource, uint32 binding);
 // used on render thread only - retrieves the binding set for the given resource (~0u if unset)
 uint32 RetrieveResourceBinding(const ObjectBase* resource);
-// used on render thread only - set whether the given resource should be forced to rebind on next ApplyUpdates() call
-void SetForceRebind(ObjectBase* resource, bool forceRebind = true);
+} // namespace Resources
 
 WorldShaderData* GetWorldBufferData();
 
@@ -175,8 +182,6 @@ struct GlobalGpuBuffers
 
 class RenderInterface
 {
-    friend class ResourceBinderBase;
-
 public:
     struct State
     {
@@ -377,7 +382,7 @@ public:
 
     CommandRecorderAllocator commandRecorderAllocator;
 
-    struct ResourceContainer* resources;
+    Resources::ResourceContainer* resources;
 
 private:
     void CreateBlueNoiseBuffer();

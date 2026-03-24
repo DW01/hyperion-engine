@@ -40,7 +40,6 @@ class Texture;
 class Skeleton;
 class RenderCollector;
 class RenderProxyList;
-struct ResourceContainer;
 struct RenderProxy;
 enum class LightType : uint32;
 enum EnvProbeType : uint32;

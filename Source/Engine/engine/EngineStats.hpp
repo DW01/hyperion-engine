@@ -90,7 +90,8 @@ public:
     static_assert(std::is_integral_v<T>, "EngineStatCounter can only be instantiated with integral types");
 
     explicit EngineStatCounter(UTF8StringView path, bool resetPerFrame = true)
-        : EngineStatBase(EST_COUNTER, path)
+        : EngineStatBase(EST_COUNTER, path),
+          m_value {}
     {
         EngineStatBase::resetPerFrame = resetPerFrame;
     }
