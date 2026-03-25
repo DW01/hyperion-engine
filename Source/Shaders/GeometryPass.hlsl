@@ -299,7 +299,7 @@ PSOutput PSMain(PSInput input)
 #endif
 
 #ifdef DEBUG_RAW_REFLECTIONS
-    // roughness = 0.001;
+    roughness = 0.001;
 #endif
 
     // https://www.elopezr.com/temporal-aa-and-the-quest-for-the-holy-trail/

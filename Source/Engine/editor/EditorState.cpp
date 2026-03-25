@@ -112,6 +112,8 @@ void EditorState::Init()
     Handle<AssetPackage> importsPackage = GetImportsPackage();
     Assert(importsPackage.IsValid());
 
+    g_assetManager->GetAssetRegistry()->LoadPackagesAsync();
+
     m_taskManager.OnTaskAdded.Bind([this]<class... Args>(Args&&... args) { OnTaskStarted(std::forward<Args>(args)...); }).Detach();
     m_taskManager.OnTaskRemoved.Bind([this]<class... Args>(Args&&... args) { OnTaskEnded(std::forward<Args>(args)...); }).Detach();
     m_taskManager.OnTaskProgressUpdated.Bind([this]<class... Args>(Args&&... args) { OnTaskProgressUpdated(std::forward<Args>(args)...); }).Detach();

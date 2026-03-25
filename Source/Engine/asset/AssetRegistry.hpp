@@ -430,9 +430,9 @@ public:
         bool appendExistingPackagePath = false,
         ProcRef<String(const AssetObject&)> getObjectSubpath = nullptr);
 
-    Handle<AssetObject> GetAssetFromPath(const UTF8StringView& path, bool attemptLoading = true) const;
+    void LoadPackagesAsync(bool loadSubpackages = false);
 
-    MemoryMappedFile* MapFile(const FilePath& path);
+    Handle<AssetObject> GetAssetFromPath(const UTF8StringView& path, bool attemptLoading = true) const;
 
     BlobStorage& GetBlobStorage();
 
@@ -449,8 +449,6 @@ public:
 
 private:
     void InitBlobStorage();
-
-    void LoadPackagesAsync(bool loadSubpackages = false);
 
     template <class Func, class FutureType = void>
     void PostTask(Func&& fn, Task<FutureType>* outFuture = nullptr);

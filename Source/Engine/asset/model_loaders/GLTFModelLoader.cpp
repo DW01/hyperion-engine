@@ -53,6 +53,9 @@
 namespace Hyperion {
 
 HYP_DECLARE_LOG_CHANNEL(Assets);
+namespace CoreApi {
+extern FilePath GetExecutablePath();
+}// namespace CoreApi
 
 namespace {
 
@@ -435,8 +438,13 @@ Transform BuildTransformFromNode(const cgltf_node& node)
         matrix = matrix.Transpose();
 
         const Vec3f translation = matrix.ExtractTranslation();
-        const Vec3f scale = matrix.ExtractScale();
-        Quaternion rotation = matrix.ExtractRotation();
+
+        const Vec3f scale = Vec3f(
+            Vec3f(matrix[0][0], matrix[1][0], matrix[2][0]).Length(),
+            Vec3f(matrix[0][1], matrix[1][1], matrix[2][1]).Length(),
+            Vec3f(matrix[0][2], matrix[1][2], matrix[2][2]).Length());
+
+        Quaternion rotation = matrix.ExtractRotation().Inverse();
         rotation.Normalize();
 
         return Transform(translation, scale, rotation);
@@ -468,7 +476,7 @@ Transform BuildTransformFromNode(const cgltf_node& node)
             float(node.rotation[0]),
             float(node.rotation[1]),
             float(node.rotation[2]),
-            float(node.rotation[3]));
+            float(node.rotation[3])).Inverse();
         rotation.Normalize();
     }
 
@@ -986,27 +994,29 @@ AssetLoadResult GLTFModelLoader::LoadAsset(LoaderState& state) const
         }
     });
 
-    const cgltf_result parseResult = cgltf_parse_file(&options, state.filepath.Data(), &data);
+    const FilePath absPath = CoreApi::GetExecutablePath() / state.filepath;
+
+    const cgltf_result parseResult = cgltf_parse_file(&options, absPath.Data(), &data);
 
     if (parseResult != cgltf_result_success || data == nullptr)
     {
-        return HYP_MAKE_ERROR(AssetLoadError, "Failed to parse glTF file '{}': {}", state.filepath, ToString(parseResult));
+        return HYP_MAKE_ERROR(AssetLoadError, "Failed to parse glTF file '{}': {}", absPath, ToString(parseResult));
     }
 
-    const cgltf_result bufferResult = cgltf_load_buffers(&options, data, state.filepath.Data());
+    const cgltf_result bufferResult = cgltf_load_buffers(&options, data, absPath.Data());
 
     if (bufferResult != cgltf_result_success)
     {
-        return HYP_MAKE_ERROR(AssetLoadError, "Failed to load glTF buffers '{}': {}", state.filepath, ToString(bufferResult));
+        return HYP_MAKE_ERROR(AssetLoadError, "Failed to load glTF buffers '{}': {}", absPath, ToString(bufferResult));
     }
 
     const cgltf_result validationResult = cgltf_validate(data);
 
     if (validationResult != cgltf_result_success)
     {
-        HYP_LOG(Assets, Warning, "GLTF validation warning for '{}': {}", state.filepath, ToString(validationResult));
+        HYP_LOG(Assets, Warning, "GLTF validation warning for '{}': {}", absPath, ToString(validationResult));
 
-        return HYP_MAKE_ERROR(AssetLoadError, "GLTF validation failed for '{}': {}", state.filepath, ToString(validationResult));
+        return HYP_MAKE_ERROR(AssetLoadError, "GLTF validation failed for '{}': {}", absPath, ToString(validationResult));
     }
 
     return BuildModel(state, *data);
