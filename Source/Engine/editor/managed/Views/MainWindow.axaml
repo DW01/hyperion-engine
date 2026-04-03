@@ -109,8 +109,8 @@
                     <MenuItem Command="{Binding Exit}" Header="_Exit" />
                 </MenuItem>
                 <MenuItem Header="_Edit">
-                    <MenuItem Command="{Binding Undo}" Header="_Undo" />
-                    <MenuItem Command="{Binding Redo}" Header="_Redo" />
+                    <MenuItem Command="{Binding Undo}" Header="{Binding UndoHeader}" />
+                    <MenuItem Command="{Binding Redo}" Header="{Binding RedoHeader}" />
                     <Separator />
                     <MenuItem Command="{Binding Copy}" Header="_Copy" />
                     <MenuItem Command="{Binding Paste}" Header="_Paste" />
@@ -318,6 +318,7 @@
                                 </Grid>
                             </Border>
                             <TreeView
+                                x:Name="SceneHierarchyTreeView"
                                 Grid.Row="1"
                                 ItemsSource="{Binding SceneHierarchy.RootNodes}"
                                 SelectedItem="{Binding SceneHierarchy.SelectedNode}">
@@ -331,10 +332,18 @@
                                 </TreeView.ItemContainerTheme>
                                 <TreeView.ItemTemplate>
                                     <TreeDataTemplate x:DataType="vm:NodeViewModel" ItemsSource="{Binding Children}">
-                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                            <Ellipse Width="6" Height="6" Fill="White" IsVisible="{Binding IsDirty}" VerticalAlignment="Center" />
-                                            <TextBlock FontStyle="{Binding NameFontStyle}" Text="{Binding DisplayName}" VerticalAlignment="Center" />
-                                        </StackPanel>
+                                        <Grid>
+                                            <!--  Drop-target highlight: sits behind the label, shown during drag-over  -->
+                                            <Border
+                                                Background="{DynamicResource Brush.Accent}"
+                                                CornerRadius="3"
+                                                IsVisible="{Binding IsDropTarget}"
+                                                Opacity="0.35" />
+                                            <StackPanel Margin="2,2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                <Ellipse Width="6" Height="6" Fill="White" IsVisible="{Binding IsDirty}" VerticalAlignment="Center" />
+                                                <TextBlock FontStyle="{Binding NameFontStyle}" Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Grid>
                                     </TreeDataTemplate>
                                 </TreeView.ItemTemplate>
                             </TreeView>
@@ -427,6 +436,7 @@
                                                     <DataTemplate x:DataType="vm:InspectorActionViewModel">
                                                         <Button
                                                             Padding="10,4"
+                                                            Margin="12,6,12,0"
                                                             HorizontalAlignment="Stretch"
                                                             VerticalAlignment="Center"
                                                             Command="{Binding ExecuteActionCommand}"
@@ -463,6 +473,13 @@
 
                                                     <DataTemplate x:DataType="vm:FlagsPropertyViewModel">
                                                         <inspector:EnumFlagsPropertyEditor DataContext="{Binding}" />
+                                                    </DataTemplate>
+
+                                                    <DataTemplate x:DataType="vm:NumericPropertyViewModel">
+                                                        <TextBox
+                                                            MinWidth="60"
+                                                            HorizontalAlignment="Stretch"
+                                                            Text="{Binding EditableValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                     </DataTemplate>
 
                                                     <DataTemplate x:DataType="vm:ReadOnlyPropertyViewModel">
@@ -597,6 +614,13 @@
                                                                 </StackPanel>
                                                             </StackPanel>
                                                         </StackPanel>
+                                                    </DataTemplate>
+
+                                                    <DataTemplate x:DataType="vm:NumericPropertyViewModel">
+                                                        <TextBox
+                                                            MinWidth="60"
+                                                            HorizontalAlignment="Stretch"
+                                                            Text="{Binding EditableValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                     </DataTemplate>
 
                                                     <DataTemplate x:DataType="vm:ReadOnlyPropertyViewModel">

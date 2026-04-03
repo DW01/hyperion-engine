@@ -745,8 +745,9 @@ extern enum ViewFlags : uint32
     RAY_TRACING = 0x100000,
     MATCH_CAMERA_DIMENSIONS = 0x200000,
     SHADOW_VIEW = 0x400000,
-    EXTERNAL_RENDERTARGET = 0x800000,
-    UI = 0x1000000,
+    BAKER_VIEW = 0x800000,
+    UI_VIEW = 0x1000000,
+    EXTERNAL_RENDERTARGET = 0x10000000,
     DEFAULT = (ALL_WORLD_SCENES | COLLECT_ALL_ENTITIES)
 end
 extern class View
@@ -871,20 +872,17 @@ extern struct SSRRendererConfig
     ScreenEdgeFade : Vec2f
     ResolutionScale : float
 end
-extern struct HBAOConfig
-    Radius : float
-    Power : float
-    UseTemporalBlending : bool
+extern enum VertexType : uint8
+    VT_Invalid = 0x0,
+    VT_Position = 0x1,
+    VT_Normal = 0x2,
+    VT_UV0 = 0x4,
+    VT_UV1 = 0x8,
+    VT_Simple = ((VT_Position | VT_Normal) | VT_UV0),
+    VT_Skeletal = 0x10
 end
-extern struct Vertex
-    Position : Vec3f
-    Normal : Vec3f
-    Tangent : Vec3f
-    Bitangent : Vec3f
-    Texcoord0 : Vec2f
-    Texcoord1 : Vec2f
-    BoneWeights : Array<float>
-    BoneIndices : Array<uint8>
+extern struct VertexInputLayoutDesc
+    Mask : uint8
 end
 extern enum TextureFilterMode : uint8
     TFM_NEAREST,
@@ -935,8 +933,8 @@ extern struct TextureDesc
 end
 extern struct ShaderVariantPerms
     Props : any
-    RequiredVertexAttributes : VertexAttributeSet
-    OptionalVertexAttributes : VertexAttributeSet
+    RequiredVertexAttributes : VertexTypeMask
+    OptionalVertexAttributes : VertexTypeMask
 end
 extern enum ShaderInputType : uint8
     UNSET,
@@ -1078,6 +1076,9 @@ extern enum DefaultImageFormat : uint8
     DIF_COLOR,
     DIF_DEPTH
 end
+extern struct VertexTypeMask
+    FlagMask : uint8
+end
 extern enum FillMode : uint8
     FM_FILL,
     FM_LINE
@@ -1108,7 +1109,7 @@ extern enum GpuBufferType : uint8
     MESH_VERTEX_BUFFER,
     CONSTANT_BUFFER,
     STORAGE_BUFFER,
-    ATOMIC_COUNTER,
+    READBACK_BUFFER,
     STAGING_BUFFER,
     INDIRECT_ARGS_BUFFER,
     SHADER_BINDING_TABLE,
@@ -1130,9 +1131,6 @@ extern enum StencilOp : uint8
     SO_REPLACE,
     SO_INCREMENT,
     SO_DECREMENT
-end
-extern struct VertexAttributeSet
-    FlagMask : uint64
 end
 extern enum GpuElemType : uint8
     GET_UNSIGNED_BYTE,
@@ -1210,11 +1208,6 @@ extern enum GlobalRenderBuffer : uint8
     GRB_LIGHTMAP_VOLUMES,
     GRB_MAX
 end
-extern struct RendererConfig
-    SsaoEnabled : bool
-    HbaoEnabled : bool
-    HbilEnabled : bool
-end
 extern enum RenderBucket : uint8
     Opaque,
     Lightmapped,
@@ -1223,7 +1216,7 @@ extern enum RenderBucket : uint8
     Debug
 end
 extern struct MeshAttributes
-    VertexAttributes : VertexAttributeSet
+    InputLayout : VertexInputLayoutDesc
     Topology : Topology
     IndexBufferElemType : GpuElemType
 end
@@ -1617,7 +1610,7 @@ extern class EditorSubsystem : Subsystem
     RemoveViewport(viewport : EditorViewport) -> void
     GetEditorScene() -> Scene
     ExecuteCommand(command : EditorCommandBase) -> bool
-    ExecuteCommandByName(name : Name) -> bool
+    ExecuteCommandByName(name : Name, arguments : string) -> bool
     NewProject() -> void
     OpenProject(project : EditorProject) -> void
     CloseProject() -> void
@@ -1676,6 +1669,11 @@ extern class EditorProject
     ActionStack : EditorActionStack
 end
 extern class EditorCommandBase
+    GetText() -> string
+    GetArguments() -> Array<string>
+    SetArguments(args : Array<string>) -> void
+    NumArguments() -> int
+    GetArgument(index : int) -> string
 end
 extern enum EditorActionStackState : uint32
     NONE = 0x0,
@@ -1683,7 +1681,7 @@ extern enum EditorActionStackState : uint32
     CAN_REDO = 0x2
 end
 extern class EditorActionStack
-    Push(action : EditorActionBase) -> void
+    PushAction(action : EditorActionBase) -> bool
     CanUndo() -> bool
     CanRedo() -> bool
     Undo() -> void
@@ -1697,12 +1695,12 @@ extern class EditorActionStack
     OnStateChange : any
 end
 extern class EditorActionBase
-    GetName() -> Name
+    GetText() -> string
     Execute(editorSubsystem : EditorSubsystem, project : EditorProject) -> void
     Revert(editorSubsystem : EditorSubsystem, project : EditorProject) -> void
 end
 extern class FunctionalEditorAction : EditorActionBase
-    GetName() -> Name
+    GetText() -> string
     Execute(editorSubsystem : EditorSubsystem, project : EditorProject) -> void
     Revert(editorSubsystem : EditorSubsystem, project : EditorProject) -> void
 end
@@ -1712,6 +1710,7 @@ extern enum LightmapShadingType : uint32
     IRRADIANCE = 0,
     RADIANCE,
     FULL,
+    SHADOW,
     MAX
 end
 extern struct BakerConfig
@@ -2240,8 +2239,6 @@ extern class Light : Entity
     GetLightType() -> LightType
     GetLightFlags() -> LightFlags
     SetLightFlags(flags : LightFlags) -> void
-    GetPosition() -> Vec3f
-    SetPosition(position : Vec3f) -> void
     GetNormal() -> Vec3f
     SetNormal(normal : Vec3f) -> void
     GetAreaSize() -> Vec2f
@@ -2262,9 +2259,13 @@ extern class Light : Entity
     SetShadowMapDimensions(shadowMapDimensions : Vec2u) -> void
     GetNumShadowMapCascades() -> uint32
     SetNumShadowMapCascades(numShadowMapCascades : uint32) -> void
-    GetAABB() -> BoundingBox
+    GetBakedShadowMap() -> Texture
+    SetBakedShadowMap(shadowMap : Texture) -> void
     GetShadowMapFilter() -> ShadowMapFilter
     SetShadowMapFilter(shadowMapFilter : ShadowMapFilter) -> void
+    BakeStaticShadows() -> void
+    RemoveBakedShadows() -> void
+    CanBakeStaticShadows() -> bool
     Type : LightType
     LightFlags : LightFlags
     ShadowMapDimensions : Vec2u
@@ -2295,6 +2296,7 @@ extern enum LightFlags : uint32
     ShadowVariance = 0x8,
     ShadowFilterMask = ((ShadowPCF | ShadowContactHardening) | ShadowVariance),
     CacheStaticShadowMaps = 0x10,
+    BakeStaticShadows = 0x20,
     Default = (ShadowCaster | ShadowPCF)
 end
 extern class EnvGrid : Entity
@@ -2357,7 +2359,7 @@ extern class Texture : AssetObject
 end
 extern class Shader : AssetObject
     BaseName : Name
-    VertexAttributes : VertexAttributeSet
+    InputLayout : VertexInputLayoutDesc
     InputGroup : ShaderInputGroup
     ModuleTypes : Array<ShaderModuleType>
     ModuleNames : Array<string>
@@ -2383,7 +2385,7 @@ extern class Mesh : AssetObject
     SetFlags(flags : MeshFlags) -> void
     Rename(name : Name) -> Result
     NumIndices() -> uint32
-    GetVertexAttributes() -> VertexAttributeSet
+    GetInputLayout() -> VertexInputLayoutDesc
     GetTopology() -> Topology
     GetAABB() -> BoundingBox
     SetAABB(aabb : BoundingBox) -> void

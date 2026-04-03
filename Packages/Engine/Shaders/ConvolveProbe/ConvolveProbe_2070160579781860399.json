@@ -33,8 +33,8 @@
     }],
   "RevisionNumber": 31459917,
   "BaseName": "ConvolveProbe",
-  "VertexAttributes": {
-    "FlagMask": 0
+  "InputLayout": {
+    "Mask": 0
   },
   "ShaderInputGroup": {
     "Elements": [{
@@ -135,11 +135,11 @@
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/ConvolveProbe/ConvolveProbe_2070160579781860399.CS",
-      "Size": 90480
+      "Size": 90660
     }],
   "PropertySetHashCode": {},
   "LastCompiledTimestamp": {
-    "Value": 1774446388000
+    "Value": 1775008017000
   },
   "Name": "ConvolveProbe_2070160579781860399",
   "FriendlyName": "ConvolveProbe_2070160579781860399",

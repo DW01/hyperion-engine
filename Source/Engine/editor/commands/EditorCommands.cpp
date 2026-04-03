@@ -34,9 +34,13 @@
 #include <system/SaveFileDialog.hpp>
 #include <system/SelectFolderDialog.hpp>
 
+#include <ui/UISubsystem.hpp>
+#include <ui/overlays/Overlay.hpp>
+
 namespace Hyperion {
 
 HYP_DECLARE_LOG_CHANNEL(Editor);
+HYP_DECLARE_LOG_CHANNEL(Console);
 
 namespace CoreApi {
 extern FilePath GetExecutablePath();
@@ -314,6 +318,11 @@ class HYP_API EditorCommandAddLightmapVolume final : public EditorCommandBase
 public:
     virtual ~EditorCommandAddLightmapVolume() override = default;
 
+    virtual String GetText() const override
+    {
+        return "Add Lightmap Volume";
+    }
+
     virtual void Execute(EditorSubsystem* subsystem) override
     {
         const Handle<EditorProject>& currentProject = subsystem->GetCurrentProject();
@@ -342,7 +351,7 @@ public:
         WeakHandle<Node> previousFocusedNode = subsystem->GetFocusedNode();
 
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
-            StaticClass()->GetName(),
+            GetText(),
             Proc<EditorActionFunctions()>([lightmapVolume, previousFocusedNode, activeScene]() -> EditorActionFunctions
                 {
                     return EditorActionFunctions {
@@ -372,7 +381,7 @@ public:
 
         InitObject(action);
 
-        currentProject->GetActionStack()->Push(action);
+        currentProject->GetActionStack()->PushAction(action);
 
 #if 0
         // kickoff lightmap generation for the new volume
@@ -402,6 +411,11 @@ class HYP_API EditorCommandAddReflectionProbe final : public EditorCommandBase
 public:
     virtual ~EditorCommandAddReflectionProbe() override = default;
 
+    virtual String GetText() const override
+    {
+        return "Add Reflection Probe";
+    }
+
     virtual void Execute(EditorSubsystem* subsystem) override
     {
         const Handle<EditorProject>& currentProject = subsystem->GetCurrentProject();
@@ -427,7 +441,7 @@ public:
         WeakHandle<Node> previousFocusedNode = subsystem->GetFocusedNode();
 
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
-            StaticClass()->GetName(),
+            GetText(),
             Proc<EditorActionFunctions()>([reflectionProbe, previousFocusedNode, activeScene]() -> EditorActionFunctions
                 {
                     return EditorActionFunctions {
@@ -457,7 +471,7 @@ public:
 
         InitObject(action);
 
-        currentProject->GetActionStack()->Push(action);
+        currentProject->GetActionStack()->PushAction(action);
 
         if (!reflectionProbe->IsRealtime())
         {
@@ -487,6 +501,11 @@ class HYP_API EditorCommandAddParticleVolume final : public EditorCommandBase
 
 public:
     virtual ~EditorCommandAddParticleVolume() override = default;
+
+    virtual String GetText() const override
+    {
+        return  "Add Particle Volume";
+    }
 
     virtual void Execute(EditorSubsystem* subsystem) override
     {
@@ -525,7 +544,7 @@ public:
         WeakHandle<Node> previousFocusedNode = subsystem->GetFocusedNode();
 
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
-            StaticClass()->GetName(),
+            GetText(),
             Proc<EditorActionFunctions()>([particleVolume, previousFocusedNode, activeScene]() -> EditorActionFunctions
                 {
                     return EditorActionFunctions {
@@ -554,7 +573,7 @@ public:
 
         InitObject(action);
 
-        currentProject->GetActionStack()->Push(action);
+        currentProject->GetActionStack()->PushAction(action);
     }
 };
 
@@ -570,6 +589,11 @@ class HYP_API EditorCommandAddFogVolume final : public EditorCommandBase
 
 public:
     virtual ~EditorCommandAddFogVolume() override = default;
+
+    virtual String GetText() const override
+    {
+        return "Add Fog Volume";
+    }
 
     virtual void Execute(EditorSubsystem* subsystem) override
     {
@@ -595,7 +619,7 @@ public:
         WeakHandle<Node> previousFocusedNode = subsystem->GetFocusedNode();
 
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
-            StaticClass()->GetName(),
+            GetText(),
             Proc<EditorActionFunctions()>([fogVolume, previousFocusedNode, activeScene]() -> EditorActionFunctions
                 {
                     return EditorActionFunctions {
@@ -624,7 +648,7 @@ public:
 
         InitObject(action);
 
-        currentProject->GetActionStack()->Push(action);
+        currentProject->GetActionStack()->PushAction(action);
 
         // start baking fog volume
 
@@ -676,7 +700,7 @@ static void AddNodeOfTypeImpl(EditorSubsystem* subsystem, Name defaultNodeName)
     n->SetWorldTranslation(insertionPoint);
 
     Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
-        EditorCommandType::StaticClass()->GetName(),
+        HYP_FORMAT("Add {}", defaultNodeName),
         Proc<EditorActionFunctions()>([n, currentFocusedNode, activeScene]() -> EditorActionFunctions
             {
                 return EditorActionFunctions {
@@ -705,7 +729,7 @@ static void AddNodeOfTypeImpl(EditorSubsystem* subsystem, Name defaultNodeName)
 
     InitObject(action);
 
-    currentProject->GetActionStack()->Push(action);
+    currentProject->GetActionStack()->PushAction(action);
 }
 
 template <class Derived>
@@ -713,6 +737,11 @@ class HYP_API EditorCommandAddNodeBase : public EditorCommandBase
 {
 public:
     virtual ~EditorCommandAddNodeBase() override = default;
+
+    virtual String GetText() const override
+    {
+        return HYP_FORMAT("Add {}", Derived::s_defaultNodeName);
+    }
 
     virtual void Execute(EditorSubsystem* subsystem) override
     {
@@ -834,19 +863,38 @@ class HYP_API EditorCommandImportContent final : public EditorCommandBase
 public:
     virtual ~EditorCommandImportContent() override = default;
 
+    virtual String GetText() const override
+    {
+        return m_text.Length() ? m_text : EditorCommandBase::GetText();
+    }
+
     virtual void Execute(EditorSubsystem* subsystem) override
     {
-
         ShowOpenFileDialog(
             "Select the file(s) to import into the project",
             GetDataDirectory(),
             { "obj", "fbx", "jpg", "jpeg", "png", "tga", "bmp", "ogre.xml" },
             /* allowMultiple */ true, /* allowDirectories */ false,
-            [](TResult<Array<FilePath>>&& result)
+            [this](TResult<Array<FilePath>>&& result)
             {
                 if (result.HasError())
                 {
                     HYP_LOG(Editor, Error, "Failed to select files to import: {}", result.GetError().GetMessage());
+
+                    return;
+                }
+
+                if (result.GetValue().Size() > 1)
+                {
+                    m_text = HYP_FORMAT("Import {} files", result.GetValue().Size());
+                }
+                else if (result.GetValue().Size() == 1)
+                {
+                    m_text = HYP_FORMAT("Import '{}'", result.GetValue()[0].Basename());
+                }
+                else
+                {
+                    HYP_LOG(Editor, Warning, "No files selected for import.");
 
                     return;
                 }
@@ -934,11 +982,260 @@ public:
                 // Note: The batch will be destroyed automatically by AssetManager when complete
             });
     }
+
+private:
+    String m_text;
 };
 
 DEFINE_EDITOR_COMMAND(ImportContent);
 
 #pragma endregion EditorCommandImportContent
+
+#pragma region EditorCommandReparentNode
+
+class HYP_API EditorCommandReparentNode final : public EditorCommandBase
+{
+    HYP_OBJECT_BODY(EditorCommandReparentNode);
+
+public:
+    EditorCommandReparentNode() = default;
+
+    virtual ~EditorCommandReparentNode() override = default;
+
+    virtual String GetText() const override
+    {
+        return m_text.Length() ? m_text : EditorCommandBase::GetText();
+    }
+
+    virtual void Execute(EditorSubsystem* subsystem) override
+    {
+        AssertOnThread(g_simThread);
+
+        Handle<Node> node = subsystem->GetActiveScene()->FindNodeByName(StringHash(GetArgument(0)));
+        Handle<Node> newParent = subsystem->GetActiveScene()->FindNodeByName(StringHash(GetArgument(1)));
+
+        if (!node.IsValid() || !newParent.IsValid())
+        {
+            HYP_LOG(Editor, Error, "EditorCommandReparentNode: invalid node or new parent");
+            return;
+        }
+
+        m_text = HYP_FORMAT("Attach '{}' to '{}'", node->GetName(), newParent->GetName());
+
+        // Prevent cycles: reject if newParent is the dragged node itself or any of its descendants.
+        if (newParent->IsOrHasParent(node))
+        {
+            HYP_LOG(Editor, Warning, "EditorCommandReparentNode: cannot reparent a node to its own descendant");
+            return;
+        }
+
+        Node* previousParent = node->GetParent();
+        if (!previousParent)
+        {
+            HYP_LOG(Editor, Error, "EditorCommandReparentNode: node has no parent, cannot reparent");
+            return;
+        }
+
+        if (previousParent == newParent)
+            return;
+
+        const Handle<EditorProject>& currentProject = subsystem->GetCurrentProject();
+        if (!currentProject.IsValid())
+        {
+            HYP_LOG(Editor, Error, "EditorCommandReparentNode: no project loaded");
+            return;
+        }
+
+        Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
+            GetText(),
+            Proc<EditorActionFunctions()>([node, newParent, previousParent = MakeStrongRef(previousParent)]() -> EditorActionFunctions
+                {
+                    return EditorActionFunctions {
+                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([node, newParent](EditorSubsystem*, EditorProject*)
+                            {
+                                node->Remove();
+                                newParent->AddChild(node);
+                            }),
+                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([node, previousParent](EditorSubsystem*, EditorProject*)
+                            {
+                                node->Remove();
+                                previousParent->AddChild(node);
+                            })
+                    };
+                }));
+
+        InitObject(action);
+
+        currentProject->GetActionStack()->PushAction(action);
+    }
+
+private:
+    String m_text;
+};
+
+DEFINE_EDITOR_COMMAND(ReparentNode);
+
+#pragma endregion EditorCommandReparentNode
+
+#pragma region ShowTexture
+
+class HYP_API EditorCommandShowTexture final : public EditorCommandBase
+{
+    HYP_OBJECT_BODY(EditorCommandShowTexture);
+
+public:
+    virtual ~EditorCommandShowTexture() override = default;
+
+    struct WatchTextureState
+    {
+        Handle<TextureOverlay> overlay;
+
+        DelegateHandler onAssetRemoved;
+        DelegateHandler onAssetAdded;
+        AssetPath path;
+
+        explicit operator bool () const
+        {
+            return path.IsValid();
+        }
+    };
+
+    static WatchTextureState s_watchTextureState;
+    static Mutex s_watchTextureStateMtx;
+
+    virtual String GetText() const override
+    {
+        return "Show Texture";
+    }
+
+    virtual void Execute(EditorSubsystem* subsystem) override
+    {
+        UISubsystem* uiSubsystem = subsystem->GetWorld()->GetSubsystem<UISubsystem>();
+        if (!uiSubsystem)
+        {
+            HYP_LOG(Editor, Error, "ShowTexture: No UISubsystem available");
+            return;
+        }
+
+        { // remove existing overlay and stop watching if active
+            Mutex::Guard guard(s_watchTextureStateMtx);
+            if (s_watchTextureState)
+            {
+                if (IsOnThread(g_simThread))
+                {
+                    if (s_watchTextureState.overlay.IsValid())
+                    {
+                        uiSubsystem->RemoveDebugOverlay(s_watchTextureState.overlay);
+                    }
+                }
+                else
+                {
+                    GetThreadById(g_simThread)->GetScheduler().Enqueue([uiSubsystem = MakeStrongRef(uiSubsystem), overlay = s_watchTextureState.overlay]()
+                        {
+                            if (overlay.IsValid())
+                            {
+                                uiSubsystem->RemoveDebugOverlay(overlay);
+                            }
+                        },
+                        TaskEnqueueFlags::FIRE_AND_FORGET);
+                }
+
+                s_watchTextureState = {};
+            }
+        }
+
+        // just hide the overlay
+        if (NumArguments() == 0 || GetArgument(0).Empty())
+        {
+            return;
+        }
+
+        AssetPath path = AssetPath(GetArgument(0));
+
+        static const auto SetupWatch = [](UISubsystem* uiSubsystem, const AssetPath& path)
+        {
+            Handle<AssetObject> assetObject = g_assetManager->GetAssetRegistry()->GetAssetFromPath(path.ToString());
+            Handle<Texture> texture = ObjCast<Texture>(assetObject);
+
+            if (!texture.IsValid())
+            {
+                HYP_LOG(Console, Error, "ShowTexture: texture '{}' not found", path.ToString());
+                return;
+            }
+
+            Handle<AssetPackage> package = assetObject->GetPackage();
+            if (!package.IsValid())
+            {
+                HYP_LOG(Console, Error, "ShowTexture: texture '{}' has no package", path.ToString());
+                return;
+            }
+
+            Handle<TextureOverlay> overlay = MakeHandle<TextureOverlay>(texture);
+            InitObject(overlay);
+
+            Mutex::Guard guard(s_watchTextureStateMtx);
+            s_watchTextureState.overlay = overlay;
+            s_watchTextureState.path = path;
+
+            s_watchTextureState.onAssetRemoved = package->OnAssetObjectRemoved.Bind(
+                [uiSubsystem = MakeStrongRef(uiSubsystem), overlay = s_watchTextureState.overlay](Handle<AssetObject> removedAsset, bool isDirect)
+                {
+                    Mutex::Guard guard(s_watchTextureStateMtx);
+                    if (!isDirect || removedAsset->GetName() != s_watchTextureState.path.GetName())
+                        return;
+
+                    if (overlay.IsValid())
+                    {
+                        // immediately set texture to null so we dont hold an unregistered texture.
+                        overlay->SetTexture(Handle<Texture>::Null());
+                    }
+                });
+
+            s_watchTextureState.onAssetAdded = package->OnAssetObjectAdded.Bind(
+                [uiSubsystem = MakeStrongRef(uiSubsystem)](Handle<AssetObject> addedAsset, bool isDirect)
+                {
+                    Mutex::Guard guard(s_watchTextureStateMtx);
+                    if (!isDirect || addedAsset->GetName() != s_watchTextureState.path.GetName())
+                        return;
+
+                    Handle<Texture> newTexture = ObjCast<Texture>(addedAsset);
+                    if (!newTexture.IsValid())
+                        return;
+
+                    Handle<TextureOverlay> newOverlay = MakeHandle<TextureOverlay>(newTexture);
+                    InitObject(newOverlay);
+
+                    GetThreadById(g_simThread)->GetScheduler().Enqueue([uiSubsystem, newOverlay, oldOverlay = s_watchTextureState.overlay]() mutable
+                        {
+                            if (oldOverlay.IsValid())
+                            {
+                                uiSubsystem->RemoveDebugOverlay(oldOverlay);
+                                oldOverlay.Reset();
+                            }
+
+                            uiSubsystem->AddDebugOverlay(newOverlay);
+                        }, TaskEnqueueFlags::FIRE_AND_FORGET);
+
+                    s_watchTextureState.overlay = newOverlay;
+                });
+            
+            GetThreadById(g_simThread)->GetScheduler().Enqueue([uiSubsystem, overlay]()
+                {
+                    uiSubsystem->AddDebugOverlay(overlay);
+                }, TaskEnqueueFlags::FIRE_AND_FORGET);
+        };
+
+        SetupWatch(uiSubsystem, path);
+    }
+};
+
+// static definition
+EditorCommandShowTexture::WatchTextureState EditorCommandShowTexture::s_watchTextureState;
+Mutex EditorCommandShowTexture::s_watchTextureStateMtx;
+
+DEFINE_EDITOR_COMMAND(ShowTexture);
+
+#pragma endregion ShowTexture
 
 #undef DEFINE_EDITOR_COMMAND
 

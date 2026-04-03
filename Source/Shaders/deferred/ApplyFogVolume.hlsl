@@ -1,5 +1,8 @@
 #include "../include/defines.inc"
 
+STATIC(MAX_LIGHTS, 4);
+
+
 #ifdef VERTEX_SHADER
 
 struct VSInput
@@ -7,11 +10,6 @@ struct VSInput
     HYP_ATTRIBUTE float3 a_position : POSITION;
     HYP_ATTRIBUTE float3 a_normal : NORMAL;
     HYP_ATTRIBUTE float2 a_texcoord0 : TEXCOORD0;
-    HYP_ATTRIBUTE_OPTIONAL float2 a_texcoord1 : TEXCOORD1;
-    HYP_ATTRIBUTE_OPTIONAL float3 a_tangent : TANGENT;
-    HYP_ATTRIBUTE_OPTIONAL float3 a_bitangent : BINORMAL;
-    HYP_ATTRIBUTE_OPTIONAL float4 a_bone_weights : BLENDWEIGHT;
-    HYP_ATTRIBUTE_OPTIONAL float4 a_bone_indices : BLENDINDICES;
 };
 
 struct VSOutput
@@ -23,7 +21,7 @@ struct VSOutput
 
 #define HYP_DO_NOT_DEFINE_DESCRIPTOR_SETS
 
-#include "../include/scene.inc"
+#include "../include/scene.inc" 
 #include "../include/shared.inc"
 
 #undef HYP_DO_NOT_DEFINE_DESCRIPTOR_SETS
@@ -93,11 +91,7 @@ DECLARE_SAMPLER(FogVolume, SamplerNearest) SamplerState SamplerNearest;
 #define HYP_SAMPLER_NEAREST SamplerNearest
 #define HYP_SAMPLER_LINEAR SamplerLinear
 
-DECLARE_SRV(FogVolume, GBufferAlbedoTexture) Texture2D GBufferAlbedoTexture;
-DECLARE_SRV(FogVolume, GBufferNormalsTexture) Texture2D GBufferNormalsTexture;
-DECLARE_SRV(FogVolume, GBufferMaterialTexture) Texture2D<uint4> GBufferMaterialTexture;
-DECLARE_SRV(FogVolume, GBufferVelocityTexture) Texture2D GBufferVelocityTexture;
-DECLARE_SRV(FogVolume, GBufferDepthTexture) Texture2D GBufferDepthTexture;
+DECLARE_SRV(FogVolume, DepthPyramidTexture) Texture2D DepthPyramidTexture;
 
 #include "../include/scene.inc"
 #include "../include/material.inc"
@@ -245,8 +239,6 @@ float4 RayMarch(float3 rayOrigin, float3 rayDir, float tNear, float tFar, float 
         {
             Light light = lights[lightIndex];
             ShadowMap shadowMap = shadowMaps[lightIndex];
-
-            const uint layerIndex = shadowMap.layerIndex;
             
             float3 lightDir;
             float phase;
@@ -271,7 +263,7 @@ float4 RayMarch(float3 rayOrigin, float3 rayDir, float tNear, float tFar, float 
                     const float radius = radiusFalloff.x;
                     const float falloff = radiusFalloff.y;
 
-                    shadow = GetPointShadowStandard(layerIndex, worldToLight, 0.0);
+                    shadow = GetPointShadowStandard(shadowMap, worldToLight, 0.0);
 
                     attenuation = GetSquareFalloffAttenuation(currentPos, light.position_intensity.xyz, radius);
                     break;
@@ -314,7 +306,7 @@ PSOutput PSMain(PSInput input)
     PSOutput output;
 
     float2 screenSpaceUV = (input.positionNdc.xy / input.positionNdc.w) * 0.5 + 0.5;
-    float sceneDepth = SAMPLE_TEXTURE_2D(SamplerNearest, GBufferDepthTexture, screenSpaceUV).r;
+    float sceneDepth = SAMPLE_TEXTURE_2D_LOD(SamplerNearest, DepthPyramidTexture, screenSpaceUV, 0).r;
     float4 positionVS = ReconstructViewSpacePositionFromDepth(camera.invProjMat, screenSpaceUV, sceneDepth);
     float linearDepth = length(positionVS.xyz);
 

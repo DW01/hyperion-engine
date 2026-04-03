@@ -1,6 +1,11 @@
 #include "include/defines.inc"
 #include "include/shared.inc"
 
+PERMUTE(MODE, STANDARD, VSM, PCF, CONTACT_HARDENED);
+PERMUTE(INSTANCING);
+PERMUTE(SKINNING);
+PERMUTE(ALPHA_DISCARD);
+
 DECLARE_SAMPLER(Default, SamplerLinear) SamplerState sampler_linear;
 DECLARE_SAMPLER(Default, SamplerNearest) SamplerState sampler_nearest;
 
@@ -20,20 +25,28 @@ DECLARE_BUFFER_DYNAMIC(Default, CamerasBuffer) cbuffer CamerasBuffer
     Camera camera;
 };
 
+#ifdef ALPHA_DISCARD
+#ifdef HYP_FEATURES_BINDLESS_TEXTURES
+    DECLARE_SRV(BindlessResources0, Textures) uniform texture2D textures[];
+#else // !HYP_FEATURES_BINDLESS_TEXTURES
+    DECLARE_SRV(Material, DiffuseMap) uniform texture2D DiffuseMap;
+#endif // HYP_FEATURES_BINDLESS_TEXTURES
+#endif // ALPHA_DISCARD
+
 #ifdef INSTANCING
 DECLARE_SRV(Default, EntitiesBuffer) StructuredBuffer<Entity> entities;
 DECLARE_SRV_DYNAMIC(Default, EntityInstanceBatchesBuffer) StructuredBuffer<MeshEntityInstanceBatch> entity_instance_batches;
 #define entity_instance_batch entity_instance_batches[0]
-#else
+#else // !INSTANCING
 DECLARE_SRV_DYNAMIC(Default, CurrentEntity) StructuredBuffer<Entity> entities;
-#endif
+#endif // INSTANCING
 
 DECLARE_SRV_DYNAMIC(Default, MaterialsBuffer) StructuredBuffer<Material> materials_buffer;
 #define material materials_buffer[0]
 
 #ifndef CURRENT_MATERIAL
 #define CURRENT_MATERIAL material
-#endif
+#endif // !CURRENT_MATERIAL
 
 #ifdef VERTEX_SHADER
 
@@ -43,10 +56,8 @@ struct VSInput
     HYP_ATTRIBUTE float3 a_normal : NORMAL;
     HYP_ATTRIBUTE float2 a_texcoord0 : TEXCOORD0;
     HYP_ATTRIBUTE_OPTIONAL float2 a_texcoord1 : TEXCOORD1;
-    HYP_ATTRIBUTE_OPTIONAL float3 a_tangent : TANGENT;
-    HYP_ATTRIBUTE_OPTIONAL float3 a_bitangent : BINORMAL;
+    HYP_ATTRIBUTE_OPTIONAL uint a_bone_indices : BLENDINDICES;
     HYP_ATTRIBUTE_OPTIONAL float4 a_bone_weights : BLENDWEIGHT;
-    HYP_ATTRIBUTE_OPTIONAL float4 a_bone_indices : BLENDINDICES;
 };
 
 struct VSOutput
@@ -55,29 +66,13 @@ struct VSOutput
     float3 v_position : TEXCOORD0;
     float2 v_texcoord0 : TEXCOORD1;
     nointerpolation float3 v_camera_position : TEXCOORD2;
-    nointerpolation uint v_object_index : TEXCOORD3;
+    nointerpolation uint object_index : TEXCOORD3;
 };
 
 #ifdef SKINNING
 
 #include "include/Skeleton.inc"
 DECLARE_SRV_DYNAMIC(Default, SkeletonsBuffer) StructuredBuffer<Skeleton> skeletons;
-
-float4x4 CreateSkinningMatrix(int4 bone_indices, float4 bone_weights)
-{
-    float4x4 skinning = (float4x4)0;
-
-    int index0 = min(bone_indices.x, HYP_MAX_BONES - 1);
-    skinning += bone_weights.x * skeletons[0].bones[index0];
-    int index1 = min(bone_indices.y, HYP_MAX_BONES - 1);
-    skinning += bone_weights.y * skeletons[0].bones[index1];
-    int index2 = min(bone_indices.z, HYP_MAX_BONES - 1);
-    skinning += bone_weights.z * skeletons[0].bones[index2];
-    int index3 = min(bone_indices.w, HYP_MAX_BONES - 1);
-    skinning += bone_weights.w * skeletons[0].bones[index3];
-
-    return skinning;
-}
 
 #endif
 
@@ -95,7 +90,7 @@ VSOutput VSMain(VSInput input, uint instanceId : SV_InstanceID)
 #endif
 
 #if defined(SKINNING) && defined(HYP_ATTRIBUTE_a_bone_indices) && defined(HYP_ATTRIBUTE_a_bone_weights)
-    float4x4 skinning_matrix = CreateSkinningMatrix((int4)input.a_bone_indices, input.a_bone_weights);
+    float4x4 skinning_matrix = CreateSkinningMatrix(skeletons[0], input.a_bone_indices, input.a_bone_weights);
 
     position = mul(model_matrix, mul(skinning_matrix, float4(input.a_position, 1.0)));
 #else
@@ -107,9 +102,9 @@ VSOutput VSMain(VSInput input, uint instanceId : SV_InstanceID)
     output.v_camera_position = camera.position.xyz;
 
 #ifdef INSTANCING
-    output.v_object_index = OBJECT_INDEX;
+    output.object_index = OBJECT_INDEX;
 #else
-    output.v_object_index = ~0u;
+    output.object_index = ~0u;
 #endif
 
     float4 position_ndc = mul(camera.viewProjMat, position);
@@ -129,7 +124,7 @@ struct PSInput
     float3 v_position : TEXCOORD0;
     float2 v_texcoord0 : TEXCOORD1;
     nointerpolation float3 v_camera_position : TEXCOORD2;
-    nointerpolation uint v_object_index : TEXCOORD3;
+    nointerpolation uint object_index : TEXCOORD3;
 };
 
 struct PSOutput

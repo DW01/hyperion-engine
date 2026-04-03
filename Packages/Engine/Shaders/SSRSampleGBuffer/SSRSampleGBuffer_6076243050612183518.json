@@ -27,8 +27,8 @@
     }],
   "RevisionNumber": 31459917,
   "BaseName": "SSRSampleGBuffer",
-  "VertexAttributes": {
-    "FlagMask": 7
+  "InputLayout": {
+    "Mask": 7
   },
   "ShaderInputGroup": {
     "Elements": [{
@@ -213,15 +213,15 @@
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/SSRSampleGBuffer/SSRSampleGBuffer_6076243050612183518.VS",
-      "Size": 10796
+      "Size": 10972
     }, {
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/SSRSampleGBuffer/SSRSampleGBuffer_6076243050612183518.PS",
-      "Size": 100448
+      "Size": 100788
     }],
   "PropertySetHashCode": {},
   "LastCompiledTimestamp": {
-    "Value": 1773191967000
+    "Value": 1775008017000
   },
   "Name": "SSRSampleGBuffer_6076243050612183518",
   "FriendlyName": "SSRSampleGBuffer_6076243050612183518",

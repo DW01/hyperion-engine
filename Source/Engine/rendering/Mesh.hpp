@@ -100,12 +100,10 @@ class HYP_API Mesh final : public AssetObject
 public:
     using Index = uint32;
 
-    static Pair<Array<Vertex>, Array<uint32>> CalculateIndices(const Array<Vertex>& vertices);
-
     Mesh();
 
-    Mesh(const Array<Vertex>& vertexData, const ByteBuffer& indexData, Topology topology, const VertexAttributeSet& vertexAttributes);
-    Mesh(const Array<Vertex>& vertexData, const ByteBuffer& indexData, Topology topology = TOP_TRIANGLES);
+    Mesh(const VertexArrayView& vertexData, const ByteBuffer& indexData, Topology topology, const VertexInputLayoutDesc& inputLayout);
+    Mesh(const VertexArrayView& vertexData, const ByteBuffer& indexData, Topology topology = TOP_TRIANGLES);
 
     ~Mesh();
 
@@ -123,7 +121,7 @@ public:
 
     void SetMeshData(
         const MeshDesc& meshDesc,
-        Span<const Vertex> vertices,
+        const VertexArrayView& vertices,
         Span<const ubyte> indices);
 
     HYP_METHOD()
@@ -144,10 +142,10 @@ public:
         return m_indexBuffer;
     }
 
-    HYP_METHOD(Property = "VertexAttributes", Transient)
-    HYP_FORCE_INLINE VertexAttributeSet GetVertexAttributes() const
+    HYP_METHOD(Property = "InputLayout", Transient)
+    HYP_FORCE_INLINE const VertexInputLayoutDesc& GetInputLayout() const
     {
-        return m_meshDesc.meshAttributes.vertexAttributes;
+        return m_meshDesc.meshAttributes.inputLayout;
     }
 
     HYP_FORCE_INLINE MeshAttributes GetMeshAttributes() const
@@ -190,18 +188,8 @@ public:
         return m_meshDesc;
     }
 
-    HYP_FORCE_INLINE Span<Vertex> GetVertexData()
-    {
-        Assert(m_vertexData.raw != nullptr, "Vertex data not loaded!");
-        return Span<Vertex>(reinterpret_cast<Vertex*>(m_vertexData.raw), m_vertexData.size / sizeof(Vertex));
-    }
-
-    HYP_FORCE_INLINE Span<const Vertex> GetVertexData() const
-    {
-        return const_cast<Mesh*>(this)->GetVertexData();
-    }
-
-    void SetVertexData(Span<const Vertex> vertexData);
+    VertexArrayView GetVertexData() const;
+    void SetVertexData(const VertexArrayView& view);
 
     HYP_FORCE_INLINE Span<ubyte> GetIndexData()
     {
@@ -217,10 +205,11 @@ public:
     void SetIndexData(Span<const ubyte> indexData);
 
     BoundingBox CalculateAABB() const;
-    Array<float> BuildVertexBuffer(const VertexAttributeSet& vertexAttributes) const;
-    void InvertNormals();
+
+    Array<float> BuildVertexBuffer(const VertexInputLayoutDesc& inputLayout) const;
+
     void CalculateNormals(bool weighted = false);
-    void CalculateTangents();
+
     bool BuildBVH(BVHNode& bvhNode, int maxDepth = 3) const;
 
     MeshGpuUploadSemaphore gpuUploadSemaphore;

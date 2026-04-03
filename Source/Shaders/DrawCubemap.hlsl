@@ -2,6 +2,12 @@
 #include "include/shared.inc"
 #include "include/scene.inc"
 
+PERMUTE(MODE_SHADOWS)
+PERMUTE(WRITE_NORMALS)
+PERMUTE(WRITE_MOMENTS)
+PERMUTE(INSTANCING)
+PERMUTE(SKINNING)
+
 #ifdef VERTEX_SHADER
 
 struct VSInput
@@ -10,10 +16,8 @@ struct VSInput
     HYP_ATTRIBUTE float3 a_normal : NORMAL;
     HYP_ATTRIBUTE float2 a_texcoord0 : TEXCOORD0;
     HYP_ATTRIBUTE_OPTIONAL float2 a_texcoord1 : TEXCOORD1;
-    HYP_ATTRIBUTE_OPTIONAL float3 a_tangent : TANGENT;
-    HYP_ATTRIBUTE_OPTIONAL float3 a_bitangent : BINORMAL;
+    HYP_ATTRIBUTE_OPTIONAL uint a_bone_indices : BLENDINDICES;
     HYP_ATTRIBUTE_OPTIONAL float4 a_bone_weights : BLENDWEIGHT;
-    HYP_ATTRIBUTE_OPTIONAL float4 a_bone_indices : BLENDINDICES;
 };
 
 struct VSOutput
@@ -48,22 +52,6 @@ DECLARE_SRV_DYNAMIC(Default, CurrentEntity) StructuredBuffer<Entity> entities;
 
 DECLARE_SRV_DYNAMIC(Default, SkeletonsBuffer) StructuredBuffer<Skeleton> skeletons;
 
-float4x4 CreateSkinningMatrix(int4 bone_indices, float4 bone_weights)
-{
-    float4x4 skinning = (float4x4)0;
-
-    int index0 = min(bone_indices.x, HYP_MAX_BONES - 1);
-    skinning += bone_weights.x * skeletons[0].bones[index0];
-    int index1 = min(bone_indices.y, HYP_MAX_BONES - 1);
-    skinning += bone_weights.y * skeletons[0].bones[index1];
-    int index2 = min(bone_indices.z, HYP_MAX_BONES - 1);
-    skinning += bone_weights.z * skeletons[0].bones[index2];
-    int index3 = min(bone_indices.w, HYP_MAX_BONES - 1);
-    skinning += bone_weights.w * skeletons[0].bones[index3];
-
-    return skinning;
-}
-
 #endif
 
 float4x4 LookAt(float3 pos, float3 target, float3 up)
@@ -97,7 +85,7 @@ VSOutput VSMain(VSInput input, uint ViewId : SV_ViewID, uint instanceId : SV_Ins
 #endif
 
 #if defined(SKINNING) && defined(HYP_ATTRIBUTE_a_bone_indices) && defined(HYP_ATTRIBUTE_a_bone_weights)
-    float4x4 skinning_matrix = CreateSkinningMatrix((int4)input.a_bone_indices, input.a_bone_weights);
+    float4x4 skinning_matrix = CreateSkinningMatrix(skeletons[0], input.a_bone_indices, input.a_bone_weights);
 
     position = mul(model_matrix, mul(skinning_matrix, float4(input.a_position, 1.0)));
     normal_matrix = mul(normal_matrix, transpose(inverse((float3x3)skinning_matrix)));
@@ -148,21 +136,23 @@ struct PSInput
 struct PSOutput
 {
 #ifdef MODE_SHADOWS
-    float2 output_color : SV_Target0;
-#else
+    #ifdef WRITE_MOMENTS // For variant shadow map
+        float2 output_moments : SV_Target0;
+    #endif // WRITE_MOMENTS
+#else // !MODE_SHADOWS
     float4 output_color : SV_Target0;
-#endif
 
-#ifdef WRITE_NORMALS
-    float2 output_normals : SV_Target1;
-    #ifdef WRITE_MOMENTS
-    float2 output_moments : SV_Target2;
-    #endif
-#else
-    #ifdef WRITE_MOMENTS
-    float2 output_moments : SV_Target1;
-    #endif
-#endif
+    #ifdef WRITE_NORMALS
+        float2 output_normals : SV_Target1;
+        #ifdef WRITE_MOMENTS
+            float2 output_moments : SV_Target2;
+        #endif // !WRITE_MOMENTS
+    #else // !WRITE_NORMALS
+        #ifdef WRITE_MOMENTS
+            float2 output_moments : SV_Target1;
+        #endif
+    #endif // WRITE_NORMALS
+#endif // MODE_SHADOWS
 };
 
 DECLARE_SAMPLER(Default, SamplerLinear) SamplerState sampler_linear;
@@ -180,14 +170,16 @@ DECLARE_SAMPLER(Default, SamplerNearest) SamplerState sampler_nearest;
 
 #define HYP_CUBEMAP_AMBIENT 0.005
 
+#ifndef MODE_SHADOWS
 DECLARE_SRV(Default, ShadowMapsTextureArray) Texture2DArray<float> shadow_maps;
 DECLARE_SRV(Default, PointLightShadowMapsTextureArray) TextureCubeArray point_shadow_maps;
+#endif // MODE_SHADOWS
 
 #ifdef INSTANCING
     DECLARE_SRV(Default, EntitiesBuffer) StructuredBuffer<Entity> entities;
-#else
+#else // !INSTANCING
     DECLARE_SRV_DYNAMIC(Default, CurrentEntity) StructuredBuffer<Entity> entities;
-#endif
+#endif // INSTANCING
 
 DECLARE_SRV_DYNAMIC(Default, MaterialsBuffer) StructuredBuffer<Material> materials_buffer;
 #define material materials_buffer[0]
@@ -218,30 +210,32 @@ PSOutput PSMain(PSInput input)
         albedo *= albedo_texture;
     }
 
-#if defined(WRITE_MOMENTS) || defined(MODE_SHADOWS)
+#ifdef WRITE_MOMENTS
     const float dist = distance(input.position, input.camera_position);
     float2 moments = float2(dist, HYP_FMATH_SQR(dist));
-#endif
-
+    
 #ifdef MODE_SHADOWS
     float dx = ddx(dist);
     float dy = ddy(dist);
 
     moments.y += 0.25 * (HYP_FMATH_SQR(dx) + HYP_FMATH_SQR(dy));
+#endif // MODE_SHADOWS
 
-    output.output_color = moments;
-#else
+#endif // WRITE_MOMENTS
+
+#ifndef MODE_SHADOWS
     output.output_color.rgb = albedo.rgb;
     output.output_color.a = 1.0;
 
 #ifdef WRITE_NORMALS
     output.output_normals = PackNormalVec2(N);
-#endif
+#endif // WRITE_NORMALS
+
+#endif // !MODE_SHADOWS
 
 #ifdef WRITE_MOMENTS
-output.output_moments = moments;
-    #endif
-#endif
+    output.output_moments = moments;
+#endif // WRITE_MOMENTS
 
     return output;
 }

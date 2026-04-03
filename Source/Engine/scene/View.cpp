@@ -199,20 +199,20 @@ void View::Init()
         InitObject(m_camera);
     }
 
-    const Vec2u extent = MathUtil::Max(m_viewDesc.renderTargetDesc.extent, Vec2u::One());
+    const Vec2u extent = MathUtil::Max(m_viewDesc.framebufferDesc.extent, Vec2u::One());
 
     if (!(m_viewDesc.flags & ViewFlags::EXTERNAL_RENDERTARGET))
     {
         if (m_viewDesc.flags & ViewFlags::GBUFFER)
         {
-            AssertDebug(m_viewDesc.renderTargetDesc.numAttachments == 0,
+            AssertDebug(m_viewDesc.framebufferDesc.numAttachments == 0,
                 "View with GBuffer flag cannot have output target attachments defined, as it will use GBuffer instead.");
 
             m_outputTarget = ViewOutputTarget(MakeHandle<GBuffer>(extent));
         }
-        else if (m_viewDesc.renderTargetDesc.numAttachments > 0)
+        else if (m_viewDesc.framebufferDesc.numAttachments > 0)
         {
-            FramebufferRef framebuffer = g_renderInterface->MakeFramebuffer(m_viewDesc.renderTargetDesc);
+            FramebufferRef framebuffer = g_renderInterface->MakeFramebuffer(m_viewDesc.framebufferDesc);
 
 #if HYP_DEBUG_MODE
             if (m_name.IsValid())
@@ -225,9 +225,9 @@ void View::Init()
             }
 #endif
 
-            for (uint32 attachmentIndex = 0; attachmentIndex < m_viewDesc.renderTargetDesc.numAttachments; attachmentIndex++)
+            for (uint32 attachmentIndex = 0; attachmentIndex < m_viewDesc.framebufferDesc.numAttachments; attachmentIndex++)
             {
-                const AttachmentDesc& attachmentDesc = m_viewDesc.renderTargetDesc.attachments[attachmentIndex];
+                const AttachmentDesc& attachmentDesc = m_viewDesc.framebufferDesc.attachments[attachmentIndex];
                 AssertDebug(attachmentDesc.format != InvalidTextureFormat);
 
                 Attachment* attachment = framebuffer->AddAttachment(
@@ -333,7 +333,8 @@ void View::PrepareShadowViews(Array<View*, SceneTempAllocator>& outShadowViews)
                 continue;
             }
                 
-            const bool cacheStaticObjects = (light->GetLightFlags() & LightFlags::CacheStaticShadowMaps);
+            const bool hasBakedStaticShadows = (light->GetLightFlags() & LightFlags::BakeStaticShadows);
+            const bool cacheStaticShadowMaps = !hasBakedStaticShadows && (light->GetLightFlags() & LightFlags::CacheStaticShadowMaps);
 
             View* shadowViewsStatic[MaxShadowMapCascades] {};
             View* shadowViewsDynamic[MaxShadowMapCascades] {};
@@ -353,7 +354,10 @@ void View::PrepareShadowViews(Array<View*, SceneTempAllocator>& outShadowViews)
                     break;
                 }
 
-                if (cacheStaticObjects)
+                // We need a view specifically for static objects if we either:
+                // - cache shadow maps for statics independently
+                // - use baked shadow maps for statics
+                if (cacheStaticShadowMaps || hasBakedStaticShadows)
                 {
                     shadowViewsStatic[cascadeIndex] = g_renderInterface->shadowMapCache->GetOrCreateShadowView(
                         this,
@@ -377,15 +381,15 @@ void View::PrepareShadowViews(Array<View*, SceneTempAllocator>& outShadowViews)
                         ShadowCameraHelper::UpdateShadowCameraDirectional(
                             *shadowCamera,
                             Vec3f::Zero(), //m_camera.IsValid() ? m_camera->GetTranslation() : Vec3f::Zero(),
-                            light->GetPosition().Normalized() * 1000.0f,
+                            light->GetWorldTranslation().Normalized() * 1000.0f,
                             40.0f);
 
                         break;
                     }
                     case LightType::Point:
-                        shadowBounds = light->GetAABB();
+                        shadowBounds = light->GetWorldBounds();
 
-                        shadowCamera->SetTranslation(light->GetPosition());
+                        shadowCamera->SetTranslation(light->GetWorldTranslation());
 
                         break;
                     default:
@@ -989,14 +993,14 @@ void View::CollectLights(RenderProxyList& rpl)
                     isLightInFrustum = true;
                     break;
                 case LightType::Point:
-                    isLightInFrustum = m_subFrustum.ContainsBoundingSphere(light->GetBoundingSphere());
+                    isLightInFrustum = m_subFrustum.ContainsBoundingSphere(light->GetBoundingSphere(true));
                     break;
                 case LightType::Spot:
                     /// \todo Implement frustum culling for spot lights
                     isLightInFrustum = true;
                     break;
                 case LightType::AreaRect:
-                    isLightInFrustum = m_subFrustum.ContainsAABB(light->GetAABB());
+                    isLightInFrustum = m_subFrustum.ContainsAABB(light->GetWorldBounds());
                     break;
                 default:
                     break;

@@ -83,7 +83,7 @@ void ShadowMapAllocator::Initialize()
 
     m_pointLightTextureArray = MakeHandle<Texture>(TextureDesc {
         TextureType::CubemapArray,
-        TextureFormat::RG16F, // Variance shadow maps are used for point lights
+        TextureFormat::D16,
         Vec3u { 256, 256, 1 },
         TFM_NEAREST,
         TFM_NEAREST,
@@ -140,7 +140,12 @@ ShadowMap* ShadowMapAllocator::AllocateShadowMap(ShadowMapType shadowMapType, Sh
         subResource.baseMipLevel = 0;
         subResource.numLevels = 1;
         
-        GpuImageViewRef atlasImageView = g_renderInterface->textureViewCache->GetOrCreate(m_pointLightTextureArray, subResource);
+        // @NOTE using TextureType::Texture2DArray for point light shadow maps rather than CubemapArray
+        GpuImageViewRef atlasImageView = g_renderInterface->textureViewCache->GetOrCreate(
+            m_pointLightTextureArray,
+            subResource,
+            TextureType::Texture2DArray);
+
         CheckResult(atlasImageView->Create());
 
         ShadowMap* shadowMap = new ShadowMap(

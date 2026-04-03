@@ -21,8 +21,8 @@
     }],
   "RevisionNumber": 31459917,
   "BaseName": "SSGIUpsample",
-  "VertexAttributes": {
-    "FlagMask": 7
+  "InputLayout": {
+    "Mask": 7
   },
   "ShaderInputGroup": {
     "Elements": [{
@@ -123,11 +123,11 @@
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/SSGIUpsample/SSGIUpsample_5656388037364668825.VS",
-      "Size": 36820
+      "Size": 37040
     }, {
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/SSGIUpsample/SSGIUpsample_5656388037364668825.PS",
-      "Size": 59772
+      "Size": 59988
     }],
   "PropertySetHashCode": {},
   "LastCompiledTimestamp": {

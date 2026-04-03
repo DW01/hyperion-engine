@@ -113,7 +113,6 @@ static const ShaderPropertyId s_propProbeSideLengthIrradiance = InternShaderProp
 static const ShaderPropertyId s_propProbeSideLengthDepth = InternShaderProperty(ShaderProperty(NAME("DDGI_PROBE_SIDE_LENGTH_DEPTH"), int(DDGI::DepthOctahedronSize)));
 
 static const ShaderPropertyId s_propHBAOEnabled = InternShaderProperty(ShaderProperty(NAME("HBAO_ENABLED")));
-static const ShaderPropertyId s_propHBILEnabled = InternShaderProperty(ShaderProperty(NAME("HBIL_ENABLED")));
 static const ShaderPropertyId s_propSSAOEnabled = InternShaderProperty(ShaderProperty(NAME("SSAO_ENABLED")));
 static const ShaderPropertyId s_propSSGIEnabled = InternShaderProperty(ShaderProperty(NAME("SSGI_ENABLED")));
 
@@ -125,6 +124,8 @@ static const ShaderPropertyId s_propDebugReflections = InternShaderProperty(Shad
 static const ShaderPropertyId s_propDebugIrradiance = InternShaderProperty(ShaderProperty(NAME("DEBUG_IRRADIANCE")));
 
 static const ShaderPropertyId s_propMaxFallbackProbes = InternShaderProperty(ShaderProperty(NAME("MAX_FALLBACK_PROBES"), int(MaxFallbackProbes)));
+
+static const ShaderPropertyId s_propOutputSDR = InternShaderProperty(ShaderProperty(NAME("OUTPUT"), NAME("SDR")));
 
 static const ShaderPropertyId s_propLightTypeClustered = InternShaderProperty(ShaderProperty(NAME("LIGHT_TYPE"), NAME("CLUSTERED")));
 static const ShaderPropertyId s_propTileSize = InternShaderProperty(ShaderProperty(NAME("TILE_SIZE"), int(TileSize)));
@@ -165,8 +166,10 @@ CVar<bool> cvPathTracing { "Rendering.PathTracing", false };
 CVar<bool> cvSSGI { "Rendering.SSGI", true };
 CVar<bool> cvSSR { "Rendering.SSR", true, "Rendering.SSR.Enabled" };
 CVar<bool> cvTAA { "Rendering.TAA", true };
+CVar<bool> cvHBAO { "Rendering.HBAO", true, "Rendering.HBAO.Enabled" };
 CVar<bool> cvEnableLightmapVolumes { "Rendering.LightmapVolumes", true };
 CVar<bool> cvClusteredShading { "Rendering.ClusteredShading", true };
+CVar<float> cvTonemapExposure { "Rendering.Tonemap.Exposure", 1.8f };
 
 namespace DeferredRendererHelpers {
 
@@ -189,21 +192,7 @@ void GetDeferredShaderProperties(
 
     MergeGlobalShaderProperties(outShaderProperties);
 
-#define DEF_CONFIGURATION_VALUE(name, path)     \
-    const ConfigValue& cfg##name = cfg.Get(path);    \
-    const bool name = cfg##name.ToBool()
-
-    DEF_CONFIGURATION_VALUE(hbil, "Rendering.HBIL.Enabled");
-    DEF_CONFIGURATION_VALUE(hbao, "Rendering.HBAO.Enabled");
-    DEF_CONFIGURATION_VALUE(ssao, "Rendering.SSAO.Enabled");
-
-#undef DEF_CONFIGURATION_VALUE
-
-    if (ssao)
-    {
-        outShaderProperties.Add(s_propSSAOEnabled);
-    }
-    else if (hbao)
+    if (cvHBAO.Get())
     {
         outShaderProperties.Add(s_propHBAOEnabled);
     }
@@ -220,7 +209,6 @@ void GetDeferredShaderProperties(
             outShaderProperties.Add(s_propProbeSideLengthDepth);
         }
 
-        outShaderProperties.Set(s_propHBILEnabled, hbil);
         outShaderProperties.Set(s_propSSGIEnabled, cvSSGI.Get());
         
         outShaderProperties.Add(s_propMaxFallbackProbes);
@@ -292,6 +280,7 @@ void FillShadowMapData(
     outShadowMapData.layerIndex = atlasElement->layerIndex;
 
     outShadowMapData.viewProjMat = viewProjMat;
+    outShadowMapData.invProjMat = shadowCameraProxy->bufferData.inverseProjMat;
 
     outShadowMapData.aabbMin.x = shadowBoundsWS.min.x;
     outShadowMapData.aabbMin.y = shadowBoundsWS.min.y;
@@ -409,7 +398,7 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
     cr << SetCurrentViewport(rs.viewport);
 
-    cr << SetVertexAttributes(VertexAttribute::Position | VertexAttribute::Normal | VertexAttribute::TexCoord0);
+    cr << SetInputLayout(StaticVertexInputLayout<VT_Simple>);
     cr << SetTopology(TOP_TRIANGLES);
     cr << SetFillMode(FM_FILL);
     cr << SetCurrentBlendFunction(m_blendFunction);
@@ -449,18 +438,10 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
     cr << SetShaderUniform(numShaderUniforms++, "SamplerNearest"_sh, g_renderInterface->placeholderData->GetSamplerNearest());
     cr << SetShaderUniform(numShaderUniforms++, "SamplerShadow"_sh, shadowSampler);
 
-    cr << SetShaderUniform(numShaderUniforms++, "CamerasBuffer"_sh, g_renderInterface->gpuBuffers[GRB_CAMERAS]->GetBuffer(frameIndex), TShaderDataOffset<CameraShaderData>(rs.view->GetCamera()));
-    cr << SetShaderUniform(numShaderUniforms++, "EntitiesBuffer"_sh, g_renderInterface->gpuBuffers[GRB_ENTITIES]->GetBuffer(frameIndex));
     cr << SetShaderUniform(numShaderUniforms++, "WorldsBuffer"_sh, g_renderInterface->gpuBuffers[GRB_WORLDS]->GetBuffer(frameIndex));
-    cr << SetShaderUniform(numShaderUniforms++, "MaterialsBuffer"_sh, g_renderInterface->gpuBuffers[GRB_MATERIALS]->GetBuffer(frameIndex));
 
     cr << SetShaderUniform(numShaderUniforms++, "ShadowMapsTextureArray"_sh, g_renderInterface->shadowMapCache->GetAtlasImageView());
     cr << SetShaderUniform(numShaderUniforms++, "PointLightShadowMapsTextureArray"_sh, g_renderInterface->shadowMapCache->GetPointLightShadowMapImageView());
-
-    if (rs.envGrid != nullptr)
-        cr << SetShaderUniform(numShaderUniforms++, "EnvGridsBuffer"_sh, g_renderInterface->gpuBuffers[GRB_ENV_GRIDS]->GetBuffer(frameIndex), TShaderDataOffset<EnvGridShaderData>(rs.envGrid));
-    else
-        cr << SetShaderUniform(numShaderUniforms++, "EnvGridsBuffer"_sh, g_renderInterface->gpuBuffers[GRB_ENV_GRIDS]->GetBuffer(frameIndex), TShaderDataOffset<EnvGridShaderData>(0));
 
     DeferredRendererPassData* dpd = ObjCast<DeferredRendererPassData>(rs.passData);
     AssertDebug(dpd != nullptr);
@@ -510,7 +491,10 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
             size_t cbufferOffset = 0;
             size_t cbufferSize = 0;
 
-            EnvProbeShaderData fallbackEnvProbeData {};
+            // write camera
+            g_renderInterface->cbufferAllocator->Write(&cameraProxy->bufferData);
+
+            static const EnvProbeShaderData s_dummyFallbackEnvProbe {};
 
             const uint32 numEnvProbes = rpl.GetEnvProbes().NumCurrent();
             
@@ -567,10 +551,12 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
             {
                 if (probeIndex < uint32(tempEnvProbes.Size()))
                 {
-                    fallbackEnvProbeData = *tempEnvProbes[probeIndex].second;
+                    g_renderInterface->cbufferAllocator->Write(tempEnvProbes[probeIndex].second);
                 }
-
-                g_renderInterface->cbufferAllocator->Write(&fallbackEnvProbeData);
+                else
+                {
+                    g_renderInterface->cbufferAllocator->Write(&s_dummyFallbackEnvProbe);
+                }
             }
 
             // write num
@@ -616,6 +602,9 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
             GpuBuffer* cbuffer = nullptr;
             size_t cbufferOffset = 0;
             size_t cbufferSize = 0;
+            
+            // write camera
+            g_renderInterface->cbufferAllocator->Write(&cameraProxy->bufferData);
 
             uint32 maxLightBinding = 0;
 
@@ -761,6 +750,10 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
                 size_t cbufferOffset = 0;
                 size_t cbufferSize = 0;
 
+                // write camera
+                g_renderInterface->cbufferAllocator->Write(&cameraProxy->bufferData);
+
+                // write current light
                 g_renderInterface->cbufferAllocator->Write(&lightProxy->bufferData);
 
                 ShadowMapData shadowMapData[MaxShadowMapCascades];
@@ -852,12 +845,6 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 TonemapPass::TonemapPass(Vec2u extent, GBuffer* gbuffer)
     : FullScreenPass(TextureFormat::R11G11B10F, extent, gbuffer)
 {
-    const VertexAttributeSet vertexAttributes = VertexAttribute::Position | VertexAttribute::Normal | VertexAttribute::TexCoord0;
-
-    ShaderPropertySet shaderProperties;
-    shaderProperties.Add(InternShaderProperty(ShaderProperty(NAME("OUTPUT"), NAME("SDR"))));
-
-    m_shaderDesc = ShaderDesc(NAME("Tonemap"), shaderProperties);
 }
 
 TonemapPass::~TonemapPass()
@@ -871,6 +858,11 @@ void TonemapPass::Resize_Internal(Vec2u newSize)
 
 void TonemapPass::Render(Frame* frame, const RenderSetup& rs)
 {
+    ShaderPropertySet shaderProperties;
+    shaderProperties.Add(s_propOutputSDR);
+    shaderProperties.Add(InternShaderProperty(ShaderProperty(NAME("EXPOSURE"), cvTonemapExposure.Get())));
+    m_shaderDesc = ShaderDesc(NAME("Tonemap"), shaderProperties);
+
     Begin(frame, rs);
 
     CommandRecorder& cr = frame->cr;
@@ -1026,15 +1018,13 @@ void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
     Framebuffer* viewFramebuffer = dpd->view.GetUnsafe()->GetOutputTarget().GetFramebuffer(RenderBucket::Opaque);
     AssertDebug(viewFramebuffer != nullptr);
 
-    const VertexAttributeSet vertexAttributes = VertexAttribute::Position | VertexAttribute::Normal | VertexAttribute::TexCoord0;
-
     CommandRecorder& cr = frame->cr;
 
     cr << SetCurrentShader(m_shaderDesc);
 
     cr << SetCurrentViewport(renderSetup.viewport);
 
-    cr << SetVertexAttributes(vertexAttributes);
+    cr << SetInputLayout(StaticVertexInputLayout<VT_Simple>);
 
     cr << SetFaceCullMode(FCM_BACK);
     cr << SetFillMode(FM_FILL);
@@ -1213,7 +1203,7 @@ void FogVolumePass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup
     cr << SetCurrentViewport(renderSetup.viewport);
 
     cr << SetTopology(m_volumeMesh->GetTopology());
-    cr << SetVertexAttributes(m_volumeMesh->GetVertexAttributes());
+    cr << SetInputLayout(m_volumeMesh->GetMeshAttributes().inputLayout);
 
     cr << SetFillMode(FM_FILL);
     cr << SetDepthWrite(false);
@@ -1232,23 +1222,18 @@ void FogVolumePass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup
     DeferredRendererPassData* dpd = ObjCast<DeferredRendererPassData>(renderSetup.passData);
     AssertDebug(dpd != nullptr);
 
-    const FramebufferRef& opaquePassFramebuffer = dpd->view.GetUnsafe()->GetOutputTarget().GetFramebuffer(RenderBucket::Opaque);
+    cr << SetShaderUniform(2, "CamerasBuffer"_sh, g_renderInterface->gpuBuffers[GRB_CAMERAS]->GetBuffer(frame->GetFrameIndex()), TShaderDataOffset<CameraShaderData>(renderSetup.view->GetCamera()));
 
-    for (uint32 attachmentIndex = 0; attachmentIndex < GTN_MAX; attachmentIndex++)
-    {
-        cr << SetShaderUniform(2 + attachmentIndex, GBufferTextureNames[attachmentIndex], opaquePassFramebuffer->GetAttachment(attachmentIndex)->GetImageView());
-    }
-
-    cr << SetShaderUniform(2 + GTN_MAX, "CamerasBuffer"_sh, g_renderInterface->gpuBuffers[GRB_CAMERAS]->GetBuffer(frame->GetFrameIndex()), TShaderDataOffset<CameraShaderData>(renderSetup.view->GetCamera()));
-
-    cr << SetShaderUniform(3 + GTN_MAX, "ShadowMapsTextureArray"_sh, g_renderInterface->shadowMapCache->GetAtlasImageView());
-    cr << SetShaderUniform(4 + GTN_MAX, "PointLightShadowMapsTextureArray"_sh, g_renderInterface->shadowMapCache->GetPointLightShadowMapImageView());
+    cr << SetShaderUniform(3, "ShadowMapsTextureArray"_sh, g_renderInterface->shadowMapCache->GetAtlasImageView());
+    cr << SetShaderUniform(4, "PointLightShadowMapsTextureArray"_sh, g_renderInterface->shadowMapCache->GetPointLightShadowMapImageView());
 
     if (data.volumeTexture)
-        cr << SetShaderUniform(5 + GTN_MAX, "DataMap"_sh, g_renderInterface->textureViewCache->GetOrCreate(data.volumeTexture));
+        cr << SetShaderUniform(5, "DataMap"_sh, g_renderInterface->textureViewCache->GetOrCreate(data.volumeTexture));
 
     if (data.noiseTexture)
-        cr << SetShaderUniform(6 + GTN_MAX, "NoiseMap"_sh, g_renderInterface->textureViewCache->GetOrCreate(data.noiseTexture));
+        cr << SetShaderUniform(6, "NoiseMap"_sh, g_renderInterface->textureViewCache->GetOrCreate(data.noiseTexture));
+
+    cr << SetShaderUniform(7, "DepthPyramidTexture"_sh, dpd->depthPyramidRenderer->GetResultImageView());
 
     // Set constants
     FogVolumeShaderData shaderData = proxy->bufferData;
@@ -1335,7 +1320,7 @@ void FogVolumePass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup
             
     g_renderInterface->cbufferAllocator->Commit(cbuffer, cbufferOffset, cbufferSize);
 
-    cr << SetShaderUniform(7 + GTN_MAX, "FogVolumeConstants"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
+    cr << SetShaderUniform(8, "FogVolumeConstants"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
 
     cr << CommitDrawState();
 
@@ -1449,7 +1434,7 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
     }
 
     cr << SetTopology(TOP_TRIANGLES);
-    cr << SetVertexAttributes(VertexAttribute::Position | VertexAttribute::Normal | VertexAttribute::TexCoord0);
+    cr << SetInputLayout(StaticVertexInputLayout<VT_Simple>);
 
     cr << SetCurrentViewport(viewport);
 
@@ -1550,9 +1535,9 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
         const Handle<Texture>& ssrTexture = m_ssrPass->GetFinalResultTexture();
 
         // render SSR to screen
-        RenderTargetDesc renderTargetDesc = rs.view->GetOutputTarget().GetFramebuffer()->GetRenderTargetDesc();
-        renderTargetDesc.attachments[0].loadOp = LoadOperation::LOAD;
-        renderTargetDesc.attachments[0].blendFunction = BlendFunction(BMF_SRC_ALPHA, BMF_ONE_MINUS_SRC_ALPHA, BMF_ONE, BMF_ONE_MINUS_SRC_ALPHA);
+        FramebufferDesc framebufferDesc = rs.view->GetOutputTarget().GetFramebuffer()->GetFramebufferDesc();
+        framebufferDesc.attachments[0].loadOp = LoadOperation::LOAD;
+        framebufferDesc.attachments[0].blendFunction = BlendFunction(BMF_SRC_ALPHA, BMF_ONE_MINUS_SRC_ALPHA, BMF_ONE, BMF_ONE_MINUS_SRC_ALPHA);
 
         cr << SetCurrentViewport(rs.viewport);
 
@@ -1574,7 +1559,7 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
         cr << SetCurrentBlendFunction(BlendFunction::None());
     }
 
-    frame->cr << SetCurrentFramebuffer(nullptr);
+    cr << SetCurrentFramebuffer(nullptr);
 
     if (ShouldRenderCheckerboarded())
     {
@@ -1642,10 +1627,10 @@ RayTracingPassData::~RayTracingPassData()
 
 static FramebufferRef CreateDeferredShadingFramebuffer(GBuffer* gbuffer)
 {
-    RenderTargetDesc renderTargetDesc {};
-    renderTargetDesc.extent = gbuffer->GetExtent();
+    FramebufferDesc framebufferDesc {};
+    framebufferDesc.extent = gbuffer->GetExtent();
 
-    FramebufferRef framebuffer = g_renderInterface->MakeFramebuffer(renderTargetDesc);
+    FramebufferRef framebuffer = g_renderInterface->MakeFramebuffer(framebufferDesc);
 
 #if HYP_DEBUG_MODE
     framebuffer->SetDebugName(NAME("DeferredShadingFramebuffer"));
@@ -1833,9 +1818,12 @@ public:
                 continue;
             }
 
-            const Vec3f lightPosWS = light->GetPosition();
+            RenderProxyLight* lightProxy = static_cast<RenderProxyLight*>(GetRenderProxy(light));
+            AssertDebug(lightProxy != nullptr);
+
+            const Vec3f lightPosWS = lightProxy->bufferData.positionIntensity.GetXYZ();
             const Vec3f lightPosVS = viewMatrix * lightPosWS;
-            const float lightRadius = light->GetRadius();
+            const float lightRadius = float(Float16::FromRaw(uint16(lightProxy->bufferData.radiusFalloffPacked & 0xFFFFu)));
 
             uint32 tileMinX;
             uint32 tileMinY;
@@ -1992,8 +1980,7 @@ public:
 };
 
 DeferredRenderer::DeferredRenderer()
-    : m_rendererConfig(RendererConfig::FromConfig()),
-      m_tileProcessor(MakeUnique<TileProcessor>())
+    : m_tileProcessor(MakeUnique<TileProcessor>())
 {
 }
 
@@ -2067,11 +2054,8 @@ PassData* DeferredRenderer::CreateViewPassData(View* view, PassDataExt&)
 
         CheckResult(passData.mipChain->Create());
 
-        if (!m_rendererConfig.ssaoEnabled && (m_rendererConfig.hbaoEnabled || m_rendererConfig.hbilEnabled))
-        {
-            passData.hbao = MakeUnique<HBAO>(HBAOConfig::FromConfig(), gbuffer->GetExtent(), gbuffer);
-            passData.hbao->Create();
-        }
+        passData.hbao = MakeUnique<HBAO>(gbuffer->GetExtent(), gbuffer);
+        passData.hbao->Create();
 
         // m_dofBlur = MakeUnique<DOFBlur>(gbuffer->GetResolution(), gbuffer);
         // m_dofBlur->Create();
@@ -2202,11 +2186,8 @@ void DeferredRenderer::ResizeView(Viewport viewport, View* view, DeferredRendere
     passData.directPass->Resize(newSize);
     passData.indirectPass->Resize(newSize);
 
-    if (!m_rendererConfig.ssaoEnabled && (m_rendererConfig.hbaoEnabled || m_rendererConfig.hbilEnabled))
-    {
-        passData.hbao = MakeUnique<HBAO>(HBAOConfig::FromConfig(), viewport.extent, gbuffer);
-        passData.hbao->Create();
-    }
+    passData.hbao = MakeUnique<HBAO>(viewport.extent, gbuffer);
+    passData.hbao->Create();
 
     passData.ssgi.Reset();
     passData.ssgi = MakeUnique<SSGI>(gbuffer);
@@ -2663,7 +2644,7 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         }
     }
 
-    if (!m_rendererConfig.ssaoEnabled && (m_rendererConfig.hbaoEnabled || m_rendererConfig.hbilEnabled))
+    if (cvHBAO.Get())
     {
         passData.hbao->Render(frame, rs);
     }
@@ -2722,6 +2703,13 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         GenerateMipChain(frame, rs, renderCollector, srcImage);
     }
 
+    { // render Hi-Z
+        passData.depthPyramidRenderer->Render(frame);
+
+        passData.cullData.depthPyramidImageView = passData.depthPyramidRenderer->GetResultImageView();
+        passData.cullData.depthPyramidDimensions = passData.depthPyramidRenderer->GetExtent();
+    }
+
     { // combined + translucent (forward pass)
         frame->cr << SetCurrentFramebuffer(translucentPassFramebuffer);
 
@@ -2729,7 +2717,7 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
             frame->cr << SetCurrentViewport(rs.viewport);
 
-            frame->cr << SetVertexAttributes(VertexAttribute::Position | VertexAttribute::Normal | VertexAttribute::TexCoord0);
+            frame->cr << SetInputLayout(StaticVertexInputLayout<VT_Simple>);
             frame->cr << SetFaceCullMode(FCM_BACK);
             frame->cr << SetFillMode(FM_FILL);
             frame->cr << SetTopology(TOP_TRIANGLES);
@@ -2788,13 +2776,6 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         }
 
         frame->cr << SetCurrentFramebuffer(nullptr);
-    }
-
-    { // render depth pyramid
-        passData.depthPyramidRenderer->Render(frame);
-        // update culling info now that depth pyramid has been rendered
-        passData.cullData.depthPyramidImageView = passData.depthPyramidRenderer->GetResultImageView();
-        passData.cullData.depthPyramidDimensions = passData.depthPyramidRenderer->GetExtent();
     }
 
     // debug draw

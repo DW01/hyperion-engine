@@ -18,6 +18,7 @@ namespace Hyperion {
 
 class Camera;
 class Material;
+class Texture;
 class View;
 class RenderProxyLight;
 
@@ -50,6 +51,7 @@ enum class LightFlags : uint32
     ShadowFilterMask = (ShadowPCF | ShadowContactHardening | ShadowVariance),
 
     CacheStaticShadowMaps = 0x10,
+    BakeStaticShadows = 0x20,
 
     Default = ShadowCaster | ShadowPCF
 };
@@ -105,31 +107,7 @@ public:
     }
 
     HYP_METHOD()
-    void SetLightFlags(EnumFlags<LightFlags> flags)
-    {
-        if (m_lightFlags == flags)
-        {
-            return;
-        }
-
-        m_lightFlags = flags;
-        SetNeedsRenderProxyUpdate();
-    }
-
-    /*! \brief Get the position for the light. For directional lights, this is the direction the light is pointing.
-     *
-     *  \return The position or direction. */
-    HYP_METHOD(Property = "Position", Editor = true)
-    const Vec3f& GetPosition() const
-    {
-        return m_position;
-    }
-
-    /*! \brief Set the position for the light. For directional lights, this is the direction the light is pointing.
-     *
-     *  \param position The position or direction to set. */
-    HYP_METHOD(Property = "Position", Editor = true)
-    void SetPosition(const Vec3f& position);
+    void SetLightFlags(EnumFlags<LightFlags> flags);
 
     /*! \brief Get the normal for the light. This is used only for area lights.
      *
@@ -161,39 +139,24 @@ public:
     HYP_METHOD(Property = "AreaSize", Editor = true)
     void SetAreaSize(const Vec2f& areaSize);
 
-    /*! \brief Get the color for the light.
-     *
-     *  \return The color. */
     HYP_METHOD(Property = "Color", Editor = true)
     const Color& GetColor() const
     {
         return m_color;
     }
 
-    /*! \brief Set the color for the light.
-     *
-     *  \param color The color to set. */
     HYP_METHOD(Property = "Color", Editor = true)
     void SetColor(const Color& color);
 
-    /*! \brief Get the intensity for the light. This is used to determine how bright the light is.
-     *
-     *  \return The intensity. */
     HYP_METHOD(Property = "Intensity", Editor = true)
     float GetIntensity() const
     {
         return m_intensity;
     }
 
-    /*! \brief Set the intensity for the light. This is used to determine how bright the light is.
-     *
-     *  \param intensity The intensity to set. */
     HYP_METHOD(Property = "Intensity", Editor = true)
     void SetIntensity(float intensity);
 
-    /*! \brief Get the radius for the light. This is used to determine the maximum distance at which this light is visible. (point lights only)
-     *
-     *  \return The radius. */
     HYP_METHOD(Property = "Radius", Editor = true)
     float GetRadius() const
     {
@@ -208,24 +171,15 @@ public:
         }
     }
 
-    /*! \brief Set the radius for the light. This is used to determine the maximum distance at which this light is visible. (point lights only)
-     *
-     *  \param radius The radius to set. */
     HYP_METHOD(Property = "Radius", Editor = true)
     void SetRadius(float radius);
 
-    /*! \brief Get the falloff for the light. This is used to determine how the light intensity falls off with distance (point lights only).
-     *
-     *  \return The falloff. */
     HYP_METHOD(Property = "Falloff", Editor = true)
     float GetFalloff() const
     {
         return m_falloff;
     }
 
-    /*! \brief Set the falloff for the light. This is used to determine how the light intensity falls off with distance (point lights only).
-     *
-     *  \param falloff The falloff to set. */
     HYP_METHOD(Property = "Falloff", Editor = true)
     void SetFalloff(float falloff);
 
@@ -252,7 +206,6 @@ public:
     {
         return m_material;
     }
-
     /*! \brief Sets the material handle associated with the Light. Used for textured area lights.
      *
      *  \param material The material to set for this Light. */
@@ -277,8 +230,17 @@ public:
     HYP_METHOD(Property = "ShadowMapCascades", Editor = true)
     void SetNumShadowMapCascades(uint32 numShadowMapCascades);
 
-    HYP_METHOD()
-    BoundingBox GetAABB() const;
+    /*! \brief Get the baked shadow map for this light - only present if the light has static shadows that have been baked.
+     *
+     *  \return The baked shadow map, or an empty handle if there is no baked shadow map. */
+    HYP_METHOD(Property = "BakedShadowMap")
+    HYP_FORCE_INLINE const Handle<Texture>& GetBakedShadowMap() const
+    {
+        return m_shadowMap;
+    }
+
+    HYP_METHOD(Property = "BakedShadowMap")
+    void SetBakedShadowMap(const Handle<Texture>& shadowMap);
 
     HYP_METHOD(Property = "ShadowMapFilter", Editor = true, Transient)
     ShadowMapFilter GetShadowMapFilter() const
@@ -291,9 +253,22 @@ public:
     HYP_METHOD(Property = "ShadowMapFilter", Editor = true, Transient)
     void SetShadowMapFilter(ShadowMapFilter shadowMapFilter);
 
-    BoundingSphere GetBoundingSphere() const;
+    BoundingSphere GetBoundingSphere(bool worldSpace) const;
+
+    virtual void SetLocalBounds(const BoundingBox& localBounds) override;
 
     void UpdateRenderProxy(RenderProxyLight* proxy);
+
+#if HYP_EDITOR
+    HYP_METHOD(EditorOnly, EditAction = "Bake shadows for static objects", EditCondition = "CanBakeStaticShadows")
+    void BakeStaticShadows();
+
+    HYP_METHOD(EditorOnly, EditAction = "Remove baked shadows", EditCondition = "CanBakeStaticShadows")
+    void RemoveBakedShadows()
+    {
+        SetBakedShadowMap(Handle<Texture>::Null());
+    }
+#endif
 
 protected:
     void Init() override;
@@ -307,13 +282,21 @@ protected:
 
     void OnTransformUpdated() override;
 
+    BoundingBox CalculateLightBounds() const;
+
+#if HYP_EDITOR
+    HYP_METHOD(EditorOnly)
+    bool CanBakeStaticShadows() const;
+#else
+    static constexpr NoOpFunction<bool> CanBakeStaticShadows;
+#endif
+
     HYP_FIELD()
     LightType m_type;
 
     HYP_FIELD(Property = "LightFlags")
     EnumFlags<LightFlags> m_lightFlags;
 
-    Vec3f m_position;
     Vec3f m_normal;
     Vec2f m_areaSize;
     Color m_color;
@@ -322,6 +305,9 @@ protected:
     float m_falloff;
     Vec2f m_spotAngles;
     Handle<Material> m_material;
+
+    // Only present if baked
+    Handle<Texture> m_shadowMap;
 
     HYP_FIELD(Property = "ShadowMapDimensions")
     Vec2u m_shadowMapDimensions;
@@ -334,7 +320,7 @@ private:
 };
 
 HYP_CLASS()
-class HYP_API DirectionalLight : public Light
+class HYP_API DirectionalLight final : public Light
 {
     HYP_OBJECT_BODY(DirectionalLight);
 
@@ -356,37 +342,38 @@ public:
     HYP_METHOD()
     const Vec3f& GetDirection() const
     {
-        return Light::GetPosition();
+        return Light::GetLocalTranslation();
     }
 
     HYP_METHOD()
     void SetDirection(const Vec3f& direction)
     {
-        Light::SetPosition(direction.Normalized());
+        Light::SetLocalTranslation(direction.Normalized());
     }
 };
 
 HYP_CLASS()
-class HYP_API PointLight : public Light
+class HYP_API PointLight final : public Light
 {
     HYP_OBJECT_BODY(PointLight);
 
 public:
     PointLight()
-        : PointLight(Vec3f(0.0f), Color::White(), 5.0f, 10.0f)
+        : PointLight(Vec3f(0.0f), Color::White(), 5.0f, 25.0f)
     {
     }
 
     PointLight(const Vec3f& position, const Color& color, float intensity, float radius)
         : Light(LightType::Point, position, color, intensity, radius)
     {
+        m_lightFlags |= LightFlags::CacheStaticShadowMaps;
     }
 
     virtual ~PointLight() override = default;
 };
 
 HYP_CLASS()
-class HYP_API SpotLight : public Light
+class HYP_API SpotLight final : public Light
 {
     HYP_OBJECT_BODY(SpotLight);
 
@@ -405,7 +392,7 @@ public:
 };
 
 HYP_CLASS()
-class HYP_API AreaRectLight : public Light
+class HYP_API AreaRectLight final : public Light
 {
     HYP_OBJECT_BODY(AreaRectLight);
 

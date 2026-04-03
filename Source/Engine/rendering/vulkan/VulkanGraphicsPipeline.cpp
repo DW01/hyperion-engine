@@ -84,7 +84,7 @@ void VulkanGraphicsPipeline::Bind(VulkanCommandBuffer* cmd)
     Vec2i viewportOffset = Vec2i::Zero();
     Vec2u viewportExtent = Vec2u::One();
 
-    viewportExtent = m_renderTargetDesc.extent;
+    viewportExtent = m_framebufferDesc.extent;
 
     Bind(cmd, viewportOffset, viewportExtent);
 }
@@ -149,7 +149,7 @@ RendererResult VulkanGraphicsPipeline::Rebuild()
     Array<VkVertexInputAttributeDescription> vkVertexAttributes;
     Array<VkVertexInputBindingDescription> vkVertexBindingDescriptions;
 
-    BuildVertexAttributes(m_vertexAttributes, vkVertexAttributes, vkVertexBindingDescriptions);
+    BuildVertexAttributes(vkVertexAttributes, vkVertexBindingDescriptions);
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
     vertexInputInfo.vertexBindingDescriptionCount = uint32(vkVertexBindingDescriptions.Size());
@@ -186,11 +186,11 @@ RendererResult VulkanGraphicsPipeline::Rebuild()
 
     if (!m_renderPass)
     {
-        m_renderPass = new VulkanRenderPass(m_renderTargetDesc);
+        m_renderPass = new VulkanRenderPass(m_framebufferDesc);
         CheckResultOrReturn(m_renderPass->Create());
     }
 
-    m_viewport = { m_renderTargetDesc.extent, Vec2i::Zero() };
+    m_viewport = { m_framebufferDesc.extent, Vec2i::Zero() };
 
     VkViewport vkViewport {};
     vkViewport.x = float(m_viewport.position.x);
@@ -256,13 +256,13 @@ RendererResult VulkanGraphicsPipeline::Rebuild()
     multisampling.alphaToOneEnable = VK_FALSE;      // Optional
 
     Array<VkPipelineColorBlendAttachmentState> colorBlendAttachments;
-    colorBlendAttachments.Reserve(m_renderTargetDesc.numAttachments);
+    colorBlendAttachments.Reserve(m_framebufferDesc.numAttachments);
 
     const BlendFunction* pBlendFunction = &m_blendFunction;
 
-    for (uint32 attachmentIdx = 0; attachmentIdx < m_renderTargetDesc.numAttachments; attachmentIdx++)
+    for (uint32 attachmentIdx = 0; attachmentIdx < m_framebufferDesc.numAttachments; attachmentIdx++)
     {
-        const AttachmentDesc& attachmentDesc = m_renderTargetDesc.attachments[attachmentIdx];
+        const AttachmentDesc& attachmentDesc = m_framebufferDesc.attachments[attachmentIdx];
 
         if (TextureUtils::IsDepthFormat(attachmentDesc.format))
         {
@@ -427,6 +427,8 @@ RendererResult VulkanGraphicsPipeline::Rebuild()
         vkCreateGraphicsPipelines(g_renderInterface->GetDevice()->GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_handle),
         "Failed to create graphics pipeline");
 
+    Assert(m_handle != VK_NULL_HANDLE, "We got a null handle on our hands!");
+
 #if HYP_DEBUG_MODE
     if (Name debugName = GetDebugName())
     {
@@ -468,11 +470,10 @@ void VulkanGraphicsPipeline::UpdateViewport(
 }
 
 void VulkanGraphicsPipeline::BuildVertexAttributes(
-    const VertexAttributeSet& attributeSet,
     Array<VkVertexInputAttributeDescription>& outVkVertexAttributes,
     Array<VkVertexInputBindingDescription>& outVkVertexBindingDescriptions)
 {
-    static constexpr VkFormat sizeToFormat[] = {
+    static constexpr VkFormat SizeToFormat[] = {
         VK_FORMAT_UNDEFINED,
         VK_FORMAT_R32_SFLOAT,
         VK_FORMAT_R32G32_SFLOAT,
@@ -482,25 +483,64 @@ void VulkanGraphicsPipeline::BuildVertexAttributes(
 
     FlatMap<uint32, uint32> bindingSizes {};
 
-    const Array<const VertexAttribute*> attributeTypes = attributeSet.BuildAttributes();
-    outVkVertexAttributes.Resize(attributeTypes.Size());
+    const uint32 bits = uint32(ByteUtil::BitCount(m_inputLayout.mask));
+    Assert(bits != 0);
 
-    for (uint32 attrIndex = 0; attrIndex < uint32(attributeTypes.Size()); attrIndex++)
+    outVkVertexAttributes.Resize(bits);
+
+    uint32 attrIndex = 0;
+
+    FOR_EACH_BIT(m_inputLayout.mask, bit)
     {
-        AssertDebug(attributeTypes[attrIndex] != nullptr);
-
-        const VertexAttribute& attribute = *attributeTypes[attrIndex];
+        VertexType vertexType = VertexType(1 << bit);
 
         const uint32 binding = 0;
+
+        if (vertexType == VT_Skeletal)
+        {
+            // Skeletal vertex format has two attributes (bone indices and weights) packed into one.
+            outVkVertexAttributes.Resize(outVkVertexAttributes.Size() + 1);
+
+            // Bone indices:
+            outVkVertexAttributes[attrIndex] = VkVertexInputAttributeDescription {
+                .location = attrIndex,
+                .binding = binding,
+                .format = VK_FORMAT_R32_UINT,
+                .offset = bindingSizes[binding]
+            };
+
+            bindingSizes[binding] += sizeof(uint32);
+
+            ++attrIndex;
+
+            // Bone weights:
+            outVkVertexAttributes[attrIndex] = VkVertexInputAttributeDescription {
+                .location = attrIndex,
+                .binding = binding,
+                .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+                .offset = bindingSizes[binding]
+            };
+
+            bindingSizes[binding] += sizeof(float) * 4;
+
+            ++attrIndex;
+
+            continue;
+        }
+
+        size_t attributeSize = VertexUtils::PacketSize(vertexType);
+        AssertDebug(attributeSize <= 16, "Attribute size too large for supported formats!");
 
         outVkVertexAttributes[attrIndex] = VkVertexInputAttributeDescription {
             .location = attrIndex,
             .binding = binding,
-            .format = sizeToFormat[attribute.size / sizeof(float)],
+            .format = SizeToFormat[attributeSize / sizeof(float)],
             .offset = bindingSizes[binding]
         };
 
-        bindingSizes[binding] += attribute.size;
+        bindingSizes[binding] += attributeSize;
+
+        ++attrIndex;
     }
 
     outVkVertexBindingDescriptions.Clear();

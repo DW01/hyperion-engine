@@ -17,6 +17,8 @@
 #include <Core/math/Vector2.hpp>
 #include <Core/math/Color.hpp>
 
+#include <rendering/Vertex.hpp>
+
 #include <util/EnumOptions.hpp>
 
 namespace Hyperion {
@@ -641,7 +643,7 @@ enum class GpuBufferType : uint8
     MESH_VERTEX_BUFFER,
     CONSTANT_BUFFER,
     STORAGE_BUFFER,
-    ATOMIC_COUNTER,
+    READBACK_BUFFER,
     STAGING_BUFFER,
     INDIRECT_ARGS_BUFFER,
     SHADER_BINDING_TABLE,
@@ -1227,7 +1229,7 @@ struct DescriptorSetOffsetMap
 {
     HYP_STRUCT_BODY(DescriptorSetOffsetMap);
 
-    static constexpr uint32 MaxOffsets = 16;
+    static constexpr uint32 MaxOffsets = 16; // 8;
 
     StringHash keys[MaxOffsets];
     uint32 values[MaxOffsets];
@@ -1414,7 +1416,7 @@ struct AttachmentDesc
 
 #pragma pack(pop)
 
-struct RenderTargetDesc
+struct FramebufferDesc
 {
     static constexpr uint32 MaxAttachments = 5;
 
@@ -1428,7 +1430,7 @@ struct RenderTargetDesc
 
     RenderPassMode renderPassMode = RenderPassMode::RenderTarget;
 
-    HYP_FORCE_INLINE bool operator==(const RenderTargetDesc& other) const
+    HYP_FORCE_INLINE bool operator==(const FramebufferDesc& other) const
     {
         return extent == other.extent
             && offset == other.offset
@@ -1438,7 +1440,7 @@ struct RenderTargetDesc
             && renderPassMode == other.renderPassMode;
     }
 
-    HYP_FORCE_INLINE bool operator!=(const RenderTargetDesc& other) const
+    HYP_FORCE_INLINE bool operator!=(const FramebufferDesc& other) const
     {
         return !(*this == other);
     }
@@ -1449,6 +1451,15 @@ struct RenderTargetDesc
             return;
 
         attachments[numAttachments++] = attachmentDesc;
+    }
+
+    /*! \brief Test graphics pipeline compatibility: Can we reuse a graphics pipeline with \p other as its associated desc for this given desc? */
+    bool IsPSOCompatible(const FramebufferDesc& other) const
+    {
+        return numAttachments == other.numAttachments
+            && std::equal(attachments, attachments + numAttachments, other.attachments)
+            && numLayers == other.numLayers
+            && renderPassMode == other.renderPassMode;
     }
 
     HYP_FORCE_INLINE constexpr HashCode GetHashCode() const
@@ -1462,219 +1473,110 @@ struct RenderTargetDesc
     }
 };
 
-enum class VertexAttributeName : uint8
-{
-    Undefined,
-    Position,
-    Normal,
-    TexCoord0,
-    TexCoord1,
-    Tangent,
-    Bitangent,
-    BoneIndices,
-    BoneWeights
-};
-
-/*! \brief Represents a vertex attribute used in mesh input.
- *  \details This struct defines the properties of a vertex attribute, including its name, location, binding, and size.
- *  It is used to describe the layout of vertex data in a mesh and is essential for rendering operations. */
-struct VertexAttribute
-{
-    static const VertexAttribute Position;
-    static const VertexAttribute Normal;
-    static const VertexAttribute TexCoord0;
-    static const VertexAttribute TexCoord1;
-    static const VertexAttribute Tangent;
-    static const VertexAttribute Bitangent;
-    static const VertexAttribute BoneIndices;
-    static const VertexAttribute BoneWeights;
-
-    static const VertexAttribute* Attrs[];
-
-    Name name;
-    uint32 size; // total size == num elements * 4
-
-    uint32 GetId() const
-    {
-        static const VertexAttribute** s_attrsBegin = Attrs;
-        static const VertexAttribute** s_attrsEnd = std::find(Attrs, Attrs + 64, (const VertexAttribute*)nullptr);
-
-        return std::distance(s_attrsBegin, std::find(s_attrsBegin, s_attrsEnd, this));
-    }
-
-    HYP_FORCE_INLINE HashCode GetHashCode() const
-    {
-        HashCode hc;
-        hc.Add(name);
-        hc.Add(size);
-
-        return hc;
-    }
-};
-
-inline const VertexAttribute VertexAttribute::Position = { NAME("a_position"), 3 * sizeof(float) };
-inline const VertexAttribute VertexAttribute::Normal = { NAME("a_normal"), 3 * sizeof(float) };
-inline const VertexAttribute VertexAttribute::TexCoord0 = { NAME("a_texcoord0"), 2 * sizeof(float) };
-inline const VertexAttribute VertexAttribute::TexCoord1 = { NAME("a_texcoord1"), 2 * sizeof(float) };
-inline const VertexAttribute VertexAttribute::Tangent = { NAME("a_tangent"), 3 * sizeof(float) };
-inline const VertexAttribute VertexAttribute::Bitangent = { NAME("a_bitangent"), 3 * sizeof(float) };
-inline const VertexAttribute VertexAttribute::BoneIndices = { NAME("a_bone_weights"), 4 * sizeof(float) };
-inline const VertexAttribute VertexAttribute::BoneWeights { NAME("a_bone_indices"), 4 * sizeof(float) };
-
 /*! \brief Represents a set of vertex attributes used in mesh input.
  *  \details This struct is a bitmask representation of vertex attributes, allowing for efficient storage and manipulation of vertex attribute flags.
  *  It provides methods for checking, setting, and merging vertex attributes, as well as calculating the size of the vertex data based on the attributes. */
 HYP_STRUCT(Serialize = "bitwise")
-struct VertexAttributeSet
+struct VertexTypeMask
 {
-    HYP_STRUCT_BODY(VertexAttributeSet);
-
-    static const VertexAttributeSet StaticMeshVertexAttributes;
-    static const VertexAttributeSet SkeletalMeshVertexAttributes;
+    HYP_STRUCT_BODY(VertexTypeMask);
 
     HYP_FIELD()
-    uint64 flagMask;
+    uint8 flagMask;
 
-    constexpr VertexAttributeSet()
+    constexpr VertexTypeMask()
         : flagMask(0)
     {
     }
 
-    constexpr VertexAttributeSet(uint64 flagMask)
+    constexpr VertexTypeMask(uint8 flagMask)
         : flagMask(flagMask)
     {
     }
 
-    constexpr VertexAttributeSet(const VertexAttributeSet& other) = default;
-    VertexAttributeSet& operator=(const VertexAttributeSet& other) = default;
+    constexpr VertexTypeMask(const VertexTypeMask& other) = default;
+    VertexTypeMask& operator=(const VertexTypeMask& other) = default;
 
-    ~VertexAttributeSet() = default;
+    ~VertexTypeMask() = default;
 
     HYP_FORCE_INLINE explicit operator bool() const
     {
         return flagMask != 0;
     }
 
-    HYP_FORCE_INLINE bool operator==(const VertexAttributeSet& other) const
+    HYP_FORCE_INLINE bool operator==(const VertexTypeMask& other) const
     {
         return flagMask == other.flagMask;
     }
 
-    HYP_FORCE_INLINE bool operator!=(const VertexAttributeSet& other) const
+    HYP_FORCE_INLINE bool operator!=(const VertexTypeMask& other) const
     {
         return flagMask != other.flagMask;
     }
 
-    HYP_FORCE_INLINE bool operator==(uint64 flags) const
-    {
-        return flagMask == flags;
-    }
-
-    HYP_FORCE_INLINE bool operator!=(uint64 flags) const
-    {
-        return flagMask != flags;
-    }
-
-    HYP_FORCE_INLINE VertexAttributeSet operator~() const
+    HYP_FORCE_INLINE VertexTypeMask operator~() const
     {
         return ~flagMask;
     }
 
-    HYP_FORCE_INLINE VertexAttributeSet operator&(const VertexAttributeSet& other) const
+    HYP_FORCE_INLINE VertexTypeMask operator&(const VertexTypeMask& other) const
     {
-        return { flagMask & other.flagMask };
+        return { uint8(flagMask & other.flagMask) };
     }
 
-    HYP_FORCE_INLINE VertexAttributeSet& operator&=(const VertexAttributeSet& other)
+    HYP_FORCE_INLINE VertexTypeMask& operator&=(const VertexTypeMask& other)
     {
         flagMask &= other.flagMask;
         return *this;
     }
 
-    HYP_FORCE_INLINE VertexAttributeSet operator&(uint64 flags) const
+    HYP_FORCE_INLINE VertexTypeMask operator|(const VertexTypeMask& other) const
     {
-        return { flagMask & flags };
+        return { uint8(flagMask | other.flagMask) };
     }
 
-    HYP_FORCE_INLINE VertexAttributeSet& operator&=(uint64 flags)
-    {
-        flagMask &= flags;
-        return *this;
-    }
-
-    HYP_FORCE_INLINE VertexAttributeSet operator|(const VertexAttributeSet& other) const
-    {
-        return { flagMask | other.flagMask };
-    }
-
-    HYP_FORCE_INLINE VertexAttributeSet& operator|=(const VertexAttributeSet& other)
+    HYP_FORCE_INLINE VertexTypeMask& operator|=(const VertexTypeMask& other)
     {
         flagMask |= other.flagMask;
         return *this;
     }
 
-    HYP_FORCE_INLINE VertexAttributeSet operator|(const VertexAttribute& attr) const
+    HYP_FORCE_INLINE VertexTypeMask operator|(VertexType attr) const
     {
-        return { flagMask | (1ull << attr.GetId()) };
+        return { uint8(flagMask | attr) };
     }
 
-    HYP_FORCE_INLINE VertexAttributeSet& operator|=(const VertexAttribute& attr)
+    HYP_FORCE_INLINE VertexTypeMask& operator|=(VertexType attr)
     {
-        flagMask |= (1ull << attr.GetId());
+        flagMask |= attr;
         return *this;
     }
 
-    HYP_FORCE_INLINE VertexAttributeSet operator|(uint64 flags) const
-    {
-        return { flagMask | flags };
-    }
-
-    HYP_FORCE_INLINE VertexAttributeSet& operator|=(uint64 flags)
-    {
-        flagMask |= flags;
-        return *this;
-    }
-
-    HYP_FORCE_INLINE bool operator<(const VertexAttributeSet& other) const
+    HYP_FORCE_INLINE bool operator<(const VertexTypeMask& other) const
     {
         return flagMask < other.flagMask;
     }
 
-    HYP_FORCE_INLINE bool Has(const VertexAttribute& attr) const
+    HYP_FORCE_INLINE bool Has(VertexType attr) const
     {
-        return bool(*this & (1ull << attr.GetId()));
+        return bool(*this & attr);
     }
 
-    HYP_FORCE_INLINE void Set(uint64 flags, bool enable = true)
+    HYP_FORCE_INLINE void Set(VertexType attr, bool enable = true)
     {
         if (enable)
         {
-            flagMask |= flags;
+            flagMask |= attr;
         }
         else
         {
-            flagMask &= ~flags;
+            flagMask &= ~attr;
         }
     }
 
-    HYP_FORCE_INLINE void Set(const VertexAttribute& attr, bool enable = true)
-    {
-        Set(1ull << attr.GetId(), enable);
-    }
-
-    HYP_FORCE_INLINE void Merge(const VertexAttributeSet& other)
+    HYP_FORCE_INLINE void Merge(const VertexTypeMask& other)
     {
         flagMask |= other.flagMask;
-    }
-
-    HYP_FORCE_INLINE uint64 GetFlagMask() const
-    {
-        return flagMask;
-    }
-
-    HYP_FORCE_INLINE void SetFlagMask(uint64 flags)
-    {
-        flagMask = flags;
     }
 
     HYP_FORCE_INLINE uint32 Size() const
@@ -1682,8 +1584,7 @@ struct VertexAttributeSet
         return uint32(ByteUtil::BitCount(flagMask));
     }
 
-    HYP_API Array<const VertexAttribute*> BuildAttributes() const;
-    HYP_API size_t CalculateVertexSize() const;
+    HYP_API Array<VertexType> GetAllTypes() const;
 
     HYP_API String ToString() const;
 
@@ -1695,21 +1596,6 @@ struct VertexAttributeSet
         return hc;
     }
 };
-
-inline VertexAttributeSet operator|(const VertexAttribute& lhs, const VertexAttribute& rhs)
-{
-    return { (1ull << lhs.GetId()) | (1ull << rhs.GetId()) };
-}
-
-inline VertexAttributeSet operator&(const VertexAttribute& lhs, const VertexAttribute& rhs)
-{
-    return { (1ull << lhs.GetId()) & (1ull << rhs.GetId()) };
-}
-
-inline VertexAttributeSet operator~(const VertexAttribute& attr)
-{
-    return { ~(1ull << attr.GetId()) };
-}
 
 HYP_STRUCT()
 struct VertexAttributeDefinition
@@ -1778,10 +1664,10 @@ struct ShaderProperty
         cachedHashCode = GetHashCode();
     }
 
-    explicit ShaderProperty(const VertexAttribute& vertexAttribute)
-        : name(CreateNameFromDynamicString(ANSIString("HYP_ATTRIBUTE_") + *vertexAttribute.name)),
+    explicit ShaderProperty(VertexType vt)
+        : name(CreateNameFromDynamicString(ANSIString("VT_") + VertexUtils::ToString(vt))),
           flags(SPF_VERTEX_ATTRIBUTE),
-          currentValue(Value(vertexAttribute.name))
+          currentValue(Value(CreateNameFromDynamicString(VertexUtils::ToString(vt))))
     {
         cachedHashCode = GetHashCode();
     }
@@ -1974,7 +1860,7 @@ public:
     }
 
     template <size_t Sz>
-    ShaderVariantPerms(const VertexAttributeSet& vertexAttributes, Name const (&props)[Sz])
+    ShaderVariantPerms(const VertexTypeMask& vertexAttributes, Name const (&props)[Sz])
         : m_requiredVertexAttributes(vertexAttributes),
           m_needsHashCodeRecalculation(true)
     {
@@ -1984,7 +1870,7 @@ public:
         }
     }
 
-    explicit ShaderVariantPerms(const VertexAttributeSet& vertexAttributes)
+    explicit ShaderVariantPerms(const VertexTypeMask& vertexAttributes)
         : m_requiredVertexAttributes(vertexAttributes),
           m_needsHashCodeRecalculation(true)
     {
@@ -2048,24 +1934,24 @@ public:
         return const_cast<ShaderVariantPerms*>(this)->Find(name);
     }
 
-    HYP_FORCE_INLINE bool HasRequiredVertexAttributes(VertexAttributeSet vertexAttributes) const
+    HYP_FORCE_INLINE bool HasRequiredVertexAttributes(VertexTypeMask vertexAttributes) const
     {
         return (m_requiredVertexAttributes & vertexAttributes) == vertexAttributes;
     }
 
-    HYP_FORCE_INLINE bool HasRequiredVertexAttribute(const VertexAttribute& vertexAttribute) const
+    HYP_FORCE_INLINE bool HasRequiredVertexAttribute(VertexType vt) const
     {
-        return m_requiredVertexAttributes.Has(vertexAttribute);
+        return m_requiredVertexAttributes.Has(vt);
     }
 
-    HYP_FORCE_INLINE bool HasOptionalVertexAttributes(VertexAttributeSet vertexAttributes) const
+    HYP_FORCE_INLINE bool HasOptionalVertexAttributes(VertexType vertexAttributes) const
     {
         return (m_optionalVertexAttributes & vertexAttributes) == vertexAttributes;
     }
 
-    HYP_FORCE_INLINE bool HasOptionalVertexAttribute(const VertexAttribute& vertexAttribute) const
+    HYP_FORCE_INLINE bool HasOptionalVertexAttribute(VertexType vt) const
     {
-        return m_optionalVertexAttributes.Has(vertexAttribute);
+        return m_optionalVertexAttributes.Has(vt);
     }
 
     HYP_FORCE_INLINE bool Has(const ShaderProperty& property) const
@@ -2158,6 +2044,28 @@ public:
         return *this;
     }
 
+    /*! \brief Adds a new static property with key \p key and a fixed \p value.
+     *  Static properties are applied to every shader variant and do not create new permutations. */
+    ShaderVariantPerms& AddStatic(Name key, ShaderProperty::Value value)
+    {
+        const ShaderProperty shaderProperty(key, value, SPF_NONE);
+
+        const auto it = m_props.Find(shaderProperty);
+
+        if (it == m_props.End())
+        {
+            m_props.Insert(shaderProperty);
+        }
+        else
+        {
+            *it = shaderProperty;
+        }
+
+        m_needsHashCodeRecalculation = true;
+
+        return *this;
+    }
+
     /*! \brief Adds a new value group property with key \p key and possible enum values \p enumValues
      *  Value groups create new shader variants but their values are mututally exclusive to each other.
      *  i.e, only one value from the value group can be selected at a time. This reduces the number of
@@ -2187,22 +2095,22 @@ public:
         return *this;
     }
 
-    HYP_FORCE_INLINE VertexAttributeSet GetRequiredVertexAttributes() const
+    HYP_FORCE_INLINE VertexTypeMask GetRequiredVertexAttributes() const
     {
         return m_requiredVertexAttributes;
     }
 
-    HYP_FORCE_INLINE VertexAttributeSet GetOptionalVertexAttributes() const
+    HYP_FORCE_INLINE VertexTypeMask GetOptionalVertexAttributes() const
     {
         return m_optionalVertexAttributes;
     }
 
-    HYP_FORCE_INLINE VertexAttributeSet GetAllVertexAttributes() const
+    HYP_FORCE_INLINE VertexTypeMask GetAllVertexAttributes() const
     {
         return m_requiredVertexAttributes | m_optionalVertexAttributes;
     }
 
-    HYP_FORCE_INLINE void SetRequiredVertexAttributes(VertexAttributeSet vertexAttributes)
+    HYP_FORCE_INLINE void SetRequiredVertexAttributes(VertexTypeMask vertexAttributes)
     {
         m_requiredVertexAttributes = vertexAttributes;
         m_optionalVertexAttributes = m_optionalVertexAttributes & ~m_requiredVertexAttributes;
@@ -2210,7 +2118,7 @@ public:
         m_needsHashCodeRecalculation = true;
     }
 
-    HYP_FORCE_INLINE void SetOptionalVertexAttributes(VertexAttributeSet vertexAttributes)
+    HYP_FORCE_INLINE void SetOptionalVertexAttributes(VertexTypeMask vertexAttributes)
     {
         m_optionalVertexAttributes = vertexAttributes & ~m_requiredVertexAttributes;
     }
@@ -2297,10 +2205,10 @@ private:
     HashSet<ShaderProperty> m_props;
 
     HYP_FIELD()
-    VertexAttributeSet m_requiredVertexAttributes;
+    VertexTypeMask m_requiredVertexAttributes;
 
     HYP_FIELD()
-    VertexAttributeSet m_optionalVertexAttributes;
+    VertexTypeMask m_optionalVertexAttributes;
 
     mutable HashCode m_cachedHashCode;
     mutable HashCode m_cachedPropertySetHashCode;

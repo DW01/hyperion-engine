@@ -74,10 +74,10 @@ const Handle<Mesh>& UIObjectQuadMeshHelper::GetQuadMesh()
 
             auto readScope = quad->GetReadScope();
 
-            auto vd = quad->GetVertexData();
-            auto id = quad->GetIndexData();
+            VertexArrayView vd = quad->GetVertexData();
+            ByteView id = quad->GetIndexData();
 
-            Assert(vd.Size() != 0);
+            Assert(vd.vertexCount != 0);
             Assert(id.Size() != 0);
 
             const MeshDesc& meshDesc = quad->GetMeshDesc();
@@ -86,19 +86,24 @@ const Handle<Mesh>& UIObjectQuadMeshHelper::GetQuadMesh()
             indexData.Resize(id.Size());
             Memory::Copy(indexData.Data(), id.Data(), id.Size());
 
-            Array<Vertex> newVertices;
-            newVertices.Resize(vd.Size());
-            Memory::Copy(newVertices.Data(), vd.Data(), sizeof(Vertex) * vd.Size());
+            Array<SimpleVertex> newVertices;
+            newVertices.Resize(vd.vertexCount);
+            Memory::Copy(newVertices.Data(), vd.floatData, vd.vertexCount * meshDesc.meshAttributes.inputLayout.VertexSize());
 
-            for (Vertex& vert : newVertices)
+            for (SimpleVertex& vert : newVertices)
             {
-                vert.position.x = (vert.position.x + 1.0f) * 0.5f;
-                vert.position.y = (vert.position.y + 1.0f) * 0.5f;
+                vert.posX = (vert.posX + 1.0f) * 0.5f;
+                vert.posY = (vert.posY + 1.0f) * 0.5f;
             }
 
             readScope.Reset();
 
-            quad->SetMeshData(meshDesc, newVertices.ToSpan(), indexData);
+            VertexArrayView vertexArrayView {};
+            vertexArrayView.floatData = reinterpret_cast<const float*>(newVertices.Data());
+            vertexArrayView.vertexCount = newVertices.Size();
+            vertexArrayView.layoutDesc = { VT_Simple };
+
+            quad->SetMeshData(meshDesc, vertexArrayView, indexData);
             quad->SetName(NAME("UIObject_QuadMesh"));
 
             InitObject(quad);
@@ -1892,10 +1897,6 @@ MaterialAttributes UIObject::GetMaterialAttributes() const
 {
     HYP_SCOPE;
 
-    const VertexAttributeSet vertexAttributes = VertexAttribute::Position
-        | VertexAttribute::Normal
-        | VertexAttribute::TexCoord0;
-
     return MaterialAttributes {
         .shaderName = NAME("UIObject"),
         .blendFunction = BlendFunction(
@@ -2197,7 +2198,7 @@ void UIObject::ComputeActualSize(const UIObjectSize& inSize, Vec2i& actualSize, 
         // If the inner AABB is not valid, we can't calculate the size
         actualSize = Vec2i { 0, 0 };
 
-        HYP_LOG_ONCE(UI, Debug, "UIObject '{}' has an invalid inner AABB; cannot compute size yet", GetName());
+        HYP_LOG_ONCE(UI, Verbose, "UIObject '{}' has an invalid inner AABB; cannot compute size yet", GetName());
 
         return;
     }

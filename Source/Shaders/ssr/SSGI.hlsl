@@ -92,9 +92,11 @@ DECLARE_SRV(SSGI, EnvProbesTexture) Texture2DArray envProbesTexture;
 #define ENVIRONMENT_INTENSITY 1.0
 
 // amount to 'brighten up' the SSGI result
-#define SSGI_INTENSITY 1.0
+#define SSGI_INTENSITY 4.0
 
-#if 1
+#define USE_NEW_SSGI
+
+#ifdef USE_NEW_SSGI
 
 bool TraceRays(
     float3 ray_origin,
@@ -290,6 +292,9 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
     }
 
     out_image[coord] = accum_result / float(numRaySamples);
+
+    // // temp
+    // out_image[coord] = float4(1.0, 0.0, 0.0, 1.0);
 }
 
 #else
@@ -428,7 +433,7 @@ float3 CalculateDirectLighting(uint light_index, float3 albedo, float3 P, float3
         }
         else if (light.type == HYP_LIGHT_TYPE_POINT)
         {
-            shadow = GetPointShadowStandard(shadowMap.layerIndex, P - light.position_intensity.xyz, NdotL);
+            shadow = GetPointShadowStandard(shadowMap, P - light.position_intensity.xyz, NdotL);
         }
     }
 

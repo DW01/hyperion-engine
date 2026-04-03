@@ -171,10 +171,10 @@ void BakerBase::Initialize()
         InitObject(camera);
 
         // dummy output target
-        RenderTargetDesc renderTargetDesc;
-        renderTargetDesc.extent = Vec2u::One();
-        renderTargetDesc.attachments[0] = { TextureType::Texture2D, TextureFormat::R8 };
-        renderTargetDesc.numAttachments = 1;
+        FramebufferDesc framebufferDesc;
+        framebufferDesc.extent = Vec2u::One();
+        framebufferDesc.attachments[0] = { TextureType::Texture2D, TextureFormat::R8 };
+        framebufferDesc.numAttachments = 1;
 
         BoundingBox bounds = BoundingBox::Empty();
         if (m_source->IsA(VolumeBase::StaticClass()))
@@ -184,14 +184,15 @@ void BakerBase::Initialize()
         }
 
         ViewDesc viewDesc {
-            .flags = ViewFlags::COLLECT_STATIC_ENTITIES
+            .flags = ViewFlags::BAKER_VIEW
+                |  ViewFlags::COLLECT_STATIC_ENTITIES
                 | ViewFlags::NO_FRUSTUM_CULLING
                 | ViewFlags::SKIP_ENV_GRIDS
                 | ViewFlags::SKIP_LIGHTMAP_VOLUMES | ViewFlags::SKIP_PARTICLE_VOLUMES | ViewFlags::SKIP_FOG_VOLUMES
                 | ViewFlags::RAY_TRACING
                 | ViewFlags::NO_DRAW_CALLS
                 | ViewFlags::NOT_MULTI_BUFFERED,
-            .renderTargetDesc = renderTargetDesc,
+            .framebufferDesc = framebufferDesc,
             .scenes = { m_scene },
             .camera = camera,
             .bounds = bounds

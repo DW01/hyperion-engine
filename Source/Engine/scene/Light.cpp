@@ -33,9 +33,18 @@
 
 #include <engine/EngineDriver.hpp>
 
+#if HYP_EDITOR
+#include <baking/BakerSubsystem.hpp>
+#include <baking/shadow_map/ShadowMapBakeData.hpp>
+#endif
+
 #include <Light.generated.inl>
 
 namespace Hyperion {
+
+#if HYP_EDITOR
+HYP_DECLARE_LOG_CHANNEL(Editor);
+#endif
 
 static constexpr Vec2u DefaultShadowMapDimensions[NumLightTypes] = {
     Vec2u(1024, 1024), // LightType::Directional
@@ -54,7 +63,6 @@ Light::Light()
 Light::Light(LightType type, const Vec3f& position, const Color& color, float intensity, float radius)
     : m_type(type),
       m_lightFlags(LightFlags::Default),
-      m_position(position),
       m_color(color),
       m_intensity(intensity),
       m_radius(MathUtil::Max(radius, 0.001f)),
@@ -67,12 +75,13 @@ Light::Light(LightType type, const Vec3f& position, const Color& color, float in
     m_entityInitInfo.receivesUpdate = true;
     m_entityInitInfo.bvhDepth = 0; // No BVH for lights
     m_entityInitInfo.initialTags = { EntityTag::Light };
+
+    Entity::SetLocalTranslation(position);
 }
 
 Light::Light(LightType type, const Vec3f& position, const Vec3f& normal, const Vec2f& areaSize, const Color& color, float intensity, float radius)
     : m_type(type),
       m_lightFlags(LightFlags::Default),
-      m_position(position),
       m_normal(normal),
       m_areaSize(areaSize),
       m_color(color),
@@ -87,13 +96,20 @@ Light::Light(LightType type, const Vec3f& position, const Vec3f& normal, const V
     m_entityInitInfo.receivesUpdate = true;
     m_entityInitInfo.bvhDepth = 0; // No BVH for lights
     m_entityInitInfo.initialTags = { EntityTag::Light };
+
+    Entity::SetLocalTranslation(position);
 }
 
 Light::~Light()
 {
-    if (m_material != nullptr)
+    if (m_material.IsValid())
     {
         EnqueueDeletion(std::move(m_material));
+    }
+
+    if (m_shadowMap.IsValid())
+    {
+        EnqueueDeletion(std::move(m_shadowMap));
     }
 }
 
@@ -106,6 +122,11 @@ void Light::Init()
     if (m_material.IsValid())
     {
         InitObject(m_material);
+    }
+
+    if (m_shadowMap.IsValid())
+    {
+        CheckResult(m_shadowMap->Create());
     }
 
     SetReady(true);
@@ -144,16 +165,7 @@ void Light::OnTransformUpdated()
     HYP_SCOPE;
 
     Entity::OnTransformUpdated();
-
-    BoundingBox aabb = GetAABB();
-    Entity::SetLocalBounds(m_type == LightType::Directional ? aabb : (aabb + (GetWorldTranslation() * -1.0f)));
-
-    m_position = GetWorldTranslation();
-
-    if (m_type == LightType::Directional)
-    {
-        m_position.Normalize();
-    }
+    Entity::SetLocalBounds(CalculateLightBounds());
 }
 
 void Light::Update(float delta)
@@ -166,18 +178,22 @@ void Light::Update(float delta)
     }
 }
 
-void Light::SetPosition(const Vec3f& position)
+void Light::SetLightFlags(EnumFlags<LightFlags> flags)
 {
-    HYP_SCOPE;
-
-    if (m_position == position)
+    if (m_lightFlags == flags)
     {
         return;
     }
 
-    m_position = position;
+    if (!(flags & LightFlags::BakeStaticShadows) && m_shadowMap.IsValid())
+    {
+        EnqueueDeletion(std::move(m_shadowMap));
+    }
+
+    m_lightFlags = flags;
 
     SetNeedsRenderProxyUpdate();
+    MarkDirty();
 }
 
 void Light::SetNormal(const Vec3f& normal)
@@ -189,7 +205,10 @@ void Light::SetNormal(const Vec3f& normal)
 
     m_normal = normal;
 
+    Entity::SetLocalBounds(CalculateLightBounds());
+
     SetNeedsRenderProxyUpdate();
+    MarkDirty();
 }
 
 void Light::SetAreaSize(const Vec2f& areaSize)
@@ -201,7 +220,10 @@ void Light::SetAreaSize(const Vec2f& areaSize)
 
     m_areaSize = areaSize;
 
+    Entity::SetLocalBounds(CalculateLightBounds());
+
     SetNeedsRenderProxyUpdate();
+    MarkDirty();
 }
 
 void Light::SetColor(const Color& color)
@@ -214,6 +236,7 @@ void Light::SetColor(const Color& color)
     m_color = color;
 
     SetNeedsRenderProxyUpdate();
+    MarkDirty();
 }
 
 void Light::SetIntensity(float intensity)
@@ -226,6 +249,7 @@ void Light::SetIntensity(float intensity)
     m_intensity = intensity;
 
     SetNeedsRenderProxyUpdate();
+    MarkDirty();
 }
 
 void Light::SetRadius(float radius)
@@ -237,7 +261,10 @@ void Light::SetRadius(float radius)
 
     m_radius = radius;
 
+    Entity::SetLocalBounds(CalculateLightBounds());
+
     SetNeedsRenderProxyUpdate();
+    MarkDirty();
 }
 
 void Light::SetFalloff(float falloff)
@@ -250,6 +277,7 @@ void Light::SetFalloff(float falloff)
     m_falloff = falloff;
 
     SetNeedsRenderProxyUpdate();
+    MarkDirty();
 }
 
 void Light::SetSpotAngles(const Vec2f& spotAngles)
@@ -261,7 +289,10 @@ void Light::SetSpotAngles(const Vec2f& spotAngles)
 
     m_spotAngles = spotAngles;
 
+    Entity::SetLocalBounds(CalculateLightBounds());
+
     SetNeedsRenderProxyUpdate();
+    MarkDirty();
 }
 
 void Light::SetMaterial(Handle<Material> material)
@@ -280,6 +311,7 @@ void Light::SetMaterial(Handle<Material> material)
     InitObject(m_material);
 
     SetNeedsRenderProxyUpdate();
+    MarkDirty();
 }
 
 Pair<Vec3f, Vec3f> Light::CalculateAreaLightRect() const
@@ -293,7 +325,7 @@ Pair<Vec3f, Vec3f> Light::CalculateAreaLightRect() const
     const float halfWidth = m_areaSize.x * 0.5f;
     const float halfHeight = m_areaSize.y * 0.5f;
 
-    const Vec3f center = m_position;
+    const Vec3f center = GetLocalTranslation();
 
     const Vec3f p0 = center - tangent * halfWidth - bitangent * halfHeight;
     const Vec3f p1 = center + tangent * halfWidth - bitangent * halfHeight;
@@ -312,9 +344,15 @@ void Light::SetShadowMapDimensions(Vec2u shadowMapDimensions)
         return;
     }
 
+    if (m_shadowMap.IsValid())
+    {
+        EnqueueDeletion(std::move(m_shadowMap));
+    }
+
     m_shadowMapDimensions = shadowMapDimensions;
 
     SetNeedsRenderProxyUpdate();
+    MarkDirty();
 }
 
 void Light::SetNumShadowMapCascades(uint32 numShadowMapCascades)
@@ -325,10 +363,16 @@ void Light::SetNumShadowMapCascades(uint32 numShadowMapCascades)
     {
         return;
     }
+    
+    if (m_shadowMap.IsValid())
+    {
+        EnqueueDeletion(std::move(m_shadowMap));
+    }
 
     m_numShadowMapCascades = numShadowMapCascades;
 
     SetNeedsRenderProxyUpdate();
+    MarkDirty();
 }
 
 void Light::SetShadowMapFilter(ShadowMapFilter shadowMapFilter)
@@ -344,9 +388,94 @@ void Light::SetShadowMapFilter(ShadowMapFilter shadowMapFilter)
     m_lightFlags |= EnumFlags<LightFlags>(1u << shadowMapFilter);
 
     SetNeedsRenderProxyUpdate();
+    MarkDirty();
 }
 
-BoundingBox Light::GetAABB() const
+void Light::SetBakedShadowMap(const Handle<Texture>& shadowMap)
+{
+    if (!CanBakeStaticShadows())
+    {
+        return;
+    }
+
+    if (m_shadowMap == shadowMap)
+    {
+        return;
+    }
+
+    if (m_shadowMap.IsValid())
+    {
+        EnqueueDeletion(std::move(m_shadowMap));
+    }
+
+    m_shadowMap = shadowMap;
+
+    if (m_shadowMap.IsValid())
+    {
+        m_lightFlags |= LightFlags::BakeStaticShadows | LightFlags::ShadowCaster;
+
+        if (IsInitCalled())
+        {
+            CheckResult(m_shadowMap->Create());
+        }
+    }
+    
+    SetNeedsRenderProxyUpdate();
+    MarkDirty();
+}
+
+void Light::SetLocalBounds(const BoundingBox& localBounds)
+{
+    switch (m_type)
+    {
+    case LightType::Directional:
+        // for directional we ignore the local bounds and just set it to infinite since the light affects everything in the scene
+        m_localBounds = BoundingBox::Infinity();
+        break;
+    case LightType::Point:
+    {
+        // use the new localBounds to determine the radius of the point light
+        const float newRadius = localBounds.GetExtent().Length() * 0.5f;
+        m_radius = newRadius;
+
+        Entity::SetLocalBounds(CalculateLightBounds());
+
+        break;
+    }
+    case LightType::Spot:
+    {
+        // for spot lights we use the local bounds to determine the radius and spot angles. The local bounds should be a cone shape with the tip at the origin and pointing down the negative Z axis. The radius is determined by the distance from the origin to the center of the base of the cone, and the spot angles are determined by the angle between the negative Z axis and the corners of the base of the cone.
+        const Vec3f extent = localBounds.GetExtent();
+        const float newRadius = extent.Length() * 0.5f;
+
+        const Vec3f center = localBounds.GetCenter();
+        const float angleX = std::atan2(extent.x * 0.5f, center.z);
+        const float angleY = std::atan2(extent.y * 0.5f, center.z);
+
+        m_radius = newRadius;
+        m_spotAngles = Vec2f(angleX, angleY);
+
+        Entity::SetLocalBounds(CalculateLightBounds());
+
+        break;
+    }
+    case LightType::AreaRect:
+    {
+        // for area rect lights we use the local bounds to determine the area size. The local bounds should be a box shape with the center at the origin and facing down the negative Z axis. The area size is determined by the X and Y extent of the box.
+        const Vec3f extent = localBounds.GetExtent();
+        m_areaSize = Vec2f(extent.x, extent.y);
+
+        Entity::SetLocalBounds(CalculateLightBounds());
+
+        break;
+    }
+    default:
+        HYP_UNREACHABLE();
+    }
+}
+
+// Local space
+BoundingBox Light::CalculateLightBounds() const
 {
     HYP_SCOPE;
 
@@ -362,18 +491,18 @@ BoundingBox Light::GetAABB() const
         return BoundingBox::Empty()
             .Union(rect.first)
             .Union(rect.second)
-            .Union(GetWorldTranslation() + m_normal * m_radius);
+            .Union(Vec3f::Zero() + m_normal * m_radius);
     }
 
     if (m_type == LightType::Point)
     {
-        return BoundingBox(GetBoundingSphere());
+        return BoundingBox(GetBoundingSphere(false));
     }
 
     return BoundingBox::Empty();
 }
 
-BoundingSphere Light::GetBoundingSphere() const
+BoundingSphere Light::GetBoundingSphere(bool worldSpace) const
 {
     HYP_SCOPE;
 
@@ -382,7 +511,7 @@ BoundingSphere Light::GetBoundingSphere() const
         return BoundingSphere::infinity;
     }
 
-    return BoundingSphere(m_position, m_radius);
+    return BoundingSphere(worldSpace ? GetWorldTranslation() : Vec3f::Zero(), m_radius);
 }
 
 void Light::UpdateRenderProxy(RenderProxyLight* proxy)
@@ -391,16 +520,14 @@ void Light::UpdateRenderProxy(RenderProxyLight* proxy)
 
     proxy->light = WeakHandleFromThis();
     proxy->lightMaterial = m_material.Get();
-
+    proxy->bakedShadowMap = m_shadowMap.Get();
     proxy->numCascades = m_numShadowMapCascades;
-
-    const BoundingBox aabb = GetAABB();
-
+    
     LightShaderData& bufferData = proxy->bufferData;
     bufferData.lightType = uint32(m_type);
     bufferData.color = Vec4f(m_color);
     bufferData.radiusFalloffPacked = (uint32(Float16(m_falloff).Raw()) << 16) | Float16(m_radius).Raw();
-    bufferData.positionIntensity = Vec4f(m_position, m_intensity);
+    bufferData.positionIntensity = Vec4f(GetWorldTranslation(), m_intensity);
     bufferData.materialIndex = ~0u; // materialIndex gets set in WriteBufferData_Light()
     bufferData.flags = m_lightFlags;
 
@@ -419,12 +546,46 @@ void Light::UpdateRenderProxy(RenderProxyLight* proxy)
     default:
         break;
     }
-
-    //for (uint32 cascadeIndex = 0; cascadeIndex < uint32(std::size(bufferData.cascades)); cascadeIndex++)
-    //{
-    //    bufferData.splitDistances[cascadeIndex] = Float16(0.0f); // @TODO
-    //}
 }
+
+#if HYP_EDITOR
+
+bool Light::CanBakeStaticShadows() const
+{
+    return !IsA(DirectionalLight::StaticClass());
+}
+
+void Light::BakeStaticShadows()
+{
+    HYP_SCOPE;
+
+    if (!CanBakeStaticShadows())
+    {
+        HYP_LOG(Editor, Warning, "Light {} cannot have static shadow maps baked", GetName());
+        return;
+    }
+
+    World* world = GetWorld();
+    AssertDebug(world != nullptr);
+
+    if (!world)
+    {
+        HYP_LOG(Editor, Error, "Cannot bake  Light {}: not attached to a World", GetName());
+
+        return;
+    }
+
+    BakerSubsystem* bakerSubsystem = world->GetSubsystem<BakerSubsystem>();
+
+    if (!bakerSubsystem)
+    {
+        bakerSubsystem = world->AddSubsystem<BakerSubsystem>();
+    }
+
+    bakerSubsystem->EnqueueBake(MakeStrongRef(this));
+}
+
+#endif
 
 #pragma endregion Light
 

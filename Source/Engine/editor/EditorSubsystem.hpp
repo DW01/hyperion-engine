@@ -390,7 +390,7 @@ class HYP_API EditorSubsystem : public Subsystem
     HYP_OBJECT_BODY(EditorSubsystem);
 
 public:
-    using EditorGizmoSet = HashSet<Handle<EditorGizmoBase>, &EditorGizmoBase::GetManipulationMode>;
+    using EditorGizmoSet = IntrusiveMap<Handle<EditorGizmoBase>, &EditorGizmoBase::GetManipulationMode>;
 
     EditorSubsystem();
     virtual ~EditorSubsystem() override;
@@ -431,7 +431,7 @@ public:
     bool ExecuteCommand(const Handle<EditorCommandBase>& command);
 
     HYP_METHOD()
-    bool ExecuteCommandByName(Name name);
+    bool ExecuteCommandByName(Name name, const String& arguments);
 
     HYP_METHOD()
     void NewProject();

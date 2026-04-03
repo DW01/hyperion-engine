@@ -30,7 +30,7 @@ namespace Hyperion {
 class CmdBase;
 class View;
 
-class CmdBase
+class alignas(void*) CmdBase
 {
 public:
 #ifdef HYP_RHI_COMMAND_STACK_TRACE
@@ -833,18 +833,18 @@ private:
     Topology topology;
 };
 
-class SetVertexAttributes final : public CmdBase
+class SetInputLayout final : public CmdBase
 {
 public:
-    explicit SetVertexAttributes(VertexAttributeSet vertexAttributes)
-        : vertexAttributes(vertexAttributes)
+    explicit SetInputLayout(const VertexInputLayoutDesc& inputLayout)
+        : inputLayout(inputLayout)
     {
     }
 
     static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
 
 private:
-    VertexAttributeSet vertexAttributes;
+    VertexInputLayoutDesc inputLayout;
 };
 
 class SetCurrentBlendFunction final : public CmdBase
@@ -1091,6 +1091,11 @@ public:
     HYP_FORCE_INLINE bool IsEmpty() const
     {
         return m_offset == 0;
+    }
+
+    HYP_FORCE_INLINE bool IsWritable() const
+    {
+        return m_writableState.Load();
     }
 
     template <class CmdType>

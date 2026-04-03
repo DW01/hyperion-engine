@@ -1,6 +1,9 @@
 #include "./include/defines.inc"
 #include "./include/shared.inc"
 
+PERMUTE(IMMEDIATE_MODE);
+PERMUTE(INSTANCING);
+
 #ifdef VERTEX_SHADER
 
 struct VSInput
@@ -8,11 +11,6 @@ struct VSInput
     HYP_ATTRIBUTE float3 a_position : POSITION;
     HYP_ATTRIBUTE float3 a_normal : NORMAL;
     HYP_ATTRIBUTE float2 a_texcoord0 : TEXCOORD0;
-    HYP_ATTRIBUTE_OPTIONAL float3 a_texcoord1 : TEXCOORD1;
-    HYP_ATTRIBUTE_OPTIONAL float3 a_tangent : TANGENT;
-    HYP_ATTRIBUTE_OPTIONAL float3 a_bitangent : BINORMAL;
-    HYP_ATTRIBUTE_OPTIONAL float4 a_bone_weights : BLENDWEIGHT;
-    HYP_ATTRIBUTE_OPTIONAL float4 a_bone_indices : BLENDINDICES;
 };
 
 struct VSOutput
@@ -212,6 +210,8 @@ DECLARE_SRV(DebugDrawerDescriptorSet, EnvProbesBuffer) StructuredBuffer<EnvProbe
 
 #undef HYP_DEFERRED_NO_REFRACTION
 #undef HYP_DO_NOT_DEFINE_DESCRIPTOR_SETS
+
+#define OBJECT_INDEX input.object_index
 
 PSOutput PSMain(PSInput input)
 {

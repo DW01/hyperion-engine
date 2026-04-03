@@ -1,5 +1,11 @@
 #include "include/defines.inc"
 
+PERMUTE(LIGHT_TYPE, CLUSTERED, DIRECTIONAL, POINT, SPOT, AREA_RECT);
+
+STATIC(MAX_CLUSTERED_SHADOW_MAPS, 16);
+STATIC(TILE_Z_BINS, 16);
+STATIC(TILE_SIZE, 32);
+
 #ifdef VERTEX_SHADER
 
 struct VSInput
@@ -58,8 +64,7 @@ DECLARE_SAMPLER(DeferredPass, SamplerNearest) SamplerState sampler_nearest;
 DECLARE_SAMPLER(DeferredPass, SamplerLinear) SamplerState sampler_linear;
 DECLARE_SAMPLER(DeferredPass, SamplerShadow) SamplerComparisonState SamplerShadow;
 
-DECLARE_SRV(DeferredPass, SSAOResultTexture) Texture2D ssao_gi_result;
-DECLARE_SRV(DeferredPass, RTRadianceResultTexture) Texture2D rt_radiance_final;
+DECLARE_SRV(DeferredPass, SSAOResultTexture) Texture2D SSAOResultTexture;
 
 #define HYP_SAMPLER_SHADOW SamplerShadow
 
@@ -70,10 +75,6 @@ DECLARE_SRV(DeferredPass, RTRadianceResultTexture) Texture2D rt_radiance_final;
 #include "include/Entity.inc"
 
 #include "include/scene.inc"
-DECLARE_BUFFER_DYNAMIC(DeferredPass, CamerasBuffer) cbuffer CamerasBuffer
-{
-    Camera camera;
-};
 
 DECLARE_BUFFER(DeferredPass, WorldsBuffer) cbuffer WorldsBuffer
 {
@@ -83,6 +84,7 @@ DECLARE_BUFFER(DeferredPass, WorldsBuffer) cbuffer WorldsBuffer
 #ifndef LIGHT_TYPE_CLUSTERED
 DECLARE_BUFFER_DYNAMIC(DeferredPass, CBuffer) cbuffer CBuffer
 {
+    Camera camera;
     Light currentLight;
 #ifdef LIGHT_TYPE_DIRECTIONAL
     ShadowMap shadowMap0;
@@ -114,16 +116,16 @@ DECLARE_SRV(DeferredPass, PointLightShadowMapsTextureArray) TextureCubeArray poi
 
 #define HYP_DEFERRED_NO_REFRACTION
 #define HYP_DEFERRED_NO_ENV_PROBE
+#define HYP_DEFERRED_NO_RT_RADIANCE
 
 #include "./deferred/DeferredLighting.inc"
 
+#undef HYP_DEFERRED_NO_RT_RADIANCE
 #undef HYP_DEFERRED_NO_REFRACTION
 #undef HYP_DEFERRED_NO_ENV_PROBE
 
 #include "include/Shadows.hlsli"
 
-#include "include/PhysicalCamera.inc"
-#include "include/LightRays.inc"
 #include "include/LightSampling.inc"
 
 #ifdef LIGHT_TYPE_CLUSTERED
@@ -131,6 +133,8 @@ DECLARE_SRV(DeferredPass, PointLightShadowMapsTextureArray) TextureCubeArray poi
 
 DECLARE_BUFFER_DYNAMIC(DeferredPass, CBuffer) cbuffer CBuffer
 {
+    Camera camera;
+
     // shadow maps for the view are not per-tile as we have a limited number of shadow maps and shadow maps are per-view
     // so not directly accessible from the Light data.
     // Use LightToShadowMapIndex to indirectly index into this array based on the light index in the clustered data.
@@ -158,15 +162,15 @@ PSOutput PSMain(PSInput input)
 
     const uint2 pixelCoord = uint2(texcoord * max(0, int2(gbufferDimensions) - 1));
 
-    float4 albedo = SAMPLE_TEXTURE_2D(HYP_SAMPLER_NEAREST, gbuffer_albedo_texture, texcoord);
-    float4 normalSample = SAMPLE_TEXTURE_2D(HYP_SAMPLER_NEAREST, gbuffer_normals_texture, texcoord);
+    float4 albedo = SAMPLE_TEXTURE_2D_LOD(HYP_SAMPLER_NEAREST, gbuffer_albedo_texture, texcoord, 0);
+    float4 normalSample = SAMPLE_TEXTURE_2D_LOD(HYP_SAMPLER_NEAREST, gbuffer_normals_texture, texcoord, 0);
     float3 normal = GBufferUnpackNormal(normalSample);
 
     float3 tangent;
     float3 bitangent;
     ComputeOrthonormalBasis(normal, tangent, bitangent);
 
-    const float depth = SAMPLE_TEXTURE_2D(HYP_SAMPLER_NEAREST, gbuffer_depth_texture, texcoord).r;
+    const float depth = SAMPLE_TEXTURE_2D_LOD(HYP_SAMPLER_NEAREST, gbuffer_depth_texture, texcoord, 0).r;
 
     float4 positionVS = ReconstructViewSpacePositionFromDepth(camera.invProjMat, texcoord, depth);
 
@@ -204,8 +208,8 @@ PSOutput PSMain(PSInput input)
     float shadow = 1.0;
 
 #if HBAO_ENABLED || SSAO_ENABLED
-    const float4 ssao_data = SAMPLE_TEXTURE_2D(HYP_SAMPLER_NEAREST, ssao_gi_result, texcoord);
-    ao = ssao_data.a;
+    const float4 ssao_data = SAMPLE_TEXTURE_2D_LOD(HYP_SAMPLER_NEAREST, SSAOResultTexture, texcoord, 0);
+    ao = ssao_data.r;
 #endif
 
     float4 area_light_radiance;
@@ -436,7 +440,7 @@ PSOutput PSMain(PSInput input)
 
     float4 specular = specular_lobe;
 
-    float4 diffuse_lobe = diffuseColor * (1.0 / HYP_FMATH_PI);
+    float4 diffuse_lobe = diffuseColor * HYP_FMATH_ONE_OVER_PI;
     float4 diffuse = diffuse_lobe;
 
     float4 direct_component = diffuse + specular * float4(energy_compensation, 1.0);

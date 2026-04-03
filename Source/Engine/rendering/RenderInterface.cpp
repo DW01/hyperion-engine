@@ -1253,13 +1253,13 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
         if (!state.prevGraphicsPipeline
             || !state.prevGraphicsPipeline->MatchesSignature(
                 state.attributes,
-                state.framebuffer->GetRenderTargetDesc()))
+                state.framebuffer->GetFramebufferDesc()))
         {
             GraphicsPipelineCacheHandle cacheHandle;
 
             graphicsPipelineCache->GetOrCreate(
                 state.attributes,
-                state.framebuffer->GetRenderTargetDesc(),
+                state.framebuffer->GetFramebufferDesc(),
                 cacheHandle);
 
             pipeline = *cacheHandle;
@@ -1267,7 +1267,6 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
             new (&deferredBindCommandMemory.bindGraphicsCmd) BindGraphicsPipeline(pipeline, state.viewport);
             executeBindCmdFunction = &BindGraphicsPipeline::InvokeStatic;
 
-            state.prevGraphicsPipeline = pipeline;
             pipelineChanged = true;
         }
         else
@@ -1292,7 +1291,6 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
             new (&deferredBindCommandMemory.bindComputeCmd) BindComputePipeline(pipeline);
             executeBindCmdFunction = &BindComputePipeline::InvokeStatic;
 
-            state.prevComputePipeline = pipeline;
             pipelineChanged = true;
         }
         else
@@ -1317,7 +1315,6 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
             new (&deferredBindCommandMemory.bindRayTracingCmd) BindRayTracingPipeline(pipeline);
             executeBindCmdFunction = &BindRayTracingPipeline::InvokeStatic;
 
-            state.prevRayTracingPipeline = pipeline;
             pipelineChanged = true;
         }
         else
@@ -1386,7 +1383,7 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
         }
     };
 
-    constexpr uint32 MaxDynamicOffsetsPerSet = 16;
+    constexpr uint32 MaxDynamicOffsetsPerSet = 16; // 8;
     constexpr uint32 MaxDescriptorSetsBound = 4;
 
     DescriptorSet* setsToBind[MaxDescriptorSetsBound] {};
@@ -1399,8 +1396,8 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
     uint8 uniformIndexToSetIndex[RenderInterface::State::MaxShaderUniforms];
     Memory::Fill(uniformIndexToSetIndex, ubyte(-1), sizeof(uniformIndexToSetIndex));
 
-    ShaderInputType uniformIndexToShaderInputType[RenderInterface::State::MaxShaderUniforms];
-    Memory::Fill(uniformIndexToShaderInputType, 0, sizeof(uniformIndexToShaderInputType));
+    ShaderRegister uniformIndexToRegister[RenderInterface::State::MaxShaderUniforms];
+    Memory::Zero(uniformIndexToRegister, sizeof(uniformIndexToRegister));
 
     uint8 dsStates[MaxDescriptorSetsBound] = {};
     uint8 dsIndices = 0;
@@ -1482,7 +1479,7 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
         }
 
         uniformIndexToSetIndex[uniformIndex] = setIndex;
-        uniformIndexToShaderInputType[uniformIndex] = decl->type;
+        uniformIndexToRegister[uniformIndex] = decl->slot;
 
         dsIndices |= uint8(1u << setIndex);
 
@@ -1535,17 +1532,15 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
 
         const ShaderUniform& uniform = state.shaderUniforms[uniformIndex];
 
-        const ShaderInputType inputType = uniformIndexToShaderInputType[uniformIndex];
-        AssertDebug(inputType == ShaderInputType::IMAGE || inputType == ShaderInputType::IMAGE_STORAGE);
-
         GpuImageView* imageView = uniform.imageView;
         AssertDebug(imageView != nullptr);
 
         GpuImage* image = imageView->GetImage();
 
-        const ResourceState desiredResourceState = inputType == ShaderInputType::IMAGE
-            ? RS_SHADER_RESOURCE
-            : RS_UNORDERED_ACCESS;
+        const ShaderRegister reg = uniformIndexToRegister[uniformIndex];
+        AssertDebug(reg == ShaderRegister::SRV || reg == ShaderRegister::UAV);
+
+        const ResourceState desiredResourceState = (reg == ShaderRegister::SRV) ? RS_SHADER_RESOURCE : RS_UNORDERED_ACCESS;
 
         // normalize counts
         ImageSubResource subResource = imageView->GetImageSubResource();
@@ -1617,14 +1612,19 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
     {
         if (state.boundFramebuffer == nullptr)
         {
-            AssertDebug(state.framebuffer != nullptr, "No framebuffer bound at the time of CommitDrawState!");
+            AssertDebug(state.framebuffer != nullptr,
+                "No framebuffer bound at the time of CommitDrawState!");
 
             state.framebuffer->BeginCapture(commandBuffer);
 
             state.boundFramebuffer = state.framebuffer;
+
+            //AssertDebug(executeBindCmdFunction != nullptr,
+            //    "Pipeline bind command should have been set for graphics pipeline if we are to begin a render pass");
         }
     }
 
+    // Bind the new pipeline (if we need to)
     if (executeBindCmdFunction != nullptr)
     {
         executeBindCmdFunction(
@@ -1654,28 +1654,20 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
             switch (uniform.type)
             {
             case ShaderUniform::UT_Buffer:
-                AssertDebug(uniform.buffer != nullptr);
-
                 ds->SetElement(uniform.name, uniform.buffer, state.shaderUniformBufferOffsetStrides[uniformIndex]);
 
                 state.dirtyBufferOffsets |= (1u << uniformIndex);
 
                 break;
             case ShaderUniform::UT_ImageView:
-                AssertDebug(uniform.imageView != nullptr);
-
                 ds->SetElement(uniform.name, uniform.imageView);
 
                 break;
             case ShaderUniform::UT_Sampler:
-                AssertDebug(uniform.sampler != nullptr);
-
                 ds->SetElement(uniform.name, uniform.sampler);
 
                 break;
             case ShaderUniform::UT_Tlas:
-                AssertDebug(uniform.tlas != nullptr);
-
                 ds->SetElement(uniform.name, uniform.tlas);
 
                 break;

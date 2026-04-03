@@ -39,8 +39,8 @@
     }],
   "RevisionNumber": 31459917,
   "BaseName": "SSGI",
-  "VertexAttributes": {
-    "FlagMask": 0
+  "InputLayout": {
+    "Mask": 0
   },
   "ShaderInputGroup": {
     "Elements": [{
@@ -281,11 +281,11 @@
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/SSGI/SSGI_17067551235326711000.CS",
-      "Size": 182352
+      "Size": 186820
     }],
   "PropertySetHashCode": {},
   "LastCompiledTimestamp": {
-    "Value": 1774656712000
+    "Value": 1775183275000
   },
   "Name": "SSGI_17067551235326711000",
   "FriendlyName": "SSGI_17067551235326711000",

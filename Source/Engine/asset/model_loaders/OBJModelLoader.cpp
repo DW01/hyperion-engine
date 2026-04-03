@@ -312,6 +312,7 @@ LoadedAsset OBJModelLoader::BuildModel(LoaderState& state, OBJModel& model)
     Assert(state.assetManager != nullptr);
 
     Handle<Node> top = MakeHandle<Node>(CreateNameFromDynamicString(model.name));
+    top->SetIsDynamic(false);
 
     Handle<MaterialGroup> materialLibrary;
 
@@ -344,7 +345,7 @@ LoadedAsset OBJModelLoader::BuildModel(LoaderState& state, OBJModel& model)
 
     for (OBJMesh& objMesh : model.meshes)
     {
-        Array<Vertex> vertices;
+        Array<SimpleVertex> vertices;
         vertices.Reserve(model.positions.Size());
 
         Array<uint32> indices;
@@ -372,7 +373,7 @@ LoadedAsset OBJModelLoader::BuildModel(LoaderState& state, OBJModel& model)
                     }
                 }
 
-                Vertex vertex;
+                SimpleVertex vertex {};
 
                 if (hasVertices)
                 {
@@ -388,7 +389,7 @@ LoadedAsset OBJModelLoader::BuildModel(LoaderState& state, OBJModel& model)
 
                 if (hasTexcoords)
                 {
-                    vertex.SetTexCoord0(GetIndexedVertexProperty(objIndex.texcoord, model.texcoords));
+                    vertex.SetUV0(GetIndexedVertexProperty(objIndex.texcoord, model.texcoords));
                 }
 
                 const uint32 index = uint32(vertices.Size());
@@ -410,7 +411,7 @@ LoadedAsset OBJModelLoader::BuildModel(LoaderState& state, OBJModel& model)
 
         // offset all vertices by the AABB's center,
         // we will apply the transformation to the entity's transform component
-        for (Vertex& vertex : vertices)
+        for (SimpleVertex& vertex : vertices)
         {
             vertex.SetPosition(vertex.GetPosition() - meshAabbCenter);
         }
@@ -418,14 +419,21 @@ LoadedAsset OBJModelLoader::BuildModel(LoaderState& state, OBJModel& model)
         Name assetName = CreateNameFromDynamicString(StringUtil::StripExtension(objMesh.name.Split('/', '\\').Back()));
 
         MeshDesc meshDesc;
+        meshDesc.meshAttributes.inputLayout = { VT_Simple };
         meshDesc.numIndices = uint32(indices.Size());
         meshDesc.numVertices = uint32(vertices.Size());
 
         Handle<Mesh> mesh = MakeHandle<Mesh>();
         mesh->SetName(assetName);
-        mesh->SetMeshData(meshDesc, vertices.ToSpan(), indices.ToByteView());
 
-        mesh->CalculateNormals();
+        VertexArrayView vertexArrayView {};
+        vertexArrayView.floatData = reinterpret_cast<const float*>(vertices.Data());
+        vertexArrayView.vertexCount = vertices.Size();
+        vertexArrayView.layoutDesc = meshDesc.meshAttributes.inputLayout;
+
+        mesh->SetMeshData(meshDesc, vertexArrayView, indices.ToByteView());
+
+        //mesh->CalculateNormals();
 
         mesh->SetOriginalFilepath(FilePath::Relative(state.filepath, state.assetManager->GetBasePath()));
 

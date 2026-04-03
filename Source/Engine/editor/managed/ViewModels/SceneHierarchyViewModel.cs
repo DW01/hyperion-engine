@@ -1,7 +1,9 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Threading.Tasks;
 using Avalonia.Threading;
 using Hyperion;
+using Hyperion.Editor.Services;
 
 namespace Hyperion.Editor.ViewModels
 {
@@ -168,6 +170,55 @@ namespace Hyperion.Editor.ViewModels
             }
 
             return null;
+        }
+
+        public bool ReparentNode(NodeViewModel dragged, NodeViewModel newParent)
+        {
+            if (dragged == null || newParent == null)
+                return false;
+
+            Node draggedNode = dragged.Node;
+            Node newParentNode = newParent.Node;
+
+            // @FIXME - Use IDs instead of names to avoid issues, could run into issues with duplicate names or name changes
+            EngineManager.EditorGame?.EditorSubsystem?.ExecuteCommandByName(
+                new Name("EditorCommandReparentNode"),
+                draggedNode.Name.ToString(),
+                newParentNode.Name.ToString());
+
+            return true;
+        }
+
+        public void SetDropTarget(NodeViewModel? target)
+        {
+            Dispatcher.UIThread.VerifyAccess();
+
+            if (_currentDropTarget == target)
+                return;
+
+            if (_currentDropTarget != null)
+                _currentDropTarget.IsDropTarget = false;
+
+            _currentDropTarget = target;
+
+            if (_currentDropTarget != null)
+                _currentDropTarget.IsDropTarget = true;
+        }
+
+        private NodeViewModel? _currentDropTarget;
+
+        public static bool IsAncestorOf(NodeViewModel potentialAncestor, NodeViewModel node)
+        {
+            // @NOTE Not thread safe currently, needs to be called on sim thread!
+
+            NodeViewModel? current = node.Parent;
+            while (current != null)
+            {
+                if (current == potentialAncestor)
+                    return true;
+                current = current.Parent;
+            }
+            return false;
         }
     }
 }

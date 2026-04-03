@@ -38,7 +38,6 @@ DECLARE_SRV(RTReflections, PointLightShadowMapsTextureArray) TextureCubeArray po
 
 #undef HYP_NO_CUBEMAP
 
-DECLARE_SRV(RTReflections, EntitiesBuffer) StructuredBuffer<Entity> entities;
 DECLARE_SRV(RTReflections, MaterialsBuffer) StructuredBuffer<Material> materials;
 DECLARE_SRV(RTReflections, MeshDescriptionsBuffer) StructuredBuffer<MeshDescription> mesh_descriptions;
 
@@ -172,7 +171,7 @@ void ClosestHitMain(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
             else if (light.type == HYP_LIGHT_TYPE_POINT)
             {
                 float3 worldToLight = position.xyz - light.position_intensity.xyz;
-                local_light *= GetPointShadowStandard(shadowMap.layerIndex, worldToLight, 0.0);
+                local_light *= GetPointShadowStandard(shadowMap, worldToLight, 0.0);
             }
             else
             {

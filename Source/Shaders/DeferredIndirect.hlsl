@@ -1,5 +1,10 @@
 #include "./include/defines.inc"
 
+PERMUTE(SSGI_ENABLED);
+PERMUTE(RT_GI);
+PERMUTE(RT_REFLECTIONS);
+PERMUTE(HBAO_ENABLED);
+
 #ifdef VERTEX_SHADER
 
 struct VSInput
@@ -58,19 +63,15 @@ DECLARE_SRV(DeferredPass, GBufferDepthTexture) Texture2D gbuffer_depth_texture;
 DECLARE_SAMPLER(DeferredPass, SamplerNearest) SamplerState sampler_nearest;
 DECLARE_SAMPLER(DeferredPass, SamplerLinear) SamplerState sampler_linear;
 
-DECLARE_SRV(DeferredPass, SSAOResultTexture) Texture2D ssao_gi_result;
-DECLARE_SRV(DeferredPass, SSGIResultTexture) Texture2D ssgi_result;
-DECLARE_SRV(DeferredPass, RTRadianceResultTexture) Texture2D rt_radiance_final;
-DECLARE_SRV(DeferredPass, ReflectionProbeResultTexture) Texture2D reflections_texture;
+DECLARE_SRV(DeferredPass, SSAOResultTexture) Texture2D SSAOResultTexture;
+DECLARE_SRV(DeferredPass, SSGIResultTexture) Texture2D SSGIResultTexture;
+DECLARE_SRV(DeferredPass, ReflectionProbeResultTexture) Texture2D ReflectionProbeResultTexture;
+DECLARE_SRV(DeferredPass, RTRadianceResultTexture) Texture2D RTRadianceResultTexture;
 
 #include "./include/gbuffer.inc"
 #include "./include/material.inc"
 
 #include "./include/scene.inc"
-DECLARE_BUFFER_DYNAMIC(DeferredPass, CamerasBuffer) cbuffer CamerasBuffer
-{
-    Camera camera;
-};
 
 DECLARE_BUFFER(DeferredPass, WorldsBuffer) cbuffer WorldsBuffer
 {
@@ -78,9 +79,6 @@ DECLARE_BUFFER(DeferredPass, WorldsBuffer) cbuffer WorldsBuffer
 };
 
 #include "./include/PhysicalCamera.inc"
-
-#define HYP_VCT_REFLECTIONS_ENABLED 1
-#define HYP_VCT_INDIRECT_ENABLED 1
 
 #if RT_GI
 DECLARE_SRV(DeferredPass, DDGIIrradianceTexture) Texture2D probe_irradiance;
@@ -98,10 +96,6 @@ DECLARE_BUFFER(DeferredPass, DDGIConstants) cbuffer DDGI
 #endif
 
 #include "./include/env_probe.inc"
-DECLARE_BUFFER_DYNAMIC(DeferredPass, EnvGridsBuffer) cbuffer EnvGridsBuffer
-{
-    EnvGrid env_grid;
-};
 
 #define HYP_DEFERRED_NO_REFRACTION
 #define HYP_DEFERRED_NO_ENV_PROBE
@@ -115,6 +109,7 @@ DECLARE_BUFFER_DYNAMIC(DeferredPass, EnvGridsBuffer) cbuffer EnvGridsBuffer
 
 DECLARE_BUFFER_DYNAMIC(DeferredPass, CBuffer) cbuffer CBuffer
 {
+    Camera camera;
     EnvProbe fallbackEnvProbes[MAX_FALLBACK_PROBES];
     uint numFallbackProbes;
 };
@@ -130,11 +125,11 @@ PSOutput PSMain(PSInput input)
 
     const uint2 pixelCoord = uint2(texcoord * max(0, int2(gbufferDimensions) - 1));
 
-    float4 albedo = SAMPLE_TEXTURE_2D(sampler_nearest, gbuffer_albedo_texture, texcoord);
-    float4 normalSample = SAMPLE_TEXTURE_2D(sampler_nearest, gbuffer_normals_texture, texcoord);
+    float4 albedo = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, gbuffer_albedo_texture, texcoord, 0);
+    float4 normalSample = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, gbuffer_normals_texture, texcoord, 0);
     float3 normal = GBufferUnpackNormal(normalSample);
 
-    float depth = SAMPLE_TEXTURE_2D(sampler_nearest, gbuffer_depth_texture, texcoord).r;
+    float depth = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, gbuffer_depth_texture, texcoord, 0).r;
     float4 position = ReconstructWorldSpacePositionFromDepth(camera.invProjMat, camera.invViewMat, texcoord, depth);
 
     uint2 materialData = gbuffer_material_texture.Load(int3(pixelCoord, 0)).xy;
@@ -158,15 +153,15 @@ PSOutput PSMain(PSInput input)
     float3 ibl = (float3)0.0;
 
 #if HBAO_ENABLED || SSAO_ENABLED
-    const float4 ssao_data = SAMPLE_TEXTURE_2D(HYP_SAMPLER_NEAREST, ssao_gi_result, texcoord);
-    ao = ssao_data.a;
+    const float4 ssao_data = SAMPLE_TEXTURE_2D_LOD(HYP_SAMPLER_NEAREST, SSAOResultTexture, texcoord, 0);
+    ao = ssao_data.r;
 #endif
 
     const float3 diffuse_color = CalculateDiffuseColor(albedo.rgb, metalness);
 
     const float perceptualRoughness = sqrt(roughness);
 
-    reflections = SAMPLE_TEXTURE_2D(HYP_SAMPLER_LINEAR, reflections_texture, texcoord);
+    reflections = SAMPLE_TEXTURE_2D_LOD(HYP_SAMPLER_LINEAR, ReflectionProbeResultTexture, texcoord, 0);
 
 #if RT_REFLECTIONS
     CalculateRayTracingReflection(texcoord, reflections);
@@ -177,7 +172,7 @@ PSOutput PSMain(PSInput input)
     float3 blendedSH = (float3)0.0;
     float totalWeight = 0.0;
 
-    for (uint probeIndex = 0; probeIndex < uint(numFallbackProbes); probeIndex++)
+    for (uint probeIndex = 0; probeIndex < numFallbackProbes; probeIndex++)
     {
         const EnvProbe probe = fallbackEnvProbes[probeIndex];
 
@@ -206,11 +201,12 @@ PSOutput PSMain(PSInput input)
     else if (numFallbackProbes > 0)
     {
         irradiance = float4(EnvProbeSH(fallbackEnvProbes[0], N, /* order */ 2), 0.0);
+
     }
 
 #if SSGI_ENABLED
     // Blend ssgi result into irradiance - if no hit, alpha will be zero or close to it so we can lerp it
-    float4 ssgi = SAMPLE_TEXTURE_2D(HYP_SAMPLER_LINEAR, ssgi_result, texcoord);
+    float4 ssgi = SAMPLE_TEXTURE_2D_LOD(HYP_SAMPLER_LINEAR, SSGIResultTexture, texcoord, 0);
     irradiance = lerp(irradiance, ssgi, ssgi.a);
 #endif
 
@@ -221,10 +217,6 @@ PSOutput PSMain(PSInput input)
 #endif
 
     irradiance.a = 1.0; // set alpha to 1 now that we're finished lerping between GI methods.
-
-// #if HBIL_ENABLED
-//     CalculateHBILIrradiance(ssao_data, irradiance);
-// #endif
 
     const float NdotV = max(0.0001, dot(N, V));
     const float3 F0 = CalculateF0(albedo.rgb, metalness);
@@ -252,7 +244,7 @@ PSOutput PSMain(PSInput input)
 #elif defined(DEBUG_IRRADIANCE)
     result = irradiance.rgb;
 #elif defined(DEBUG_VELOCITY)
-    float4 velocity = SAMPLE_TEXTURE_2D(sampler_nearest, gbuffer_velocity_texture, texcoord);
+    float4 velocity = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, gbuffer_velocity_texture, texcoord, 0);
     result = velocity.rgb;
 #elif defined(DEBUG_NORMALS)
     result = normal * 0.5 + 0.5;

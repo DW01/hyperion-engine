@@ -20,10 +20,10 @@ namespace Hyperion {
 
 PSOCacheKey::PSOCacheKey(
     const RenderableAttributeSet& attributes,
-    const RenderTargetDesc& renderTargetDesc)
+    const FramebufferDesc& framebufferDesc)
 {
     hashCode = HashCode::GetHashCode(attributes.GetHashCode())
-        .Combine(renderTargetDesc.GetHashCode());
+        .Combine(framebufferDesc.GetHashCode());
 
     shaderName = attributes.GetMaterialAttributes().shaderName;
     shaderProperties = attributes.GetMaterialAttributes().shaderProperties;
@@ -44,19 +44,12 @@ RendererResult GraphicsPipelineBase::Create()
         return HYP_MAKE_ERROR(RendererError, "Cannot create a graphics pipeline with no shader");
     }
 
-    if (m_renderTargetDesc.numAttachments == 0)
+    if (m_framebufferDesc.numAttachments == 0)
     {
         return HYP_MAKE_ERROR(RendererError, "Cannot create a graphics pipeline with no attachment descriptors!");
     }
 
-    RendererResult rebuildResult = Rebuild();
-
-    if (!rebuildResult)
-    {
-        return rebuildResult;
-    }
-
-    return {};
+    return Rebuild();
 }
 
 uint32 GraphicsPipelineBase::GetDescriptorSetIndex(StringHash nameHash) const
@@ -76,21 +69,22 @@ void GraphicsPipelineBase::SetShader(const ShaderInstanceRef& shaderInstance)
     m_shaderInstance = shaderInstance;
 }
 
-void GraphicsPipelineBase::SetRenderTargetDesc(const RenderTargetDesc& renderTargetDesc)
+void GraphicsPipelineBase::SetFramebufferDesc(const FramebufferDesc& framebufferDesc)
 {
-    m_renderTargetDesc = renderTargetDesc;
+    m_framebufferDesc = framebufferDesc;
 }
 
 bool GraphicsPipelineBase::MatchesSignature(
     const RenderableAttributeSet& attributes,
-    const RenderTargetDesc& renderTargetDesc) const
+    const FramebufferDesc& framebufferDesc) const
 {
-    if (renderTargetDesc != m_renderTargetDesc)
+    //if (!m_framebufferDesc.IsPSOCompatible(framebufferDesc))
+    if (m_framebufferDesc != framebufferDesc)
         return false;
 
     const MeshAttributes& meshAttributes = attributes.GetMeshAttributes();
 
-    if (meshAttributes.topology != m_topology || meshAttributes.vertexAttributes != m_vertexAttributes)
+    if (meshAttributes.topology != m_topology || meshAttributes.inputLayout != m_inputLayout)
         return false;
 
     const MaterialAttributes& materialAttributes = attributes.GetMaterialAttributes();
@@ -133,7 +127,7 @@ bool GraphicsPipelineBase::MatchesSignature(
     const Shader& shader = *m_shaderInstance->GetShader();
 
     if (materialAttributes.shaderName != shader.baseName
-        || (shader.vertexAttributes.flagMask & meshAttributes.vertexAttributes.flagMask) != shader.vertexAttributes.flagMask
+        || (shader.inputLayout.mask & meshAttributes.inputLayout.mask) != shader.inputLayout.mask
         || materialAttributes.shaderProperties != shader.properties)
     {
         return false;

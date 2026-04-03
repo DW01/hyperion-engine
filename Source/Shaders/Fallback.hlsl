@@ -3,6 +3,9 @@
  *  Date: 2026/03/27
  **/
 
+PERMUTE(INSTANCING);
+PERMUTE(SKINNING);
+
 #include "./include/defines.inc"
 #include "./include/shared.inc"
 #include "./include/scene.inc"
@@ -15,10 +18,8 @@ struct VSInput
     HYP_ATTRIBUTE_OPTIONAL float3 a_normal : NORMAL;
     HYP_ATTRIBUTE_OPTIONAL float2 a_texcoord0 : TEXCOORD0;
     HYP_ATTRIBUTE_OPTIONAL float2 a_texcoord1 : TEXCOORD1;
-    HYP_ATTRIBUTE_OPTIONAL float3 a_tangent : TANGENT;
-    HYP_ATTRIBUTE_OPTIONAL float3 a_bitangent : BINORMAL;
+    HYP_ATTRIBUTE_OPTIONAL uint a_bone_indices : BLENDINDICES;
     HYP_ATTRIBUTE_OPTIONAL float4 a_bone_weights : BLENDWEIGHT;
-    HYP_ATTRIBUTE_OPTIONAL float4 a_bone_indices : BLENDINDICES;
 };
 
 struct VSOutput
@@ -26,7 +27,7 @@ struct VSOutput
     float4 position_cs : SV_POSITION;
     float3 v_position : POSITION;
     float2 v_texcoord0 : TEXCOORD0;
-    nointerpolation uint v_object_index : TEXCOORD6;
+    nointerpolation uint object_index : TEXCOORD6;
 };
 
 DECLARE_BUFFER_DYNAMIC(Default, CamerasBuffer) cbuffer CamerasBuffer
@@ -48,17 +49,6 @@ DECLARE_BUFFER_DYNAMIC(Default, CamerasBuffer) cbuffer CamerasBuffer
 
 #include "include/Skeleton.inc"
 DECLARE_SRV_DYNAMIC(Default, SkeletonsBuffer) StructuredBuffer<Skeleton> skeletons;
-
-float4x4 CreateSkinningMatrix(int4 bone_indices, float4 bone_weights)
-{
-    float4x4 skinning = (float4x4)0;
-    skinning += bone_weights.x * skeletons[0].bones[min(bone_indices.x, HYP_MAX_BONES - 1)];
-    skinning += bone_weights.y * skeletons[0].bones[min(bone_indices.y, HYP_MAX_BONES - 1)];
-    skinning += bone_weights.z * skeletons[0].bones[min(bone_indices.z, HYP_MAX_BONES - 1)];
-    skinning += bone_weights.w * skeletons[0].bones[min(bone_indices.w, HYP_MAX_BONES - 1)];
-    return skinning;
-}
-
 #endif // SKINNING && bone attrs
 
 VSOutput VSMain(VSInput input, uint instanceId : SV_InstanceID)
@@ -68,17 +58,17 @@ VSOutput VSMain(VSInput input, uint instanceId : SV_InstanceID)
 #ifdef INSTANCING
     const uint objectIndex = OBJECT_INDEX;
     float4x4 model_matrix = mul(entity_instance_batch.transforms[instanceId], entities[objectIndex].model_matrix);
-    output.v_object_index = objectIndex;
+    output.object_index = objectIndex;
 #else
     float4x4 model_matrix = entity.model_matrix;
-    output.v_object_index  = 0;
+    output.object_index  = 0;
 #endif
 
 #ifdef HYP_ATTRIBUTE_a_position
     float4 position = float4(input.a_position, 1.0);
 
     #if defined(SKINNING) && defined(HYP_ATTRIBUTE_a_bone_indices) && defined(HYP_ATTRIBUTE_a_bone_weights)
-        float4x4 skinning_matrix = CreateSkinningMatrix((int4)input.a_bone_indices, input.a_bone_weights);
+        float4x4 skinning_matrix = CreateSkinningMatrix(skeletons[0], input.a_bone_indices, input.a_bone_weights);
         position = mul(skinning_matrix, position);
     #endif
 
@@ -107,7 +97,7 @@ struct PSInput
     float4 position_cs : SV_POSITION;
     float3 v_position : POSITION;
     float2 v_texcoord0 : TEXCOORD0;
-    nointerpolation uint v_object_index : TEXCOORD6;
+    nointerpolation uint object_index : TEXCOORD6;
 };
 
 struct PSOutput

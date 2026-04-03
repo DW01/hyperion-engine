@@ -7,13 +7,13 @@
       "Radius": 1.500000,
       "Power": 2.500000,
       "UseTemporalBlending": false,
-      "Enabled": false
+      "Enabled": true
     },
     "HBIL": {
       "Enabled": false
     },
     "SSGI": false,
-    "TAA": false,
+    "TAA": true,
     "PathTracing": false,
     "RayTracedReflections": false,
     "RayTracedGI": false,
@@ -21,7 +21,7 @@
     "IndirectRendering": false,
     "ParallelCollection": true,
     "SSR": {
-      "Enabled": false,
+      "Enabled": true,
       "Quality": 2,
       "RoughnessScattering": false,
       "ConeTracing": true,

@@ -5,7 +5,6 @@
 #include "../include/brdf.inc"
 #include "../include/Octahedron.inc"
 
-#define HYP_HBIL_MULTIPLIER 1.0
 #define ENV_GRID_MULTIPLIER 1.0
 
 struct Refraction
@@ -151,24 +150,19 @@ vec4 CalculateReflectionProbe(in EnvProbe probe, vec3 P, vec3 N, vec3 R, vec3 ca
 #ifdef PATHTRACER
 vec4 CalculatePathTracing(vec2 uv)
 {
-    return SAMPLE_TEXTURE_2D_LOD(sampler_linear, rt_radiance_final, uv, 0.0);
+    return SAMPLE_TEXTURE_2D_LOD(sampler_linear, RTRadianceResultTexture, uv, 0.0);
 }
 #endif
 
 #ifdef RT_REFLECTIONS
 void CalculateRayTracingReflection(vec2 uv, inout vec4 reflections)
 {
-    vec4 rt_radiance = SAMPLE_TEXTURE_2D_LOD(sampler_linear, rt_radiance_final, uv, 0.0);
+    vec4 rt_radiance = SAMPLE_TEXTURE_2D_LOD(sampler_linear, RTRadianceResultTexture, uv, 0.0);
 
     reflections = reflections * (1.0 - rt_radiance.a) + vec4(rt_radiance.rgb, 1.0) * rt_radiance.a;
 }
 #endif
 #endif
-
-void CalculateHBILIrradiance(in vec4 ssao_data, inout vec3 irradiance)
-{
-    irradiance += ssao_data.rgb * HYP_HBIL_MULTIPLIER;
-}
 
 void IntegrateReflections(inout vec3 Fr, in vec4 reflections)
 {

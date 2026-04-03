@@ -49,17 +49,29 @@ template <>
 void CommandRecorder::Execute(CommandBuffer* commandBuffer)
 {
     AssertDebug(commandBuffer != nullptr);
+    
+    const size_t max = m_cmdHeaders.Size();
 
-    for (CmdHeader& cmdHeader : m_cmdHeaders)
+    CmdHeader* headersBegin = m_cmdHeaders.Data();
+    CmdHeader* headersEnd = headersBegin + max;
+
+    CmdHeader* curr = headersBegin;
+
+    ubyte* data = m_buffer.Data();
+
+    while (curr != headersEnd)
     {
-        AssertDebug(cmdHeader.offset < m_buffer.Size());
-        CmdBase* cmdDataPtr = reinterpret_cast<CmdBase*>(m_buffer.Data() + cmdHeader.offset);
+        CmdBase* cmdDataPtr = HYP_ALIGN_PTR_AS(data + curr->offset, CmdBase);
 
-        cmdHeader.invokeFnPtr(cmdDataPtr, commandBuffer);
+        InvokeCmdFnPtr invokeFnPtr = curr->invokeFnPtr;
+        invokeFnPtr(cmdDataPtr, commandBuffer);
+
+        ++curr;
     }
 
     m_cmdHeaders.Clear();
     m_offset = 0;
+
     m_writableState.Release();
 }
 
@@ -357,6 +369,8 @@ void ClearFramebuffer::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
 
 void BindGraphicsPipeline::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
 {
+    RenderInterface::State& state = g_renderInterface->state;
+
     BindGraphicsPipeline* cmdCasted = static_cast<BindGraphicsPipeline*>(cmd);
     
     cmdCasted->m_pipeline->lastFrame = GetFrameCounter();
@@ -369,6 +383,8 @@ void BindGraphicsPipeline::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuff
     {
         cmdCasted->m_pipeline->Bind(commandBuffer);
     }
+    
+    state.prevGraphicsPipeline = cmdCasted->m_pipeline;
 
     //// temporary, will be removed once everything operates through CommitDrawState().
     //RenderInterface::State& state = g_renderInterface->state;
@@ -384,9 +400,13 @@ void BindGraphicsPipeline::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuff
 
 void BindComputePipeline::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
 {
+    RenderInterface::State& state = g_renderInterface->state;
+
     BindComputePipeline* cmdCasted = static_cast<BindComputePipeline*>(cmd);
 
     cmdCasted->m_pipeline->Bind(commandBuffer);
+    
+    state.prevComputePipeline = cmdCasted->m_pipeline;
 
     static_assert(std::is_trivially_destructible_v<BindComputePipeline>);
     // cmdCasted->~BindComputePipeline();
@@ -398,9 +418,13 @@ void BindComputePipeline::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffe
 
 void BindRayTracingPipeline::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
 {
+    RenderInterface::State& state = g_renderInterface->state;
+
     BindRayTracingPipeline* cmdCasted = static_cast<BindRayTracingPipeline*>(cmd);
 
     cmdCasted->m_pipeline->Bind(commandBuffer);
+
+    state.prevRayTracingPipeline = cmdCasted->m_pipeline;
 
     static_assert(std::is_trivially_destructible_v<BindRayTracingPipeline>);
     // cmdCasted->~BindRayTracingPipeline();
@@ -573,26 +597,26 @@ void SetTopology::InvokeStatic(CmdBase* cmd, CommandBuffer*)
 
 #pragma endregion SetTopology
 
-#pragma region SetVertexAttributes
+#pragma region SetInputLayout
 
-void SetVertexAttributes::InvokeStatic(CmdBase* cmd, CommandBuffer*)
+void SetInputLayout::InvokeStatic(CmdBase* cmd, CommandBuffer*)
 {
-    SetVertexAttributes* cmdCasted = static_cast<SetVertexAttributes*>(cmd);
+    SetInputLayout* cmdCasted = static_cast<SetInputLayout*>(cmd);
 
     RenderInterface::State& state = g_renderInterface->state;
 
-    if (state.attributes.GetMeshAttributes().vertexAttributes == cmdCasted->vertexAttributes)
+    if (state.attributes.GetMeshAttributes().inputLayout == cmdCasted->inputLayout)
         return;
 
-    state.attributes.GetMeshAttributes().vertexAttributes = cmdCasted->vertexAttributes;
+    state.attributes.GetMeshAttributes().inputLayout = cmdCasted->inputLayout;
 
     state.attributes.Invalidate();
     
-    static_assert(std::is_trivially_destructible_v<SetVertexAttributes>);
-    // cmdCasted->~SetVertexAttributes();
+    static_assert(std::is_trivially_destructible_v<SetInputLayout>);
+    // cmdCasted->~SetInputLayout();
 }
 
-#pragma endregion SetVertexAttributes
+#pragma endregion SetInputLayout
 
 #pragma region SetCurrentBlendFunction
 

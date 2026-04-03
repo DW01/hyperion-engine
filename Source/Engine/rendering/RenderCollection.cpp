@@ -232,6 +232,7 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
         newMaterialAttributes.bucket = attributes.GetMaterialAttributes().bucket;
 
         attributes.SetMaterialAttributes(newMaterialAttributes);
+        attributes.Invalidate();
     }
 
     const bool hasInstancing = proxy.enableAutoInstancing || proxy.numInstances > 1;
@@ -690,11 +691,12 @@ static void SetForwardShadingUniforms(
             shadowBoundsNDC.min = Vec3f(-1.0f);
             shadowBoundsNDC.max = Vec3f(1.0f);
 
-            BoundingBox shadowBoundsWS = viewProjMat.Inverse() * shadowBoundsNDC;
+            BoundingBox shadowBoundsWS = shadowCameraProxy->bufferData.inverseViewMat * shadowBoundsNDC;
         
             currShadowMapData.layerIndex = atlasElement->layerIndex;
 
             currShadowMapData.viewProjMat = viewProjMat;
+            currShadowMapData.invProjMat = shadowCameraProxy->bufferData.inverseProjMat;
 
             currShadowMapData.aabbMin.x = shadowBoundsWS.min.x;
             currShadowMapData.aabbMin.y = shadowBoundsWS.min.y;
@@ -971,7 +973,7 @@ static void PerformRenderingImpl(
     const uint8 stencilReference = renderableAttributes.GetMaterialAttributes().stencilReference;
 
     cr << SetTopology(renderableAttributes.GetMeshAttributes().topology);
-    cr << SetVertexAttributes(renderableAttributes.GetMeshAttributes().vertexAttributes);
+    cr << SetInputLayout(renderableAttributes.GetMeshAttributes().inputLayout);
     
     cr << SetCurrentViewport(renderSetup.viewport);
     
@@ -1307,7 +1309,7 @@ void RenderCollector::CommitParallelRenderingState(CommandRecorder& cr, uint8 in
         // non threaded -- reset draw states
 
         cr << SetStencilState(0, 0xFF, 0x0);
-        cr << SetVertexAttributes(VertexAttributeSet::StaticMeshVertexAttributes);
+        cr << SetInputLayout(StaticVertexInputLayout<VT_Simple>);
         cr << SetTopology(TOP_TRIANGLES);
         cr << SetFillMode(FM_FILL);
         cr << SetFaceCullMode(FCM_BACK);
@@ -1337,7 +1339,7 @@ void RenderCollector::CommitParallelRenderingState(CommandRecorder& cr, uint8 in
 
         // end threaded commands -- reset draw states
         cr << SetStencilState(0, 0xFF, 0x0);
-        cr << SetVertexAttributes(VertexAttributeSet::StaticMeshVertexAttributes);
+        cr << SetInputLayout(StaticVertexInputLayout<VT_Simple>);
         cr << SetTopology(TOP_TRIANGLES);
         cr << SetFillMode(FM_FILL);
         cr << SetFaceCullMode(FCM_BACK);
@@ -1882,9 +1884,9 @@ void RenderCollector::BuildRenderGroups(View* view, RenderProxyList& renderProxy
             RenderableAttributeSet newAttributes;
             GeometryPass::BuildAttributes(*meshProxy, newAttributes, overrideAttributes);
 
-            const RenderBucket bucket = newAttributes.GetMaterialAttributes().bucket;
+            AssertDebug(newAttributes.GetMeshAttributes().inputLayout.mask != 0);
 
-            AssertDebug(newAttributes.GetMeshAttributes().vertexAttributes != 0);
+            const RenderBucket bucket = newAttributes.GetMaterialAttributes().bucket;
 
             if (newAttributes == *cachedAttributes)
             {

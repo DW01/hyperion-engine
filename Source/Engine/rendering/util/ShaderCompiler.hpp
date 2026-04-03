@@ -514,6 +514,7 @@ class HYP_API ShaderCompiler
         Array<VertexAttributeDefinition> requiredAttributes;
         Array<VertexAttributeDefinition> optionalAttributes;
         Array<struct DescriptorUsage, DynamicAllocator> descriptorUsages;
+        ShaderVariantPerms scannedProperties; // properties collected from shader source
 
         ProcessResult() = default;
         ProcessResult(const ProcessResult& other) = default;
@@ -526,7 +527,7 @@ class HYP_API ShaderCompiler
     struct ShaderRequest
     {
         ShaderPropertySet properties;
-        VertexAttributeSet vertexAttributes;
+        VertexInputLayoutDesc inputLayout;
     };
 
 public:
@@ -541,7 +542,7 @@ public:
     bool RequestShader(
         Name name,
         const ShaderPropertySet& properties,
-        const VertexAttributeSet& vertexAttributes,
+        const VertexInputLayoutDesc& inputLayout,
         Shader*& outShader);
         
     bool IsGraphicsShaderBundle(Name name) const;

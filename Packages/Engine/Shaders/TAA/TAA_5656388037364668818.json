@@ -21,8 +21,8 @@
     }],
   "RevisionNumber": 31459917,
   "BaseName": "TAA",
-  "VertexAttributes": {
-    "FlagMask": 0
+  "InputLayout": {
+    "Mask": 0
   },
   "ShaderInputGroup": {
     "Elements": [{
@@ -151,7 +151,7 @@
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/TAA/TAA_5656388037364668818.CS",
-      "Size": 102908
+      "Size": 103076
     }],
   "PropertySetHashCode": {},
   "LastCompiledTimestamp": {

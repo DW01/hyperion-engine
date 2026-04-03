@@ -61,6 +61,8 @@ extern FilePath GetExecutablePath();
 
 namespace {
 
+using FatVertex = TVertex<VT_Simple | VT_UV1 | VT_Skeletal>;
+
 static constexpr bool SeparateMetalnessRoughnessTextures = true;
 
 struct GltfPrimitiveResource
@@ -562,8 +564,6 @@ SplitMetalnessRoughnessResult SplitMetalnessRoughnessTexture(
     ctx.state.assetManager->GetAssetRegistry()->RegisterAsset("$Import/Media/Textures", metalnessTexture);
     CheckResult(metalnessTexture->Create());
 
-    HYP_LOG(Assets, Debug, "GLTF split metallic-roughness for '{}': {}x{} R8 textures created", baseName, width, height);
-
     return { metalnessTexture, roughnessTexture };
 }
 
@@ -619,12 +619,12 @@ Handle<Material> AcquireMaterial(GltfLoadContext& ctx, const cgltf_material* mat
         metallic = float(pbr.metallic_factor);
         roughness = float(pbr.roughness_factor);
 
-        if (Handle<Texture> baseColorTexture = AcquireTexture(ctx, pbr.base_color_texture, /* srgb */ true))
+        if (Handle<Texture> baseColorTexture = AcquireTexture(ctx, pbr.base_color_texture, /* srgb */ true); baseColorTexture.IsValid())
         {
             textures[MaterialTextureKey::Diffuse] = baseColorTexture;
         }
 
-        if (Handle<Texture> metallicRoughnessTexture = AcquireTexture(ctx, pbr.metallic_roughness_texture, false))
+        if (Handle<Texture> metallicRoughnessTexture = AcquireTexture(ctx, pbr.metallic_roughness_texture, false); metallicRoughnessTexture.IsValid())
         {
             if constexpr (SeparateMetalnessRoughnessTextures)
             {
@@ -686,12 +686,12 @@ Handle<Material> AcquireMaterial(GltfLoadContext& ctx, const cgltf_material* mat
         materialAttributes.cullFaces = FCM_NONE;
     }
 
-    if (Handle<Texture> normalTexture = AcquireTexture(ctx, material->normal_texture, false))
+    if (Handle<Texture> normalTexture = AcquireTexture(ctx, material->normal_texture, false); normalTexture.IsValid())
     {
         textures[MaterialTextureKey::Normals] = normalTexture;
     }
 
-    if (Handle<Texture> occlusionTexture = AcquireTexture(ctx, material->occlusion_texture, false))
+    if (Handle<Texture> occlusionTexture = AcquireTexture(ctx, material->occlusion_texture, false); occlusionTexture.IsValid())
     {
         textures[MaterialTextureKey::AmbientOcclusion] = occlusionTexture;
     }
@@ -799,12 +799,12 @@ bool BuildPrimitive(GltfLoadContext& ctx,
         && UnpackAccessorFloats(jointsAccessor, jointsFloatData) != 0
         && UnpackAccessorFloats(weightsAccessor, weightsData) != 0;
 
-    Array<Vertex> vertices;
+    Array<FatVertex> vertices;
     vertices.Resize(vertexCount);
 
     for (cgltf_size vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
     {
-        Vertex vertex;
+        FatVertex vertex;
 
         {
             const cgltf_size base = vertexIndex * 3;
@@ -820,27 +820,13 @@ bool BuildPrimitive(GltfLoadContext& ctx,
         if (hasTexcoord0)
         {
             const cgltf_size base = vertexIndex * 2;
-            vertex.SetTexCoord0(Vec2f(texcoord0Data[base], 1.0f - texcoord0Data[base + 1]));
+            vertex.SetUV0(Vec2f(texcoord0Data[base], 1.0f - texcoord0Data[base + 1]));
         }
 
         if (hasTexcoord1)
         {
             const cgltf_size base = vertexIndex * 2;
-            vertex.SetTexCoord1(Vec2f(texcoord1Data[base], 1.0f - texcoord1Data[base + 1]));
-        }
-
-        if (hasTangents && hasNormals)
-        {
-            const cgltf_size tBase = vertexIndex * 4;
-            const cgltf_size nBase = vertexIndex * 3;
-
-            const Vec3f tangent(tangentsData[tBase], tangentsData[tBase + 1], tangentsData[tBase + 2]);
-            const float handedness = tangentsData[tBase + 3];
-
-            vertex.SetTangent(tangent);
-
-            const Vec3f normal(normalsData[nBase], normalsData[nBase + 1], normalsData[nBase + 2]);
-            vertex.SetBitangent(normal.Cross(tangent) * handedness);
+            vertex.SetUV1(Vec2f(texcoord1Data[base], 1.0f - texcoord1Data[base + 1]));
         }
 
         if (hasSkinning)
@@ -879,22 +865,23 @@ bool BuildPrimitive(GltfLoadContext& ctx,
     }
 
     MeshDesc meshDesc;
-    meshDesc.meshAttributes.vertexAttributes = VertexAttributeSet::StaticMeshVertexAttributes;
+    meshDesc.meshAttributes.inputLayout = VertexInputLayoutDesc { VT_Simple | VT_UV1 | VT_Skeletal };
     meshDesc.meshAttributes.topology = topology;
     meshDesc.meshAttributes.indexBufferElemType = GET_UNSIGNED_INT;
     meshDesc.numVertices = uint32(vertices.Size());
     meshDesc.numIndices = uint32(indices.Size());
 
-    if (hasSkinning)
-    {
-        meshDesc.meshAttributes.vertexAttributes |= VertexAttributeSet::SkeletalMeshVertexAttributes;
-    }
-
     const Name assetName = MakePrimitiveName(gltfMesh, meshIndex, primitiveIndex);
 
     Handle<Mesh> mesh = MakeHandle<Mesh>();
     mesh->SetName(assetName);
-    mesh->SetMeshData(meshDesc, vertices.ToSpan(), indices.ToByteView());
+    
+    VertexArrayView vertexArrayView {};
+    vertexArrayView.floatData = reinterpret_cast<const float*>(vertices.Data());
+    vertexArrayView.vertexCount = vertices.Size();
+    vertexArrayView.layoutDesc = meshDesc.meshAttributes.inputLayout;
+
+    mesh->SetMeshData(meshDesc, vertexArrayView, indices.ToByteView());
 
     if (!hasNormals && meshDesc.meshAttributes.topology == TOP_TRIANGLES)
     {
@@ -1069,7 +1056,9 @@ LoadedAsset BuildModel(LoaderState& state, cgltf_data& data)
     }
 
     const Name rootName = DetermineRootName(state, data);
+    
     Handle<Node> root = MakeHandle<Node>(rootName);
+    root->SetIsDynamic(false);
 
     for (const cgltf_node* rootNode : rootNodes)
     {
@@ -1104,7 +1093,7 @@ AssetLoadResult GLTFModelLoader::LoadAsset(LoaderState& state) const
         }
     });
 
-    const FilePath absPath = CoreApi::GetExecutablePath() / state.filepath;
+    const FilePath absPath = state.filepath;
 
     const cgltf_result parseResult = cgltf_parse_file(&options, absPath.Data(), &data);
 

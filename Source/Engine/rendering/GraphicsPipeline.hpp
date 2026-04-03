@@ -31,7 +31,7 @@ struct PSOCacheKey
 
     PSOCacheKey(
         const RenderableAttributeSet& attributes,
-        const RenderTargetDesc& renderTargetDesc);
+        const FramebufferDesc& framebufferDesc);
     
     PSOCacheKey(const PSOCacheKey& other) = default;
     PSOCacheKey& operator=(const PSOCacheKey& other) = default;
@@ -67,14 +67,14 @@ public:
 
     static Pool* GetAllocator() { return g_rhiPool; }
 
-    HYP_FORCE_INLINE const VertexAttributeSet& GetVertexAttributes() const
+    HYP_FORCE_INLINE const VertexInputLayoutDesc& GetInputLayout() const
     {
-        return m_vertexAttributes;
+        return m_inputLayout;
     }
 
-    HYP_FORCE_INLINE void SetVertexAttributes(const VertexAttributeSet& vertexAttributes)
+    HYP_FORCE_INLINE void SetInputLayout(const VertexInputLayoutDesc& inputLayout)
     {
-        m_vertexAttributes = vertexAttributes;
+        m_inputLayout = inputLayout;
     }
 
     HYP_FORCE_INLINE Topology GetTopology() const
@@ -194,12 +194,12 @@ public:
 
     void SetShader(const ShaderInstanceRef& shader);
 
-    HYP_FORCE_INLINE const RenderTargetDesc& GetRenderTargetDesc() const
+    HYP_FORCE_INLINE const FramebufferDesc& GetFramebufferDesc() const
     {
-        return m_renderTargetDesc;
+        return m_framebufferDesc;
     }
 
-    void SetRenderTargetDesc(const RenderTargetDesc& renderTargetDesc);
+    void SetFramebufferDesc(const FramebufferDesc& framebufferDesc);
     
 #if HYP_DEBUG_MODE
     Name GetDebugName() const
@@ -229,7 +229,7 @@ public:
 
     bool MatchesSignature(
         const RenderableAttributeSet& attributes,
-        const RenderTargetDesc& renderTargetDesc) const;
+        const FramebufferDesc& framebufferDesc) const;
 
     // Deprecated - will be removed to decouple from vulkan
     HYP_DEPRECATED virtual void SetPushConstants(const void* data, size_t size) = 0;
@@ -248,7 +248,7 @@ protected:
 
     virtual RendererResult Rebuild() = 0;
 
-    VertexAttributeSet m_vertexAttributes;
+    VertexInputLayoutDesc m_inputLayout = {};
 
     Topology m_topology = TOP_TRIANGLES;
     FaceCullMode m_faceCullMode = FCM_BACK;
@@ -266,7 +266,7 @@ protected:
     float m_depthBiasSlope = 0.0f;
 
     ShaderInstanceRef m_shaderInstance;
-    RenderTargetDesc m_renderTargetDesc;
+    FramebufferDesc m_framebufferDesc;
     
     PSOCacheKey m_psoCacheKey;
 
