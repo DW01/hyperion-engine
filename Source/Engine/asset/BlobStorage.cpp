@@ -20,11 +20,7 @@ HYP_API extern Pool* g_assetPool;
 
 static void InitBlobStorage(BlobStorage& outStorage, const FilePath& baseDirectory, uint64 pageSize)
 {
-    MappedBlobStorage* mappedBlobStorage = PoolNew<MappedBlobStorage>(
-        *g_assetPool,
-        baseDirectory,
-        pageSize,
-        /* readOnly */ false);
+    MappedBlobStorage* mappedBlobStorage = HYP_POOL_NEW(g_assetPool, MappedBlobStorage, baseDirectory, pageSize, /* readOnly */ false);
 
     outStorage.callbacks.context = mappedBlobStorage;
 
@@ -43,7 +39,7 @@ static void InitBlobStorage(BlobStorage& outStorage, const FilePath& baseDirecto
         MemoryMappedFile* file = mappedBlobStorage->Get(ANSIStringView(name));
         AssertDebug(file != nullptr, "Failed to open mapped file {} ({})", name, mappedBlobStorage->GetBaseDirectory());
 
-        if (!file->Open())
+        if (!file || !file->Open())
         {
             return nullptr;
         }

@@ -50,6 +50,18 @@
     },
     "Vulkan": {
       "DebugLayers": true
+    },
+    "RayTracing": {
+      "Enabled": false,
+      "Reflections": {
+        "Enabled": false
+      },
+      "GI": {
+        "Enabled": false
+      },
+      "PathTracing": {
+        "Enabled": false
+      }
     }
   },
   "Editor": {

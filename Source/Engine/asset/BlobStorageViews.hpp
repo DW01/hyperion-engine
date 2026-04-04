@@ -64,19 +64,16 @@ public:
         }
 
         const ANSIString nameStr = ANSIString(name);
-        
+
         const FilePath filePath = m_baseDir / (nameStr + ".bin");
 
-        MemoryMappedFile* mappedFile = PoolNew<MemoryMappedFile>(
-            *g_assetPool,
-            filePath,
-            m_readOnly ? MemoryMappedFile::Mode::READ_ONLY : MemoryMappedFile::Mode::READ_WRITE);
+        MemoryMappedFile* mappedFile = HYP_POOL_NEW(g_assetPool, MemoryMappedFile, filePath, m_readOnly ? MemoryMappedFile::Mode::READ_ONLY : MemoryMappedFile::Mode::READ_WRITE);
 
         Assert(mappedFile != nullptr);
 
         if (!mappedFile->Open())
         {
-            AssertDebug(false, "Failed to open mapped file at {}", *filePath);
+            // failed to open file
 
             PoolDelete(*g_assetPool, mappedFile);
 
@@ -111,7 +108,6 @@ public:
 
         m_mappedFiles.Clear();
     }
-
 
 private:
     FilePath m_baseDir;
