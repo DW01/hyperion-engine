@@ -46,23 +46,24 @@ struct PSOutput
     float4 color_output : SV_Target0;
 };
 
-#define HYP_DO_NOT_DEFINE_DESCRIPTOR_SETS
+// @NOTE: Do not remove texture inputs even if unused,
+// as we render in the same pass as DeferredDirect/DeferredIndirect and if they are not declare here,
+// we will end up ending + restarting the pass so we can transition the image layouts correctly.
+// In order to keep the same pass going without using LOAD operations and more complex management,
+// we just keep the shader inputs the same as the other deferred shaders, even if some of them are not used.
 
 DECLARE_SRV(LightmapPass, GBufferAlbedoTexture) Texture2D gbuffer_albedo_texture;
 DECLARE_SRV(LightmapPass, GBufferNormalsTexture) Texture2D gbuffer_normals_texture;
 DECLARE_SRV(LightmapPass, GBufferMaterialTexture) Texture2D<uint4> gbuffer_material_texture;
 DECLARE_SRV(LightmapPass, GBufferVelocityTexture) Texture2D gbuffer_velocity_texture;
-DECLARE_SRV(LightmapPass, GBufferMipChain) Texture2D gbuffer_mip_chain;
 DECLARE_SRV(LightmapPass, GBufferDepthTexture) Texture2D gbuffer_depth_texture;
+
+DECLARE_SRV(DeferredPass, GBufferMipChain) Texture2D gbuffer_mip_chain;
 
 DECLARE_SAMPLER(LightmapPass, SamplerNearest) SamplerState sampler_nearest;
 DECLARE_SAMPLER(LightmapPass, SamplerLinear) SamplerState sampler_linear;
 
-DECLARE_SRV(LightmapPass, RTRadianceResultTexture) Texture2D rt_radiance_final;
-
-DECLARE_SRV(LightmapPass, SSGIResultTexture) Texture2D ssgi_result;
-DECLARE_SRV(LightmapPass, SSAOResultTexture) Texture2D ssao_gi;
-
+DECLARE_SRV(LightmapPass, SSAOResultTexture) Texture2D SSAOResultTexture;
 DECLARE_SRV(LightmapPass, ReflectionProbeResultTexture) Texture2D ReflectionProbeResultTexture;
 
 #include "../include/shared.inc"
@@ -85,7 +86,7 @@ DECLARE_BUFFER(LightmapPass, WorldsBuffer) cbuffer WorldsBuffer
 DECLARE_SRV(LightmapPass, ShadowMapsTextureArray) Texture2DArray<float> shadow_maps;
 DECLARE_SRV(LightmapPass, PointLightShadowMapsTextureArray) TextureCubeArray point_shadow_maps;
 
-#include "../include/Shadows.hlsli"
+// #include "../include/Shadows.hlsli"
 
 DECLARE_SRV(LightmapPass, IrradianceTexture) Texture2D IrradianceTexture;
 DECLARE_SRV(LightmapPass, RadianceTexture) Texture2D RadianceTexture;
@@ -98,8 +99,6 @@ DECLARE_BUFFER(LightmapPass, LightmapVolumeUniforms) cbuffer LightmapVolumeUnifo
 
     uint numAtlases;
 };
-
-#undef HYP_DO_NOT_DEFINE_DESCRIPTOR_SETS
 
 #include "../include/env_probe.inc"
 
@@ -132,8 +131,8 @@ PSOutput PSMain(PSInput input)
 
     const uint2 pixelCoord = uint2(texcoord * max(0, int2(gbufferDimensions) - 1));
 
-    const float4 albedo = SAMPLE_TEXTURE_2D(sampler_nearest, gbuffer_albedo_texture, texcoord);
-    const float4 normalSample = SAMPLE_TEXTURE_2D(sampler_nearest, gbuffer_normals_texture, texcoord);
+    const float4 albedo = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, gbuffer_albedo_texture, texcoord, 0);
+    const float4 normalSample = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, gbuffer_normals_texture, texcoord, 0);
 
     const uint4 materialData = gbuffer_material_texture.Load(int3(pixelCoord, 0));
 
@@ -142,49 +141,46 @@ PSOutput PSMain(PSInput input)
 
     const float roughness = materialParams.roughness;
     const float metalness = materialParams.metalness;
-    const float ao = 1.0;
+    float ao = 1.0;
 
     const float4x4 inverse_proj = camera.invProjMat;
     const float4x4 inverse_view = camera.invViewMat;
 
-    float3 N = GBufferUnpackNormal(SAMPLE_TEXTURE_2D(sampler_nearest, gbuffer_normals_texture, texcoord));
+    float3 N = GBufferUnpackNormal(SAMPLE_TEXTURE_2D_LOD(sampler_nearest, gbuffer_normals_texture, texcoord, 0));
     float2 UV1 = float2(asfloat(materialData.z), asfloat(materialData.w));
 
-    const float depth = SAMPLE_TEXTURE_2D(sampler_nearest, gbuffer_depth_texture, texcoord).r;
+    const float depth = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, gbuffer_depth_texture, texcoord, 0).r;
     const float3 P = ReconstructWorldSpacePositionFromDepth(inverse_proj, inverse_view, texcoord, depth).xyz;
     const float3 V = normalize(camera.position.xyz - P);
-    const float3 R = normalize(reflect(-V, N));
+    // const float3 R = normalize(reflect(-V, N));
+
+    ao = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, SSAOResultTexture, texcoord, 0).r;
 
     float2 lightmapUV = UV1;
 
-    float4 irradiance = SAMPLE_TEXTURE_2D(LightmapSampler, IrradianceTexture, lightmapUV) * irradianceWeight;
-    irradiance.a = 1.0;
+    float4 irradiance = SAMPLE_TEXTURE_2D_LOD(LightmapSampler, IrradianceTexture, lightmapUV, 0) * irradianceWeight;
 
-    float4 radiance = SAMPLE_TEXTURE_2D(LightmapSampler, RadianceTexture, lightmapUV) * radianceWeight;
-    radiance.a = 1.0;
-
-    float3 ibl = 0.0;
-    float3 F = 0.0;
-
-    float NdotV = max(0.0001, dot(N, V));
+    // float4 radiance = SAMPLE_TEXTURE_2D_LOD(LightmapSampler, RadianceTexture, lightmapUV, 0) * radianceWeight;
+    // radiance.a = 1.0;
 
     const float3 diffuse_color = CalculateDiffuseColor(albedo.rgb, metalness);
+
+    const float NdotV = max(0.0001, dot(N, V));
     const float3 F0 = CalculateF0(albedo.rgb, metalness);
-
-    F = CalculateFresnelTerm(F0, roughness, NdotV);
-    const float3 kD = (1.0 - F) * (1.0 - metalness);
-
+    const float3 F = CalculateFresnelTerm(F0, roughness, NdotV);
     const float3 dfg = CalculateDFG(F, roughness, NdotV);
     const float3 E = CalculateE(F0, dfg);
+    float3 diffuseIndirect = diffuse_color.rgb * irradiance.rgb * (1.0 - E) * ao;
+
+    float3 specularAO = float3(SpecularAO_Lagarde(NdotV, ao, roughness), SpecularAO_Lagarde(NdotV, ao, roughness), SpecularAO_Lagarde(NdotV, ao, roughness));
+
     const float3 energyCompensation = CalculateEnergyCompensation(F0, dfg);
+    specularAO *= energyCompensation;
+    
+    // float3 ibl = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, ReflectionProbeResultTexture, texcoord, 0).rgb;
+    // float3 Fr = ibl * E * specularAO;
 
-    float4 reflections = SAMPLE_TEXTURE_2D(sampler_nearest, ReflectionProbeResultTexture, texcoord);
-
-    ibl = ibl * (1.0 - reflections.a) + (reflections.rgb * reflections.a);
-
-    float3 spec = (ibl * lerp(dfg.xxx, dfg.yyy, F0)) * energyCompensation;
-
-    output.color_output.rgb = (diffuse_color * irradiance.rgb) + (diffuse_color * radiance.rgb * ao) + spec;
+    output.color_output.rgb = diffuseIndirect;
     output.color_output.a = 1.0;
 
     return output;
