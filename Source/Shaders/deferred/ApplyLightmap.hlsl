@@ -64,7 +64,6 @@ DECLARE_SAMPLER(LightmapPass, SamplerNearest) SamplerState sampler_nearest;
 DECLARE_SAMPLER(LightmapPass, SamplerLinear) SamplerState sampler_linear;
 
 DECLARE_SRV(LightmapPass, SSAOResultTexture) Texture2D SSAOResultTexture;
-DECLARE_SRV(LightmapPass, ReflectionProbeResultTexture) Texture2D ReflectionProbeResultTexture;
 
 #include "../include/shared.inc"
 #include "../include/gbuffer.inc"
@@ -81,7 +80,7 @@ DECLARE_BUFFER(LightmapPass, WorldsBuffer) cbuffer WorldsBuffer
     WorldShaderData world_shader_data;
 };
 
-#include "../include/brdf.inc"
+#include "../include/BRDF.hlsli"
 
 DECLARE_SRV(LightmapPass, ShadowMapsTextureArray) Texture2DArray<float> shadow_maps;
 DECLARE_SRV(LightmapPass, PointLightShadowMapsTextureArray) TextureCubeArray point_shadow_maps;
@@ -100,13 +99,13 @@ DECLARE_BUFFER(LightmapPass, LightmapVolumeUniforms) cbuffer LightmapVolumeUnifo
     uint numAtlases;
 };
 
-#include "../include/env_probe.inc"
+#include "../include/EnvProbes.hlsli"
 
 #if ENV_PROBE_CUBEMAP
 DECLARE_SRV(LightmapPass, EnvProbesTexture) TextureCubeArray envProbesTexture;
-#else
+#else // !ENV_PROBE_CUBEMAP
 DECLARE_SRV(LightmapPass, EnvProbesTexture) Texture2DArray envProbesTexture;
-#endif
+#endif // ENV_PROBE_CUBEMAP
 
 DECLARE_SRV(LightmapPass, EnvProbesBuffer) StructuredBuffer<EnvProbe> env_probes;
 
@@ -118,7 +117,7 @@ DECLARE_BUFFER_DYNAMIC(LightmapPass, EnvGridsBuffer) cbuffer EnvGridsBuffer
     EnvGrid env_grid;
 };
 
-#include "./DeferredLighting.inc"
+#include "./DeferredLighting.hlsli"
 
 PSOutput PSMain(PSInput input)
 {
@@ -141,6 +140,9 @@ PSOutput PSMain(PSInput input)
 
     const float roughness = materialParams.roughness;
     const float metalness = materialParams.metalness;
+
+    const float perceptualRoughness = sqrt(roughness);
+
     float ao = 1.0;
 
     const float4x4 inverse_proj = camera.invProjMat;
@@ -167,18 +169,11 @@ PSOutput PSMain(PSInput input)
 
     const float NdotV = max(0.0001, dot(N, V));
     const float3 F0 = CalculateF0(albedo.rgb, metalness);
-    const float3 F = CalculateFresnelTerm(F0, roughness, NdotV);
+    const float3 F = CalculateFresnelTerm(F0, perceptualRoughness, NdotV);
     const float3 dfg = CalculateDFG(F, roughness, NdotV);
     const float3 E = CalculateE(F0, dfg);
+
     float3 diffuseIndirect = diffuse_color.rgb * irradiance.rgb * (1.0 - E) * ao;
-
-    float3 specularAO = float3(SpecularAO_Lagarde(NdotV, ao, roughness), SpecularAO_Lagarde(NdotV, ao, roughness), SpecularAO_Lagarde(NdotV, ao, roughness));
-
-    const float3 energyCompensation = CalculateEnergyCompensation(F0, dfg);
-    specularAO *= energyCompensation;
-    
-    // float3 ibl = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, ReflectionProbeResultTexture, texcoord, 0).rgb;
-    // float3 Fr = ibl * E * specularAO;
 
     output.color_output.rgb = diffuseIndirect;
     output.color_output.a = 1.0;

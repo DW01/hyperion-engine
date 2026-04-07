@@ -31,14 +31,14 @@ DECLARE_UAV(PathTracer, OutputImage) RWTexture2D<float4> image;
 #include "../../include/scene.inc"
 #include "../../include/packing.inc"
 #include "../../include/noise.inc"
-#include "../../include/brdf.inc"
+#include "../../include/BRDF.hlsli"
 
 /// Blue noise
 DECLARE_SRV(PathTracer, BlueNoiseBuffer) StructuredBuffer<int4> BlueNoiseBuffer;
 
 #include "../../include/BlueNoise.inc"
 
-#include "../../include/env_probe.inc"
+#include "../../include/EnvProbes.hlsli"
 
 #undef HYP_DO_NOT_DEFINE_DESCRIPTOR_SETS
 
@@ -69,10 +69,10 @@ DECLARE_BUFFER_DYNAMIC(RTReflections, CBuffer) cbuffer CBuffer
     ShadowMap shadowMaps[MAX_LIGHTS];
 };
 
-#define RAY_OFFSET 0.001
+#define RAY_OFFSET 0.01
 #define NUM_SAMPLES 1
 #define NUM_BOUNCES 4
-#define ENVIRONMENT_INTENSITY 10.0
+#define ENVIRONMENT_INTENSITY 1.0
 
 [shader("raygeneration")]
 void RayGenMain()
@@ -109,14 +109,15 @@ void RayGenMain()
     GBufferMaterialParams materialParams;
     GBufferUnpackMaterialParams(normalSample.x, materialData.x, materialParams);
 
-    const float roughness = materialParams.roughness;
+    const float roughness = materialParams.roughness; // alpha (perceptualRoughness^2)
+    const float perceptualRoughness = sqrt(roughness);
     const float metalness = materialParams.metalness;
 
     const float3 V = normalize(camera.position.xyz - worldPosition.xyz);
     const float3 R = reflect(-V, normal);
 
     const RAY_FLAG flags = RAY_FLAG_FORCE_OPAQUE;
-    const float tmin = 0.1;
+    const float tmin = 0.05;
     const float tmax = 1000.0;
 
     float4 color = (float4)0;
@@ -145,7 +146,7 @@ void RayGenMain()
         
         if (chooseSpecular)
         {
-            float3 H = SampleGGX(rnd, roughness, N0);
+            float3 H = SampleGGX(rnd, perceptualRoughness, N0);
             direction = reflect(-V, H);
         }
         else
@@ -174,7 +175,7 @@ void RayGenMain()
                 
                 float3 F = F_Schlick(F0_init, LdotH);
                 float D = DistributionGGX(NdotH, roughness);
-                float G = V_SmithGGXCorrelated(roughness, NdotV, NdotL);
+                float G = V_SmithGGXCorrelated(roughness * roughness, NdotV, NdotL);
                 
                 float3 specularBrdf = F * D * G;
                 float3 diffuseBrdf = (1.0 - F) * (1.0 - metalness) * albedo * HYP_FMATH_ONE_OVER_PI;
@@ -232,7 +233,7 @@ void RayGenMain()
 
             float3 hitAlbedo = payload.throughput.rgb;
             
-            float hitRoughness = clamp(payload.roughness, 0.05, 0.95);
+            float hitRoughness = clamp(payload.roughness, 0.05, 0.95); // alpha
             float hitMetalness = clamp(payload.throughput.w, 0.0, 1.0);
             
             float3 diffuseColor = hitAlbedo * (1.0 - hitMetalness);
@@ -261,7 +262,7 @@ void RayGenMain()
                             float NdotV = max(dot(N, -direction), 0.0);
                             
                             float3 F = F_Schlick(f0, LdotH);
-                            float G = V_SmithGGXCorrelated(hitRoughness, NdotV, NdotL);
+                            float G = V_SmithGGXCorrelated(hitRoughness * hitRoughness, NdotV, NdotL);
                             float D = DistributionGGX(NdotH, hitRoughness);
                             
                             radiance += beta * shadow * light_color * NdotL * (
@@ -291,7 +292,7 @@ void RayGenMain()
                         float NdotV = max(dot(N, -direction), 0.0);
                         
                         float3 F = F_Schlick(f0, LdotH);
-                        float G = V_SmithGGXCorrelated(hitRoughness, NdotV, NdotL);
+                        float G = V_SmithGGXCorrelated(hitRoughness * hitRoughness, NdotV, NdotL);
                         float D = DistributionGGX(NdotH, hitRoughness);
                         
                         radiance += beta * light_color * attenuation * shadow * NdotL * (
@@ -312,6 +313,7 @@ void RayGenMain()
                 beta /= float3(p, p, p);
             }
 
+            rnd = float2(RandomFloat(ray_seed), RandomFloat(ray_seed));
             direction = normalize(SampleCosineDir(rnd, N));
 
             beta *= max(diffuseColor, 0.001);

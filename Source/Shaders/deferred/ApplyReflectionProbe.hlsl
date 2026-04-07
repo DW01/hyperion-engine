@@ -4,7 +4,6 @@
 #define HYP_DO_NOT_DEFINE_DESCRIPTOR_SETS
 #include "../include/gbuffer.inc"
 #include "../include/scene.inc"
-#include "../include/brdf.inc"
 #include "../include/noise.inc"
 
 DECLARE_SAMPLER(ReflectionsPass, SamplerNearest) SamplerState sampler_nearest;
@@ -36,7 +35,7 @@ DECLARE_SRV(ReflectionsPass, GBufferMipChain) Texture2D gbuffer_mip_chain;
 
 #include "../include/BlueNoise.inc"
 
-#include "../include/env_probe.inc"
+#include "../include/EnvProbes.hlsli"
 DECLARE_SRV_DYNAMIC(ReflectionsPass, CurrentEnvProbe) StructuredBuffer<EnvProbe> current_env_probe_buffer;
 #define current_env_probe current_env_probe_buffer[0]
 
@@ -48,7 +47,7 @@ DECLARE_SRV(ReflectionsPass, EnvProbesTexture) Texture2DArray envProbesTexture;
 
 DECLARE_SRV(ReflectionsPass, EnvProbesBuffer) StructuredBuffer<EnvProbe> env_probes;
 
-#include "./DeferredLighting.inc"
+#include "./DeferredLighting.hlsli"
 
 #undef HYP_DO_NOT_DEFINE_DESCRIPTOR_SETS
 

@@ -99,6 +99,20 @@
               "$Class": "ShaderInput",
               "Register": 1,
               "ElementType": 5,
+              "Name": "EnvProbesTexture",
+              "Count": 1,
+              "Size": 4294967295,
+              "IsDynamic": false,
+              "StructInfo": {
+                "Name": "",
+                "Size": 4294967295,
+                "FieldNames": [],
+                "FieldTypes": []
+              }
+            }, {
+              "$Class": "ShaderInput",
+              "Register": 1,
+              "ElementType": 5,
               "Name": "GBufferNormalsTexture",
               "Count": 1,
               "Size": 4294967295,
@@ -259,17 +273,17 @@
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/DeferredDirect/DeferredDirect_11428205256708440841.VS",
-      "Size": 11276
+      "Size": 11708
     }, {
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/DeferredDirect/DeferredDirect_11428205256708440841.PS",
-      "Size": 182556
+      "Size": 185404
     }],
   "PropertySetHashCode": {},
   "LastCompiledTimestamp": {
-    "Value": 1775427428000
+    "Value": 1775523152000
   },
   "Name": "DeferredDirect_11428205256708440841",
-  "FriendlyName": "DeferredDirect_11428205256708440841",
+  "FriendlyName": "DeferredDirect11428205256708440841",
   "OriginalFilepath": ""
 }

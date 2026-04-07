@@ -24,13 +24,13 @@ DECLARE_UAV(RTReflections, OutputImage) RWTexture2D<unorm float4> image;
 #include "../include/scene.inc"
 #include "../include/packing.inc"
 #include "../include/noise.inc"
-#include "../include/brdf.inc"
+#include "../include/BRDF.hlsli"
 
 /// Blue noise
 DECLARE_SRV(RTReflections, BlueNoiseBuffer) StructuredBuffer<int4> BlueNoiseBuffer;
 
 #include "../include/BlueNoise.inc"
-#include "../include/env_probe.inc"
+#include "../include/EnvProbes.hlsli"
 
 #undef HYP_DO_NOT_DEFINE_DESCRIPTOR_SETS
 
@@ -91,9 +91,10 @@ void RayGenMain()
     GBufferUnpackMaterialParams(normalSample.x, materialData.x, materialParams);
 
     const float roughness = materialParams.roughness;
+    const float perceptualRoughness = sqrt(roughness);
 
 #if defined(USE_MIN_ROUGHNESS) && USE_MIN_ROUGHNESS
-    if (roughness > rayTracingConstants.min_roughness)
+    if (perceptualRoughness > rayTracingConstants.min_roughness)
     {
         image[storage_coord] = float4(0.0, 0.0, 0.0, 0.0);
 
@@ -118,7 +119,7 @@ void RayGenMain()
         SampleBlueNoise(storage_coord.x, storage_coord.y, int(world_shader_data.frame_counter % NUM_SAMPLES) * 2 + 1, NUM_SAMPLES * 2)
     );
 
-    float3 H = ImportanceSampleGGX(rnd, normal, roughness);
+    float3 H = ImportanceSampleGGX(rnd, normal, perceptualRoughness);
     H = tangent * H.x + bitangent * H.y + normal * H.z;
     H = normalize(H);
 
@@ -155,7 +156,7 @@ void RayGenMain()
 
 #if defined(USE_MIN_ROUGHNESS) && USE_MIN_ROUGHNESS
     // interpolate alpha based on roughness compared to minimum roughness needed for reflection
-    color.a = 1.0 - (roughness / rayTracingConstants.min_roughness);
+    color.a = 1.0 - (perceptualRoughness / rayTracingConstants.min_roughness);
 #endif
 
     image[storage_coord] = color;

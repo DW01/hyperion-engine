@@ -69,7 +69,7 @@ DECLARE_SRV(DeferredPass, SSAOResultTexture) Texture2D SSAOResultTexture;
 
 #define HYP_SAMPLER_SHADOW SamplerShadow
 
-#include "include/env_probe.inc"
+#include "include/EnvProbes.hlsli"
 #include "include/shared.inc"
 #include "include/gbuffer.inc"
 #include "include/material.inc"
@@ -119,18 +119,26 @@ DECLARE_SRV(DeferredPass, PointLightShadowMapsTextureArray) TextureCubeArray poi
 #define HYP_DEFERRED_NO_ENV_PROBE
 #define HYP_DEFERRED_NO_RT_RADIANCE
 
-#include "./deferred/DeferredLighting.inc"
+#if ENV_PROBE_CUBEMAP
+DECLARE_SRV(DeferredPass, EnvProbesTexture) TextureCubeArray envProbesTexture;
+#else // !ENV_PROBE_CUBEMAP
+DECLARE_SRV(DeferredPass, EnvProbesTexture) Texture2DArray envProbesTexture;
+#endif // ENV_PROBE_CUBEMAP
 
-#undef HYP_DEFERRED_NO_RT_RADIANCE
-#undef HYP_DEFERRED_NO_REFRACTION
-#undef HYP_DEFERRED_NO_ENV_PROBE
+#include "./deferred/DeferredLighting.hlsli"
 
 #include "include/Shadows.hlsli"
 
 #include "include/LightSampling.inc"
 
 #ifdef LIGHT_TYPE_CLUSTERED
-#include "deferred/Tiles.hlsli"
+
+DECLARE_SRV(DeferredPass, EnvProbesBuffer) StructuredBuffer<EnvProbe> EnvProbesBuffer;
+DECLARE_SRV(DeferredPass, LightsBuffer) StructuredBuffer<Light> LightsBuffer;
+DECLARE_SRV_DYNAMIC(DeferredPass, ClusterGridBuffer) StructuredBuffer<uint2> ClusterGridBuffer;
+DECLARE_SRV_DYNAMIC(DeferredPass, ClusterIndexBuffer) ByteAddressBuffer ClusterIndexBuffer;
+
+#include "deferred/ClusteredShading.hlsli"
 
 DECLARE_BUFFER_DYNAMIC(DeferredPass, CBuffer) cbuffer CBuffer
 {
@@ -150,7 +158,7 @@ uint GetShadowMapIndexForLight(uint lightIndex)
     return LightToShadowMapIndex.Load(lightIndex * sizeof(uint));
 }
 
-#endif
+#endif // LIGHT_TYPE_CLUSTERED
 
 PSOutput PSMain(PSInput input)
 {
@@ -187,6 +195,8 @@ PSOutput PSMain(PSInput input)
     const float metalness = materialParams.metalness;
     const uint mask = materialParams.mask;
 
+    const float perceptualRoughness = sqrt(roughness);
+
     float4 result = (float4)0;
     
     const float material_reflectance = 0.5;
@@ -194,8 +204,6 @@ PSOutput PSMain(PSInput input)
     float4 F0 = float4(albedo.rgb * metalness + (reflectance * (1.0 - metalness)), 1.0);
 
     const float4 diffuseColor = CalculateDiffuseColor(albedo, metalness);
-
-    float4 F90 = (float4)saturate(dot(F0, (float4)(50.0 * 0.33)));
 
     float3 N = normalize(normal);
     float3 T = normalize(tangent);
@@ -259,11 +267,11 @@ PSOutput PSMain(PSInput input)
 
         float shadow = 1.0; // @TODO shadows for clustered deferred
 
-        const float D = CalculateDistributionTerm(roughness, NdotH);
+        const float D = CalculateDistributionTerm(perceptualRoughness, NdotH);
         const float G = CalculateGeometryTerm(NdotL, NdotV, HdotV, NdotH);
-        const float4 F = CalculateFresnelTerm(F0, roughness, LdotH);
+        const float4 F = CalculateFresnelTerm(F0, perceptualRoughness, LdotH);
 
-        const float4 dfg = CalculateDFG(F, roughness, NdotV);
+        const float4 dfg = CalculateDFG(F, perceptualRoughness, NdotV);
         const float4 E = CalculateE(F0, dfg);
         const float3 energy_compensation = CalculateEnergyCompensation(F0.rgb, dfg.rgb);
 
@@ -349,7 +357,7 @@ PSOutput PSMain(PSInput input)
 
     const float3 R = reflect(-V, N);
 
-    float2 lut_uv = (float2(roughness, sqrt(1.0 - NdotV)));
+    float2 lut_uv = (float2(roughness, sqrt(1.0 - NdotV))); // @TODO Look at if perceptual roughness should be used here instead of roughness
     lut_uv.y = 1.0 - lut_uv.y;
     lut_uv = lut_uv * lut_scale + lut_bias;
     lut_uv = clamp(lut_uv, float2(0.0, 0.0), float2(1.0, 1.0));
@@ -411,11 +419,11 @@ PSOutput PSMain(PSInput input)
     }
 #endif // LIGHT_TYPE_POINT
 
-    const float D = CalculateDistributionTerm(roughness, NdotH);
+    const float D = CalculateDistributionTerm(perceptualRoughness, NdotH);
     const float G = CalculateGeometryTerm(NdotL, NdotV, HdotV, NdotH);
-    const float4 F = CalculateFresnelTerm(F0, roughness, LdotH);
+    const float4 F = CalculateFresnelTerm(F0, perceptualRoughness, LdotH);
 
-    const float4 dfg = CalculateDFG(F, roughness, NdotV);
+    const float4 dfg = CalculateDFG(F, perceptualRoughness, NdotV);
     const float4 E = CalculateE(F0, dfg);
     const float3 energy_compensation = CalculateEnergyCompensation(F0.rgb, dfg.rgb);
 
@@ -465,6 +473,9 @@ PSOutput PSMain(PSInput input)
 #else
     output.output_color = float4(result);
 #endif
+
+    // temp
+    // output.output_color = float4(0.0, 0.0, 1.0, 1.0);
 
     return output;
 }

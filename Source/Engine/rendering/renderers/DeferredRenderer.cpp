@@ -115,6 +115,7 @@ static const ShaderPropertyId s_propProbeSideLengthDepth = InternShaderProperty(
 static const ShaderPropertyId s_propHBAOEnabled = InternShaderProperty(ShaderProperty(NAME("HBAO_ENABLED")));
 static const ShaderPropertyId s_propSSAOEnabled = InternShaderProperty(ShaderProperty(NAME("SSAO_ENABLED")));
 static const ShaderPropertyId s_propSSGIEnabled = InternShaderProperty(ShaderProperty(NAME("SSGI_ENABLED")));
+static const ShaderPropertyId s_propSSREnabled = InternShaderProperty(ShaderProperty(NAME("SSR_ENABLED")));
 
 static const ShaderPropertyId s_propRayTracingReflections = InternShaderProperty(ShaderProperty(NAME("RT_REFLECTIONS")));
 static const ShaderPropertyId s_propRayTracingGlobalIllumination = InternShaderProperty(ShaderProperty(NAME("RT_GI")));
@@ -128,9 +129,10 @@ static const ShaderPropertyId s_propMaxFallbackProbes = InternShaderProperty(Sha
 static const ShaderPropertyId s_propOutputSDR = InternShaderProperty(ShaderProperty(NAME("OUTPUT"), NAME("SDR")));
 
 static const ShaderPropertyId s_propLightTypeClustered = InternShaderProperty(ShaderProperty(NAME("LIGHT_TYPE"), NAME("CLUSTERED")));
-static const ShaderPropertyId s_propTileSize = InternShaderProperty(ShaderProperty(NAME("TILE_SIZE"), int(TileSize)));
-static const ShaderPropertyId s_propTileZBins = InternShaderProperty(ShaderProperty(NAME("TILE_Z_BINS"), int(TileZBins)));
 static const ShaderPropertyId s_propMaxClusteredShadowMaps = InternShaderProperty(ShaderProperty(NAME("MAX_CLUSTERED_SHADOW_MAPS"), int(MaxClusteredShadowMaps)));
+
+ShaderPropertyId propTileSize = InternShaderProperty(ShaderProperty(NAME("TILE_SIZE"), int(TileSize)));
+ShaderPropertyId propTileZBins = InternShaderProperty(ShaderProperty(NAME("TILE_Z_BINS"), int(TileZBins)));
 
 static constexpr StringHash GBufferTextureNames[GTN_MAX] = {
     "GBufferAlbedoTexture"_sh,
@@ -210,8 +212,12 @@ void GetDeferredShaderProperties(
         }
 
         outShaderProperties.Set(s_propSSGIEnabled, cvSSGI.Get());
-        
+        outShaderProperties.Set(s_propSSREnabled, cvSSR.Get());
+
         outShaderProperties.Add(s_propMaxFallbackProbes);
+        
+        outShaderProperties.Add(propTileSize);
+        outShaderProperties.Add(propTileZBins);
     }
     else
     {
@@ -220,8 +226,8 @@ void GetDeferredShaderProperties(
             outShaderProperties.Add(s_propLightTypeClustered);
             outShaderProperties.Add(s_propMaxClusteredShadowMaps);
 
-            outShaderProperties.Add(s_propTileSize);
-            outShaderProperties.Add(s_propTileZBins);
+            outShaderProperties.Add(propTileSize);
+            outShaderProperties.Add(propTileZBins);
         }
     }
 
@@ -394,6 +400,11 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
     const Vec4f& cameraPosition = cameraProxy->bufferData.cameraPosition;
 
+    DeferredRendererPassData* dpd = ObjCast<DeferredRendererPassData>(rs.passData);
+    AssertDebug(dpd != nullptr);
+
+    Framebuffer* opaquePassFramebuffer = dpd->view.GetUnsafe()->GetOutputTarget().GetFramebuffer(RenderBucket::Opaque);
+
     CommandRecorder& cr = frame->cr;
 
     cr << SetCurrentViewport(rs.viewport);
@@ -444,19 +455,11 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
     cr << SetShaderUniform(numShaderUniforms++, "ShadowMapsTextureArray"_sh, g_renderInterface->shadowMapCache->GetAtlasImageView());
     cr << SetShaderUniform(numShaderUniforms++, "PointLightShadowMapsTextureArray"_sh, g_renderInterface->shadowMapCache->GetPointLightShadowMapImageView());
-
-    DeferredRendererPassData* dpd = ObjCast<DeferredRendererPassData>(rs.passData);
-    AssertDebug(dpd != nullptr);
-
-    const bool useClusteredShading = cvClusteredShading.Get() && dpd->clusterBuffer != nullptr;
-
-    if (useClusteredShading)
-    {
-        cr << SetShaderUniform(numShaderUniforms++, "ClusterGridBuffer"_sh, dpd->clusterBuffer, ShaderDataOffset(dpd->clusterGridOffset, dpd->clusterIndexOffset));
-        cr << SetShaderUniform(numShaderUniforms++, "ClusterIndexBuffer"_sh, dpd->clusterBuffer, ShaderDataOffset(dpd->clusterIndexOffset, dpd->clusterBuffer->Size() - dpd->clusterIndexOffset));
-    }
-
-    const FramebufferRef& opaquePassFramebuffer = dpd->view.GetUnsafe()->GetOutputTarget().GetFramebuffer(RenderBucket::Opaque);
+        
+    cr << SetShaderUniform(numShaderUniforms++, "LightsBuffer"_sh, g_renderInterface->gpuBuffers[GRB_LIGHTS]->GetBuffer(frameIndex));
+    cr << SetShaderUniform(numShaderUniforms++, "EnvProbesBuffer"_sh, g_renderInterface->gpuBuffers[GRB_ENV_PROBES]->GetBuffer(frameIndex));
+    
+    cr << SetShaderUniform(numShaderUniforms++, "EnvProbesTexture"_sh, g_renderInterface->textureViewCache->GetOrCreate(g_renderInterface->envProbesTexture));
 
     for (uint32 attachmentIndex = 0; attachmentIndex < GTN_MAX; attachmentIndex++)
     {
@@ -467,9 +470,20 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
     if (dpd->hbao != nullptr)
         cr << SetShaderUniform(numShaderUniforms++, "SSAOResultTexture"_sh, dpd->hbao->GetFinalImageView());
+    
+    if (dpd->reflectionsPass != nullptr && dpd->reflectionsPass->ssrPass != nullptr)
+        cr << SetShaderUniform(numShaderUniforms++, "SSRResultTexture"_sh, g_renderInterface->textureViewCache->GetOrCreate(dpd->reflectionsPass->ssrPass->GetFinalResultTexture()));
 
-    if (dpd->reflectionsPass != nullptr)
-        cr << SetShaderUniform(numShaderUniforms++, "ReflectionProbeResultTexture"_sh, dpd->reflectionsPass->GetFinalImageView());
+    const bool useClusteredShading = cvClusteredShading.Get();
+
+    if (useClusteredShading || m_mode == DPM_INDIRECT_LIGHTING)
+    {
+        AssertDebug(dpd->clusterBuffer != nullptr);
+
+        // Indirect pass uses clusters for EnvProbes.
+        cr << SetShaderUniform(numShaderUniforms++, "ClusterGridBuffer"_sh, dpd->clusterBuffer, ShaderDataOffset(dpd->clusterGridOffset, dpd->clusterIndexOffset));
+        cr << SetShaderUniform(numShaderUniforms++, "ClusterIndexBuffer"_sh, dpd->clusterBuffer, ShaderDataOffset(dpd->clusterIndexOffset, dpd->clusterBuffer->Size() - dpd->clusterIndexOffset));
+    }
 
     if (m_mode == DPM_INDIRECT_LIGHTING)
     {
@@ -594,9 +608,6 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
         cr << SetCurrentShader(ShaderDesc(NAME("DeferredDirect"), shaderProperties));
 
         uint32 localNumShaderUniforms = numShaderUniforms;
-        
-        cr << SetShaderUniform(localNumShaderUniforms++, "LightsBuffer"_sh, g_renderInterface->gpuBuffers[GRB_LIGHTS]->GetBuffer(frameIndex));
-        cr << SetShaderUniform(localNumShaderUniforms++, "EnvProbesBuffer"_sh, g_renderInterface->gpuBuffers[GRB_ENV_PROBES]->GetBuffer(frameIndex));
 
 #if 1
         // Write out MAX_SHADOW_MAPS (8?) ShadowMaps for the View, indexed by light idx (GetBinding())
@@ -922,28 +933,6 @@ void TonemapPass::Render(Frame* frame, const RenderSetup& rs)
         cr << SetShaderUniform(numShaderUniforms++, "TAAResultTexture"_sh, g_renderInterface->placeholderData->GetImageView2D1x1R8());
     }
 
-    Texture* ssrTexture = dpd->reflectionsPass->ShouldRenderSSR()
-        ? dpd->reflectionsPass->GetSSRPass()->GetFinalResultTexture()
-        : nullptr;
-
-    if (ssrTexture)
-    {
-        cr << SetShaderUniform(numShaderUniforms++, "SSRResultTexture"_sh, g_renderInterface->textureViewCache->GetOrCreate(ssrTexture));
-    }
-    else
-    {
-        cr << SetShaderUniform(numShaderUniforms++, "SSRResultTexture"_sh, g_renderInterface->placeholderData->GetImageView2D1x1R8());
-    }
-
-    if (dpd->hbao)
-    {
-        cr << SetShaderUniform(numShaderUniforms++, "SSAOResultTexture"_sh, dpd->hbao->GetFinalImageView());
-    }
-    else
-    {
-        cr << SetShaderUniform(numShaderUniforms++, "SSAOResultTexture"_sh, g_renderInterface->placeholderData->GetImageView2D1x1R8());
-    }
-
     cr << SetShaderUniform(numShaderUniforms++, "DeferredIndirectResultTexture"_sh, dpd->deferredShadingFramebuffer->GetAttachment(0)->GetImageView());
 
     cr << SetShaderUniform(numShaderUniforms++, "PostProcessingUniforms"_sh, dpd->postProcessing->GetUniformBuffer());
@@ -1092,17 +1081,8 @@ void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
     else
         cr << SetShaderUniform(numShaderUniforms++, "EnvGridsBuffer"_sh, g_renderInterface->gpuBuffers[GRB_ENV_GRIDS]->GetBuffer(frameIndex), TShaderDataOffset<EnvProbeShaderData>(0));
 
-    if (dpd->reflectionsPass != nullptr)
-        cr << SetShaderUniform(numShaderUniforms++, "ReflectionProbeResultTexture"_sh, dpd->reflectionsPass->GetFinalImageView());
-
-    if (dpd->ssgi != nullptr)
-        cr << SetShaderUniform(numShaderUniforms++, "SSGIResultTexture"_sh, g_renderInterface->textureViewCache->GetOrCreate(dpd->ssgi->GetFinalResultTexture()));
-
     if (dpd->hbao != nullptr)
         cr << SetShaderUniform(numShaderUniforms++, "SSAOResultTexture"_sh, dpd->hbao->GetFinalImageView());
-
-    if (dpd->rayTracingReflections != nullptr)
-        cr << SetShaderUniform(numShaderUniforms++, "RTRadianceResultTexture"_sh, dpd->rayTracingReflections->GetFinalImageView());
 
     if (data.uniformBuffers.Size() < proxy->numAtlases)
     {
@@ -1192,6 +1172,9 @@ void FogVolumePass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup
 
     AssertDebug(renderSetup.world && renderSetup.volume && renderSetup.view);
 
+    DeferredRendererPassData* dpd = ObjCast<DeferredRendererPassData>(renderSetup.passData);
+    AssertDebug(dpd != nullptr);
+
     FogVolume* volume = ObjCast<FogVolume>(renderSetup.volume);
     AssertDebug(volume != nullptr);
 
@@ -1220,9 +1203,6 @@ void FogVolumePass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup
 
     cr << SetShaderUniform(0, "SamplerLinear"_sh, g_renderInterface->placeholderData->GetSamplerLinearMipmap());
     cr << SetShaderUniform(1, "SamplerNearest"_sh, g_renderInterface->placeholderData->GetSamplerNearest());
-
-    DeferredRendererPassData* dpd = ObjCast<DeferredRendererPassData>(renderSetup.passData);
-    AssertDebug(dpd != nullptr);
 
     cr << SetShaderUniform(2, "CamerasBuffer"_sh, g_renderInterface->gpuBuffers[GRB_CAMERAS]->GetBuffer(frame->GetFrameIndex()), TShaderDataOffset<CameraShaderData>(renderSetup.view->GetCamera()));
 
@@ -1374,7 +1354,7 @@ ReflectionsPass::~ReflectionsPass()
 {
     EnqueueDeletion(std::move(m_mipChainImageView));
 
-    m_ssrPass.Reset();
+    ssrPass.Reset();
 }
 
 void ReflectionsPass::Create()
@@ -1393,8 +1373,8 @@ bool ReflectionsPass::ShouldRenderSSR() const
 
 void ReflectionsPass::CreateSSRPass()
 {
-    m_ssrPass = MakeUnique<SSRPass>(SSRRendererConfig::FromConfig(), m_gbuffer, m_mipChainImageView);
-    m_ssrPass->Create();
+    ssrPass = MakeUnique<SSRPass>(m_gbuffer, m_mipChainImageView);
+    ssrPass->Create();
 }
 
 void ReflectionsPass::Resize_Internal(Vec2u newSize)
@@ -1432,7 +1412,7 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
 
     if (ShouldRenderSSR())
     {
-        m_ssrPass->Render(frame, rs);
+        ssrPass->Render(frame, rs);
     }
 
     cr << SetTopology(TOP_TRIANGLES);
@@ -1534,7 +1514,7 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
 
     if (ShouldRenderSSR())
     {
-        const Handle<Texture>& ssrTexture = m_ssrPass->GetFinalResultTexture();
+        const Handle<Texture>& ssrTexture = ssrPass->GetFinalResultTexture();
 
         // render SSR to screen
         FramebufferDesc framebufferDesc = rs.view->GetOutputTarget().GetFramebuffer()->GetFramebufferDesc();
@@ -1804,6 +1784,90 @@ public:
             return outMinX <= outMaxX && outMinY <= outMaxY;
         };
 
+        auto ProjectAABBToScreenTiles = [&viewMatrix, &projMatrix, &extent, cameraNear, numTilesX, numTilesY](
+            const Vec3f& aabbMinWS, const Vec3f& aabbMaxWS,
+            uint32& outMinX, uint32& outMinY, uint32& outMaxX, uint32& outMaxY,
+            float& outMinVSZ, float& outMaxVSZ) -> bool
+        {
+            const Vec3f corners[8] = {
+                { aabbMinWS.x, aabbMinWS.y, aabbMinWS.z },
+                { aabbMaxWS.x, aabbMinWS.y, aabbMinWS.z },
+                { aabbMinWS.x, aabbMaxWS.y, aabbMinWS.z },
+                { aabbMaxWS.x, aabbMaxWS.y, aabbMinWS.z },
+                { aabbMinWS.x, aabbMinWS.y, aabbMaxWS.z },
+                { aabbMaxWS.x, aabbMinWS.y, aabbMaxWS.z },
+                { aabbMinWS.x, aabbMaxWS.y, aabbMaxWS.z },
+                { aabbMaxWS.x, aabbMaxWS.y, aabbMaxWS.z },
+            };
+
+            const float projScaleX = projMatrix[0][0];
+            const float projScaleY = projMatrix[1][1];
+            const float halfW = float(extent.x) * 0.5f;
+            const float halfH = float(extent.y) * 0.5f;
+
+            float ndcMinX = MathUtil::MaxSafeValue<float>();
+            float ndcMinY = MathUtil::MaxSafeValue<float>();
+            float ndcMaxX = MathUtil::MinSafeValue<float>();
+            float ndcMaxY = MathUtil::MinSafeValue<float>();
+
+            outMinVSZ = MathUtil::MaxSafeValue<float>();
+            outMaxVSZ = MathUtil::MinSafeValue<float>();
+
+            bool anyInFront = false;
+            bool anyBehind = false;
+
+            for (const Vec3f& corner : corners)
+            {
+                const Vec3f cornerVS = viewMatrix * corner;
+
+                outMinVSZ = MathUtil::Min(outMinVSZ, cornerVS.z);
+                outMaxVSZ = MathUtil::Max(outMaxVSZ, cornerVS.z);
+
+                if (cornerVS.z < cameraNear)
+                {
+                    anyBehind = true;
+                    continue;
+                }
+
+                anyInFront = true;
+
+                const float invZ = 1.0f / cornerVS.z;
+                const float ndcX = cornerVS.x * projScaleX * invZ;
+                const float ndcY = cornerVS.y * projScaleY * invZ;
+
+                ndcMinX = MathUtil::Min(ndcMinX, ndcX);
+                ndcMinY = MathUtil::Min(ndcMinY, ndcY);
+                ndcMaxX = MathUtil::Max(ndcMaxX, ndcX);
+                ndcMaxY = MathUtil::Max(ndcMaxY, ndcY);
+            }
+
+            if (!anyInFront)
+            {
+                return false;
+            }
+
+            // If the AABB straddles the near plane, conservatively cover the full screen
+            if (anyBehind)
+            {
+                ndcMinX = -1.0f;
+                ndcMinY = -1.0f;
+                ndcMaxX = 1.0f;
+                ndcMaxY = 1.0f;
+            }
+
+            const float pixMinX = ndcMinX * halfW + halfW;
+            const float pixMaxX = ndcMaxX * halfW + halfW;
+            const float pixMinY = ndcMinY * halfH + halfH;
+            const float pixMaxY = ndcMaxY * halfH + halfH;
+
+            outMinX = uint32(MathUtil::Max(int32(pixMinX) / int32(TileSize), 0));
+            outMinY = uint32(MathUtil::Max(int32(pixMinY) / int32(TileSize), 0));
+            outMaxX = MathUtil::Min(uint32(MathUtil::Max(pixMaxX, 0.0f)) / TileSize, numTilesX - 1);
+            outMaxY = MathUtil::Min(uint32(MathUtil::Max(pixMaxY, 0.0f)) / TileSize, numTilesY - 1);
+
+            return outMinX <= outMaxX && outMinY <= outMaxY;
+        };
+
         for (Light* light : rpl.GetLights())
         {
             const LightType lightType = light->GetLightType();
@@ -1860,6 +1924,9 @@ public:
             }
         }
 
+        Array<Tuple<EnvProbe*, EnvProbeShaderData*, uint32>, RenderTempAllocator> envProbes;
+        envProbes.Reserve(rpl.GetEnvProbes().NumCurrent());
+        
         for (EnvProbe* envProbe : rpl.GetEnvProbes())
         {
             const uint32 envProbeBindingIndex = Resources::GetBinding(envProbe);
@@ -1870,46 +1937,97 @@ public:
             }
 
             RenderProxyEnvProbe* envProbeProxy = static_cast<RenderProxyEnvProbe*>(GetRenderProxy(envProbe));
+            AssertDebug(envProbeProxy != nullptr);
 
-            if (envProbeProxy == nullptr)
+            envProbes.EmplaceBack(envProbe, &envProbeProxy->bufferData, envProbeBindingIndex);
+        }
+
+        // Sort env probes, we want sky first
+        Vec3f cameraPosition = cameraProxy->bufferData.cameraPosition.GetXYZ();
+
+        std::sort(envProbes.Begin(), envProbes.End(),
+            [&cameraPosition](const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& a, const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& b)
             {
-                continue;
-            }
+                const bool aIsSky = a.GetElement<0>()->IsA(SkyProbe::StaticClass());
+                const bool bIsSky = b.GetElement<0>()->IsA(SkyProbe::StaticClass());
 
-            const Vec3f aabbMinWS = envProbeProxy->bufferData.aabbMin.GetXYZ();
-            const Vec3f aabbMaxWS = envProbeProxy->bufferData.aabbMax.GetXYZ();
-            const Vec3f centerWS = (aabbMinWS + aabbMaxWS) * 0.5f;
-            const float probeRadius = (aabbMaxWS - centerWS).Length();
-
-            const Vec3f centerVS = viewMatrix * centerWS;
-
-            uint32 tileMinX;
-            uint32 tileMinY;
-            uint32 tileMaxX;
-            uint32 tileMaxY;
-
-            if (!ProjectSphereToScreenAABB(centerVS, probeRadius, tileMinX, tileMinY, tileMaxX, tileMaxY))
-            {
-                continue;
-            }
-
-            const float probeDistVS = centerVS.z;
-            const int32 zBinMin = CalculateZBin(MathUtil::Max(probeDistVS - probeRadius, cameraNear));
-            const int32 zBinMax = CalculateZBin(MathUtil::Min(probeDistVS + probeRadius, cameraFar));
-
-            for (int32 z = zBinMin; z <= zBinMax; z++)
-            {
-                for (uint32 y = tileMinY; y <= tileMaxY; y++)
+                if (aIsSky && !bIsSky)
                 {
-                    for (uint32 x = tileMinX; x <= tileMaxX; x++)
+                    return false;
+                }
+
+                if (!aIsSky && bIsSky)
+                {
+                    return true;
+                }
+
+                if (aIsSky && bIsSky)
+                {
+                    return false;
+                }
+
+                // both are reflection probes, sort by distance to camera
+                const Vec3f aProbePosition = a.GetElement<1>()->worldPosition.GetXYZ();
+                const Vec3f bProbePosition = b.GetElement<1>()->worldPosition.GetXYZ();
+
+                const float aDistSq = (aProbePosition - cameraPosition).LengthSquared();
+                const float bDistSq = (bProbePosition - cameraPosition).LengthSquared();
+
+                return aDistSq < bDistSq;
+            });
+
+        for (const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& tup : envProbes)
+        {
+            const EnvProbe& envProbe = *tup.GetElement<0>();
+            const EnvProbeShaderData& envProbeData = *tup.GetElement<1>();
+            const uint32 envProbeBindingIndex = tup.GetElement<2>();
+
+            const Vec3f aabbMinWS = envProbeData.aabbMin.GetXYZ();
+            const Vec3f aabbMaxWS = envProbeData.aabbMax.GetXYZ();
+
+            const bool isSky = envProbe.GetEnvProbeType() == EPT_SKY;
+
+            if (isSky)
+            {
+                for (Tile& tile : tempTiles)
+                {
+                    if (tile.numEnvProbes < MaxEnvProbesPerTile)
                     {
-                        const uint32 clusterIndex = (uint32(z) * numTilesY + y) * numTilesX + x;
+                        tile.envProbeIndices[tile.numEnvProbes++] = uint16(envProbeBindingIndex);
+                    }
+                }
+            }
+            else
+            {
+                uint32 tileMinX;
+                uint32 tileMinY;
+                uint32 tileMaxX;
+                uint32 tileMaxY;
+                float probeVSZMin;
+                float probeVSZMax;
 
-                        Tile& tile = tempTiles[clusterIndex];
+                if (!ProjectAABBToScreenTiles(aabbMinWS, aabbMaxWS, tileMinX, tileMinY, tileMaxX, tileMaxY, probeVSZMin, probeVSZMax))
+                {
+                    continue;
+                }
 
-                        if (tile.numEnvProbes < MaxEnvProbesPerTile)
+                const int32 zBinMin = CalculateZBin(MathUtil::Max(probeVSZMin, cameraNear));
+                const int32 zBinMax = CalculateZBin(MathUtil::Min(probeVSZMax, cameraFar));
+
+                for (int32 z = zBinMin; z <= zBinMax; z++)
+                {
+                    for (uint32 y = tileMinY; y <= tileMaxY; y++)
+                    {
+                        for (uint32 x = tileMinX; x <= tileMaxX; x++)
                         {
-                            tile.envProbeIndices[tile.numEnvProbes++] = uint16(envProbeBindingIndex);
+                            const uint32 clusterIndex = (uint32(z) * numTilesY + y) * numTilesX + x;
+
+                            Tile& tile = tempTiles[clusterIndex];
+
+                            if (tile.numEnvProbes < MaxEnvProbesPerTile)
+                            {
+                                tile.envProbeIndices[tile.numEnvProbes++] = uint16(envProbeBindingIndex);
+                            }
                         }
                     }
                 }
@@ -2492,15 +2610,12 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
     const uint32 frameIndex = frame->GetFrameIndex();
 
-    if (cvClusteredShading.Get())
-    {
-        m_tileProcessor->ProcessView(
-            rs.viewport,
-            view,
-            passData.clusterBuffer,
-            passData.clusterGridOffset,
-            passData.clusterIndexOffset);
-    }
+    m_tileProcessor->ProcessView(
+        rs.viewport,
+        view,
+        passData.clusterBuffer,
+        passData.clusterGridOffset,
+        passData.clusterIndexOffset);
 
     // Render shadows for shadow casting lights
     for (Light* light : rpl.GetLights())
@@ -2597,8 +2712,6 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         }
     }
 
-    passData.reflectionsPass->Render(frame, rs);
-
     if ((useRayTracingGlobalIllumination || useRayTracingReflections) && view->GetRayTracingView().IsValid())
     {
         Handle<View> rayTracingView = view->GetRayTracingView().Lock();
@@ -2654,6 +2767,29 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     if (cvSSGI.Get())
     {
         passData.ssgi->Render(frame, rs);
+
+        if (Texture* ssgiResultTexture = passData.ssgi->GetFinalResultTexture())
+        {
+            // make sure it is in a state for reading, we don't want any transitions between lightmap -> deferred indirect pass.
+            frame->cr << InsertBarrier(
+                ssgiResultTexture->GetGpuImage(),
+                RS_SHADER_RESOURCE,
+                ShaderModuleType::Pixel);
+        }
+    }
+
+    if (cvSSR.Get())
+    {
+        passData.reflectionsPass->ssrPass->Render(frame, rs);
+
+        if (Texture* ssrResultTexture = passData.reflectionsPass->ssrPass->GetFinalResultTexture())
+        {
+            // make sure it is in a state for reading, we don't want any transitions between lightmap -> deferred indirect pass.
+            frame->cr << InsertBarrier(
+                ssrResultTexture->GetGpuImage(),
+                RS_SHADER_RESOURCE,
+                ShaderModuleType::Pixel);
+        }
     }
 
     passData.postProcessing->RenderPre(frame, rs);

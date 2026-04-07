@@ -26,6 +26,12 @@
       "EnumValues": []
     }, {
       "$Class": "ShaderProperty",
+      "Name": "MAX_CLUSTERED_SHADOW_MAPS",
+      "Flags": 0,
+      "Value": 16,
+      "EnumValues": []
+    }, {
+      "$Class": "ShaderProperty",
       "Name": "TILE_SIZE",
       "Flags": 0,
       "Value": 32,
@@ -33,12 +39,6 @@
     }, {
       "$Class": "ShaderProperty",
       "Name": "TILE_Z_BINS",
-      "Flags": 0,
-      "Value": 16,
-      "EnumValues": []
-    }, {
-      "$Class": "ShaderProperty",
-      "Name": "MAX_CLUSTERED_SHADOW_MAPS",
       "Flags": 0,
       "Value": 16,
       "EnumValues": []
@@ -156,6 +156,20 @@
               "Register": 1,
               "ElementType": 5,
               "Name": "GBufferMipChain",
+              "Count": 1,
+              "Size": 4294967295,
+              "IsDynamic": false,
+              "StructInfo": {
+                "Name": "",
+                "Size": 4294967295,
+                "FieldNames": [],
+                "FieldTypes": []
+              }
+            }, {
+              "$Class": "ShaderInput",
+              "Register": 1,
+              "ElementType": 5,
+              "Name": "EnvProbesTexture",
               "Count": 1,
               "Size": 4294967295,
               "IsDynamic": false,
@@ -335,15 +349,15 @@
   "ShaderBlobs": [{
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/DeferredDirect/DeferredDirect_14728728388326281922.VS",
-      "Size": 11572
+      "Size": 12004
     }, {
       "$Class": "BlobDataReference",
       "Key": "Engine/Shaders/DeferredDirect/DeferredDirect_14728728388326281922.PS",
-      "Size": 223720
+      "Size": 227084
     }],
   "PropertySetHashCode": {},
   "LastCompiledTimestamp": {
-    "Value": 1775427428000
+    "Value": 1775506186000
   },
   "Name": "DeferredDirect_14728728388326281922",
   "FriendlyName": "DeferredDirect14728728388326281922",
