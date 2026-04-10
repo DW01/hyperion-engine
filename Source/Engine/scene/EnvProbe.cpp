@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <ScenePch.hpp>
 
@@ -372,7 +376,7 @@ void EnvProbe::Update(float delta)
 
     bool needsUpdate = false;
 
-    Array<ObjId<Scene>, SceneTempAllocator> cacheKeysToRemove;
+    Array<ObjId<Scene>, SceneAllocator> cacheKeysToRemove;
     cacheKeysToRemove.Reserve(m_cachedOctantHashCodes.Size());
 
     for (const KeyValuePair<ObjId<Scene>, HashCode>& kvp : m_cachedOctantHashCodes)

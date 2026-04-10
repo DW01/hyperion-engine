@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <RenderingPch.hpp>
 
@@ -11,6 +15,8 @@
 #include <rendering/DescriptorSet.hpp>
 #include <rendering/Shader.hpp>
 #include <rendering/ShaderInstance.hpp>
+#include <rendering/GraphicsPipelineCache.hpp>
+#include <rendering/GenericPipelineCache.hpp>
 
 #include <asset/Assets.hpp>
 #include <asset/AssetRegistry.hpp>
@@ -69,16 +75,16 @@ namespace Hyperion {
 
 HYP_DEFINE_LOG_SUBCHANNEL(ShaderCompiler, Core);
 
+// #define HYP_SHADER_COMPILER_LOGGING
+
 /// Should missing shader variants be compiled when requested, or should we just fail?
 /// Enabling this will cause shader compilation to happen during gameplay / editor.
 CVar<bool> cvShouldCompileMissingVariants { "ShaderCompiler.CompileMissingVariants", false };
 
-// #define HYP_SHADER_COMPILER_LOGGING
-
 #if HYP_DXC
 static IDxcUtils* s_dxcUtils = nullptr;
 static IDxcCompiler3* s_dxcCompiler = nullptr;
-#endif
+#endif // HYP_DXC
 
 static constexpr uint32 NumPrecompileShadersThreads = 8;
 
@@ -134,7 +140,7 @@ static LPCWSTR GetDXCTargetProfile(ShaderModuleType type)
         return L"vs_6_0";
     }
 }
-#endif
+#endif // HYP_DXC
 
 static String InputLayoutToString(const VertexInputLayoutDesc& inputLayout)
 {
@@ -351,12 +357,12 @@ static String BuildAttributesDefines(
 #if !HYP_VULKAN
 #ifndef VK_API_VERSION_1_1
 static constexpr uint32 VK_API_VERSION_1_1 = 4198400;
-#endif
+#endif // VK_API_VERSION_1_1
 #ifndef VK_API_VERSION_1_1
 static constexpr uint32 VK_API_VERSION_1_2 = 4202496;
-#endif
+#endif // VK_API_VERSION_1_2
 static constexpr uint32 HYP_VULKAN_API_VERSION = VK_API_VERSION_1_2;
-#endif
+#endif // !HYP_VULKAN
 
 static const ShaderPropertyId s_propVulkan = InternShaderProperty(ShaderProperty(NAME("HYP_VULKAN"), int(HYP_VULKAN_API_VERSION)));
 
@@ -385,7 +391,7 @@ void MergeGlobalShaderProperties(ShaderPropertySet& out)
 {
 #if HYP_VULKAN
     out.Add(s_propVulkan);
-#endif
+#endif // HYP_VULKAN
 
     out.Add(s_propNumGBufferTextures);
 
@@ -1669,7 +1675,7 @@ static void ForEachPermutation(
 static bool LoadBundleFromAssetPath(
     const AssetPath& path, Handle<ShaderBundle>& outBundle)
 {
-    Handle<AssetObject> asset = g_assetManager->GetAssetRegistry()->GetAssetFromPath(path.ToString(), /* attemptLoading */ true);
+    Handle<AssetObject> asset = g_assetManager->GetAssetRegistry()->GetAssetFromPath(path.ToString());
 
     if (!asset.IsValid() || !asset->IsA(ShaderBundle::StaticClass()))
     {
@@ -3396,7 +3402,7 @@ bool ShaderCompiler::CompileBundle(
             {
                 HYP_LOG(ShaderCompiler, Error,
                     "Shader request for bundle '{}' is not covered by the bundle's declared permutations: {}\n"
-                    "Declare the property variant up front in Shaders.ini or via PERMUTATION/VALUE_GROUP/STATIC macros in the shader source.",
+                    "Ensure PERMUTE() / STATIC() declarations that cover the desired property set exist in the shader source",
                     decl.name, coverageFailReason);
 
                 return false;
@@ -3799,9 +3805,13 @@ bool ShaderCompiler::CompileBundle(
                         shader->GetName(), package->GetName(), removeResult.GetError().GetMessage());
                 }
             }
+
+            g_renderInterface->graphicsPipelineCache->ExpirePipelinesForShader(shader);
+            g_renderInterface->computePipelineCache->ExpirePipelinesForShader(shader);
+            g_renderInterface->rayTracingPipelineCache->ExpirePipelinesForShader(shader);
         }
 
-        existingShadersToRemove.Clear();
+        EnqueueDeletion(std::move(existingShadersToRemove));
     }
 
     // keep compiled shaders sorted.

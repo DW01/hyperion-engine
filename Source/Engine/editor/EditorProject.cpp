@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <EditorPch.hpp>
 
@@ -251,8 +255,7 @@ Result EditorProject::SaveAs(FilePath filepath)
             // Instances of objects without a pre-defined path (e.g Media/Meshes) go under
             //  PkgName/Objects/Types/<ObjectClassName>/ObjectName
             return HYP_FORMAT("Objects/Types/{}", assetObject.InstanceClass()->GetName());
-        },
-        AddAssetConflictMode::ReplaceExisting);
+        });
 
     if (filepath.Empty())
     {

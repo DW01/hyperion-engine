@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <RenderingPch.hpp>
 
@@ -42,40 +46,6 @@ struct MergeCheckerboardUniforms
 {
     Vec2u dimensions;
 };
-
-#pragma region Render commands
-
-struct RecreateFullScreenPassFramebuffer : RenderCommand
-{
-    FullScreenPass* pass;
-    Vec2u newSize;
-
-    RecreateFullScreenPassFramebuffer(FullScreenPass* pass, Vec2u newSize)
-        : pass(pass),
-          newSize(newSize)
-    {
-    }
-
-    virtual ~RecreateFullScreenPassFramebuffer() override = default;
-
-    virtual RendererResult operator()() override
-    {
-        if (pass->m_isInitialized)
-        {
-            pass->Resize_Internal(newSize);
-        }
-        else
-        {
-            pass->m_extent = newSize;
-        }
-
-        pass->m_threadSignal.Signal();
-
-        return {};
-    }
-};
-
-#pragma endregion Render commands
 
 FullScreenPass::FullScreenPass(EnumFlags<FullScreenPassFlags> flags)
     : FullScreenPass(InvalidTextureFormat, nullptr, flags)
@@ -235,8 +205,27 @@ void FullScreenPass::SetBlendFunction(const BlendFunction& blendFunction)
 
 void FullScreenPass::Resize(Vec2u newSize)
 {
+    if (IsOnThread(g_renderThread))
+    {
+        Resize_Internal(newSize);
+        return;
+    }
+
     m_threadSignal.WaitAndReset();
-    PUSH_RENDER_COMMAND(RecreateFullScreenPassFramebuffer, this, newSize);
+
+    GetThreadById(g_renderThread)->GetScheduler().Enqueue([this, newSize]()
+        {
+            if (m_isInitialized)
+            {
+                Resize_Internal(newSize);
+            }
+            else
+            {
+                m_extent = newSize;
+            }
+
+            m_threadSignal.Signal();
+        }, TaskEnqueueFlags::FIRE_AND_FORGET);
 }
 
 void FullScreenPass::Resize_Internal(Vec2u newSize)

@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <HyperionPch.hpp>
 
@@ -56,7 +60,7 @@
 
 #if HYP_VULKAN
 #include <rendering/vulkan/VulkanRenderInterface.hpp>
-#endif
+#endif // HYP_VULKAN
 
 #if HYP_EDITOR
 #include <editor/EditorState.hpp>
@@ -65,11 +69,11 @@
 
 #include <scene/World.hpp>
 #include <scene/Scene.hpp>
-#endif
+#endif // HYP_EDITOR
 
 #if HYP_DOTNET
 #include <dotnet/DotNETHost.hpp>
-#endif
+#endif // HYP_DOTNET
 
 /// ========== If this include is missing, you need to run the CodeGen tool (instructions in doc/CompilingTheEngine.md) ==========
 #include <CodeGenOutput.inc>
@@ -80,7 +84,7 @@ HYP_DECLARE_LOG_CHANNEL(Engine);
 
 #if HYP_ANDROID
 struct AAssetManager* g_androidAssetManager;
-#endif
+#endif // HYP_ANDROID
 
 #pragma region Memory Pools
 
@@ -104,7 +108,7 @@ ShaderCompiler* g_shaderCompiler;
 
 #if HYP_EDITOR
 Handle<EditorState> g_editorState;
-#endif
+#endif // HYP_EDITOR
 
 MainThread* g_mainThreadInstance;
 SimThread* g_simThreadInstance;
@@ -117,7 +121,7 @@ Game* g_gameInstance; // active game instance, read/write only from the main thr
 VulkanRenderInterface* g_renderInterface;
 #elif HYP_DX12
 DX12RenderInterface* g_renderInterface;
-#endif
+#endif // HYP_VULKAN || HYP_DX12
 
 static void HandleFatalError(const char* message)
 {
@@ -134,7 +138,7 @@ HYP_EXPORT const FilePath& GetLibraryDirectory()
 #if HYP_EDITOR
     static DirectoryInitializer<HYP_STATIC_STRING("Packages"), /* RelativeToExecutablePath */ false> s_resourceDirectory;
     return s_resourceDirectory.path;
-#else
+#else // !HYP_EDITOR
     // shouldn't be used in non-editor builds, so just return executable path to avoid issues with appending paths
     HYP_LOG(Engine, Warning, "GetLibraryDirectory() called in non-editor build; returning executable path instead");
 
@@ -142,7 +146,7 @@ HYP_EXPORT const FilePath& GetLibraryDirectory()
     Assert(s_exePath.Length() != 0); // don't want to return empty path which will cause appending to give root-level paths.
 
     return s_exePath;
-#endif
+#endif // HYP_EDITOR
 }
 
 #if HYP_EDITOR
@@ -153,7 +157,7 @@ HYP_EXPORT const FilePath& GetProjectsDirectory()
     static DirectoryInitializer<HYP_STATIC_STRING("Projects"), /* RelativeToExecutablePath */ false> s_projectsDirectory;
     return s_projectsDirectory.path;
 }
-#endif
+#endif // HYP_EDITOR
 
 // Directory for cached data (shader bundles, compiled scripts, etc.) Expected to be compiled into the asset registry in production builds
 static bool s_cacheDirectoryInit = false;
@@ -203,10 +207,10 @@ HYP_EXPORT const FilePath& GetTempDirectory()
     // not used in Android build.
     static const FilePath s_emptyPath;
     return s_emptyPath;
-#else
+#else // !HYP_ANDROID
     static DirectoryInitializer<HYP_STATIC_STRING("Temp"), /* RelativeToExecutablePath */ true> s_tempDirectory;
     return s_tempDirectory.path;
-#endif
+#endif // HYP_ANDROID
 }
 
 // Editor build only
@@ -321,9 +325,9 @@ extern "C"
 #if HYP_ANDROID
         // use asset manager for all assets
         const FilePath basePath = FilePath(AndroidAssetPathPrefix);
-#else
+#else // !HYP_ANDROID
         const FilePath basePath = FilePath(cliArgs.GetCommand().ToUtf8()).BasePath();
-#endif
+#endif // HYP_ANDROID
 
         CoreApi::SetExecutablePath(basePath);
         
@@ -334,7 +338,7 @@ extern "C"
         // leads to type identity issues with managed types
         // due to multiple runtimes being loaded.
         DotNETHost::GetInstance().Initialize(basePath, /* initFromManaged */ isEditor, s_initFromManagedCallback);
-#endif
+#endif // HYP_DOTNET
 
         TaskSystem::GetInstance().Start();
 
@@ -358,7 +362,7 @@ extern "C"
 #if HYP_EDITOR
         g_editorState = MakeHandle<EditorState>();
         InitObject(g_editorState);
-#endif
+#endif // HYP_EDITOR
 
         g_materialCache = new MaterialCache;
 
@@ -378,9 +382,9 @@ extern "C"
         g_appContext = MakeHandle<SDLAppContext>("Hyperion", cliArgs);
 #elif HYP_ANDROID
         g_appContext = MakeHandle<AndroidAppContext>("Hyperion", cliArgs);
-#else
+#else // !HYP_WINDOWS && !HYP_MACOS && !HYP_SDL && !HYP_ANDROID
         HYP_FAIL("AppContext not implemented for this platform");
-#endif
+#endif // HYP_WINDOWS || HYP_MACOS || HYP_SDL || HYP_ANDROID
 
         const bool isCommandlet = cliArgs["Commandlet"].ToBool();
 
@@ -491,7 +495,7 @@ extern "C"
 
 #if HYP_EDITOR
         g_editorState.Reset();
-#endif
+#endif // HYP_EDITOR
 
         g_engineDriver.Reset();
         g_appContext.Reset();
@@ -500,7 +504,7 @@ extern "C"
 
 #if HYP_DOTNET
         DotNETHost::GetInstance().Shutdown();
-#endif
+#endif // HYP_DOTNET
 
         if (TaskSystem::GetInstance().IsRunning())
         {
@@ -562,7 +566,7 @@ extern "C"
 
 #if HYP_WINDOWS
         Win32_CleanupWindowClasses();
-#endif
+#endif // HYP_WINDOWS
     }
 
     HYP_EXPORT void Hyp_SetGame(Game* pGame)
@@ -634,7 +638,7 @@ extern "C"
 
         return cocoaWindow->GetNSView();
     }
-#endif
+#endif // HYP_MACOS
 
     HYP_EXPORT int Hyp_SetMainWindow(AppContextBase* pCtx, ApplicationWindow* pWindow)
     {
@@ -709,7 +713,7 @@ extern "C"
     {
         s_initFromManagedCallback = callback;
     }
-#endif
+#endif // HYP_DOTNET
 
 #if HYP_EDITOR
     using LogCallback = void (*)(
@@ -760,7 +764,7 @@ extern "C"
             );
         }
     }
-#endif
+#endif // HYP_EDITOR
 
     HYP_EXPORT int Hyp_ExecuteConsoleCommand(int argc, const char** argv)
     {
@@ -907,7 +911,7 @@ extern "C"
             ctx->EnqueueEvent(std::move(event));
         }
     }
-#endif
+#endif // HYP_ANDROID
 }
 
 } // namespace Hyperion

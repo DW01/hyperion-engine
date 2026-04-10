@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <VulkanPch.hpp>
 
@@ -116,8 +120,8 @@ RendererResult VulkanRayTracingPipeline::Create()
 
     VkRayTracingPipelineCreateInfoKHR pipelineInfo { VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR };
 
-    const Array<VkPipelineShaderStageCreateInfo>& stages = m_shaderInstance->GetVulkanShaderStages();
-    const Array<VulkanShaderGroup>& shaderGroups = m_shaderInstance->GetShaderGroups();
+    const Array<VkPipelineShaderStageCreateInfo, VulkanAllocator>& stages = m_shaderInstance->GetVulkanShaderStages();
+    const Array<VulkanShaderGroup, VulkanAllocator>& shaderGroups = m_shaderInstance->GetShaderGroups();
 
     Array<VkRayTracingShaderGroupCreateInfoKHR> shaderGroupCreateInfos;
     shaderGroupCreateInfos.Resize(shaderGroups.Size());
@@ -192,7 +196,7 @@ void VulkanRayTracingPipeline::TraceRays(VulkanCommandBuffer* commandBuffer, con
 
 RendererResult VulkanRayTracingPipeline::CreateShaderBindingTables(VulkanShaderInstance* shaderInstance)
 {
-    const Array<VulkanShaderGroup>& shaderGroups = shaderInstance->GetShaderGroups();
+    const Array<VulkanShaderGroup, VulkanAllocator>& shaderGroups = shaderInstance->GetShaderGroups();
 
     const VulkanFeatures& features = g_renderInterface->GetDevice()->GetFeatures();
     const auto& properties = features.GetRayTracingPipelineProperties();

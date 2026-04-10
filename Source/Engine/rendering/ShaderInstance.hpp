@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #pragma once
 #include <Core/memory/ByteBuffer.hpp>
@@ -13,7 +17,7 @@
 #include <Core/utilities/Time.hpp>
 #endif
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/Shared.hpp>
 
 #include <Core/HashCode.hpp>
 #include <Core/Types.hpp>

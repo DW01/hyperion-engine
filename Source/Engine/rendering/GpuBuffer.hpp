@@ -1,8 +1,13 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #pragma once
 
 #include <Core/Defines.hpp>
+#include <Core/Types.hpp>
 
 #include <Core/functional/Proc.hpp>
 
@@ -10,10 +15,8 @@
 #include <Core/containers/HashSet.hpp>
 
 #include <rendering/RenderResult.hpp>
-#include <rendering/Shared.hpp>
 #include <rendering/RenderObject.hpp>
-
-#include <Core/Types.hpp>
+#include <rendering/Shared.hpp>
 
 namespace Hyperion {
 

@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <RenderingPch.hpp>
 
@@ -120,7 +124,13 @@ void GBuffer::Resize(Vec2u extent)
 
     for (GBufferTarget& target : m_buckets)
     {
-        target.SetFramebuffer(nullptr);
+        if (target.GetFramebuffer().IsValid())
+        {
+            FramebufferRef framebuffer = target.GetFramebuffer();
+            target.SetFramebuffer(nullptr);
+
+            EnqueueDeletion(std::move(framebuffer));
+        }
     }
 
     EnqueueDeletion(std::move(m_framebuffers));
@@ -142,7 +152,7 @@ void GBuffer::CreateBucketFramebuffers()
 {
     HYP_SCOPE;
 
-    m_framebuffers.Clear();
+    EnqueueDeletion(std::move(m_framebuffers));
 
     for (GBufferTarget& target : m_buckets)
     {

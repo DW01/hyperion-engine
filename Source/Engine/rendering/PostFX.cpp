@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <RenderingPch.hpp>
 
@@ -173,8 +177,6 @@ void PostProcessing::PerformUpdates()
     }
 
     m_effectsUpdated.Set(false, MemoryOrder::RELEASE);
-
-    HYP_SYNC_RENDER();
 }
 
 PostProcessingUniforms PostProcessing::GetUniforms() const

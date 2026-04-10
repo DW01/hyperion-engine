@@ -44,6 +44,22 @@ namespace Hyperion.Editor.ViewModels
         public bool IsUnnamed => string.IsNullOrEmpty(_name);
         public FontStyle NameFontStyle => IsUnnamed ? FontStyle.Italic : FontStyle.Normal;
 
+        public string IconKind => _node switch
+        {
+            DirectionalLight    => "Sun",
+            PointLight          => "Lightbulb",
+            SpotLight           => "Spotlight",
+            AreaRectLight       => "RectangleHorizontal",
+            Camera              => "Video",
+            ReflectionProbe     => "Gem",
+            ParticleVolume      => "Sparkles",
+            InstancedMeshProxy  => "SquaresUnite",
+            Bone                => "Bone",
+            VolumeBase          => "Box",
+            Entity              => "Shapes",
+            _                   => "Circle",
+        };
+
         public ObservableCollection<NodeViewModel> Children { get; } = new ObservableCollection<NodeViewModel>();
 
         private bool _isExpanded;
@@ -75,7 +91,7 @@ namespace Hyperion.Editor.ViewModels
             _isExpanded = parent == null;
 
             // Initialize existing children
-            for (int i = 0; i < node.NumChildren(); i++)
+            for (uint i = 0; i < node.NumChildren(); i++)
             {
                 Node? child = node.GetChild(i);
 
@@ -87,9 +103,11 @@ namespace Hyperion.Editor.ViewModels
 
             WeakReference<NodeViewModel> weakThis = new WeakReference<NodeViewModel>(this);
 
-            // Subscribe to child added/removed if available
             _onChildAdded = node.GetOnChildAddedDelegate().Bind((Node child, bool isDirect) =>
             {
+                if (!isDirect)
+                    return;
+
                 NodeViewModel? target;
                 if (!weakThis.TryGetTarget(out target))
                 {
@@ -102,6 +120,9 @@ namespace Hyperion.Editor.ViewModels
 
             _onChildRemoved = node.GetOnChildRemovedDelegate().Bind((Node child, bool isDirect) =>
             {
+                if (!isDirect)
+                    return;
+
                 NodeViewModel? target;
                 if (!weakThis.TryGetTarget(out target))
                 {

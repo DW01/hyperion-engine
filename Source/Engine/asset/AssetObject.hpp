@@ -1,9 +1,13 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #pragma once
 
 #include <asset/AssetPath.hpp>
-#include <asset/AssetEnums.hpp>
+#include <asset/AssetTypes.hpp>
 #include <asset/BlobStorageStructs.hpp>
 
 #include <Core/reflection/ObjectBase.hpp>
@@ -194,18 +198,25 @@ public:
     Result Register(
         const UTF8StringView& path,
         AddAssetConflictMode conflictMode = AddAssetConflictMode::Default);
+
+    virtual void RegisterRecursive(
+        const UTF8StringView& path,
+        AddAssetConflictMode conflictMode = AddAssetConflictMode::Default);
         
     virtual void Init() override
     {
         SetReady(true);
     }
 
+    static Result LoadDesc(
+        JSON::Object& manifestData,
+        AssetDesc& outAssetDesc);
+
     static Result Load(
         JSON::Object& manifestData,
         Handle<AssetObject>& outAssetObject);
 
 protected:
-
     virtual void OnDirtyStateChanged(bool isDirty)
     {
         // do nothing by default
@@ -252,10 +263,10 @@ protected:
     HYP_FIELD(Property = "FriendlyName")
     Name m_friendlyName;
 
-    HYP_FIELD(Property = "AssetFlags", Transient)
+    HYP_FIELD(Property = "AssetFlags", Transient, EditHide)
     EnumFlags<AssetObjectFlags> m_flags;
 
-    HYP_FIELD()
+    HYP_FIELD(EditEnabled = false)
     FilePath m_originalFilepath; // used to determine if we should skip importing an asset
 
     HYP_FIELD(Transient)

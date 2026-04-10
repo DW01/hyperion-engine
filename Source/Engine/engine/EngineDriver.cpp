@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <HyperionPch.hpp>
 
@@ -39,6 +43,7 @@
 #include <scene/Scene.hpp>
 #include <scene/EntityManager.hpp>
 #include <scene/Subsystem.hpp>
+#include <scene/InstancedMeshProxy.hpp>
 
 #include <scene/components/VisibilityStateComponent.hpp>
 #include <scene/components/BoundingBoxComponent.hpp>
@@ -104,6 +109,84 @@ static const FilePath& GetScriptsSourceDirectory()
     return s_directory.path;
 }
 
+namespace MeshEntityHelpers {
+
+#if 0
+template <class AllocatorType>
+static void UpdateInstancedMeshEntities(Scene* scene, Array<Entity*, AllocatorType>& outUpdatedEntities)
+{
+    EntityManager* entityManager = scene->GetEntityManager();
+    AssertDebug(entityManager != nullptr);
+
+    for (auto [entity, meshComponent, _] : entityManager->GetEntitySet<MeshComponent, TagComponent<EntityTag::UpdateInstancedMeshData>>())
+    {
+        Array<InstancedMeshProxy*, SceneAllocator> instancedMeshProxies;
+
+        for (const Handle<Node>& childNode : entity->GetChildren())
+        {
+            if (childNode->IsA(InstancedMeshProxy::StaticClass()))
+            {
+                instancedMeshProxies.PushBack(static_cast<InstancedMeshProxy*>(childNode.Get()));
+            }
+        }
+
+        meshComponent.numInstances = uint32(instancedMeshProxies.Size());
+
+        if (!meshComponent.enableAutoInstancing && !meshComponent.numInstances)
+        {
+            continue;
+        }
+
+        if (!meshComponent.instanceData.IsValid())
+        {
+            Handle<InstancedMeshData> imd = MakeHandle<InstancedMeshData>(NAME_FMT("IMD_{}", entity->GetName()));
+
+            Result registerResult = imd->Register("$Memory/Objects/Types/InstancedMeshData", AddAssetConflictMode::GenerateNewName);
+
+            if (registerResult.HasError())
+            {
+                HYP_LOG(Scene, Error, "Failed to register InstancedMeshData: {}", registerResult.GetError().GetMessage());
+            }
+
+            meshComponent.instanceData = AssetReference(imd);
+        }
+
+        const Handle<InstancedMeshData>& imd = ObjCast<InstancedMeshData>(meshComponent.instanceData.Resolve());
+
+        if (!imd.IsValid())
+        {
+            continue;
+        }
+
+        auto scope = imd->GetWriteScope();
+
+        Array<Mat4f, SceneAllocator> transforms;
+        transforms.Resize(instancedMeshProxies.Size());
+
+        Array<Mat4f, SceneAllocator> previousTransforms;
+        previousTransforms.Resize(instancedMeshProxies.Size());
+
+        for (size_t i = 0; i < instancedMeshProxies.Size(); i++)
+        {
+            InstancedMeshProxy* imp = instancedMeshProxies[i];
+
+            transforms[i] = imp->GetWorldMatrix(); // imp->GetLocalTransform().GetMatrix();
+            previousTransforms[i] = imp->prevTransformMatrix;
+
+            imp->prevTransformMatrix = transforms[i];
+        }
+
+        // Update transforms etc. based on the InstancedMeshProxy child objects
+        imd->SetBufferData(0, transforms.Data(), transforms.Size());
+        imd->SetBufferData(1, previousTransforms.Data(), previousTransforms.Size());
+
+        entity->SetNeedsRenderProxyUpdate();
+
+        outUpdatedEntities.PushBack(entity);
+    }
+}
+#endif
+
 template <class AllocatorType>
 static void UpdateDirtyMeshEntities(Scene* scene, Array<Entity*, AllocatorType>& outUpdatedEntities)
 {
@@ -124,6 +207,8 @@ static void UpdateDirtyMeshEntities(Scene* scene, Array<Entity*, AllocatorType>&
         }
     }
 }
+
+} // namespace MeshEntityHelpers
 
 #pragma region EngineDriver
 
@@ -261,6 +346,11 @@ void EngineDriver::RemoveWorld(const World* world)
         EnqueueDeletion(std::move(*it));
         m_worlds.Erase(it);
     }
+}
+
+Span<View* const> EngineDriver::GetCurrentFrameViews() const
+{
+    return m_viewsPerFrame[GetRingIndex()].ToSpan();
 }
 
 bool EngineDriver::IsRenderLoopActive() const
@@ -524,12 +614,12 @@ void EngineDriver::UpdateSim(float delta)
         Bucket_Max
     };
 
-    Array<Entity*, SceneTempAllocator> updatedEntities[Bucket_Max];
+    Array<Entity*, SceneAllocator> updatedEntities[Bucket_Max];
 
     {
         // update mark render proxies as needing update for all entities that could be visible,
         // if they have the UpdateRenderProxy tag
-        Array<Scene*, SceneTempAllocator> visitedScenes;
+        Array<Scene*, InlineAllocator<8, SceneAllocator>> visitedScenes;
 
         for (View* view : views)
         {
@@ -540,7 +630,7 @@ void EngineDriver::UpdateSim(float delta)
                     continue;
                 }
 
-                UpdateDirtyMeshEntities(scene, updatedEntities[Bucket_RenderProxy]);
+                MeshEntityHelpers::UpdateDirtyMeshEntities(scene, updatedEntities[Bucket_RenderProxy]);
 
                 visitedScenes.PushBack(scene);
             }
@@ -594,8 +684,8 @@ void EngineDriver::UpdateSim(float delta)
 
     g_visThreadInstance->OnFrameEnd(updatedEntities[Bucket_Visibility]);
 
-    if (updatedEntities[Bucket_RenderProxy].Any() || updatedEntities[Bucket_Visibility].Any())
-    { // remove tags for updates that were applied
+    if (std::any_of(std::begin(updatedEntities), std::end(updatedEntities), [](const auto& arr) { return arr.Any(); }))
+    {
         for (Scene* scene : scenes)
         {
             scene->GetEntityManager()->Unlock();
@@ -605,6 +695,8 @@ void EngineDriver::UpdateSim(float delta)
             // (they may still assume the tag components exist)
             scene->GetEntityManager()->AddPendingEntitySets();
         }
+        
+        // remove tags for updates that were applied
 
         for (Entity* entity : updatedEntities[Bucket_RenderProxy])
             entity->RemoveTag<EntityTag::UpdateRenderProxy>();
@@ -674,7 +766,7 @@ void EngineDriver::UpdateSim(float delta)
         bufferData->gameTime = m_currentWorld->GetGameState().gameTime;
     }
 
-    m_viewsPerFrame[slot] = views;
+    m_viewsPerFrame[slot] = Array<View*>(views);
 }
 
 #pragma endregion EngineDriver

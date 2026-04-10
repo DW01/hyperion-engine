@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <RenderingPch.hpp>
 
@@ -292,9 +296,10 @@ RendererResult Texture::Create()
         GpuImageRef gpuImage = g_renderInterface->MakeImage(m_textureDesc);
     
 #if HYP_DEBUG_MODE
-        if (m_name.IsValid())
+        Name assetName = GetName();
+        if (assetName.IsValid())
         {
-            gpuImage->SetDebugName(m_name);
+            gpuImage->SetDebugName(assetName);
         }
 #endif
 

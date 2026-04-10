@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <AssetPch.hpp>
 
@@ -267,12 +271,12 @@ Result AssetObject::SaveAs(const FilePath& manifestPath)
     // only assets that are not registered or are registered in transient locations (e.g $Memory, $Temp, $Import, etc.) will be relocated.
     AssetRegistry& registry = *g_assetManager->GetAssetRegistry();
     registry.RegisterAssetsRecursively(
-        package->BuildPackagePath(),
-        BoxedValue(AnyRef(*this)),
-        /* forceRelocation */ false,
-        /* appendExistingPackagePath */ false,
-        nullptr,
-        AddAssetConflictMode::ReplaceExisting);
+       package->BuildPackagePath(),
+       BoxedValue(AnyRef(*this)),
+       /* forceRelocation */ false,
+       /* appendExistingPackagePath */ false,
+       nullptr,
+       AddAssetConflictMode::ReplaceExisting);
 
     BlobStorage& blobStorage = registry.GetBlobStorage();
 
@@ -394,13 +398,37 @@ Result AssetObject::Register(const UTF8StringView& path, AddAssetConflictMode co
     return g_assetManager->GetAssetRegistry()->RegisterAsset(path, MakeStrongRef(this), conflictMode);
 }
 
+void AssetObject::RegisterRecursive(const UTF8StringView& path, AddAssetConflictMode conflictMode)
+{
+    g_assetManager->GetAssetRegistry()->RegisterAssetsRecursively(
+        path,
+        BoxedValue(AnyRef(*this)),
+        /* forceRelocation */ false,
+        /* appendExistingPackagePath */ false,
+        nullptr,
+        conflictMode);
+}
+
+Result AssetObject::LoadDesc(
+    JSON::Object& manifestData,
+    AssetDesc& outAssetDesc)
+{
+    if (!manifestData["Name"].IsString() || !manifestData["$Class"].IsString())
+    {
+        return HYP_MAKE_ERROR(Error, "Manifest must have 'Name', '$Class' values to be considered valid!");
+    }
+
+    outAssetDesc = {};
+    outAssetDesc.name = CreateNameFromDynamicString(*manifestData["Name"].ToString());
+    outAssetDesc.index = AssetDesc::InvalidIndex;
+
+    return {};
+}
 
 Result AssetObject::Load(
     JSON::Object& manifestData,
     Handle<AssetObject>& outAssetObject)
 {
-    HYP_SCOPE;
-
     static constexpr uint32 MaxRecursionDepth = 32;
     static thread_local uint32 s_recursionDepth = 0;
 

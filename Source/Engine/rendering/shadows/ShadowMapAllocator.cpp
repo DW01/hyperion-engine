@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <RenderingPch.hpp>
 
@@ -122,7 +126,7 @@ ShadowMap* ShadowMapAllocator::AllocateShadowMap(ShadowMapType shadowMapType, Sh
         {
             m_pointLightShadowMapIdGenerator.ReleaseId(pointLightIndex + 1);
 
-            HYP_LOG(Rendering, Error, "Too mani omni shadow maps allocated");
+            HYP_LOG_ONCE(Rendering, Warning, "Too many omni shadow maps allocated; returning NULL for AllocateShadowMap()");
             
             return nullptr;
         }

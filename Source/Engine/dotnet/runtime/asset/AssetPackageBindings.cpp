@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <HyperionPch.hpp>
 
@@ -8,41 +12,53 @@ using namespace Hyperion;
 
 extern "C"
 {
-    HYP_EXPORT uint32 AssetPackage_GetAssets(AssetPackage* pPackage, Handle<AssetObject>* pOutAssetHandles)
+    HYP_EXPORT uint32 AssetPackage_GetAssetDescs(AssetPackage* pPackage, AssetDesc* pOutAssetDescs, uint32 maxCount)
     {
         Assert(pPackage != nullptr);
 
-        if (!pOutAssetHandles)
+        Array<AssetDesc> assetDescs;
+        pPackage->GetAssetDescs(assetDescs);
+
+        if (!pOutAssetDescs)
         {
-            return uint32(pPackage->GetAssets().Size());
+           return uint32(assetDescs.Size());
         }
 
-        Array<Handle<AssetObject>> assets = pPackage->GetAssets().ToArray();
-
-        for (uint32 i = 0; i < uint32(assets.Size()); i++)
+        if (maxCount > uint32(assetDescs.Size()))
         {
-            new (&pOutAssetHandles[i]) Handle<AssetObject>(std::move(assets[i]));
+            maxCount = uint32(assetDescs.Size());
         }
 
-        return uint32(assets.Size());
+        for (uint32 i = 0; i < maxCount; i++)
+        {
+           new (&pOutAssetDescs[i]) AssetDesc(std::move(assetDescs[i]));
+        }
+
+        return maxCount;
     }
 
-    HYP_EXPORT uint32 AssetPackage_GetSubpackages(AssetPackage* pPackage, Handle<AssetPackage>* pOutPackageHandles)
+    HYP_EXPORT uint32 AssetPackage_GetSubpackages(AssetPackage* pPackage, Handle<AssetPackage>* pOutPackageHandles, uint32 maxCount)
     {
         Assert(pPackage != nullptr);
+
+        Array<Handle<AssetPackage>> subpackages;
+        pPackage->GetSubpackages(subpackages);
 
         if (!pOutPackageHandles)
         {
-            return uint32(pPackage->GetSubpackages().Size());
+            return uint32(subpackages.Size());
         }
 
-        Array<Handle<AssetPackage>> packages = pPackage->GetSubpackages().ToArray();
-
-        for (uint32 i = 0; i < uint32(packages.Size()); i++)
+        if (maxCount > uint32(subpackages.Size()))
         {
-            new (&pOutPackageHandles[i]) Handle<AssetPackage>(std::move(packages[i]));
+            maxCount = uint32(subpackages.Size());
         }
 
-        return uint32(packages.Size());
+        for (uint32 i = 0; i < maxCount; i++)
+        {
+            new (&pOutPackageHandles[i]) Handle<AssetPackage>(std::move(subpackages[i]));
+        }
+
+        return maxCount;
     }
 } // extern "C"

@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #pragma once
 
@@ -112,10 +116,7 @@ public:
     void AddWorld(const Handle<World>& world);
     void RemoveWorld(const World* world);
 
-    HYP_FORCE_INLINE Span<View* const> GetCurrentFrameViews() const
-    {
-        return m_viewsPerFrame[GetRingIndex()].ToSpan();
-    }
+    Span<View* const> GetCurrentFrameViews() const;
 
     bool IsRenderLoopActive() const;
 

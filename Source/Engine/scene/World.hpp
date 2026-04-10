@@ -1,6 +1,12 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #pragma once
+
+#include <asset/AssetObject.hpp>
 
 #include <Core/reflection/ObjectBase.hpp>
 #include <Core/reflection/Handle.hpp>
@@ -92,7 +98,7 @@ struct CSMState
 };
 
 HYP_CLASS()
-class HYP_API World final : public ObjectBase
+class HYP_API World final : public AssetObject
 {
     HYP_OBJECT_BODY(World);
 
@@ -112,18 +118,6 @@ public:
     World& operator=(World&& other) noexcept = delete;
 
     ~World() override;
-
-    HYP_METHOD()
-    HYP_FORCE_INLINE Name GetName() const
-    {
-        return m_name;
-    }
-
-    HYP_METHOD()
-    HYP_FORCE_INLINE void SetName(Name name)
-    {
-        m_name = name;
-    }
 
     HYP_METHOD()
     HYP_FORCE_INLINE Game* GetGame() const
@@ -392,9 +386,6 @@ private:
     Array<Handle<SystemBase>> SerializeSystems() const;
 
     /// Serialization ///
-
-    HYP_FIELD(Property = "Name", Serialize)
-    Name m_name;
 
     HYP_FIELD(Property = "GameInstance", Transient)
     Game* m_gameInstance;

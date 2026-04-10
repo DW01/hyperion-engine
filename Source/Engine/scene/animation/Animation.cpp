@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <ScenePch.hpp>
 
@@ -144,7 +148,7 @@ Keyframe AnimationTrack::GetKeyframe(float time) const
 Animation::Animation() = default;
 
 Animation::Animation(Name name)
-    : m_name(name)
+    : AssetObject(name)
 {
 }
 

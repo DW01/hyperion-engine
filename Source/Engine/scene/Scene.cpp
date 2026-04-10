@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <ScenePch.hpp>
 
@@ -7,13 +11,6 @@
 #include <scene/Light.hpp>
 
 #include <scene/EntityManager.hpp>
-
-#include <scene/systems/VisibilityStateUpdaterSystem.hpp>
-#include <scene/systems/AnimationSystem.hpp>
-#include <scene/systems/LightmapSystem.hpp>
-#include <scene/systems/AudioSystem.hpp>
-#include <scene/systems/PhysicsSystem.hpp>
-#include <scene/systems/ScriptSystem.hpp>
 
 #include <rendering/RenderInterface.hpp>
 

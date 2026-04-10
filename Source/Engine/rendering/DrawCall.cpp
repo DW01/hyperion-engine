@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <RenderingPch.hpp>
 
@@ -79,8 +83,6 @@ void DrawCallCollection::PushRenderProxyInstanced(EntityInstanceBatch* batch, Dr
 
     const uint32 initialNumInstances = renderProxy.numInstances;
     uint32 numInstances = initialNumInstances;
-
-    AssertDebug(initialNumInstances > 0);
 
     GpuBufferHolderBase* entityInstanceBatches = batchAllocator->GetGpuBufferHolder();
     Assert(entityInstanceBatches != nullptr);

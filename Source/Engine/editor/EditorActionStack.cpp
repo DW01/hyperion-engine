@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <EditorPch.hpp>
 
@@ -18,14 +22,14 @@ namespace Hyperion {
 HYP_DECLARE_LOG_CHANNEL(Editor);
 
 EditorActionStack::EditorActionStack()
-    : m_currentActionIndex(-1),
+    : m_undoDepth(-1),
       m_currentState(EditorActionStackState::NONE)
 {
 }
 
 EditorActionStack::EditorActionStack(const WeakHandle<EditorProject>& editorProject)
     : m_editorProject(editorProject),
-      m_currentActionIndex(-1),
+      m_undoDepth(-1),
       m_currentState(EditorActionStackState::NONE)
 {
 }
@@ -33,10 +37,10 @@ EditorActionStack::EditorActionStack(const WeakHandle<EditorProject>& editorProj
 EditorActionStack::EditorActionStack(EditorActionStack&& other) noexcept
     : m_editorProject(std::move(other.m_editorProject)),
       m_actions(std::move(other.m_actions)),
-      m_currentActionIndex(other.m_currentActionIndex),
+      m_undoDepth(other.m_undoDepth),
       m_currentState(other.m_currentState)
 {
-    other.m_currentActionIndex = -1;
+    other.m_undoDepth = -1;
     other.m_currentState = EditorActionStackState::NONE;
 }
 
@@ -50,10 +54,10 @@ EditorActionStack& EditorActionStack::operator=(EditorActionStack&& other) noexc
     m_editorProject = std::move(other.m_editorProject);
 
     m_actions = std::move(other.m_actions);
-    m_currentActionIndex = other.m_currentActionIndex;
+    m_undoDepth = other.m_undoDepth;
     m_currentState = other.m_currentState;
 
-    other.m_currentActionIndex = -1;
+    other.m_undoDepth = -1;
     other.m_currentState = EditorActionStackState::NONE;
 
     return *this;
@@ -63,12 +67,12 @@ EditorActionStack::~EditorActionStack() = default;
 
 bool EditorActionStack::CanUndo() const
 {
-    return m_currentActionIndex >= 0;
+    return m_undoDepth >= 0;
 }
 
 bool EditorActionStack::CanRedo() const
 {
-    return m_currentActionIndex + 1 < m_actions.Size();
+    return m_undoDepth + 1 < m_actions.Size();
 }
 
 bool EditorActionStack::PushAction(const Handle<EditorActionBase>& action)
@@ -89,18 +93,18 @@ bool EditorActionStack::PushAction(const Handle<EditorActionBase>& action)
 
     // Chop off any actions stack that are after the current action index,
     // since we are pushing a new action.
-    if (m_currentActionIndex > 0)
+    if (m_undoDepth + 1 < m_actions.Size())
     {
-        while (int(m_actions.Size()) > m_currentActionIndex)
+        auto it = m_actions.Begin() + m_undoDepth + 1;
+        while (it != m_actions.End())
         {
-            m_actions.PopBack();
+            it = m_actions.Erase(it);
         }
     }
 
     m_actions.PushBack(action);
-    m_currentActionIndex = int(m_actions.Size()) - 1;
 
-    UpdateState();
+    UpdateState(m_undoDepth + 1);
 
     OnAfterActionPush(action.Get());
 
@@ -120,16 +124,14 @@ void EditorActionStack::Undo()
     Handle<EditorSubsystem> editorSubsystem = editorProject->GetEditorSubsystem().Lock();
     Assert(editorSubsystem.IsValid());
 
-    EditorActionBase* action = m_actions[m_currentActionIndex].Get();
+    EditorActionBase* action = m_actions[m_undoDepth].Get();
     HYP_LOG(Editor, Verbose, "Undoing action: {}", action->GetText());
 
     OnBeforeActionPop(action);
 
     action->Revert(editorSubsystem.Get(), editorProject.Get());
 
-    --m_currentActionIndex;
-
-    UpdateState();
+    UpdateState(m_undoDepth - 1);
 
     OnAfterActionPop(action);
 }
@@ -147,16 +149,14 @@ void EditorActionStack::Redo()
     Handle<EditorSubsystem> editorSubsystem = editorProject->GetEditorSubsystem().Lock();
     Assert(editorSubsystem.IsValid());
 
-    EditorActionBase* action = m_actions[m_currentActionIndex + 1].Get();
+    EditorActionBase* action = m_actions[m_undoDepth + 1].Get();
     HYP_LOG(Editor, Verbose, "Redoing action: {}", action->GetText());
 
     OnBeforeActionPush(action);
 
     action->Execute(editorSubsystem.Get(), editorProject.Get());
 
-    ++m_currentActionIndex;
-
-    UpdateState();
+    UpdateState(m_undoDepth + 1);
 
     OnAfterActionPush(action);
 }
@@ -168,9 +168,9 @@ const Handle<EditorActionBase>& EditorActionStack::GetUndoAction() const
         return Handle<EditorActionBase>::empty;
     }
 
-    AssertDebug(m_currentActionIndex < m_actions.Size());
+    AssertDebug(m_undoDepth < m_actions.Size());
 
-    const Handle<EditorActionBase>& action = m_actions[m_currentActionIndex];
+    const Handle<EditorActionBase>& action = m_actions[m_undoDepth];
     AssertDebug(action.IsValid());
 
     return action;
@@ -183,25 +183,26 @@ const Handle<EditorActionBase>& EditorActionStack::GetRedoAction() const
         return Handle<EditorActionBase>::empty;
     }
 
-    AssertDebug(m_currentActionIndex + 1 < m_actions.Size());
+    AssertDebug(m_undoDepth + 1 < m_actions.Size());
 
-    const Handle<EditorActionBase>& action = m_actions[m_currentActionIndex + 1];
+    const Handle<EditorActionBase>& action = m_actions[m_undoDepth + 1];
     AssertDebug(action.IsValid());
 
     return action;
 }
 
-void EditorActionStack::UpdateState()
+void EditorActionStack::UpdateState(int newUndoDepth)
 {
     EnumFlags<EditorActionStackState> newState = EditorActionStackState::NONE;
     newState[EditorActionStackState::CAN_UNDO] = CanUndo();
     newState[EditorActionStackState::CAN_REDO] = CanRedo();
 
-    if (m_currentState != newState)
+    if (m_currentState != newState || newUndoDepth != m_undoDepth)
     {
         m_currentState = newState;
+        m_undoDepth = newUndoDepth;
 
-        OnStateChange(m_currentState);
+        OnStateChange(m_currentState, m_undoDepth);
     }
 }
 

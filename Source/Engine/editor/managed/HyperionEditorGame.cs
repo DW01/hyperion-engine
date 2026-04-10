@@ -31,6 +31,7 @@ namespace Hyperion.Editor
 
             World.Name = new Name("EditorWorld");
             World.WorldFlags |= WorldFlags.EditorWorld;
+            World.SetIsTransient(true); // Editor world should not be saved or loaded from disk.
 
             this.SetToEditMode();
 
@@ -125,18 +126,6 @@ namespace Hyperion.Editor
         {
             WeakReference weakThis = new WeakReference(this);
 
-            /// \todo Move to MainWindowModelView
-            _onActionStackStateChanged?.Remove();
-            _onActionStackStateChanged = project.ActionStack.GetOnStateChangeDelegate()
-                .Bind((EditorActionStackState newState) =>
-                {
-                    if (weakThis.Target is HyperionEditorGame editorGame)
-                    {
-                        editorGame.UpdateUndo();
-                        editorGame.UpdateRedo();
-                    }
-                });
-
             Logger.Log(LogLevel.Info, "Project opened: " + (project != null ? project.Name.ToString() : "null"));
 
             Scene? activeScene = _editorSubsystem!.GetActiveScene();
@@ -212,16 +201,6 @@ namespace Hyperion.Editor
 
             _onActionStackStateChanged?.Remove();
             _onActionStackStateChanged = null;
-        }
-
-        private void UpdateUndo()
-        {
-            Logger.Log(LogLevel.Debug, "UpdateUndo called");
-        }
-
-        private void UpdateRedo()
-        {
-            Logger.Log(LogLevel.Debug, "UpdateRedo called");
         }
     }
 }

@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <AssetPch.hpp>
 
@@ -9,6 +13,7 @@
 #include <asset/AssetRegistry.hpp>
 #include <asset/Loader.hpp>
 
+#include <rendering/Shared.hpp>
 #include <rendering/Material.hpp>
 #include <rendering/Mesh.hpp>
 #include <rendering/Texture.hpp>
@@ -69,6 +74,7 @@ struct GltfPrimitiveResource
 {
     Handle<Mesh> mesh;
     Handle<Material> material;
+    Vec3f localTranslation = Vec3f::Zero();
     uint32 gltfPrimitiveIndex = 0;
 };
 
@@ -703,7 +709,7 @@ Handle<Material> AcquireMaterial(GltfLoadContext& ctx, const cgltf_material* mat
 
     if (emissiveFactor != Vec3f::Zero())
     {
-        parameters[MATERIAL_KEY_EMISSIVE] = MaterialParameter(Vec4f(emissiveFactor, 1.0f));
+        parameters[MATERIAL_KEY_EMISSIVE_FACTOR] = MaterialParameter(emissiveFactor);
     }
 
     Handle<Material> materialHandle = MaterialCache::GetInstance()->CreateMaterial(materialName, materialAttributes, parameters, textures);
@@ -717,6 +723,7 @@ Handle<Material> AcquireMaterial(GltfLoadContext& ctx, const cgltf_material* mat
 struct PrimitiveBuildOutput
 {
     Handle<Mesh> mesh;
+    Vec3f localTranslation = Vec3f::Zero();
 };
 
 bool BuildPrimitive(GltfLoadContext& ctx,
@@ -802,13 +809,57 @@ bool BuildPrimitive(GltfLoadContext& ctx,
     Array<FatVertex> vertices;
     vertices.Resize(vertexCount);
 
+    bool hasBounds = false;
+    Vec3f meshAabbMin = Vec3f::Zero();
+    Vec3f meshAabbMax = Vec3f::Zero();
+
     for (cgltf_size vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
     {
         FatVertex vertex;
 
         {
             const cgltf_size base = vertexIndex * 3;
-            vertex.SetPosition(Vec3f(positionsData[base], positionsData[base + 1], positionsData[base + 2]));
+            const Vec3f position(positionsData[base], positionsData[base + 1], positionsData[base + 2]);
+            vertex.SetPosition(position);
+
+            if (!hasBounds)
+            {
+                meshAabbMin = position;
+                meshAabbMax = position;
+                hasBounds = true;
+            }
+            else
+            {
+                if (position.x < meshAabbMin.x)
+                {
+                    meshAabbMin.x = position.x;
+                }
+
+                if (position.y < meshAabbMin.y)
+                {
+                    meshAabbMin.y = position.y;
+                }
+
+                if (position.z < meshAabbMin.z)
+                {
+                    meshAabbMin.z = position.z;
+                }
+
+                if (position.x > meshAabbMax.x)
+                {
+                    meshAabbMax.x = position.x;
+                }
+
+                if (position.y > meshAabbMax.y)
+                {
+                    meshAabbMax.y = position.y;
+                }
+
+                if (position.z > meshAabbMax.z)
+                {
+                    meshAabbMax.z = position.z;
+                }
+            }
         }
 
         if (hasNormals)
@@ -841,6 +892,19 @@ bool BuildPrimitive(GltfLoadContext& ctx,
         }
 
         vertices[vertexIndex] = vertex;
+    }
+
+    if (hasBounds)
+    {
+        const Vec3f meshAabbCenter = (meshAabbMin + meshAabbMax) * 0.5f;
+
+        // offset vertices so that the mesh is centered around the origin
+        for (FatVertex& vertex : vertices)
+        {
+            vertex.SetPosition(vertex.GetPosition() - meshAabbCenter);
+        }
+
+        out.localTranslation = meshAabbCenter;
     }
 
     Array<uint32> indices;
@@ -956,6 +1020,7 @@ Handle<Node> BuildNodeRecursive(GltfLoadContext& ctx, const cgltf_node& node)
                 const Name entityName = NAME_FMT("{}_Primitive{}", nodeName, primitive.gltfPrimitiveIndex);
                 entity->SetName(entityName);
                 entity->SetLocalBounds(primitive.mesh->GetAABB());
+                entity->SetLocalTranslation(primitive.localTranslation);
 
                 ctx.scene->GetEntityManager()->AddComponent<MeshComponent>(entity, MeshComponent { primitive.mesh, primitive.material });
 
@@ -1017,6 +1082,7 @@ LoadedAsset BuildModel(LoaderState& state, cgltf_data& data)
             meshResource.primitives.PushBack(GltfPrimitiveResource {
                 .mesh = output.mesh,
                 .material = material,
+                .localTranslation = output.localTranslation,
                 .gltfPrimitiveIndex = uint32(primitiveIndex)
             });
         }

@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <RenderingPch.hpp>
 
@@ -505,7 +509,7 @@ void ComputeEnvProbeSphericalHarmonics(
     {
         Handle<EnvProbe> envProbe;
         GpuBufferRef shReadbackBuffer;
-        Array<GpuBufferRef> shTilesBuffers;
+        Array<GpuBufferRef, FixedAllocator<ShNumLevels>> shTilesBuffers;
         Array<GpuBufferRef> uniformBuffers;
     };
 

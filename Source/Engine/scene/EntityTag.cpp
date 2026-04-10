@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <ScenePch.hpp>
 
@@ -26,6 +30,7 @@ HYP_REGISTER_ENTITY_TAG(UIVisible, false);
 
 HYP_REGISTER_ENTITY_TAG(UpdateRenderProxy, false);
 HYP_REGISTER_ENTITY_TAG(UpdateVisibility, false);
+HYP_REGISTER_ENTITY_TAG(UpdateInstancedMeshData, false);
 
 HYP_REGISTER_ENTITY_TAG(EntityType, false);
 

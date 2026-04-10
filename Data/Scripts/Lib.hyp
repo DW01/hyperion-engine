@@ -604,8 +604,8 @@ extern struct MeshComponent
     Mesh : Mesh
     Material : Material
     Skeleton : Skeleton
-    NumInstances : uint32
     EnableAutoInstancing : bool
+    NumInstances : uint32
     PreviousModelMatrix : Mat4f
 end
 extern struct BoundingBoxComponent
@@ -660,70 +660,6 @@ extern struct Keyframe
     Time : float
     Transform : Transform
     Blend(to : Keyframe, blend : float) -> Keyframe
-end
-extern struct CSMState
-    PlayerCenter : Vec3f
-end
-extern struct FogParams
-    Color : Color
-    StartDistance : float
-    EndDistance : float
-end
-extern enum WorldFlags : uint32
-    NONE = 0x0,
-    EDITOR_WORLD = 0x1,
-    HAS_PHYSICS = 0x2,
-    HAS_STREAMING = 0x4,
-    HAS_SCENE_STREAMING_LAYER = 0x100,
-    ALL_STREAMING_LAYER_FLAGS = HAS_SCENE_STREAMING_LAYER,
-    DEFAULT = ((HAS_PHYSICS | HAS_STREAMING) | ALL_STREAMING_LAYER_FLAGS)
-end
-extern struct CSMParams
-    NumCascades : uint32
-end
-extern class World
-    GetName() -> Name
-    SetName(name : Name) -> void
-    GetGame() -> Game
-    GetWorldFlags() -> WorldFlags
-    SetWorldFlags(flags : WorldFlags) -> void
-    GetFogParams() -> FogParams
-    SetFogParams(fogParams : FogParams) -> void
-    GetCSMParams() -> CSMParams
-    SetCSMParams(csmParams : CSMParams) -> void
-    GetCSMState() -> CSMState
-    SetCSMState(csmState : CSMState) -> void
-    GetPhysicsWorld() -> PhysicsWorldBase
-    TryAddSubsystem(subsystem : Subsystem) -> bool
-    GetSubsystemByName(name : any) -> Subsystem
-    RemoveSubsystem(subsystem : Subsystem) -> bool
-    GetWorldGrid() -> WorldGrid
-    GetGameState() -> GameState
-    AddScene(scene : Scene, addToStreamingLayer : bool) -> void
-    RemoveScene(scene : Scene, removeFromStreamingLayer : bool) -> bool
-    HasScene(sceneId : any) -> bool
-    GetSceneByName(nameHash : any) -> Scene
-    GetScenes() -> Array<Scene>
-    AddView(view : View) -> void
-    RemoveView(view : View) -> void
-    AddSystem(system : SystemBase) -> SystemBase
-    RemoveSystem(system : SystemBase) -> bool
-    OnSceneAdded : any
-    OnSceneRemoved : any
-    DeserializeNonStreamingScenes(scenes : Array<Scene>) -> void
-    SerializeNonStreamingScenes() -> Array<Scene>
-    DeserializeStreamingLayers(streamingLayers : Array<WGLayerDesc>) -> void
-    SerializeStreamingLayers() -> Array<WGLayerDesc>
-    DeserializeSystems(systems : Array<SystemBase>) -> void
-    SerializeSystems() -> Array<SystemBase>
-    Name : Name
-    GameInstance : Game
-    WorldFlags : WorldFlags
-    Scenes : Array<Scene>
-    FogParams : FogParams
-    CsmParams : CSMParams
-    CsmState : CSMState
-    Systems : Array<SystemBase>
 end
 extern struct VisibilityStateSnapshot
 end
@@ -809,6 +745,7 @@ extern enum EntityTag : uint64
     FocusedInEditor,
     UpdateRenderProxy,
     UpdateVisibility,
+    UpdateInstancedMeshData,
     EntityType = 2147483648,
     EntityTypeMask = 0xFFFFFFFF00000000
 end
@@ -1043,8 +980,6 @@ extern enum StoreOperation : uint8
     UNDEFINED,
     NONE,
     STORE
-end
-extern struct DescriptorTableOffsetMap
 end
 extern enum TextureBaseFormat : uint8
     Red,
@@ -1756,6 +1691,28 @@ extern struct BlobMappingRange
     Start : uint32
     End : uint32
 end
+extern enum AddAssetConflictMode : uint8
+    FailOnConflict = 0,
+    GenerateNewName,
+    ReplaceExisting,
+    Default
+end
+extern struct AssetDesc
+    Name : Name
+    Index : uint32
+end
+extern enum AssetObjectFlags : uint8
+    None = 0x0,
+    Persistent = 0x1,
+    Transient = 0x2,
+    TransientByProxy = 0x4
+end
+extern enum AssetPackageFlags : uint32
+    None = 0x0,
+    Transient = 0x1,
+    Hidden = 0x2,
+    SaveOnChanged = 0x4
+end
 extern class AssetCollector
     GetBasePath() -> string
     SetBasePath(basePath : string) -> void
@@ -1789,7 +1746,6 @@ extern class AssetRegistry
     RemovePackage(package : AssetPackage) -> void
     GetPackageFromPath(path : string, createIfNotExist : bool, requireLoaded : bool) -> AssetPackage
     GetPackage(parentPackage : AssetPackage, subpackageName : string, createIfNotExist : bool, requireLoaded : bool) -> AssetPackage
-    LoadSubpackages(parentPackage : AssetPackage, recursive : bool) -> void
     GetUniqueAssetName(packagePath : string, baseName : Name) -> Name
     OnPackageAdded : any
     OnPackageRemoved : any
@@ -1805,6 +1761,7 @@ extern class AssetPackage
     IsHidden() -> bool
     IsLoading() -> bool
     GetParentPackage() -> AssetPackage
+    LoadSubpackages(recursive : bool) -> void
     IsSubpackageOf(other : AssetPackage) -> bool
     BuildPackagePath() -> string
     GetSavedDirectory() -> string
@@ -1890,8 +1847,6 @@ extern class Skeleton : AssetObject
     Animations : Array<Animation>
 end
 extern class Animation : AssetObject
-    GetName() -> Name
-    SetName(name : Name) -> void
     GetLength() -> float
     AddTrack(track : AnimationTrack) -> void
     GetTracks() -> Array<AnimationTrack>
@@ -1900,7 +1855,6 @@ extern class Animation : AssetObject
     NumTracks() -> uint32
     Apply(skeleton : Skeleton, time : float) -> void
     ApplyBlended(skeleton : Skeleton, time : float, blend : float) -> void
-    Name : Name
     Tracks : Array<AnimationTrack>
 end
 extern class AnimationTrack : AssetObject
@@ -1910,6 +1864,67 @@ extern class AnimationTrack : AssetObject
     GetKeyframe(time : float) -> Keyframe
     BoneName : Name
     KeyframeData : BlobDataReference
+end
+extern struct CSMState
+    PlayerCenter : Vec3f
+end
+extern struct FogParams
+    Color : Color
+    StartDistance : float
+    EndDistance : float
+end
+extern enum WorldFlags : uint32
+    NONE = 0x0,
+    EDITOR_WORLD = 0x1,
+    HAS_PHYSICS = 0x2,
+    HAS_STREAMING = 0x4,
+    HAS_SCENE_STREAMING_LAYER = 0x100,
+    ALL_STREAMING_LAYER_FLAGS = HAS_SCENE_STREAMING_LAYER,
+    DEFAULT = ((HAS_PHYSICS | HAS_STREAMING) | ALL_STREAMING_LAYER_FLAGS)
+end
+extern struct CSMParams
+    NumCascades : uint32
+end
+extern class World : AssetObject
+    GetGame() -> Game
+    GetWorldFlags() -> WorldFlags
+    SetWorldFlags(flags : WorldFlags) -> void
+    GetFogParams() -> FogParams
+    SetFogParams(fogParams : FogParams) -> void
+    GetCSMParams() -> CSMParams
+    SetCSMParams(csmParams : CSMParams) -> void
+    GetCSMState() -> CSMState
+    SetCSMState(csmState : CSMState) -> void
+    GetPhysicsWorld() -> PhysicsWorldBase
+    TryAddSubsystem(subsystem : Subsystem) -> bool
+    GetSubsystemByName(name : any) -> Subsystem
+    RemoveSubsystem(subsystem : Subsystem) -> bool
+    GetWorldGrid() -> WorldGrid
+    GetGameState() -> GameState
+    AddScene(scene : Scene, addToStreamingLayer : bool) -> void
+    RemoveScene(scene : Scene, removeFromStreamingLayer : bool) -> bool
+    HasScene(sceneId : any) -> bool
+    GetSceneByName(nameHash : any) -> Scene
+    GetScenes() -> Array<Scene>
+    AddView(view : View) -> void
+    RemoveView(view : View) -> void
+    AddSystem(system : SystemBase) -> SystemBase
+    RemoveSystem(system : SystemBase) -> bool
+    OnSceneAdded : any
+    OnSceneRemoved : any
+    DeserializeNonStreamingScenes(scenes : Array<Scene>) -> void
+    SerializeNonStreamingScenes() -> Array<Scene>
+    DeserializeStreamingLayers(streamingLayers : Array<WGLayerDesc>) -> void
+    SerializeStreamingLayers() -> Array<WGLayerDesc>
+    DeserializeSystems(systems : Array<SystemBase>) -> void
+    SerializeSystems() -> Array<SystemBase>
+    GameInstance : Game
+    WorldFlags : WorldFlags
+    Scenes : Array<Scene>
+    FogParams : FogParams
+    CsmParams : CSMParams
+    CsmState : CSMState
+    Systems : Array<SystemBase>
 end
 extern enum SceneFlags : uint32
     NONE = 0x0,
@@ -1966,11 +1981,11 @@ extern class Node : AssetObject
     GetLocalBounds() -> BoundingBox
     SetLocalBounds(aabb : BoundingBox) -> void
     AddChild(node : Node) -> Node
-    RemoveAt(index : int) -> bool
+    RemoveAt(index : uint32) -> bool
     Remove() -> bool
     RemoveAllChildren() -> void
-    NumChildren() -> int
-    GetChild(index : int) -> Node
+    NumChildren() -> uint32
+    GetChild(index : uint32) -> Node
     Select(selector : string) -> Node
     SetLocalTransform(transform : Transform) -> void
     GetLocalTransform() -> Transform
@@ -2038,6 +2053,8 @@ extern class Bone : Node
     WorldBoneTranslation : Vec3f
     WorldBoneRotation : Quaternion
     InvBindingRotation : Quaternion
+end
+extern class InstancedMeshProxy : Node
 end
 extern class Entity : Node
     GetWorld() -> World
@@ -2189,12 +2206,6 @@ extern class FogVolume : VolumeBase
     NoiseTexture : Texture
 end
 extern struct EnvProbeSphericalHarmonics
-    GetOrder0() -> Vec3f
-    SetOrder0(inValues : Vec3f) -> void
-    GetOrder1() -> Array<Vec3f>
-    SetOrder1(inValues : Array<Vec3f>) -> void
-    GetOrder2() -> Array<Vec3f>
-    SetOrder2(inValues : Array<Vec3f>) -> void
 end
 extern class EnvProbe : VolumeBase
     GetEnvProbeType() -> EnvProbeType
@@ -2419,7 +2430,7 @@ extern enum MaterialParameterKey : uint64
     MATERIAL_KEY_METALNESS = (1 << 1),
     MATERIAL_KEY_ROUGHNESS = (1 << 2),
     MATERIAL_KEY_TRANSMISSION = (1 << 3),
-    MATERIAL_KEY_EMISSIVE = (1 << 4),
+    MATERIAL_KEY_EMISSIVE_FACTOR = (1 << 4),
     MATERIAL_KEY_SPECULAR = (1 << 5),
     MATERIAL_KEY_SPECULAR_TINT = (1 << 6),
     MATERIAL_KEY_ANISOTROPIC = (1 << 7),
@@ -2470,24 +2481,6 @@ extern class InstancedMeshData : AssetObject
     BufferStructAlignments : Array<uint32>
 end
 extern class AssetLoaderBase
-end
-extern enum AddAssetConflictMode : uint8
-    FailOnConflict = 0,
-    GenerateNewName,
-    ReplaceExisting,
-    Default
-end
-extern enum AssetObjectFlags : uint8
-    None = 0x0,
-    Persistent = 0x1,
-    Transient = 0x2,
-    TransientByProxy = 0x4
-end
-extern enum AssetPackageFlags : uint32
-    None = 0x0,
-    Transient = 0x1,
-    Hidden = 0x2,
-    SaveOnChanged = 0x4
 end
 extern struct UUID
     Data0 : uint64

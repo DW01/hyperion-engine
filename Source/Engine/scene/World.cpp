@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <ScenePch.hpp>
 
@@ -16,6 +20,7 @@
 #include <scene/systems/AudioSystem.hpp>
 #include <scene/systems/PhysicsSystem.hpp>
 #include <scene/systems/ScriptSystem.hpp>
+#include <scene/systems/MeshSystem.hpp>
 
 #include <scene/components/MeshComponent.hpp>
 #include <scene/components/TransformComponent.hpp>
@@ -71,8 +76,7 @@ World::World()
 }
 
 World::World(Name name, EnumFlags<WorldFlags> worldFlags)
-    : ObjectBase(),
-      m_name(name),
+    : AssetObject(name),
       m_gameInstance(nullptr),
       m_worldFlags(worldFlags),
       m_rayTracingView(nullptr),
@@ -311,6 +315,9 @@ void World::Init()
 
     if (!HasSystem<ScriptSystem>())
         AddSystem(MakeHandle<ScriptSystem>());
+
+    if (!HasSystem<MeshSystem>())
+        AddSystem(MakeHandle<MeshSystem>());
 
     for (View* view : m_views)
     {

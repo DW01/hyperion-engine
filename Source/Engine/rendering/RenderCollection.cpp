@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <RenderingPch.hpp>
 
@@ -240,7 +244,7 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
         attributes.Invalidate();
     }
 
-    const bool hasInstancing = proxy.enableAutoInstancing || proxy.numInstances > 1;
+    const bool hasInstancing = proxy.enableAutoInstancing || proxy.numInstances;
     const bool hasForwardLighting = attributes.GetMaterialAttributes().bucket == RenderBucket::Translucent;
     const bool hasLightmaps = attributes.GetMaterialAttributes().bucket == RenderBucket::Lightmapped;
     const bool hasDeferredLighting = !hasForwardLighting && !hasLightmaps;
@@ -1789,16 +1793,11 @@ void RenderCollector::BuildDrawCalls(uint32 bucketBits)
 
             AssertDebug(meshProxy->material != nullptr && meshProxy->material->IsReady());
 
-            if (meshProxy->numInstances == 0)
-            {
-                continue;
-            }
+            DrawCallID drawCallId { meshProxy->mesh->Id(), meshProxy->material->Id() };
 
-            DrawCallID drawCallId = DrawCallID(meshProxy->mesh->Id(), meshProxy->material->Id());
-
-            if (!meshProxy->enableAutoInstancing && meshProxy->numInstances == 1)
+            if (!meshProxy->enableAutoInstancing && !meshProxy->numInstances)
             {
-                drawCallCollection.PushRenderProxy(drawCallId, *meshProxy); // NOLINT(bugprone-use-after-move)
+                drawCallCollection.PushRenderProxy(drawCallId, *meshProxy);
 
                 continue;
             }

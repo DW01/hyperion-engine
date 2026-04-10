@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <EditorPch.hpp>
 
@@ -76,8 +80,20 @@ static void RegisterPackageAssets(const Handle<EditorProject>& project, const Ha
 {
     Assert(project.IsValid() && package.IsValid());
 
-    package->ForEachAssetObject([&](const Handle<AssetObject>& assetObject)
+    Handle<AssetRegistry> registryStrong = package->GetRegistry().Lock();
+    Assert(registryStrong.IsValid());
+
+    AssetRegistry& registry = *registryStrong;
+
+    package->ForEachAssetDesc([&](const AssetDesc& assetDesc)
         {
+            Handle<AssetObject> assetObject = registry.GetAssetFromPath(package->BuildAssetPath(assetDesc.name).ToString());
+            if (!assetObject.IsValid())
+            {
+                HYP_LOG(Editor, Warning, "Failed to load asset '{}' while registering package assets. Skipping.", assetDesc.name);
+                return IterationResult::CONTINUE;
+            }
+
             RegisterImportedAsset(project, assetObject);
 
             return IterationResult::CONTINUE;
@@ -119,7 +135,8 @@ void EditorState::Init()
     m_taskManager.OnTaskProgressUpdated.Bind([this]<class... Args>(Args&&... args) { OnTaskProgressUpdated(std::forward<Args>(args)...); }).Detach();
 
     // add newly imported assets to the current project's asset registry
-    m_onAssetObjectAddedHandle = importsPackage->OnAssetObjectAdded.Bind([weakThis = WeakHandleFromThis()](Handle<AssetObject> assetObject, bool isDirect)
+    m_onAssetObjectAddedHandle = importsPackage->OnAssetObjectAdded
+        .Bind([weakThis = WeakHandleFromThis()](const AssetDesc& assetDesc, bool isDirect, AssetPackage* parentPackage)
         {
             Handle<EditorState> editorState = weakThis.Lock();
 
@@ -132,6 +149,14 @@ void EditorState::Init()
 
             if (editorState->m_currentProject && editorState->m_currentProject->GetPackage().IsValid())
             {
+                Handle<AssetObject> assetObject = parentPackage->GetAssetObject(assetDesc.name);
+                AssertDebug(assetObject.IsValid());
+
+                if (!assetObject.IsValid())
+                {
+                    return;
+                }
+
                 RegisterImportedAsset(editorState->m_currentProject, assetObject);
             }
         });

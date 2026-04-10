@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <UIPch.hpp>
 
@@ -349,8 +353,7 @@ void UISubsystem::RenderCollect(RenderProxyList& rpl)
 
             RenderProxyMesh& meshProxy = *rpl.GetMeshEntities().SetProxy(entity->Id(), RenderProxyMesh());
 
-            if ((meshComponent->enableAutoInstancing || meshComponent->numInstances > 1)
-                && meshComponent->instanceData.IsLoaded())
+            if ((meshComponent->enableAutoInstancing || meshComponent->numInstances) && meshComponent->instanceData.IsLoaded())
             {
                 const Handle<InstancedMeshData>& instancedMesh = ObjCast<InstancedMeshData>(meshComponent->instanceData.Resolve());
                 Assert(instancedMesh.IsValid());

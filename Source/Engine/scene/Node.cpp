@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <ScenePch.hpp>
 
@@ -170,7 +174,7 @@ bool Node::IsOrHasParent(const Node* node) const
 
 Node* Node::FindParentWithName(UTF8StringView name) const
 {
-    if (m_name == name)
+    if (GetName() == name)
     {
         return const_cast<Node*>(this);
     }
@@ -201,7 +205,7 @@ void Node::SetScene(Scene* scene)
         AssertDebug(
             previousScene != nullptr,
             "Previous scene is null when setting new scene for Node {} - should be set to detached world scene by default",
-            m_name);
+            GetName());
         
         m_scene = scene;
 
@@ -436,14 +440,9 @@ bool Node::RemoveChild(const Node* node)
     return true;
 }
 
-bool Node::RemoveAt(int index)
+bool Node::RemoveAt(uint32 index)
 {
     HYP_SCOPE;
-
-    if (index < 0)
-    {
-        index = int(m_childNodes.Size()) + index;
-    }
 
     if (index >= m_childNodes.Size())
     {
@@ -502,18 +501,13 @@ void Node::RemoveAllChildren()
     UpdateWorldTransform();
 }
 
-int Node::NumChildren() const
+uint32 Node::NumChildren() const
 {
-    return int(m_childNodes.Size());
+    return uint32(m_childNodes.Size());
 }
 
-Handle<Node> Node::GetChild(int index) const
+Handle<Node> Node::GetChild(uint32 index) const
 {
-    if (index < 0)
-    {
-        index = int(m_childNodes.Size()) + index;
-    }
-
     if (index >= m_childNodes.Size())
     {
         return Handle<Node>::empty;

@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #include <HyperionPch.hpp>
 
@@ -150,7 +154,7 @@ void VisThread::OnFrameStart(uint32 frameCounter)
     m_simSemaphore.release();
 }
 
-void VisThread::OnFrameEnd(Array<Entity*, SceneTempAllocator>& outProcessedEntities)
+void VisThread::OnFrameEnd(Array<Entity*, SceneAllocator>& outProcessedEntities)
 {
     AssertOnThread(g_simThread);
 

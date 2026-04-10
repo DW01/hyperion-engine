@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #pragma once
 
@@ -58,6 +62,20 @@ public:
         bufferStructAlignments[bufferIndex] = alignof(StructType);
 
         BlobDataReference& ref = buffers[bufferIndex];
+
+        if (count == 0)
+        {
+            if (!ref.readOnly && ref.raw != nullptr)
+            {
+                FreeBlobData(ref);
+            }
+
+            ref = {};
+
+            MarkDirty();
+
+            return;
+        }
 
         if (ref.readOnly || ref.raw == nullptr || ref.size < sizeof(StructType) * count)
         {

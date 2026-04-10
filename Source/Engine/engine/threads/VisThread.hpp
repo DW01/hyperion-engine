@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #pragma once
 
@@ -42,7 +46,7 @@ public:
     void AddViewToProcess(View* view);
 
     void OnFrameStart(uint32 frameCounter);
-    void OnFrameEnd(Array<Entity*, SceneTempAllocator>& outProcessedEntities);
+    void OnFrameEnd(Array<Entity*, SceneAllocator>& outProcessedEntities);
 
     void Process();
 

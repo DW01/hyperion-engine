@@ -9,6 +9,7 @@
 #include <scene/Light.hpp>
 #include <scene/EnvProbe.hpp>
 #include <scene/LightmapVolume.hpp>
+#include <scene/InstancedMeshProxy.hpp>
 
 #include <scene/ParticleVolume.hpp>
 #include <scene/FogVolume.hpp>
@@ -670,6 +671,13 @@ DEFINE_EDITOR_COMMAND(AddFogVolume);
 
 #pragma endregion AddFogVolume
 
+template <class T>
+static constexpr bool ShouldAddNodeAsChild()
+{
+    // InstancedMeshProxy should always be a child of the actively selected entity.
+    return std::is_same_v<T, InstancedMeshProxy>;
+}
+
 template <class EditorCommandType, class T>
 static void AddNodeOfTypeImpl(EditorSubsystem* subsystem, Name defaultNodeName)
 {
@@ -704,9 +712,24 @@ static void AddNodeOfTypeImpl(EditorSubsystem* subsystem, Name defaultNodeName)
         Proc<EditorActionFunctions()>([n, currentFocusedNode, activeScene]() -> EditorActionFunctions
             {
                 return EditorActionFunctions {
-                    .execute = Proc<void(EditorSubsystem*, EditorProject*)>([n, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
+                    .execute = Proc<void(EditorSubsystem*, EditorProject*)>([n, currentFocusedNode, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
                         {
-                            activeScene->GetRoot()->AddChild(n);
+                            if constexpr (ShouldAddNodeAsChild<T>())
+                            {
+                                Handle<Node> parentNode = currentFocusedNode.Lock();
+
+                                if (!parentNode.IsValid())
+                                {
+                                    parentNode = activeScene->GetRoot();
+                                }
+
+                                parentNode->AddChild(n);
+                            }
+                            else
+                            {
+                                activeScene->GetRoot()->AddChild(n);
+                            }
+
                             editorSubsystem->SetFocusedNode(n, true);
                         }),
                     .revert = Proc<void(EditorSubsystem*, EditorProject*)>([n, currentFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
@@ -718,6 +741,7 @@ static void AddNodeOfTypeImpl(EditorSubsystem* subsystem, Name defaultNodeName)
                                 editorSubsystem->SetFocusedNode(nullptr, true);
 
                                 Handle<Node> focusedNode = currentFocusedNode.Lock();
+                                
                                 if (focusedNode.IsValid())
                                 {
                                     editorSubsystem->SetFocusedNode(focusedNode, true);
@@ -778,6 +802,19 @@ public:
 DEFINE_EDITOR_COMMAND(AddEmptyNode);
 
 #pragma endregion EditorCommandAddEmptyNode
+
+#pragma region EditorCommandAddInstance
+
+class HYP_API EditorCommandAddInstance final : public EditorCommandAddNodeBase<EditorCommandAddInstance>
+{
+    HYP_OBJECT_BODY(EditorCommandAddInstance);
+
+public:
+    using NodeType = InstancedMeshProxy;
+    static inline const Name s_defaultNodeName = NAME("New Instance");
+};
+
+DEFINE_EDITOR_COMMAND(AddInstance);
 
 #pragma region EditorCommandAddCamera
 
@@ -1178,10 +1215,10 @@ public:
             s_watchTextureState.path = path;
 
             s_watchTextureState.onAssetRemoved = package->OnAssetObjectRemoved.Bind(
-                [uiSubsystem = MakeStrongRef(uiSubsystem), overlay = s_watchTextureState.overlay](Handle<AssetObject> removedAsset, bool isDirect)
+                [uiSubsystem = MakeStrongRef(uiSubsystem), overlay = s_watchTextureState.overlay](Name assetName, bool isDirect, AssetPackage*)
                 {
                     Mutex::Guard guard(s_watchTextureStateMtx);
-                    if (!isDirect || removedAsset->GetName() != s_watchTextureState.path.GetName())
+                    if (!isDirect || assetName != s_watchTextureState.path.GetName())
                         return;
 
                     if (overlay.IsValid())
@@ -1192,17 +1229,21 @@ public:
                 });
 
             s_watchTextureState.onAssetAdded = package->OnAssetObjectAdded.Bind(
-                [uiSubsystem = MakeStrongRef(uiSubsystem)](Handle<AssetObject> addedAsset, bool isDirect)
+                [uiSubsystem = MakeStrongRef(uiSubsystem)](const AssetDesc& addedAsset, bool isDirect, AssetPackage* parentPackage)
                 {
                     Mutex::Guard guard(s_watchTextureStateMtx);
-                    if (!isDirect || addedAsset->GetName() != s_watchTextureState.path.GetName())
+                    if (!isDirect || addedAsset.name != s_watchTextureState.path.GetName())
                         return;
 
-                    Handle<Texture> newTexture = ObjCast<Texture>(addedAsset);
-                    if (!newTexture.IsValid())
+                    Handle<AssetObject> assetObject = parentPackage->GetAssetObject(addedAsset.name);
+                    if (!assetObject.IsValid())
                         return;
 
-                    Handle<TextureOverlay> newOverlay = MakeHandle<TextureOverlay>(newTexture);
+                    Handle<Texture> texture = ObjCast<Texture>(assetObject);
+                    if (!texture.IsValid())
+                        return;
+
+                    Handle<TextureOverlay> newOverlay = MakeHandle<TextureOverlay>(texture);
                     InitObject(newOverlay);
 
                     GetThreadById(g_simThread)->GetScheduler().Enqueue([uiSubsystem, newOverlay, oldOverlay = s_watchTextureState.overlay]() mutable

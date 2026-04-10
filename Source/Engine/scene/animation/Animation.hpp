@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #pragma once
 
@@ -99,18 +103,6 @@ public:
     Animation& operator=(const Animation& other) = delete;
     ~Animation() = default;
 
-    HYP_METHOD(Property = "Name")
-    Name GetName() const
-    {
-        return m_name;
-    }
-
-    HYP_METHOD(Property = "Name")
-    void SetName(Name name)
-    {
-        m_name = name;
-    }
-
     HYP_METHOD(Property = "Length", Transient)
     float GetLength() const
     {
@@ -150,9 +142,6 @@ public:
     void Init() override;
 
 private:
-    HYP_FIELD(Property = "Name")
-    Name m_name;
-
     HYP_FIELD(Property = "Tracks")
     Array<Handle<AnimationTrack>> m_tracks;
 };

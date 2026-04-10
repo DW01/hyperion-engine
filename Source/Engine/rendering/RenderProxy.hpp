@@ -1,4 +1,8 @@
-/* Copyright (c) 2016-2026 Andrew J. MacDonald. All rights reserved. */
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
 
 #pragma once
 
@@ -112,7 +116,7 @@ public:
 
     uint32 numIndices = 0;
 
-    uint32 numInstances = 1;
+    uint32 numInstances = 0;
     bool enableAutoInstancing = false;
 
     LightmapVolume* lightmapVolume = nullptr;
