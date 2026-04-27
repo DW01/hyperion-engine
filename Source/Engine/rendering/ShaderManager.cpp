@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <RenderingPch.hpp>
 
@@ -197,9 +197,9 @@ public:
             si->SetCompiledTimestamp(request.entry->shader->lastCompiledTimestamp);
         }
 #endif
-        
+
         CheckResult(si->Create());
-        
+
         // Update the entry
         request.entry->shaderInstance = si;
     }
@@ -327,7 +327,11 @@ public:
             {
                 if (useTask)
                 {
-                    task = TaskSystem::GetInstance().Enqueue([&taskFunction] { taskFunction(); }, TaskThreadPoolName::THREAD_POOL_BACKGROUND);
+                    task = TaskSystem::GetInstance().Enqueue([&taskFunction]
+                        {
+                            taskFunction();
+                        },
+                        TaskThreadPoolName::THREAD_POOL_BACKGROUND);
                 }
                 else
                 {
@@ -340,7 +344,11 @@ public:
 
                 if (useTask)
                 {
-                    task = TaskSystem::GetInstance().Enqueue([impl] { impl->CompileShaders(); }, TaskThreadPoolName::THREAD_POOL_BACKGROUND);
+                    task = TaskSystem::GetInstance().Enqueue([impl]
+                        {
+                            impl->CompileShaders();
+                        },
+                        TaskThreadPoolName::THREAD_POOL_BACKGROUND);
                 }
                 else
                 {
@@ -428,7 +436,8 @@ public:
 
             Assert(entry->shaderInstance.IsValid());
 
-            if (EnsureMatch(properties, inputLayout, *entry->shaderInstance->GetShader()))
+            if (true)
+            // if (EnsureMatch(properties, inputLayout, *entry->shaderInstance->GetShader()))
             {
                 return entry->shaderInstance;
             }
@@ -473,7 +482,6 @@ public:
         {
             return ShaderInstanceRef::Null();
         }
-        
 
         CompileShaderRequest request {};
         request.shaderName = name;
@@ -670,7 +678,7 @@ public:
             return;
         }
 
-#if 0//HYP_EDITOR
+#if 0 // HYP_EDITOR
         {
             Array<String> reloadingShaderNames;
             reloadingShaderNames.Reserve(staleEntries.Size());
@@ -700,7 +708,7 @@ public:
 #endif
 
         HYP_LOG(ShaderCompiler, Info, "Reloading {} shaders...", requests.Size());
-            
+
         HashSet<Shader*> shadersToExpire;
 
         for (CompileShaderRequest& request : requests)
@@ -736,7 +744,7 @@ public:
                 g_renderInterface->rayTracingPipelineCache->ExpirePipelinesForShader(shader);
             }
         }
-        
+
         AtomicExchange(&m_isReloadingShaders, 0);
     }
 #endif // HYP_ENABLE_SHADER_RELOAD

@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #ifndef HYPERION_CODEGEN_MODULE_HPP
 #define HYPERION_CODEGEN_MODULE_HPP
@@ -26,7 +26,7 @@ namespace CodeGen {
 class Module
 {
 public:
-    using ClassDefinitionMap = HashMap<String, ClassDefinition, DynamicNodeAllocator>;
+    using ClassDefinitionMap = HashMap<String, ClassDefinition, DynamicAllocator, containers::HashTablePolicy::NotPooled>;
 
     explicit Module(const FilePath& path);
 

@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <Core/serialization/SerializationUtils.hpp>
 
@@ -26,12 +26,11 @@
 
 #include <Core/logging/LogChannels.hpp>
 #include <Core/logging/Logger.hpp>
+#include <Core/utilities/GlobalContext.hpp>
 
 #if defined(HYPERION_ENGINE) && HYPERION_ENGINE
 #include <asset/AssetObject.hpp>
 #include <asset/AssetReference.hpp>
-
-#include <Core/utilities/GlobalContext.hpp>
 
 // temp
 #include <scene/Scene.hpp>
@@ -86,12 +85,12 @@ Result BoxedToJSON(
     {
         // Serialize AssetObject deriving classes by their asset reference if we're saving an Editor project.
         const AssetObject& assetObject = value.Get<AssetObject>();
-        //AssertDebug(assetObject.IsRegistered(), "Cannot serialize unregistered AssetObject {}", assetObject.GetName());
+        // AssertDebug(assetObject.IsRegistered(), "Cannot serialize unregistered AssetObject {}", assetObject.GetName());
 
-        //if (!assetObject.IsRegistered())
+        // if (!assetObject.IsRegistered())
         //{
-        //    return HYP_MAKE_ERROR(Error, "Cannot serialize unregistered AssetObject");
-        //}
+        //     return HYP_MAKE_ERROR(Error, "Cannot serialize unregistered AssetObject");
+        // }
 
         assetReference = AssetReference(assetObject.HandleFromThis());
         isAssetObject = true;
@@ -117,12 +116,12 @@ Result BoxedToJSON(
         return {};
     }
 
-#define DO_NUMERIC_TYPE(T)                        \
-    if (value.Is<T>(/* strict */ true))           \
-    {                                             \
+#define DO_NUMERIC_TYPE(T)                      \
+    if (value.Is<T>(/* strict */ true))         \
+    {                                           \
         outJson = JSON::Number(value.Get<T>()); \
-                                                  \
-        return {};                                \
+                                                \
+        return {};                              \
     }
 
     DO_NUMERIC_TYPE(int8);
@@ -990,7 +989,7 @@ Result ObjectFromJSON(const JSON::Object& jsonObject, const Class* targetClass, 
             const Property& property = static_cast<const Property&>(member);
 
             if (!property.CanSet())
-                return false;//true; // skip read-only properties silently.
+                return false; // true; // skip read-only properties silently.
 
             const TypeInfo& typeInfo = property.GetTypeInfo();
 
@@ -1841,10 +1840,10 @@ Result BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Box
         {
             return HYP_MAKE_ERROR(Error, "Failed to deserialize second element of pair for type {}: {}", typeInfo.name, result.GetError().GetMessage());
         }
-        
+
         ITypeInfoPairHandler* pairHandler = static_cast<ITypeInfoPairHandler*>(typeInfo.extendedInfo.handler);
         Assert(pairHandler && pairHandler->GetHandlerType() == ITypeInfoHandler::TYPE_PAIR);
-        
+
         BoxedValue pairInstance;
 
         if (!pairHandler->CreateInstance(pairInstance))
@@ -1882,7 +1881,7 @@ Result BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Box
         }
 
         const int numTypes = variantHandler->GetNumTypes();
-        
+
         // first pass: try to find type that matches (for numbers)
         // this is here because sometimes floats will get casted away to integer types,
         // even if a floating point type is actually in the variant. so we do this first pass to try filter and fit to the correct one
@@ -1976,6 +1975,8 @@ Result BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Box
 
             if (derivedClass)
             {
+
+#ifdef HYPERION_ENGINE
                 if (instanceClass != nullptr
                     && !(derivedClass->IsDerivedFrom(instanceClass)
                         // We allow $Class to be 'AssetReference', but only for AssetObject classes. (if LoadAssetsFromReferencesContext is active)
@@ -1983,6 +1984,7 @@ Result BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Box
                 {
                     HYP_LOG(Core, Warning, "Class '{}' is not derived from expected class '{}'", derivedClass->GetName(), instanceClass->GetName());
                 }
+#endif
             }
             else
             {
@@ -2028,7 +2030,7 @@ void WalkBoxedValue(
     {
         return;
     }
-    
+
     const TypeInfo& typeInfo = *target.GetTypeInfo();
 
     if (typeInfo.IsArrayType())
@@ -2052,7 +2054,7 @@ void WalkBoxedValue(
 
                 continue;
             }
-        
+
             func(element);
         }
 

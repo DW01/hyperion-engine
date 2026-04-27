@@ -39,7 +39,7 @@ namespace Hyperion.Editor
             // get or create UISubsystem instance.
             UISubsystem? uiSubsystem = World.GetSubsystem<UISubsystem>();
             Debug.Assert(uiSubsystem != null);
-            
+
             if (uiSubsystem == null)
             {
                 uiSubsystem = new UISubsystem();
@@ -82,7 +82,7 @@ namespace Hyperion.Editor
 
         protected override void OnUpdate(float deltaTime)
         {
-            if (_assetBatchTask != null && _assetBatchTask.IsCompleted)
+            if (false && _assetBatchTask != null && _assetBatchTask.IsCompleted)
             {
                 AssetMap assetMap = _assetBatchTask.Result;
 
@@ -121,7 +121,7 @@ namespace Hyperion.Editor
                        " to " + (newNode != null ? newNode.Name.ToString() : "null") +
                        ", shouldSelectInOutline: " + shouldSelectInOutline);
 
-            
+
         }
 
         private void HandleProjectOpened(EditorProject project)

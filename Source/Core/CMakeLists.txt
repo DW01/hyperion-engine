@@ -12,8 +12,9 @@ link_directories(${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY})
 set(CMAKE_BUILD_PARALLEL_LEVEL 8)
 set(CMAKE_CXX_STANDARD 20 CACHE STRING "C++ standard to be used")
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "Configurations to build" FORCE)
+set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
-set(COMMON_LIBRARIES 
+set(COMMON_LIBRARIES
     ${COMMON_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )
@@ -38,7 +39,7 @@ if(NOT IOS)
         set(CURL_LIBRARY /opt/homebrew/opt/curl/lib/libcurl.dylib)
         set(CURL_INCLUDE_DIR /opt/homebrew/opt/curl/include)
     endif()
-    
+
     find_package(CURL)
 endif()
 

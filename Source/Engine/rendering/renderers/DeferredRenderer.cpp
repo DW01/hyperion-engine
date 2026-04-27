@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <RenderingPch.hpp>
 
@@ -273,7 +273,7 @@ void FillShadowMapData(
     shadowBoundsNDC.max = Vec3f(1.0f);
 
     BoundingBox shadowBoundsWS = viewProjMat.Inverse() * shadowBoundsNDC;
-        
+
     outShadowMapData = {};
 
     outShadowMapData.layerIndex = atlasElement->layerIndex;
@@ -333,8 +333,7 @@ void DeferredPass::Create()
         m_ltcSampler = g_renderInterface->samplerCache->GetOrCreate(SamplerDesc {
             TFM_NEAREST,
             TFM_LINEAR,
-            TWM_CLAMP_TO_EDGE
-        });
+            TWM_CLAMP_TO_EDGE });
 
         ByteBuffer ltcMatrixData(sizeof(s_ltcMatrix), s_ltcMatrix);
 
@@ -345,8 +344,7 @@ void DeferredPass::Create()
                 Vec3u { 64, 64, 1 },
                 TFM_LINEAR,
                 TFM_LINEAR,
-                TWM_CLAMP_TO_EDGE
-            },
+                TWM_CLAMP_TO_EDGE },
             ltcMatrixData.ToByteView());
 
         m_ltcMatrixTexture->SetName(NAME("LTC_Matrix"));
@@ -361,8 +359,7 @@ void DeferredPass::Create()
                 Vec3u { 64, 64, 1 },
                 TFM_LINEAR,
                 TFM_LINEAR,
-                TWM_CLAMP_TO_EDGE
-            },
+                TWM_CLAMP_TO_EDGE },
             ltcBrdfData.ToByteView());
 
         m_ltcBrdfTexture->SetName(NAME("LTC_BRDF"));
@@ -387,7 +384,7 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
     RenderProxyList& rpl = GetConsumerProxyList(rs.view);
     rpl.BeginRead();
     HYP_DEFER({ rpl.EndRead(); });
-    
+
     RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(rs.view->GetCamera()));
     Assert(cameraProxy != nullptr);
 
@@ -408,15 +405,15 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
     cr << SetCurrentBlendFunction(m_blendFunction);
     cr << SetDepthWrite(false);
     cr << SetDepthTest(false);
-    
-    //if (m_mode == DPM_INDIRECT_LIGHTING)
+
+    // if (m_mode == DPM_INDIRECT_LIGHTING)
     //{
-    //    cr << SetStencilTest(true);
-    //    cr << SetStencilFunction(StencilFunction {
-    //        .passOp = SO_KEEP,
-    //        .failOp = SO_KEEP,
-    //        .depthFailOp = SO_KEEP,
-    //        .compareOp = SCO_EQUAL });
+    //     cr << SetStencilTest(true);
+    //     cr << SetStencilFunction(StencilFunction {
+    //         .passOp = SO_KEEP,
+    //         .failOp = SO_KEEP,
+    //         .depthFailOp = SO_KEEP,
+    //         .compareOp = SCO_EQUAL });
 
     //    // stencil state: only render where stencil == 0 (non-lightmapped geometry)
     //    cr << SetStencilState(0, LightmapStencilMask, 0x0);
@@ -437,24 +434,23 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
         TFM_LINEAR,
         TFM_LINEAR,
         TWM_CLAMP_TO_EDGE,
-        SamplerCompareOp::LessEq
-    });
+        SamplerCompareOp::LessEq });
 
     cr << SetShaderUniform(numShaderUniforms++, "SamplerLinear"_sh, g_renderInterface->placeholderData->GetSamplerLinearMipmap());
     cr << SetShaderUniform(numShaderUniforms++, "SamplerNearest"_sh, g_renderInterface->placeholderData->GetSamplerNearest());
     cr << SetShaderUniform(numShaderUniforms++, "SamplerShadow"_sh, shadowSampler);
 
     cr << SetShaderUniform(numShaderUniforms++, "WorldsBuffer"_sh, g_renderInterface->namedBuffers[NamedBuffer::Worlds].gpuBuffer);
-    
+
     cr << SetShaderUniform(numShaderUniforms++, "LightsBuffer"_sh, g_renderInterface->namedBuffers[NamedBuffer::Lights].gpuBuffer);
     cr << SetShaderUniform(numShaderUniforms++, "EnvProbesBuffer"_sh, g_renderInterface->namedBuffers[NamedBuffer::EnvProbes].gpuBuffer);
-    
+
     // use the same index for the CBuffer uniform across shaders
     const uint32 cbufferUniformIndex = numShaderUniforms++;
 
     cr << SetShaderUniform(numShaderUniforms++, "ShadowMapsTextureArray"_sh, g_renderInterface->shadowMapCache->GetAtlasImageView());
     cr << SetShaderUniform(numShaderUniforms++, "PointLightShadowMapsTextureArray"_sh, g_renderInterface->shadowMapCache->GetPointLightShadowMapImageView());
-        
+
     cr << SetShaderUniform(numShaderUniforms++, "EnvProbesTexture"_sh, g_renderInterface->textureViewCache->GetOrCreate(g_renderInterface->envProbesTexture));
 
     for (uint32 attachmentIndex = 0; attachmentIndex < GTN_MAX; attachmentIndex++)
@@ -466,7 +462,7 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
     if (dpd->hbao != nullptr)
         cr << SetShaderUniform(numShaderUniforms++, "SSAOResultTexture"_sh, dpd->hbao->GetFinalImageView());
-    
+
     if (dpd->reflectionsPass != nullptr && dpd->reflectionsPass->ssrPass != nullptr)
         cr << SetShaderUniform(numShaderUniforms++, "SSRResultTexture"_sh, g_renderInterface->textureViewCache->GetOrCreate(dpd->reflectionsPass->ssrPass->GetFinalResultTexture()));
 
@@ -513,7 +509,7 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
         DeferredRendererHelpers::GetDeferredShaderProperties(DPM_INDIRECT_LIGHTING, shaderProperties, &rpl);
 
         cr << SetCurrentShader(ShaderDesc(NAME("DeferredIndirect"), shaderProperties));
-        
+
         cr << CommitDrawState();
 
         cr << BindVertexBuffer(m_fullScreenQuad->GetVertexBuffer());
@@ -533,11 +529,11 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
         uint32 localNumShaderUniforms = numShaderUniforms;
 
         // Write out MAX_SHADOW_MAPS (8?) ShadowMaps for the View, indexed by light idx (GetBinding())
-        {// Build constants
+        { // Build constants
             GpuBuffer* cbuffer = nullptr;
             size_t cbufferOffset = 0;
             size_t cbufferSize = 0;
-            
+
             // write camera
             g_renderInterface->cbufferAllocator->Write(&cameraProxy->bufferData);
 
@@ -616,7 +612,7 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
             }
 
             shadowMapIndexBuffer.Flush();
-            
+
             cr << SetShaderUniform(localNumShaderUniforms++, "ShadowMapIndexBuffer"_sh, shadowMapIndexBuffer.gpuBuffer);
 
             g_renderInterface->cbufferAllocator->Write(&shadowMapData[0], shadowMapData.ByteSize(), alignof(ShadowMapData));
@@ -665,7 +661,7 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
                 cr << SetCurrentShader(ShaderDesc(NAME("DeferredDirect"), shaderProperties));
             }
-                
+
             uint32 localNumShaderUniforms = numShaderUniforms;
 
             { // Build constants
@@ -686,7 +682,7 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
                 for (uint32 cascadeIndex = 0; cascadeIndex < numCascadesToWrite; cascadeIndex++)
                 {
                     ShadowMapData& currShadowMapData = shadowMapData[cascadeIndex];
-                        
+
                     View* shadowMapViewDynamic;
                     View* shadowMapViewStatic;
 
@@ -708,7 +704,7 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
                     g_renderInterface->cbufferAllocator->Write(&shadowMapData[cascadeIndex]);
                 }
-                    
+
                 g_renderInterface->cbufferAllocator->Commit(cbuffer, cbufferOffset, cbufferSize);
 
                 cr << SetShaderUniform(cbufferUniformIndex, "CBuffer"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
@@ -749,7 +745,7 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
                 if (m_ltcBrdfTexture != nullptr)
                     cr << SetShaderUniform(localNumShaderUniforms++, "LTCBRDFTexture"_sh, g_renderInterface->textureViewCache->GetOrCreate(m_ltcBrdfTexture));
             }
-                
+
             cr << CommitDrawState();
 
             cr << BindVertexBuffer(m_fullScreenQuad->GetVertexBuffer());
@@ -942,7 +938,7 @@ void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
     cr << SetDepthTest(false);
     cr << SetDepthWrite(false);
-    
+
     cr << SetCurrentBlendFunction(BlendFunction::Additive());
 
     cr << SetStencilTest(true);
@@ -1168,7 +1164,7 @@ void FogVolumePass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup
     GpuBuffer* cbuffer = nullptr;
     size_t cbufferOffset = 0;
     size_t cbufferSize = 0;
-    
+
     g_renderInterface->cbufferAllocator->Write(&shaderData);
 
     for (uint32 i = 0; i < MaxBoundLightsPerFogVolume; i++)
@@ -1178,7 +1174,7 @@ void FogVolumePass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup
             g_renderInterface->cbufferAllocator->Write(tempLightsArray[i].second);
             continue;
         }
-        
+
         LightShaderData dummy {};
         g_renderInterface->cbufferAllocator->Write(&dummy);
     }
@@ -1213,7 +1209,7 @@ void FogVolumePass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup
 
         g_renderInterface->cbufferAllocator->Write(&shadowMapData);
     }
-            
+
     g_renderInterface->cbufferAllocator->Commit(cbuffer, cbufferOffset, cbufferSize);
 
     cr << SetShaderUniform(8, "FogVolumeConstants"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
@@ -1540,8 +1536,7 @@ static FramebufferRef CreateDeferredShadingFramebuffer(GBuffer* gbuffer)
             TextureType::Texture2D,
             TextureFormat::RGBA16F,
             LoadOperation::CLEAR,
-            StoreOperation::STORE
-        });
+            StoreOperation::STORE });
 
     // depth for stencil testing
     const GpuImageViewRef& depthImageView = gbuffer->GetBucket(RenderBucket::Opaque).GetGBufferAttachment(GTN_DEPTH)->GetImageView();
@@ -1601,7 +1596,6 @@ public:
 
     TileProcessor()
     {
-
     }
 
     TileProcessor(const TileProcessor& other) = delete;
@@ -1659,8 +1653,8 @@ public:
         };
 
         auto ProjectSphereToScreenAABB = [&projMatrix, &extent, cameraNear, numTilesX, numTilesY](
-            const Vec3f& centerVS, float radius,
-            uint32& outMinX, uint32& outMinY, uint32& outMaxX, uint32& outMaxY) -> bool
+                                             const Vec3f& centerVS, float radius,
+                                             uint32& outMinX, uint32& outMinY, uint32& outMaxX, uint32& outMaxY) -> bool
         {
             const float dist = centerVS.z;
 
@@ -1700,9 +1694,9 @@ public:
         };
 
         auto ProjectAABBToScreenTiles = [&viewMatrix, &projMatrix, &extent, cameraNear, numTilesX, numTilesY](
-            const Vec3f& aabbMinWS, const Vec3f& aabbMaxWS,
-            uint32& outMinX, uint32& outMinY, uint32& outMaxX, uint32& outMaxY,
-            float& outMinVSZ, float& outMaxVSZ) -> bool
+                                            const Vec3f& aabbMinWS, const Vec3f& aabbMaxWS,
+                                            uint32& outMinX, uint32& outMinY, uint32& outMaxX, uint32& outMaxY,
+                                            float& outMinVSZ, float& outMaxVSZ) -> bool
         {
             const Vec3f corners[8] = {
                 { aabbMinWS.x, aabbMinWS.y, aabbMinWS.z },
@@ -1841,7 +1835,7 @@ public:
 
         Array<Tuple<EnvProbe*, EnvProbeShaderData*, uint32>, RenderTempAllocator> envProbes;
         envProbes.Reserve(rpl.GetEnvProbes().NumCurrent());
-        
+
         for (EnvProbe* envProbe : rpl.GetEnvProbes())
         {
             const uint32 envProbeBindingIndex = Resources::GetBinding(envProbe);
@@ -1951,7 +1945,7 @@ public:
 
         Array<TileGridData, RenderAllocator> gridData;
         gridData.Resize(totalTiles);
-        
+
         Array<uint16, RenderAllocator> flatIndexData;
         flatIndexData.Reserve(totalTiles * 4);
 
@@ -1960,7 +1954,7 @@ public:
         for (uint32 i = 0; i < totalTiles; ++i)
         {
             const Tile& tile = tempTiles[i];
-            
+
             gridData[i].indexOffset = uint32(flatIndexData.Size());
             gridData[i].numLights = tile.numLights;
             gridData[i].numEnvProbes = tile.numEnvProbes;
@@ -1992,7 +1986,7 @@ public:
 
         StructuredBuffer& gridBuffer = g_renderInterface->sbufferAllocator->AcquireBuffer(gridData.Size(), sizeof(TileGridData));
         StructuredBuffer& indexBuffer = g_renderInterface->sbufferAllocator->AcquireBuffer(flatIndexData.Size(), sizeof(uint16));
-        
+
         allocation.gridBufferSize = gridBuffer.gpuBuffer->Size();
         allocation.indexBufferSize = indexBuffer.gpuBuffer->Size();
 
@@ -2080,8 +2074,7 @@ PassData* DeferredRenderer::CreateViewPassData(View* view, PassDataExt&)
             Vec3u(opaquePassFramebuffer->GetExtent(), 1),
             TFM_LINEAR_MIPMAP,
             TFM_LINEAR_MIPMAP,
-            TWM_CLAMP_TO_EDGE
-        });
+            TWM_CLAMP_TO_EDGE });
 
         CheckResult(passData.mipChain->Create());
 
@@ -2511,9 +2504,8 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
     // must be before BeginRecordDrawCalls
     PerformOcclusionCulling(frame, rs, renderCollector);
-    
-    renderCollector.BeginRecordDrawCalls(frame, rs, RenderBucketMask<
-        RenderBucket::Opaque, RenderBucket::Translucent, RenderBucket::Lightmapped, RenderBucket::Sky>);
+
+    renderCollector.BeginRecordDrawCalls(frame, rs, RenderBucketMask<RenderBucket::Opaque, RenderBucket::Translucent, RenderBucket::Lightmapped, RenderBucket::Sky>);
 
     DeferredRendererPassData* passDataCasted = DynamicCast<DeferredRendererPassData>(rs.passData);
     AssertDebug(passDataCasted != nullptr);
@@ -2579,7 +2571,7 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         if (!isLightInFrustum)
             // Skip shadow view creation/update if the light is totally out of view.
             continue;
-        
+
         RenderSetup shadowRs = rs.Fork();
         shadowRs.light = light;
 
@@ -2621,7 +2613,7 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
             UpdateGpuData(view->GetCamera());
         }
     }
-    
+
     // render opaque objects into separate framebuffer
     frame->cr << SetCurrentFramebuffer(opaquePassFramebuffer);
 
@@ -2643,7 +2635,7 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     }
 
     frame->cr << SetCurrentFramebuffer(nullptr);
-    
+
     if (cvEnableLightmapVolumes.Get())
     {
         // render objects to be lightmapped, separate from the opaque objects.
@@ -2709,7 +2701,7 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     {
         passData.hbao->Render(frame, rs);
     }
-    
+
     if (cvSSGI.Get())
     {
         passData.ssgi->Render(frame, rs);
@@ -2750,7 +2742,7 @@ void DeferredRenderer::RenderFrameForView(Frame* frame, const RenderSetup& rs)
             /* onlyStencil */ true);
 
         frame->cr << SetCurrentFramebuffer(passData.deferredShadingFramebuffer);
-        
+
         if (cvEnableLightmapVolumes.Get())
         {
             // apply baked lighting over lightmapped objects
