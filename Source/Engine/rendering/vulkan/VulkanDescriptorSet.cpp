@@ -43,8 +43,9 @@ static inline void ValidateDynamicOffset(
     const DescriptorSetLayoutElement* layoutElement,
     const DescriptorSetElement* element)
 {
-    if (layoutElement->type != ShaderInputType::UNIFORM_BUFFER_DYNAMIC
-        && layoutElement->type != ShaderInputType::STORAGE_BUFFER_DYNAMIC)
+    if (layoutElement->type != ShaderInputType::CBV_Dynamic
+        && layoutElement->type != ShaderInputType::SRV_Dynamic
+        && layoutElement->type != ShaderInputType::UAV_Dynamic)
     {
         return;
     }
@@ -56,13 +57,14 @@ static inline void ValidateDynamicOffset(
     const VkPhysicalDeviceLimits& limits = g_renderInterface->GetDevice()->GetFeatures().GetPhysicalDeviceProperties().limits;
 
     // Validate alignment based on buffer type
-    if (layoutElement->type == ShaderInputType::UNIFORM_BUFFER_DYNAMIC)
+    if (layoutElement->type == ShaderInputType::CBV_Dynamic)
     {
         AssertDebug(offset % limits.minUniformBufferOffsetAlignment == 0,
             "Dynamic uniform buffer offset {} for element {} is not aligned to minUniformBufferOffsetAlignment ({})",
             offset, Name(dynamicElementName), limits.minUniformBufferOffsetAlignment);
     }
-    else if (layoutElement->type == ShaderInputType::STORAGE_BUFFER_DYNAMIC)
+    else if (layoutElement->type == ShaderInputType::SRV_Dynamic
+        || layoutElement->type == ShaderInputType::UAV_Dynamic)
     {
         AssertDebug(offset % limits.minStorageBufferOffsetAlignment == 0,
             "Dynamic storage buffer offset {} for element {} is not aligned to minStorageBufferOffsetAlignment ({})",
@@ -155,28 +157,43 @@ VulkanDescriptorSet::VulkanDescriptorSet(const DescriptorSetLayout& layout)
 
         switch (element.type)
         {
-        case ShaderInputType::UNIFORM_BUFFER:         // fallthrough
-        case ShaderInputType::UNIFORM_BUFFER_DYNAMIC: // fallthrough
-        case ShaderInputType::STORAGE_BUFFER:                   // fallthrough
-        case ShaderInputType::STORAGE_BUFFER_DYNAMIC: // fallthrough
+        case ShaderInputType::CBV:         // fallthrough
+        case ShaderInputType::CBV_Dynamic: // fallthrough
             PrefillElements<VulkanGpuBuffer>(name, element.count);
 
             break;
-        case ShaderInputType::IMAGE:
-            PrefillElements<VulkanGpuImageView>(name, element.count, g_renderInterface->placeholderData->GetImageView2D1x1R8());
+        case ShaderInputType::SRV:         // fallthrough
+        case ShaderInputType::SRV_Dynamic: // fallthrough
+        case ShaderInputType::UAV:         // fallthrough
+        case ShaderInputType::UAV_Dynamic:
+            if (element.category == ShaderResourceCategory::Buffer)
+            {
+                PrefillElements<VulkanGpuBuffer>(name, element.count);
+            }
+            else if (element.category == ShaderResourceCategory::Image)
+            {
+                if (element.type == ShaderInputType::SRV || element.type == ShaderInputType::SRV_Dynamic)
+                {
+                    PrefillElements<VulkanGpuImageView>(name, element.count, g_renderInterface->placeholderData->GetImageView2D1x1R8());
+                }
+                else
+                {
+                    // leave empty to avoid overwriting default image view for UAV
+                    PrefillElements<VulkanGpuImageView>(name, element.count);
+                }
+            }
+            else if (element.category == ShaderResourceCategory::AccelerationStructure)
+            {
+                PrefillElements<VulkanGpuTlas>(name, element.count);
+            }
+            else
+            {
+                HYP_UNREACHABLE();
+            }
 
             break;
-        case ShaderInputType::IMAGE_STORAGE:
-            // leave empty to avoid overwriting default image view or causing out of bounds access/write
-            PrefillElements<VulkanGpuImageView>(name, element.count);
-
-            break;
-        case ShaderInputType::SAMPLER:
+        case ShaderInputType::Sampler:
             PrefillElements<VulkanSampler>(name, element.count, g_renderInterface->placeholderData->GetSamplerLinear());
-
-            break;
-        case ShaderInputType::TLAS:
-            PrefillElements<VulkanGpuTlas>(name, element.count);
 
             break;
         default:
@@ -245,71 +262,93 @@ void VulkanDescriptorSet::UpdateDirtyState(bool* outIsDirty)
 
         switch (layoutElement->type)
         {
-        case ShaderInputType::UNIFORM_BUFFER:
-        case ShaderInputType::UNIFORM_BUFFER_DYNAMIC:
-        case ShaderInputType::STORAGE_BUFFER:
-        case ShaderInputType::STORAGE_BUFFER_DYNAMIC:
+        case ShaderInputType::CBV:
+        case ShaderInputType::CBV_Dynamic:
+        case ShaderInputType::SRV:
+        case ShaderInputType::SRV_Dynamic:
+        case ShaderInputType::UAV:
+        case ShaderInputType::UAV_Dynamic:
         {
+            const bool isBufferBinding = (layoutElement->category == ShaderResourceCategory::Buffer);
+
             for (uint32 index : element.occupiedArrayElems) // @TODO use dirtyRange to skip bits / end loop early?
             {
                 ObjectBase* ptr = element.values[index];
 
-                AssertDebug(ptr && Hyperion::IsA<VulkanGpuBuffer>(ptr), "Invalid buffer descriptor: {}", name);
+                AssertDebug(ptr, "Invalid buffer descriptor: {}", name);
 
-                VulkanGpuBuffer* ref = static_cast<VulkanGpuBuffer*>(ptr);
-                AssertDebug(ref != nullptr);
-                
-                VulkanCachedDescriptor& descriptor = localDescriptors.EmplaceBack();
-                Memory::Fill(&descriptor, 0, sizeof(VulkanCachedDescriptor));
-                descriptor.binding = layoutElement->binding;
-                descriptor.index = index;
-                descriptor.descriptorType = ToVkDescriptorType(layoutElement->type);
+                if (isBufferBinding)
+                {
+                    AssertDebug(Hyperion::IsA<VulkanGpuBuffer>(ptr), "Invalid buffer descriptor: {}", name);
 
-                AssertDebug(ref->IsCreated(), "Buffer not initialized for descriptor set element: {}.{}[{}]", m_layout.GetName(), name, index);
+                    VulkanGpuBuffer* ref = static_cast<VulkanGpuBuffer*>(ptr);
+                    AssertDebug(ref != nullptr);
 
-                descriptor.bufferInfo = VkDescriptorBufferInfo {
-                    .buffer = ref->GetVulkanHandle(),
-                    .offset = 0,
-                    .range = element.bufferStride != ~0u ? VkDeviceSize(element.bufferStride) : VK_WHOLE_SIZE
-                };
+                    VulkanCachedDescriptor& descriptor = localDescriptors.EmplaceBack();
+                    Memory::Fill(&descriptor, 0, sizeof(VulkanCachedDescriptor));
+                    descriptor.binding = layoutElement->binding;
+                    descriptor.index = index;
+                    descriptor.descriptorType = ToVkDescriptorType(layoutElement->type, layoutElement->category);
+
+                    AssertDebug(ref->IsCreated(), "Buffer not initialized for descriptor set element: {}.{}[{}]", m_layout.GetName(), name, index);
+                    AssertDebug(element.bufferStride != 0, "Buffer descriptor set element is zero sized: {}.{}[{}]", m_layout.GetName(), name, index);
+
+                    descriptor.bufferInfo = VkDescriptorBufferInfo {
+                        .buffer = ref->GetVulkanHandle(),
+                        .offset = 0,
+                        .range = (element.bufferStride != ~0u && element.bufferStride != 0) ? VkDeviceSize(element.bufferStride) : VK_WHOLE_SIZE
+                    };
+                }
+                else if (layoutElement->category == ShaderResourceCategory::Image)
+                {
+                    AssertDebug(Hyperion::IsA<VulkanGpuImageView>(ptr), "Invalid image descriptor: {}", name);
+
+                    VulkanGpuImageView* ref = static_cast<VulkanGpuImageView*>(ptr);
+                    AssertDebug(ref != nullptr);
+
+                    const bool isStorageImage = (layoutElement->type == ShaderInputType::UAV || layoutElement->type == ShaderInputType::UAV_Dynamic);
+
+                    VulkanCachedDescriptor& descriptor = localDescriptors.EmplaceBack();
+                    Memory::Fill(&descriptor, 0, sizeof(VulkanCachedDescriptor));
+                    descriptor.binding = layoutElement->binding;
+                    descriptor.index = index;
+                    descriptor.descriptorType = ToVkDescriptorType(layoutElement->type, layoutElement->category);
+
+                    AssertDebug(ref->GetVulkanHandle() != VK_NULL_HANDLE, "Invalid image view for descriptor set element: {}.{}[{}]", m_layout.GetName(), name, index);
+
+                    descriptor.imageInfo = VkDescriptorImageInfo {
+                        .sampler = VK_NULL_HANDLE,
+                        .imageView = ref->GetVulkanHandle(),
+                        .imageLayout =  GetVkImageLayout(
+                            isStorageImage ? RS_UNORDERED_ACCESS : RS_SHADER_RESOURCE,
+                            ref->GetImage()->GetTextureDesc().IsDepthStencil())
+                    };
+                }
+                else if (layoutElement->category == ShaderResourceCategory::AccelerationStructure)
+                {
+                    AssertDebug(Hyperion::IsA<VulkanGpuTlas>(ptr), "Invalid TLAS descriptor: {}", name);
+
+                    VulkanGpuTlas* ref = DynamicCast<VulkanGpuTlas>(ptr);
+                    AssertDebug(ref != nullptr, "Invalid TLAS reference for descriptor set element: {}.{}[{}]", m_layout.GetName(), name, index);
+                    AssertDebug(ref->GetVulkanHandle() != VK_NULL_HANDLE, "Invalid TLAS for descriptor set element: {}.{}[{}]", m_layout.GetName(), name, index);
+
+                    VulkanCachedDescriptor& descriptor = localDescriptors.EmplaceBack();
+                    Memory::Fill(&descriptor, 0, sizeof(VulkanCachedDescriptor));
+                    descriptor.binding = layoutElement->binding;
+                    descriptor.index = index;
+                    descriptor.descriptorType = ToVkDescriptorType(layoutElement->type, layoutElement->category);
+
+                    descriptor.accelerationStructure = ref->GetVulkanHandle();
+                }
+                else
+                {
+                    HYP_UNREACHABLE();
+                }
             }
 
             break;
         }
-        case ShaderInputType::IMAGE:
-        case ShaderInputType::IMAGE_STORAGE:
-        {
-            const bool isStorageImage = layoutElement->type == ShaderInputType::IMAGE_STORAGE;
-            
-            for (uint32 index : element.occupiedArrayElems)
-            {
-                ObjectBase* ptr = element.values[index];
-
-                AssertDebug(ptr && Hyperion::IsA<VulkanGpuImageView>(ptr), "Invalid image descriptor: {}", name);
-
-                VulkanGpuImageView* ref = static_cast<VulkanGpuImageView*>(ptr);
-                AssertDebug(ref != nullptr);
-
-                VulkanCachedDescriptor& descriptor = localDescriptors.EmplaceBack();
-                Memory::Fill(&descriptor, 0, sizeof(VulkanCachedDescriptor));
-                descriptor.binding = layoutElement->binding;
-                descriptor.index = index;
-                descriptor.descriptorType = ToVkDescriptorType(layoutElement->type);
-                
-                AssertDebug(ref->GetVulkanHandle() != VK_NULL_HANDLE, "Invalid image view for descriptor set element: {}.{}[{}]", m_layout.GetName(), name, index);
-
-                descriptor.imageInfo = VkDescriptorImageInfo {
-                    .sampler = VK_NULL_HANDLE,
-                    .imageView = ref->GetVulkanHandle(),
-                    .imageLayout =  GetVkImageLayout(
-                        isStorageImage ? RS_UNORDERED_ACCESS : RS_SHADER_RESOURCE,
-                        ref->GetImage()->GetTextureDesc().IsDepthStencil())
-                };
-            }
-
-            break;
-        }
-        case ShaderInputType::SAMPLER:
+        case ShaderInputType::Sampler:
         {
             for (uint32 index : element.occupiedArrayElems)
             {
@@ -324,7 +363,7 @@ void VulkanDescriptorSet::UpdateDirtyState(bool* outIsDirty)
                 Memory::Fill(&descriptor, 0, sizeof(VulkanCachedDescriptor));
                 descriptor.binding = layoutElement->binding;
                 descriptor.index = index;
-                descriptor.descriptorType = ToVkDescriptorType(layoutElement->type);
+                descriptor.descriptorType = ToVkDescriptorType(layoutElement->type, layoutElement->category);
 
                 AssertDebug(ref->GetVulkanHandle() != VK_NULL_HANDLE, "Invalid sampler for descriptor set element: {}.{}[{}]", m_layout.GetName(), name, index);
 
@@ -333,27 +372,6 @@ void VulkanDescriptorSet::UpdateDirtyState(bool* outIsDirty)
                     .imageView = VK_NULL_HANDLE,
                     .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED
                 };
-            }
-
-            break;
-        }
-        case ShaderInputType::TLAS:
-        {
-            for (uint32 index : element.occupiedArrayElems)
-            {
-                ObjectBase* ptr = element.values[index];
-
-                VulkanGpuTlas* ref = DynamicCast<VulkanGpuTlas>(ptr);
-                AssertDebug(ref != nullptr, "Invalid TLAS reference for descriptor set element: {}.{}[{}]", m_layout.GetName(), name, index);
-                AssertDebug(ref->GetVulkanHandle() != VK_NULL_HANDLE, "Invalid TLAS for descriptor set element: {}.{}[{}]", m_layout.GetName(), name, index);
-
-                VulkanCachedDescriptor& descriptor = localDescriptors.EmplaceBack();
-                Memory::Fill(&descriptor, 0, sizeof(VulkanCachedDescriptor));
-                descriptor.binding = layoutElement->binding;
-                descriptor.index = index;
-                descriptor.descriptorType = ToVkDescriptorType(layoutElement->type);
-
-                descriptor.accelerationStructure = ref->GetVulkanHandle();
             }
 
             break;
@@ -501,9 +519,9 @@ RendererResult VulkanDescriptorSet::Create()
 
     for (const KeyValuePair<Name, DescriptorSetLayoutElement>& pair : m_layout.GetElements())
     {
-        isBindlessTextures |= (pair.second.type == ShaderInputType::IMAGE && pair.second.IsBindless());
+        isBindlessTextures |= (pair.second.type == ShaderInputType::SRV && pair.second.category == ShaderResourceCategory::Image && pair.second.IsBindless());
         isBindlessBuffers |= (pair.second.IsBuffer() && pair.second.IsBindless());
-        isRayTracing |= (pair.second.type == ShaderInputType::TLAS);
+        isRayTracing |= (pair.second.type == ShaderInputType::SRV && pair.second.category == ShaderResourceCategory::AccelerationStructure);
     }
 
     CheckResultOrReturn(g_renderInterface->CreateDescriptorSet(

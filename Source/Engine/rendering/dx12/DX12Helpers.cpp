@@ -9,8 +9,10 @@
 #include <rendering/dx12/DX12Helpers.hpp>
 #include <rendering/dx12/DX12GpuBuffer.hpp>
 #include <rendering/dx12/DX12GpuImage.hpp>
+#include <rendering/dx12/DX12Sampler.hpp>
 
 #include <rendering/Shared.hpp>
+#include <rendering/util/ShaderCompiler.hpp> // For ShaderCompiler
 
 namespace Hyperion {
 
@@ -81,18 +83,26 @@ DXGI_FORMAT ToDXGIFormat(TextureFormat format, DX12ViewType getForViewType)
         if (getForViewType == DX12ViewType::RTV_DSV)
             return DXGI_FORMAT_D16_UNORM;
 
+        if (getForViewType == DX12ViewType::SRV_UAV)
+            return DXGI_FORMAT_R16_UNORM;
+
         return DXGI_FORMAT_R16_TYPELESS;
     case TextureFormat::D24_S8:
+        if (getForViewType == DX12ViewType::SRV_UAV)
+            return DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+
         if (getForViewType == DX12ViewType::RTV_DSV)
             return DXGI_FORMAT_D24_UNORM_S8_UINT;
-
-        return DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+        
+        return DXGI_FORMAT_R24G8_TYPELESS;
     case TextureFormat::D32F:
-        if (getForViewType == DX12ViewType::SRV_UAV
-            || getForViewType == DX12ViewType::RTV_DSV)
+        if (getForViewType == DX12ViewType::SRV_UAV)
+            return DXGI_FORMAT_R32_FLOAT;
+
+        if (getForViewType == DX12ViewType::RTV_DSV)
             return DXGI_FORMAT_D32_FLOAT;
 
-        return DXGI_FORMAT_R32_FLOAT;
+        return DXGI_FORMAT_R32_TYPELESS;
     case TextureFormat::D32F_S8:
         if (getForViewType == DX12ViewType::SRV_UAV)
             return DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS;
@@ -131,7 +141,7 @@ D3D12_RESOURCE_STATES ToDX12ResourceStates(ResourceState state)
         return D3D12_RESOURCE_STATE_DEPTH_WRITE;
 
     case RS_SHADER_RESOURCE:
-        return D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+        return D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE;
 
     case RS_STREAM_OUT:
         return D3D12_RESOURCE_STATE_STREAM_OUT;
@@ -230,6 +240,48 @@ D3D12_PRIMITIVE_TOPOLOGY_TYPE ToDX12TopologyType(Topology topology)
     }
 }
 
+D3D12_PRIMITIVE_TOPOLOGY ToDX12PrimitiveTopology(Topology topology)
+{
+    switch (topology)
+    {
+    case TOP_TRIANGLES:
+        return D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    case TOP_TRIANGLE_STRIP:
+        return D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+    case TOP_TRIANGLE_FAN:
+        return D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+    case TOP_LINES:
+        return D3D_PRIMITIVE_TOPOLOGY_LINELIST;
+    case TOP_POINTS:
+        return D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+    default:
+        return D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    }
+}
+
+DXGI_FORMAT ToDXGIFormat(GpuElemType elemType)
+{
+    switch (elemType)
+    {
+    case GET_UNSIGNED_BYTE:
+        return DXGI_FORMAT_R8_UINT;
+    case GET_SIGNED_BYTE:
+        return DXGI_FORMAT_R8_SINT;
+    case GET_UNSIGNED_SHORT:
+        return DXGI_FORMAT_R16_UINT;
+    case GET_SIGNED_SHORT:
+        return DXGI_FORMAT_R16_SINT;
+    case GET_UNSIGNED_INT:
+        return DXGI_FORMAT_R32_UINT;
+    case GET_SIGNED_INT:
+        return DXGI_FORMAT_R32_SINT;
+    case GET_FLOAT:
+        return DXGI_FORMAT_R32_FLOAT;
+    default:
+        return DXGI_FORMAT_R32_UINT;
+    }
+}
+
 D3D12_STENCIL_OP ToDX12StencilOp(StencilOp op)
 {
     switch (op)
@@ -263,6 +315,33 @@ D3D12_COMPARISON_FUNC ToDX12ComparisonFunction(StencilCompareOp compareOp)
         return D3D12_COMPARISON_FUNC_NOT_EQUAL;
     default:
         HYP_NOT_IMPLEMENTED();
+    }
+}
+
+static inline D3D12_COMPARISON_FUNC ToDX12SamplerCompareOp(SamplerCompareOp compareOp)
+{
+    switch (compareOp)
+    {
+    case SamplerCompareOp::None:
+        return D3D12_COMPARISON_FUNC_ALWAYS;
+    case SamplerCompareOp::Less:
+        return D3D12_COMPARISON_FUNC_LESS;
+    case SamplerCompareOp::LessEq:
+        return D3D12_COMPARISON_FUNC_LESS_EQUAL;
+    case SamplerCompareOp::Greater:
+        return D3D12_COMPARISON_FUNC_GREATER;
+    case SamplerCompareOp::GreaterEq:
+        return D3D12_COMPARISON_FUNC_GREATER_EQUAL;
+    case SamplerCompareOp::Equal:
+        return D3D12_COMPARISON_FUNC_EQUAL;
+    case SamplerCompareOp::NotEqual:
+        return D3D12_COMPARISON_FUNC_NOT_EQUAL;
+    case SamplerCompareOp::Always:
+        return D3D12_COMPARISON_FUNC_ALWAYS;
+    case SamplerCompareOp::Never:
+        return D3D12_COMPARISON_FUNC_NEVER;
+    default:
+        return D3D12_COMPARISON_FUNC_ALWAYS;
     }
 }
 
@@ -305,7 +384,7 @@ D3D12_UAV_DIMENSION ToDX12UAVDimension(TextureType textureType)
 D3D12_CONSTANT_BUFFER_VIEW_DESC GetCBVDesc(DX12GpuBuffer* buffer)
 {
     AssertDebug(buffer != nullptr);
-    AssertDebug(buffer->GetBufferType() == GpuBufferType::CONSTANT_BUFFER);
+    AssertDebug(buffer->GetBufferType() == GpuBufferType::ConstantBuffer);
 
     D3D12_CONSTANT_BUFFER_VIEW_DESC desc {};
     desc.BufferLocation = buffer->GetResource()->GetGPUVirtualAddress();
@@ -327,6 +406,11 @@ D3D12_SHADER_RESOURCE_VIEW_DESC GetSRVDesc(DX12GpuBuffer* buffer, uint32 structu
     {
         numElements = (numElements == UINT32_MAX) ? uint32(buffer->Size() / structureStride) : numElements;
     }
+    else if (numElements == UINT32_MAX)
+    {
+        // For raw (byte address) buffers, elements are 4-byte R32_TYPELESS units
+        numElements = uint32(buffer->Size() / 4) - firstElement;
+    }
 
     D3D12_SHADER_RESOURCE_VIEW_DESC desc {};
     desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
@@ -343,13 +427,18 @@ D3D12_SHADER_RESOURCE_VIEW_DESC GetSRVDesc(DX12GpuBuffer* buffer, uint32 structu
 D3D12_UNORDERED_ACCESS_VIEW_DESC GetUAVDesc(DX12GpuBuffer* buffer, uint32 structureStride, uint32 firstElement, uint32 numElements)
 {
     AssertDebug(buffer != nullptr);
-    AssertDebug(buffer->GetBufferType() != GpuBufferType::CONSTANT_BUFFER);
+    AssertDebug(buffer->GetBufferType() != GpuBufferType::ConstantBuffer);
 
     const bool useByteAddressBuffer = (structureStride == 0);
 
     if (!useByteAddressBuffer)
     {
         numElements = (numElements == UINT32_MAX) ? uint32(buffer->Size() / structureStride) : numElements;
+    }
+    else if (numElements == UINT32_MAX)
+    {
+        // For raw (byte address) buffers, elements are 4-byte R32_TYPELESS units
+        numElements = uint32(buffer->Size() / 4) - firstElement;
     }
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC desc {};
@@ -385,6 +474,13 @@ D3D12_SHADER_RESOURCE_VIEW_DESC GetSRVDesc(DX12GpuImage* image, uint32 mipIndex,
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.Format = ToDXGIFormat(textureDesc.format, DX12ViewType::SRV_UAV);
     srvDesc.ViewDimension = ToDX12SRVDimension(textureDesc.type);
+
+    // When viewing a single face of a cubemap as a 2D texture, use TEXTURE2D dimension
+    const bool isCubemap = textureDesc.IsTextureCube() || textureDesc.IsTextureCubeArray();
+    if (isCubemap && numLayers == 1)
+    {
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    }
 
     switch (srvDesc.ViewDimension)
     {
@@ -448,6 +544,13 @@ D3D12_UNORDERED_ACCESS_VIEW_DESC GetUAVDesc(DX12GpuImage* image, uint32 mipIndex
     uavDesc.Format = ToDXGIFormat(textureDesc.format, DX12ViewType::SRV_UAV);
     uavDesc.ViewDimension = ToDX12UAVDimension(textureDesc.type);
 
+    // When viewing a single face of a cubemap as a 2D texture, use TEXTURE2D dimension
+    const bool isCubemapUav = textureDesc.IsTextureCube() || textureDesc.IsTextureCubeArray();
+    if (isCubemapUav && numLayers == 1)
+    {
+        uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+    }
+
     switch (uavDesc.ViewDimension)
     {
     case D3D12_UAV_DIMENSION_TEXTURE2D:
@@ -471,6 +574,152 @@ D3D12_UNORDERED_ACCESS_VIEW_DESC GetUAVDesc(DX12GpuImage* image, uint32 mipIndex
     }
 
     return uavDesc;
+}
+
+D3D12_SAMPLER_DESC GetSamplerDesc(const DX12Sampler* sampler)
+{
+    AssertDebug(sampler != nullptr);
+
+    D3D12_SAMPLER_DESC desc {};
+
+    switch (sampler->GetMinFilterMode())
+    {
+    case TFM_NEAREST:
+        switch (sampler->GetMagFilterMode())
+        {
+        case TFM_NEAREST:
+            desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+            break;
+        case TFM_LINEAR:
+            desc.Filter = D3D12_FILTER_MIN_MAG_POINT_MIP_LINEAR;
+            break;
+        default:
+            desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+        }
+        break;
+    case TFM_LINEAR:
+        switch (sampler->GetMagFilterMode())
+        {
+        case TFM_NEAREST:
+            desc.Filter = D3D12_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT;
+            break;
+        case TFM_LINEAR:
+            desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+            break;
+        default:
+            desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+        }
+        break;
+    default:
+        desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    }
+
+    switch (sampler->GetWrapMode())
+    {
+    case TWM_REPEAT:
+        desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        break;
+    case TWM_CLAMP_TO_EDGE:
+        desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        break;
+    case TWM_CLAMP_TO_BORDER:
+        desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        break;
+    default:
+        desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    }
+
+    desc.MipLODBias = 0.0f;
+    desc.MaxAnisotropy = 1;
+
+    const SamplerCompareOp compareOp = sampler->GetCompareOp();
+    if (compareOp == SamplerCompareOp::None)
+    {
+        // Non-comparison sampler: leave filter as-is and skip ComparisonFunc.
+        // ComparisonFunc stays at 0 from zero-initialization, which D3D12
+        // validation ignores for non-comparison filters.
+    }
+    else
+    {
+        // Upgrade the filter to a comparison type
+        desc.Filter = D3D12_FILTER(static_cast<UINT>(desc.Filter) | 0x80);
+        desc.ComparisonFunc = ToDX12SamplerCompareOp(compareOp);
+    }
+
+    desc.MinLOD = 0.0f;
+    desc.MaxLOD = D3D12_FLOAT32_MAX;
+
+    return desc;
+}
+
+D3D12_DESCRIPTOR_RANGE_TYPE ToDX12DescriptorRangeType(ShaderRegister reg)
+{
+    switch (reg)
+    {
+    case ShaderRegister::SRV:
+        return D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    case ShaderRegister::UAV:
+        return D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    case ShaderRegister::BUFFER:
+        return D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+    case ShaderRegister::SAMPLER:
+        return D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+    default:
+        HYP_UNREACHABLE();
+    }
+}
+
+bool CheckDeviceRemovedReason(ID3D12Device* device)
+{
+    if (device == nullptr)
+    {
+        return false;
+    }
+
+    HRESULT hr = device->GetDeviceRemovedReason();
+    if (SUCCEEDED(hr))
+    {
+        return false;
+    }
+
+    const char* reasonStr = "Unknown";
+
+    switch (hr)
+    {
+    case DXGI_ERROR_DEVICE_HUNG:
+        reasonStr = "DEVICE_HUNG - The device took too long to execute commands (GPU timeout/TDR)";
+        break;
+    case DXGI_ERROR_DEVICE_REMOVED:
+        reasonStr = "DEVICE_REMOVED - The device was physically removed or driver was upgraded";
+        break;
+    case DXGI_ERROR_DEVICE_RESET:
+        reasonStr = "DEVICE_RESET - The device was reset due to a driver error or GPU hang";
+        break;
+    case DXGI_ERROR_DRIVER_INTERNAL_ERROR:
+        reasonStr = "DRIVER_INTERNAL_ERROR - The driver encountered an internal error";
+        break;
+    case DXGI_ERROR_INVALID_CALL:
+        reasonStr = "INVALID_CALL - An invalid API call was made";
+        break;
+    case E_OUTOFMEMORY:
+        reasonStr = "OUT_OF_MEMORY - The GPU or system ran out of memory";
+        break;
+    default:
+        reasonStr = "Unknown device removal reason";
+        break;
+    }
+
+    HYP_LOG(RenderingBackend, Error, "D3D12 Device Removed! Reason: {} (HRESULT: {})", reasonStr, hr);
+
+    return true;
 }
 
 } // namespace Hyperion

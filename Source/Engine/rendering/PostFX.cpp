@@ -42,6 +42,7 @@ PostFXPass::PostFXPass(
       m_stage(stage),
       m_effectIndex(effectIndex)
 {
+    SetPassName(NAME("PostFX"));
 }
 
 PostFXPass::~PostFXPass()
@@ -216,7 +217,7 @@ void PostProcessing::CreateUniformBuffer()
 
     const PostProcessingUniforms postProcessingUniforms = GetUniforms();
 
-    m_uniformBuffer = g_renderInterface->MakeGpuBuffer(GpuBufferType::CONSTANT_BUFFER, sizeof(postProcessingUniforms));
+    m_uniformBuffer = g_renderInterface->MakeGpuBuffer(GpuBufferType::ConstantBuffer, sizeof(postProcessingUniforms));
     CheckResult(m_uniformBuffer->Create());
 
     m_uniformBuffer->Copy(sizeof(postProcessingUniforms), &postProcessingUniforms);

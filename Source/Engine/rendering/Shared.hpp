@@ -661,19 +661,22 @@ HYP_ENUM()
 enum class GpuBufferType : uint8
 {
     NONE = 0,
-    MESH_INDEX_BUFFER,
-    MESH_VERTEX_BUFFER,
-    CONSTANT_BUFFER,
-    STORAGE_BUFFER,
-    READBACK_BUFFER,
-    STAGING_BUFFER,
-    INDIRECT_ARGS_BUFFER,
-    SHADER_BINDING_TABLE,
-    ACCELERATION_STRUCTURE_BUFFER,
-    ACCELERATION_STRUCTURE_INSTANCE_BUFFER,
-    RT_MESH_INDEX_BUFFER,
-    RT_MESH_VERTEX_BUFFER,
-    SCRATCH_BUFFER,
+    IndexBuffer,
+    VertexBuffer,
+    ConstantBuffer,
+    StructuredBuffer,
+    RWStructuredBuffer,
+    ByteAddressBuffer,
+    RWByteAddressBuffer,
+    ReadbackBuffer,
+    StagingBuffer,
+    IndirectArgsBuffer,
+    ShaderBindingTable,
+    AccelerationStructureBuffer,
+    AccelerationStructureInstanceBuffer,
+    RTMeshIndexBuffer,
+    RTMeshVertexBuffer,
+    ScratchBuffer,
     MAX
 };
 
@@ -1091,17 +1094,26 @@ struct Viewport
 };
 
 HYP_ENUM()
+enum class ShaderResourceCategory : uint8
+{
+    Unknown,
+    Buffer,
+    Image,
+    Sampler,
+    AccelerationStructure
+};
+
+HYP_ENUM()
 enum class ShaderInputType : uint8
 {
-    UNSET,
-    UNIFORM_BUFFER,
-    UNIFORM_BUFFER_DYNAMIC,
-    STORAGE_BUFFER,
-    STORAGE_BUFFER_DYNAMIC,
-    IMAGE,
-    IMAGE_STORAGE,
-    SAMPLER,
-    TLAS,
+    Unset,
+    CBV,
+    CBV_Dynamic,
+    SRV,
+    SRV_Dynamic,
+    UAV,
+    UAV_Dynamic,
+    Sampler,
     MAX
 };
 

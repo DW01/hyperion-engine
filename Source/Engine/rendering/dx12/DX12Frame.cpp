@@ -9,6 +9,7 @@
 #include <rendering/dx12/DX12GpuImage.hpp>
 #include <rendering/dx12/DX12Frame.hpp>
 #include <rendering/dx12/DX12RenderInterface.hpp>
+#include <rendering/dx12/DX12CommandBuffer.hpp>
 
 #include <DX12Frame.generated.inl>
 
@@ -34,18 +35,67 @@ DX12Frame::~DX12Frame()
 
 bool DX12Frame::IsCreated() const
 {
-    return false;
+    return true;
 }
 
 RendererResult DX12Frame::Create()
 {
-    // @TODO
     return {};
 }
 
 void DX12Frame::OnFrameStart()
 {
-    // @TODO
+    FrameBase::OnFrameStart();
+}
+
+void DX12Frame::WriteCommandBuffer(CommandBuffer* commandBuffer)
+{
+    AssertOnThread(g_renderThread);
+
+    Array<CommandRecorder*, RenderAllocator> commandRecorders;
+    commandRecorders.Reserve(4);
+
+    commandRecorders.PushBack(&preRenderCommands);
+    commandRecorders.PushBack(&cr);
+    commandRecorders.PushBack(&g_renderInterface->commandRecorderAllocator.GetCommandRecorder());
+    commandRecorders.PushBack(&postRenderCommands);
+    
+    for (CommandRecorder* commandRecorder : commandRecorders)
+    {
+        commandRecorder->Prepare(this);
+    }
+
+    if (OnPresent.AnyBound())
+    {
+        OnPresent(this);
+        OnPresent.RemoveAllDetached();
+    }
+
+    {
+        for (CommandRecorder* commandRecorder : commandRecorders)
+        {
+            commandRecorder->Execute(commandBuffer);
+            commandRecorder->Reset(/* freeMemory */ false);
+        }
+    }
+
+    if (commandBuffer->IsRecording())
+    {
+        commandBuffer->End();
+    }
+
+    DX12RenderInterface& ri = *g_renderInterface;
+
+    const DX12QueueData* queueData = ri.GetQueueData(D3D12_COMMAND_LIST_TYPE_DIRECT);
+    Assert(queueData != nullptr);
+    
+    ID3D12CommandList* commandLists[] = { commandBuffer->GetCommandList() };
+    queueData->commandQueue->ExecuteCommandLists(1, commandLists);
+
+}
+
+void DX12Frame::ResetTransientStates()
+{
 }
 
 #pragma endregion DX12Frame

@@ -311,6 +311,7 @@ DeferredPass::DeferredPass(DeferredPassMode mode, Vec2u extent, GBuffer* gbuffer
       m_mode(mode),
       m_ltcSampler(nullptr)
 {
+    SetPassName(NAME("Deferred"));
     Assert(m_framebuffer.IsValid());
 
     SetBlendFunction(BlendFunction(BMF_ONE, BMF_ONE, BMF_ONE, BMF_ONE));
@@ -764,6 +765,7 @@ void DeferredPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 TonemapPass::TonemapPass(Vec2u extent, GBuffer* gbuffer)
     : FullScreenPass(TextureFormat::R11G11B10F, extent, gbuffer)
 {
+    SetPassName(NAME("Tonemap"));
 }
 
 TonemapPass::~TonemapPass()
@@ -875,6 +877,7 @@ struct LightmapVolumeUniforms
 LightmapPass::LightmapPass()
     : FullScreenPass(TextureFormat::RGBA16F, nullptr, FSP_EXTERNAL_RENDERTARGET)
 {
+    SetPassName(NAME("Lightmap"));
     m_shaderDesc = ShaderDesc(NAME("ApplyLightmap"));
 }
 
@@ -1013,7 +1016,7 @@ void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
         if (!uniformBuffer)
         {
-            uniformBuffer = g_renderInterface->MakeGpuBuffer(GpuBufferType::CONSTANT_BUFFER, sizeof(LightmapVolumeUniforms));
+            uniformBuffer = g_renderInterface->MakeGpuBuffer(GpuBufferType::ConstantBuffer, sizeof(LightmapVolumeUniforms));
             CheckResult(uniformBuffer->Create());
         }
 
@@ -1047,6 +1050,7 @@ static constexpr uint32 MaxBoundLightsPerFogVolume = 4;
 FogVolumePass::FogVolumePass()
     : FullScreenPass(TextureFormat::RGBA16F, nullptr, FSP_EXTERNAL_RENDERTARGET)
 {
+    SetPassName(NAME("FogVolume"));
 }
 
 FogVolumePass::~FogVolumePass()
@@ -1253,6 +1257,7 @@ ReflectionsPass::ReflectionsPass(Vec2u extent, GBuffer* gbuffer, const GpuImageV
       m_mipChainImageView(mipChainImageView),
       m_isFirstFrame(true)
 {
+    SetPassName(NAME("Reflections"));
     m_shaderDesc = ShaderDesc(NAME("ApplyReflectionProbe"));
 
     SetBlendFunction(BlendFunction(
@@ -1384,8 +1389,8 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
     cr << SetShaderUniform(3 + GTN_MAX, "WorldsBuffer"_sh, g_renderInterface->namedBuffers[NamedBuffer::Worlds].gpuBuffer);
     cr << SetShaderUniform(4 + GTN_MAX, "EnvProbesBuffer"_sh, g_renderInterface->namedBuffers[NamedBuffer::EnvProbes].gpuBuffer);
 
-    cr << SetShaderUniform(10 + GTN_MAX, "BlueNoiseBuffer"_sh, g_renderInterface->blueNoiseBuffer);
-    cr << SetShaderUniform(11 + GTN_MAX, "SphereSamplesBuffer"_sh, g_renderInterface->sphereSamplesBuffer);
+    cr << SetShaderUniform(10 + GTN_MAX, "BlueNoiseBuffer"_sh, g_renderInterface->blueNoiseBuffer.gpuBuffer);
+    cr << SetShaderUniform(11 + GTN_MAX, "SphereSamplesBuffer"_sh, g_renderInterface->sphereSamplesBuffer.gpuBuffer);
 
     cr << SetShaderUniform(12 + GTN_MAX, "GBufferMipChain"_sh, g_renderInterface->textureViewCache->GetOrCreate(dpd->mipChain));
 
@@ -2074,8 +2079,9 @@ PassData* DeferredRenderer::CreateViewPassData(View* view, PassDataExt&)
             Vec3u(opaquePassFramebuffer->GetExtent(), 1),
             TFM_LINEAR_MIPMAP,
             TFM_LINEAR_MIPMAP,
-            TWM_CLAMP_TO_EDGE });
-
+            TWM_CLAMP_TO_EDGE
+        });
+        passData.mipChain->SetName(NAME("DeferredPassMipChain"));
         CheckResult(passData.mipChain->Create());
 
         passData.hbao = MakeUnique<HBAO>(gbuffer->GetExtent(), gbuffer);
@@ -3042,14 +3048,14 @@ void DeferredRenderer::GenerateMipChain(Frame* frame, const RenderSetup& rs, Ren
 
     DeferredRendererPassData* pd = DynamicCast<DeferredRendererPassData>(rs.passData);
 
-    const GpuImageRef& mipmappedResult = pd->mipChain->GetGpuImage();
-    Assert(mipmappedResult.IsValid());
+    GpuImage* mipmappedResult = pd->mipChain->GetGpuImage();
+    Assert(mipmappedResult != nullptr && mipmappedResult->IsCreated());
 
     frame->cr << InsertBarrier(srcImage, RS_COPY_SRC);
     frame->cr << InsertBarrier(mipmappedResult, RS_COPY_DST);
 
     // Blit into the mipmap chain img
-    frame->cr << BlitRect(
+    frame->cr << Blit(
         srcImage,
         mipmappedResult,
         Rect<uint32> { 0, 0, srcImage->GetExtent().x, srcImage->GetExtent().y },

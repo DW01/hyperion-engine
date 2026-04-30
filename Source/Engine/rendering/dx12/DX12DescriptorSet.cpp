@@ -16,6 +16,11 @@
 #include <rendering/dx12/DX12Sampler.hpp>
 #include <rendering/dx12/DX12AccelerationStructure.hpp>
 #include <rendering/dx12/DX12Helpers.hpp>
+#include <rendering/dx12/DX12GraphicsPipeline.hpp>
+#include <rendering/dx12/DX12ComputePipeline.hpp>
+#include <rendering/dx12/DX12RayTracingPipeline.hpp>
+
+#include <rendering/Bindless.hpp>
 
 #include <DX12DescriptorSet.generated.inl>
 
@@ -27,6 +32,7 @@ extern DX12RenderInterface* g_renderInterface;
 
 DX12DescriptorSet::DX12DescriptorSet(const DescriptorSetLayout& layout)
     : DescriptorSetBase(layout),
+      m_updateVersion(0),
       m_isCreated(false)
 {
     for (auto& it : m_layout.GetElements())
@@ -36,24 +42,34 @@ DX12DescriptorSet::DX12DescriptorSet(const DescriptorSetLayout& layout)
 
         switch (element.type)
         {
-        case ShaderInputType::UNIFORM_BUFFER:
-        case ShaderInputType::UNIFORM_BUFFER_DYNAMIC:
-        case ShaderInputType::STORAGE_BUFFER:
-        case ShaderInputType::STORAGE_BUFFER_DYNAMIC:
+        case ShaderInputType::CBV:
+        case ShaderInputType::CBV_Dynamic:
             PrefillElements<DX12GpuBuffer>(name, element.count);
             break;
-        case ShaderInputType::IMAGE:
-        case ShaderInputType::IMAGE_STORAGE:
-            PrefillElements<DX12GpuImageView>(name, element.count);
+        case ShaderInputType::SRV:
+        case ShaderInputType::SRV_Dynamic:
+        case ShaderInputType::UAV:
+        case ShaderInputType::UAV_Dynamic:
+            if (element.category == ShaderResourceCategory::Buffer)
+            {
+                PrefillElements<DX12GpuBuffer>(name, element.count);
+            }
+            else if (element.category == ShaderResourceCategory::Image)
+            {
+                PrefillElements<DX12GpuImageView>(name, element.count);
+            }
+            else if (element.category == ShaderResourceCategory::AccelerationStructure)
+            {
+                PrefillElements<DX12GpuTlas>(name, element.count);
+            }
+            else
+            {
+                HYP_UNREACHABLE();
+            }
             break;
-        case ShaderInputType::SAMPLER:
+        case ShaderInputType::Sampler:
             PrefillElements<DX12Sampler>(name, element.count);
             break;
-        case ShaderInputType::TLAS:
-            PrefillElements<DX12GpuTlas>(name, element.count);
-            break;
-        default:
-            HYP_UNREACHABLE();
         }
     }
 }
@@ -95,31 +111,46 @@ RendererResult DX12DescriptorSet::Create()
     {
         const DescriptorSetLayoutElement& element = it.second;
 
+        // For bindless elements, use the MaxBindlessResources limit instead of ~0u
+        const uint32 elementCount = element.IsBindless()
+            ? (element.IsBuffer()
+                ? MaxBindlessResources[BindlessStorage_Buffers]
+                : MaxBindlessResources[BindlessStorage_Textures])
+            : element.count;
+
         switch (element.type)
         {
-        case ShaderInputType::UNIFORM_BUFFER:
-        case ShaderInputType::UNIFORM_BUFFER_DYNAMIC:
-        case ShaderInputType::STORAGE_BUFFER:
-        case ShaderInputType::STORAGE_BUFFER_DYNAMIC:
-        case ShaderInputType::IMAGE:
-        case ShaderInputType::IMAGE_STORAGE:
-        case ShaderInputType::TLAS:
+        case ShaderInputType::CBV:
+        case ShaderInputType::CBV_Dynamic:
+        case ShaderInputType::SRV:
+        case ShaderInputType::SRV_Dynamic:
+        case ShaderInputType::UAV:
+        case ShaderInputType::UAV_Dynamic:
+        {
+            // Dynamic buffer entries are handled via root descriptors (SetGraphicsRootConstantBufferView etc.)
+            // and do not participate in the descriptor table
+            if (element.type == ShaderInputType::CBV_Dynamic
+                || element.type == ShaderInputType::SRV_Dynamic
+                || element.type == ShaderInputType::UAV_Dynamic)
+            {
+                break;
+            }
+
             m_viewBindingToHeapOffset.Set(element.binding, viewCount);
-            viewCount += element.count;
+            viewCount += elementCount;
             break;
-        case ShaderInputType::SAMPLER:
+        }
+        case ShaderInputType::Sampler:
             m_samplerBindingToHeapOffset.Set(element.binding, samplerCount);
-            samplerCount += element.count;
+            samplerCount += elementCount;
             break;
-        default:
-            HYP_UNREACHABLE();
         }
     }
 
     if (viewCount > 0)
     {
         m_viewDescriptorHandle = g_renderInterface->descriptorHeapManager->Allocate(DX12DescriptorHeapType::CBV_SRV_UAV, viewCount);
-        
+
         if (!m_viewDescriptorHandle.IsValid())
         {
             return HYP_MAKE_ERROR(RendererError, "Failed to allocate {} view descriptors for descriptor set: {}", 0, viewCount, m_layout.GetName());
@@ -129,7 +160,7 @@ RendererResult DX12DescriptorSet::Create()
     if (samplerCount > 0)
     {
         m_samplerDescriptorHandle = g_renderInterface->descriptorHeapManager->Allocate(DX12DescriptorHeapType::SAMPLER, samplerCount);
-        
+
         if (!m_samplerDescriptorHandle.IsValid())
         {
             // Free already allocated views
@@ -147,13 +178,7 @@ RendererResult DX12DescriptorSet::Create()
         const Name name = it.first;
         const DescriptorSetElement& element = it.second;
 
-        auto cacheIt = m_elementCache.Find(name);
-        if (cacheIt == m_elementCache.End())
-        {
-            cacheIt = m_elementCache.Emplace(name).first;
-        }
-
-        cacheIt->second.Resize(element.values.Size());
+        m_cachedElements.Emplace(name, Array<DX12CachedDescriptor, RHIAllocator>(element.values.Size()));
     }
 
     m_isCreated = true;
@@ -166,238 +191,393 @@ RendererResult DX12DescriptorSet::Create()
 
 void DX12DescriptorSet::UpdateDirtyState(bool* outIsDirty)
 {
+    m_pendingDescriptors.Clear();
+
     // Ensure all cached value containers are prepared
     for (auto& it : m_elements)
     {
         const Name name = it.first;
         const DescriptorSetElement& element = it.second;
 
-        auto cachedIt = m_elementCache.Find(name);
+        auto cachedIt = m_cachedElements.Find(name);
 
-        if (cachedIt == m_elementCache.End())
+        if (cachedIt == m_cachedElements.End())
         {
-            cachedIt = m_elementCache.Emplace(name).first;
+            cachedIt = m_cachedElements.Emplace(name).first;
         }
 
-        Array<DX12DescriptorHandle>& cachedElementValues = cachedIt->second;
+        Array<DX12CachedDescriptor, RHIAllocator>& cachedElementValues = cachedIt->second;
 
         if (cachedElementValues.Size() != element.values.Size())
         {
-            cachedElementValues.Resize(element.values.Size());
+            cachedElementValues.ResizeZeroed(element.values.Size());
         }
     }
 
-    bool isDirty = false;
+    Array<DX12CachedDescriptor, RHIAllocator> localDescriptors;
 
+    // detect changes from cachedValues
     for (auto& it : m_elements)
     {
+        const Name name = it.first;
         DescriptorSetElement& element = it.second;
 
-        if (element.dirtyRange.Distance() > 0)
+        const DescriptorSetLayoutElement* layoutElement = m_layout.GetElement(name);
+        AssertDebug(layoutElement != nullptr, "Invalid element: No item with name {} found", name);
+
+        auto cachedIt = m_cachedElements.Find(name);
+        AssertDebug(cachedIt != m_cachedElements.End());
+
+        Array<DX12CachedDescriptor, RHIAllocator>& cachedValues = cachedIt->second;
+        localDescriptors.Clear();
+        localDescriptors.Reserve(element.values.Size());
+
+        switch (layoutElement->type)
         {
-            isDirty = true;
+        case ShaderInputType::CBV:
+        case ShaderInputType::CBV_Dynamic:
+        case ShaderInputType::SRV:
+        case ShaderInputType::SRV_Dynamic:
+        case ShaderInputType::UAV:
+        case ShaderInputType::UAV_Dynamic:
+        {
+            for (uint32 index : element.occupiedArrayElems)
+            {
+                ObjectBase* ptr = element.values[index];
+
+                if (layoutElement->category == ShaderResourceCategory::Buffer)
+                {
+                    AssertDebug(ptr && ptr->IsA<DX12GpuBuffer>(), "Invalid buffer descriptor: {}", name);
+
+                    DX12GpuBuffer* ref = StaticCast<DX12GpuBuffer>(ptr);
+                    AssertDebug(ref != nullptr);
+
+                    DX12CachedDescriptor& descriptor = localDescriptors.EmplaceBack();
+                    Memory::Fill(&descriptor, 0, sizeof(DX12CachedDescriptor));
+                    descriptor.binding = layoutElement->binding;
+                    descriptor.index = index;
+                    descriptor.heapType = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+
+                    AssertDebug(ref->IsCreated(), "Buffer not initialized for descriptor set element: {}.{}[{}]", m_layout.GetName(), name, index);
+
+                    descriptor.objectPtr = ref;
+                }
+                else if (layoutElement->category == ShaderResourceCategory::Image)
+                {
+                    AssertDebug(ptr && ptr->IsA<DX12GpuImageView>(), "Invalid image descriptor: {}", name);
+
+                    DX12GpuImageView* ref = StaticCast<DX12GpuImageView>(ptr);
+                    AssertDebug(ref != nullptr);
+
+                    DX12CachedDescriptor& descriptor = localDescriptors.EmplaceBack();
+                    Memory::Fill(&descriptor, 0, sizeof(DX12CachedDescriptor));
+                    descriptor.binding = layoutElement->binding;
+                    descriptor.index = index;
+                    descriptor.heapType = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+
+                    AssertDebug(ref->IsCreated(), "Image view not initialized for descriptor set element: {}.{}[{}]", m_layout.GetName(), name, index);
+
+                    descriptor.objectPtr = ref;
+                }
+                else if (layoutElement->category == ShaderResourceCategory::AccelerationStructure)
+                {
+                    AssertDebug(ptr && ptr->IsA<DX12GpuTlas>(), "Invalid TLAS descriptor: {}", name);
+
+                    DX12GpuTlas* ref = StaticCast<DX12GpuTlas>(ptr);
+                    AssertDebug(ref != nullptr);
+
+                    DX12CachedDescriptor& descriptor = localDescriptors.EmplaceBack();
+                    Memory::Fill(&descriptor, 0, sizeof(DX12CachedDescriptor));
+                    descriptor.binding = layoutElement->binding;
+                    descriptor.index = index;
+                    descriptor.heapType = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+
+                    descriptor.objectPtr = ref;
+                }
+                else
+                {
+                    HYP_UNREACHABLE();
+                }
+            }
+
+            break;
         }
+        case ShaderInputType::Sampler:
+        {
+            for (uint32 index : element.occupiedArrayElems)
+            {
+                ObjectBase* ptr = element.values[index];
+
+                AssertDebug(ptr && ptr->IsA<DX12Sampler>(), "Invalid sampler descriptor: {}", name);
+
+                DX12Sampler* ref = StaticCast<DX12Sampler>(ptr);
+                AssertDebug(ref != nullptr);
+
+                DX12CachedDescriptor& descriptor = localDescriptors.EmplaceBack();
+                Memory::Fill(&descriptor, 0, sizeof(DX12CachedDescriptor));
+                descriptor.binding = layoutElement->binding;
+                descriptor.index = index;
+                descriptor.heapType = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+
+                AssertDebug(ref->IsCreated(), "Invalid sampler for descriptor set element: {}.{}[{}]", m_layout.GetName(), name, index);
+
+                descriptor.objectPtr = ref;
+            }
+
+            break;
+        }
+        }
+
+        Assert(localDescriptors.Size() <= cachedValues.Size(), "Index out of range for cached values");
+
+        Range<uint32> localDirtyRange = Range<uint32>::Invalid();
+
+        for (size_t i = 0; i < localDescriptors.Size(); i++)
+        {
+            if (localDescriptors[i] != cachedValues[i])
+            {
+                localDirtyRange |= { uint32(i), uint32(i + 1) };
+            }
+        }
+
+        if (localDirtyRange.Distance() > 0)
+        {
+            AssertDebug(localDirtyRange.GetEnd() <= cachedValues.Size());
+            AssertDebug(localDirtyRange.GetEnd() <= localDescriptors.Size());
+
+            Memory::Copy(cachedValues.Data() + localDirtyRange.GetStart(), localDescriptors.Data() + localDirtyRange.GetStart(), sizeof(DX12CachedDescriptor) * size_t(localDirtyRange.Distance()));
+
+            // mark the element as dirty
+            element.dirtyRange |= localDirtyRange;
+
+            m_pendingDescriptors.Concat(localDescriptors);
+        }
+
+        localDescriptors.Clear();
     }
 
     if (outIsDirty)
     {
-        *outIsDirty = isDirty;
+        *outIsDirty = m_pendingDescriptors.Any();
     }
 }
 
 void DX12DescriptorSet::Update(bool force)
 {
-    //if (!m_isCreated)
-    //{
-    //    return;
-    //}
+    if (!m_isCreated)
+    {
+        return;
+    }
 
-    //ID3D12Device* device = g_renderBackend->GetDevice();
+    if (force)
+    {
+        m_cachedElements.Clear();
+        UpdateDirtyState();
+    }
 
-    //for (auto& it : m_elements)
-    //{
-    //    const Name name = it.first;
-    //    DescriptorSetElement& element = it.second;
+    if (m_pendingDescriptors.Empty())
+    {
+        return;
+    }
 
-    //    const DescriptorSetLayoutElement* layoutElement = m_layout.GetElement(name);
-    //    Assert(layoutElement != nullptr, "Invalid element: No item with name {} found", name);
+    ID3D12Device* device = g_renderInterface->GetDevice();
 
-    //    if (!force && element.dirtyRange.Distance() == 0)
-    //    {
-    //        continue;
-    //    }
+    const uint32 incrementSize = g_renderInterface->GetDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    const uint32 samplerIncrementSize = g_renderInterface->GetDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 
-    //    const uint32 incrementSize = g_renderBackend->GetDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    //    const uint32 samplerIncrementSize = g_renderBackend->GetDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+    for (size_t i = 0; i < m_pendingDescriptors.Size(); i++)
+    {
+        const DX12CachedDescriptor& descriptor = m_pendingDescriptors[i];
 
-    //    switch (layoutElement->type)
-    //    {
-    //    case ShaderInputType::UNIFORM_BUFFER:          // fallthrough
-    //    case ShaderInputType::UNIFORM_BUFFER_DYNAMIC:  // fallthrough
-    //    case ShaderInputType::SSBO:                    // fallthrough
-    //    case ShaderInputType::STORAGE_BUFFER_DYNAMIC:
-    //    {
-    //        const bool layoutHasSize = layoutElement->size != 0 && layoutElement->size != ~0u;
-    //        const bool isDynamic = layoutElement->type == ShaderInputType::UNIFORM_BUFFER_DYNAMIC
-    //            || layoutElement->type == ShaderInputType::STORAGE_BUFFER_DYNAMIC;
+        DescriptorSetElement* element = nullptr;
+        const DescriptorSetLayoutElement* layoutElement = nullptr;
 
-    //        for (auto& valuesIt : element.values)
-    //        {
-    //            const uint32 index = valuesIt.first;
+        for (auto& it : m_elements)
+        {
+            const Name name = it.first;
+            const DescriptorSetLayoutElement* layoutEl = m_layout.GetElement(name);
+            if (layoutEl && layoutEl->binding == descriptor.binding)
+            {
+                element = &it.second;
+                layoutElement = layoutEl;
+                break;
+            }
+        }
 
-    //            if (!force && !element.dirtyRange.Includes(index))
-    //            {
-    //                continue;
-    //            }
+        if (element == nullptr || layoutElement == nullptr)
+        {
+            continue;
+        }
 
-    //            const DX12GpuBufferRef& ref = DynamicCast<DX12GpuBuffer>(valuesIt.second);
-    //            if (!ref.IsValid() || !ref->IsCreated())
-    //            {
-    //                continue;
-    //            }
+        ObjectBase* ptr = element->values[descriptor.index];
+        if (ptr == nullptr)
+        {
+            continue;
+        }
 
-    //            D3D12_CPU_DESCRIPTOR_HANDLE destHandle = GetViewCpuHandle(layoutElement->binding);
-    //            destHandle.ptr += incrementSize * index;
+        // Dynamic buffer entries are handled via root descriptors at bind time,
+        // they do not participate in the descriptor table
+        if (layoutElement->type == ShaderInputType::CBV_Dynamic
+            || layoutElement->type == ShaderInputType::SRV_Dynamic
+            || layoutElement->type == ShaderInputType::UAV_Dynamic)
+        {
+            continue;
+        }
 
-    //            switch (layoutElement->type)
-    //            { // CBuffers
-    //            case ShaderInputType::UNIFORM_BUFFER:
-    //            case ShaderInputType::UNIFORM_BUFFER_DYNAMIC:
-    //            {
-    //                D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = GetCBVDesc(ref.Get());
-    //                device->CreateConstantBufferView(&cbvDesc, destHandle);
+        D3D12_CPU_DESCRIPTOR_HANDLE destHandle {};
+        destHandle.ptr = 0;
 
-    //                break;
-    //            }
-    //            case ShaderInputType::SSBO:
-    //            case ShaderInputType::STORAGE_BUFFER_DYNAMIC:
-    //            {
-    //                // Use UAV for storage buffers
-    //                D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = GetUAVDesc(
-    //                    ref.Get(),
-    //                    /* structureStride */ layoutHasSize ? layoutElement->size : ref->Size());
+        switch (descriptor.heapType)
+        {
+        case D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV:
+            destHandle = GetViewCpuHandle(descriptor.binding);
+            destHandle.ptr += incrementSize * descriptor.index;
+            break;
+        case D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER:
+            destHandle = GetSamplerCpuHandle(descriptor.binding);
+            destHandle.ptr += samplerIncrementSize * descriptor.index;
+            break;
+        default:
+            continue;
+        }
 
-    //                device->CreateUnorderedAccessView(ref->GetResource(), nullptr, &uavDesc, destHandle);
+        switch (layoutElement->type)
+        {
+        case ShaderInputType::CBV:
+        case ShaderInputType::CBV_Dynamic:
+        {
+            AssertDebug(ptr && ptr->IsA<DX12GpuBuffer>());
 
-    //                break;
-    //            }
-    //            default:
-    //                HYP_UNREACHABLE();
-    //            }
-    //        }
-    //        break;
-    //    }
-    //    case ShaderInputType::IMAGE:
-    //    case ShaderInputType::IMAGE_STORAGE:
-    //    {
-    //        const bool isStorageImage = layoutElement->type == ShaderInputType::IMAGE_STORAGE;
+            DX12GpuBuffer* buffer = StaticCast<DX12GpuBuffer>(ptr);
+            if (!buffer->IsCreated())
+            {
+                continue;
+            }
 
-    //        for (auto& valuesIt : element.values)
-    //        {
-    //            const uint32 index = valuesIt.first;
+            D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = GetCBVDesc(buffer);
+            device->CreateConstantBufferView(&cbvDesc, destHandle);
+            break;
+        }
+        case ShaderInputType::SRV:
+        case ShaderInputType::SRV_Dynamic:
+        {
+            if (layoutElement->category == ShaderResourceCategory::Buffer)
+            {
+                AssertDebug(ptr && ptr->IsA<DX12GpuBuffer>());
 
-    //            if (!force && !element.dirtyRange.Includes(index))
-    //            {
-    //                continue;
-    //            }
+                DX12GpuBuffer* buffer = StaticCast<DX12GpuBuffer>(ptr);
+                if (!buffer->IsCreated())
+                {
+                    continue;
+                }
 
-    //            const DX12GpuImageViewRef& ref = DynamicCast<DX12GpuImageView>(valuesIt.second);
-    //            if (!ref.IsValid() || !ref->IsCreated())
-    //            {
-    //                continue;
-    //            }
+                const uint32 structureStride = element->bufferStride != ~0u ? element->bufferStride : uint32(buffer->Size());
+                D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = GetSRVDesc(buffer, structureStride);
+                device->CreateShaderResourceView(buffer->GetResource(), &srvDesc, destHandle);
+            }
+            else if (layoutElement->category == ShaderResourceCategory::Image)
+            {
+                AssertDebug(ptr && ptr->IsA<DX12GpuImageView>());
 
-    //            D3D12_CPU_DESCRIPTOR_HANDLE destHandle = GetViewCpuHandle(layoutElement->binding);
-    //            destHandle.ptr += incrementSize * index;
+                DX12GpuImageView* imageView = StaticCast<DX12GpuImageView>(ptr);
+                if (!imageView->IsCreated())
+                {
+                    continue;
+                }
 
-    //            if (layoutElement->type == ShaderInputType::IMAGE_STORAGE)
-    //            { // UAV
-    //                const D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = GetUAVDesc(
-    //                    ref->GetImage(),
-    //                    ref->GetMipIndex(), ref->NumMips(),
-    //                    ref->GetLayerIndex(), ref->NumArrayLayers());
+                const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = GetSRVDesc(
+                    imageView->GetImage(),
+                    imageView->GetMipIndex(), imageView->NumMips(),
+                    imageView->GetLayerIndex(), imageView->NumArrayLayers());
 
-    //                device->CreateUnorderedAccessView(ref->GetImage()->GetResource(), nullptr, &uavDesc, destHandle);
-    //            }
-    //            else
-    //            { // SRV
-    //                const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = GetSRVDesc(
-    //                    ref->GetImage(),
-    //                    ref->GetMipIndex(), ref->NumMips(),
-    //                    ref->GetLayerIndex(), ref->NumArrayLayers());
+                device->CreateShaderResourceView(imageView->GetImage()->GetResource(), &srvDesc, destHandle);
+            }
+            else if (layoutElement->category == ShaderResourceCategory::AccelerationStructure)
+            {
+                AssertDebug(ptr && ptr->IsA<DX12GpuTlas>());
 
-    //                device->CreateShaderResourceView(ref->GetImage()->GetResource(), &srvDesc, destHandle);
-    //            }
-    //        }
+                DX12GpuTlas* tlas = StaticCast<DX12GpuTlas>(ptr);
+                if (!tlas || !tlas->IsCreated())
+                {
+                    continue;
+                }
 
-    //        break;
-    //    }
-    //    case ShaderInputType::SAMPLER:
-    //    {
-    //        for (auto& valuesIt : element.values)
-    //        {
-    //            const uint32 index = valuesIt.first;
+                D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+                srvDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
+                srvDesc.RaytracingAccelerationStructure.Location = tlas->GetBuffer()->GetBufferDeviceAddress();
 
-    //            if (!force && !element.dirtyRange.Includes(index))
-    //            {
-    //                continue;
-    //            }
+                device->CreateShaderResourceView(tlas->GetBuffer()->GetResource(), &srvDesc, destHandle);
+            }
+            else
+            {
+                HYP_UNREACHABLE();
+            }
 
-    //            const DX12SamplerRef& ref = DynamicCast<DX12Sampler>(valuesIt.second);
-    //            if (!ref.IsValid() || !ref->IsCreated())
-    //            {
-    //                continue;
-    //            }
+            break;
+        }
+        case ShaderInputType::UAV:
+        case ShaderInputType::UAV_Dynamic:
+        {
+            if (layoutElement->category == ShaderResourceCategory::Buffer)
+            {
+                DX12GpuBuffer* buffer = static_cast<DX12GpuBuffer*>(ptr);
+                if (!buffer->IsCreated())
+                {
+                    continue;
+                }
 
-    //            D3D12_CPU_DESCRIPTOR_HANDLE destHandle = GetSamplerCpuHandle(layoutElement->binding);
-    //            destHandle.ptr += samplerIncrementSize * index;
+                const uint32 structureStride = element->bufferStride != ~0u ? element->bufferStride : uint32(buffer->Size());
+                D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = GetUAVDesc(buffer, structureStride);
+                device->CreateUnorderedAccessView(buffer->GetResource(), nullptr, &uavDesc, destHandle);
+            }
+            else if (layoutElement->category == ShaderResourceCategory::Image)
+            {
+                DX12GpuImageView* imageView = static_cast<DX12GpuImageView*>(ptr);
+                if (!imageView->IsCreated())
+                {
+                    continue;
+                }
 
-    //            // Create sampler descriptor
-    //            D3D12_SAMPLER_DESC samplerDesc {};
-    //            samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;  // @TODO 
-    //            samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP; // @TODO
-    //            samplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP; // @TODO
-    //            samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP; // @TODO
-    //            samplerDesc.MipLODBias = 0.0f;  // @TODO
-    //            samplerDesc.MaxAnisotropy = 1;
-    //            samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-    //            samplerDesc.MinLOD = 0.0f;
-    //            samplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
+                const D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = GetUAVDesc(
+                    imageView->GetImage(),
+                    imageView->GetMipIndex(), imageView->NumMips(),
+                    imageView->GetLayerIndex(), imageView->NumArrayLayers());
 
-    //            device->CreateSampler(&samplerDesc, destHandle);
-    //        }
-    //        break;
-    //    }
-    //    case ShaderInputType::TLAS:
-    //    {
-    //        for (auto& valuesIt : element.values)
-    //        {
-    //            const uint32 index = valuesIt.first;
+                // @TODO needs atomic count resource
+                device->CreateUnorderedAccessView(imageView->GetImage()->GetResource(), nullptr, &uavDesc, destHandle);
+            }
+            else
+            {
+                HYP_UNREACHABLE();
+            }
 
-    //            if (!force && !element.dirtyRange.Includes(index))
-    //            {
-    //                continue;
-    //            }
+            break;
+        }
+        case ShaderInputType::Sampler:
+        {
+            DX12Sampler* sampler = static_cast<DX12Sampler*>(ptr);
+            if (!sampler->IsCreated())
+            {
+                continue;
+            }
 
-    //            const DX12GpuTlasRef& ref = DynamicCast<DX12GpuTlas>(valuesIt.second);
-    //            if (!ref.IsValid() || !ref->IsCreated())
-    //            {
-    //                continue;
-    //            }
+            const D3D12_SAMPLER_DESC& samplerDesc = sampler->GetD3D12SamplerDesc();
 
-    //            // TLAS descriptors are created as SRVs in DX12
-    //            // @TODO
-    //        }
-    //        break;
-    //    }
-    //    default:
-    //        HYP_UNREACHABLE();
-    //    }
+            device->CreateSampler(&samplerDesc, destHandle);
+            break;
+        }
+        }
+    }
 
-    //    element.dirtyRange = Range<uint32>::Invalid();
-    //}
+    for (auto& it : m_elements)
+    {
+        DescriptorSetElement& element = it.second;
+        element.dirtyRange = Range<uint32>::Invalid();
+    }
 
-    HYP_NOT_IMPLEMENTED();
+    ++m_updateVersion;
+
+    m_pendingDescriptors.Clear();
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE DX12DescriptorSet::GetViewCpuHandle(uint32 binding) const
@@ -430,71 +610,341 @@ D3D12_CPU_DESCRIPTOR_HANDLE DX12DescriptorSet::GetSamplerCpuHandle(uint32 bindin
 
 void DX12DescriptorSet::Bind(DX12CommandBuffer* commandBuffer, const DX12GraphicsPipeline* pipeline, uint32 bindIndex) const
 {
-    Assert(m_isCreated);
-
-    ID3D12GraphicsCommandList* commandList = commandBuffer->GetCommandList();
-    
-    if (m_viewDescriptorHandle.IsValid())
-    {
-        commandList->SetGraphicsRootDescriptorTable(bindIndex * 2, m_viewDescriptorHandle.gpuHandle);
-    }
-    
-    if (m_samplerDescriptorHandle.IsValid())
-    {
-        commandList->SetGraphicsRootDescriptorTable(bindIndex * 2 + 1, m_samplerDescriptorHandle.gpuHandle);
-    }
+    DescriptorSetOffsetMap offsets {};
+    Bind(commandBuffer, pipeline, offsets, bindIndex);
 }
 
 void DX12DescriptorSet::Bind(DX12CommandBuffer* commandBuffer, const DX12GraphicsPipeline* pipeline, const DescriptorSetOffsetMap& offsets, uint32 bindIndex) const
 {
-    // @TODO: Support dynamic offsets
-    Bind(commandBuffer, pipeline, bindIndex);
+    Assert(m_isCreated);
+
+    const DescriptorSetRootIndices& rootIndices = pipeline->GetDescriptorSetRootIndices(bindIndex);
+
+    ID3D12GraphicsCommandList* commandList = commandBuffer->GetCommandList();
+
+    // Compute dynamic buffer addresses and apply via root descriptors
+    UINT64 dynamicEntryAddresses[DescriptorSetRootIndices::MaxDynamicEntries];
+    uint32 dynamicEntryCount = 0;
+
+    for (const Name& elementName : m_layout.GetDynamicElements())
+    {
+        const DescriptorSetLayoutElement* layoutElement = m_layout.GetElement(elementName);
+        Assert(layoutElement != nullptr);
+
+        if (layoutElement->type != ShaderInputType::CBV_Dynamic
+            && layoutElement->type != ShaderInputType::SRV_Dynamic
+            && layoutElement->type != ShaderInputType::UAV_Dynamic)
+        {
+            continue;
+        }
+
+        auto elementIt = m_elements.Find(elementName);
+        if (elementIt == m_elements.End())
+        {
+            continue;
+        }
+
+        const DescriptorSetElement& element = elementIt->second;
+        if (element.values.Empty())
+        {
+            continue;
+        }
+
+        DX12GpuBuffer* buffer = StaticCast<DX12GpuBuffer>(element.values[0]);
+        if (buffer == nullptr || !buffer->IsCreated())
+        {
+            continue;
+        }
+
+        uint32 offset = 0;
+        for (uint32 j = 0; j < offsets.count; j++)
+        {
+            if (offsets.keys[j] == StringHash(elementName))
+            {
+                offset = offsets.values[j];
+                break;
+            }
+        }
+
+        if (dynamicEntryCount < rootIndices.dynamicEntryCount)
+        {
+            const uint32 rootParamIndex = rootIndices.dynamicEntryRootParamIndices[dynamicEntryCount];
+            D3D12_GPU_VIRTUAL_ADDRESS gpuAddress = buffer->GetResource()->GetGPUVirtualAddress() + offset;
+            dynamicEntryAddresses[dynamicEntryCount] = gpuAddress;
+
+            switch (layoutElement->type)
+            {
+            case ShaderInputType::CBV_Dynamic:
+                commandList->SetGraphicsRootConstantBufferView(rootParamIndex, gpuAddress);
+                break;
+            case ShaderInputType::SRV_Dynamic:
+                commandList->SetGraphicsRootShaderResourceView(rootParamIndex, gpuAddress);
+                break;
+            case ShaderInputType::UAV_Dynamic:
+                commandList->SetGraphicsRootUnorderedAccessView(rootParamIndex, gpuAddress);
+                break;
+            }
+            dynamicEntryCount++;
+        }
+    }
+
+    // Check if the same descriptor set + offsets are already bound
+    auto& boundDescriptorSets = commandBuffer->m_boundDescriptorSets;
+
+    if (boundDescriptorSets.Size() <= bindIndex)
+    {
+        boundDescriptorSets.Resize(bindIndex + 1);
+    }
+    else if (boundDescriptorSets[bindIndex].descriptorSet == this
+        && boundDescriptorSets[bindIndex].dynamicEntryCount == dynamicEntryCount
+        && boundDescriptorSets[bindIndex].updateVersion == m_updateVersion
+        && Memory::Compare(boundDescriptorSets[bindIndex].dynamicEntryAddresses, dynamicEntryAddresses, dynamicEntryCount * sizeof(UINT64)) == 0)
+    {
+        return;
+    }
+
+    // Bind descriptor tables (view + sampler)
+    if (m_viewDescriptorHandle.IsValid() && rootIndices.viewRootIndex != ~0u)
+    {
+        commandList->SetGraphicsRootDescriptorTable(rootIndices.viewRootIndex, m_viewDescriptorHandle.gpuHandle);
+    }
+    
+    if (m_samplerDescriptorHandle.IsValid() && rootIndices.samplerRootIndex != ~0u)
+    {
+        commandList->SetGraphicsRootDescriptorTable(rootIndices.samplerRootIndex, m_samplerDescriptorHandle.gpuHandle);
+    }
+
+    // Update cache
+    boundDescriptorSets[bindIndex].descriptorSet = this;
+    boundDescriptorSets[bindIndex].updateVersion = m_updateVersion;
+    boundDescriptorSets[bindIndex].dynamicEntryCount = dynamicEntryCount;
+    Memory::Copy(boundDescriptorSets[bindIndex].dynamicEntryAddresses, dynamicEntryAddresses, dynamicEntryCount * sizeof(UINT64));
 }
 
 void DX12DescriptorSet::Bind(DX12CommandBuffer* commandBuffer, const DX12ComputePipeline* pipeline, uint32 bindIndex) const
 {
-    Assert(m_isCreated);
-
-    ID3D12GraphicsCommandList* commandList = commandBuffer->GetCommandList();
-    
-    if (m_viewDescriptorHandle.IsValid())
-    {
-        commandList->SetComputeRootDescriptorTable(bindIndex * 2, m_viewDescriptorHandle.gpuHandle);
-    }
-    
-    if (m_samplerDescriptorHandle.IsValid())
-    {
-        commandList->SetComputeRootDescriptorTable(bindIndex * 2 + 1, m_samplerDescriptorHandle.gpuHandle);
-    }
+    DescriptorSetOffsetMap offsets {};
+    Bind(commandBuffer, pipeline, offsets, bindIndex);
 }
 
 void DX12DescriptorSet::Bind(DX12CommandBuffer* commandBuffer, const DX12ComputePipeline* pipeline, const DescriptorSetOffsetMap& offsets, uint32 bindIndex) const
 {
-    // @TODO: Support dynamic offsets
-    Bind(commandBuffer, pipeline, bindIndex);
+    Assert(m_isCreated);
+
+    const DescriptorSetRootIndices& rootIndices = pipeline->GetDescriptorSetRootIndices(bindIndex);
+
+    ID3D12GraphicsCommandList* commandList = commandBuffer->GetCommandList();
+
+    // Compute dynamic buffer addresses and apply via root descriptors
+    UINT64 dynamicEntryAddresses[DescriptorSetRootIndices::MaxDynamicEntries];
+    uint32 dynamicEntryCount = 0;
+
+    for (const Name& elementName : m_layout.GetDynamicElements())
+    {
+        const DescriptorSetLayoutElement* layoutElement = m_layout.GetElement(elementName);
+        Assert(layoutElement != nullptr);
+
+        if (layoutElement->type != ShaderInputType::CBV_Dynamic
+            && layoutElement->type != ShaderInputType::SRV_Dynamic
+            && layoutElement->type != ShaderInputType::UAV_Dynamic)
+        {
+            continue;
+        }
+
+        auto elementIt = m_elements.Find(elementName);
+        if (elementIt == m_elements.End())
+        {
+            continue;
+        }
+
+        const DescriptorSetElement& element = elementIt->second;
+        if (element.values.Empty())
+        {
+            continue;
+        }
+
+        DX12GpuBuffer* buffer = StaticCast<DX12GpuBuffer>(element.values[0]);
+        if (buffer == nullptr || !buffer->IsCreated())
+        {
+            continue;
+        }
+
+        uint32 offset = 0;
+        for (uint32 j = 0; j < offsets.count; j++)
+        {
+            if (offsets.keys[j] == StringHash(elementName))
+            {
+                offset = offsets.values[j];
+                break;
+            }
+        }
+
+        if (dynamicEntryCount < rootIndices.dynamicEntryCount)
+        {
+            const uint32 rootParamIndex = rootIndices.dynamicEntryRootParamIndices[dynamicEntryCount];
+            D3D12_GPU_VIRTUAL_ADDRESS gpuAddress = buffer->GetResource()->GetGPUVirtualAddress() + offset;
+            dynamicEntryAddresses[dynamicEntryCount] = gpuAddress;
+
+            switch (layoutElement->type)
+            {
+            case ShaderInputType::CBV_Dynamic:
+                commandList->SetComputeRootConstantBufferView(rootParamIndex, gpuAddress);
+                break;
+            case ShaderInputType::SRV_Dynamic:
+                commandList->SetComputeRootShaderResourceView(rootParamIndex, gpuAddress);
+                break;
+            case ShaderInputType::UAV_Dynamic:
+                commandList->SetComputeRootUnorderedAccessView(rootParamIndex, gpuAddress);
+                break;
+            }
+            dynamicEntryCount++;
+        }
+    }
+
+    // Check if the same descriptor set + offsets are already bound
+    auto& boundDescriptorSets = commandBuffer->m_boundDescriptorSets;
+
+    if (boundDescriptorSets.Size() <= bindIndex)
+    {
+        boundDescriptorSets.Resize(bindIndex + 1);
+    }
+    else if (boundDescriptorSets[bindIndex].descriptorSet == this
+        && boundDescriptorSets[bindIndex].dynamicEntryCount == dynamicEntryCount
+        && boundDescriptorSets[bindIndex].updateVersion == m_updateVersion
+        && Memory::Compare(boundDescriptorSets[bindIndex].dynamicEntryAddresses, dynamicEntryAddresses, dynamicEntryCount * sizeof(UINT64)) == 0)
+    {
+        return;
+    }
+
+    // Bind descriptor tables (view + sampler) for compute
+    if (m_viewDescriptorHandle.IsValid() && rootIndices.viewRootIndex != ~0u)
+    {
+        commandList->SetComputeRootDescriptorTable(rootIndices.viewRootIndex, m_viewDescriptorHandle.gpuHandle);
+    }
+    
+    if (m_samplerDescriptorHandle.IsValid() && rootIndices.samplerRootIndex != ~0u)
+    {
+        commandList->SetComputeRootDescriptorTable(rootIndices.samplerRootIndex, m_samplerDescriptorHandle.gpuHandle);
+    }
+
+    // Update cache
+    boundDescriptorSets[bindIndex].descriptorSet = this;
+    boundDescriptorSets[bindIndex].updateVersion = m_updateVersion;
+    boundDescriptorSets[bindIndex].dynamicEntryCount = dynamicEntryCount;
+    Memory::Copy(boundDescriptorSets[bindIndex].dynamicEntryAddresses, dynamicEntryAddresses, dynamicEntryCount * sizeof(UINT64));
 }
 
 void DX12DescriptorSet::Bind(DX12CommandBuffer* commandBuffer, const DX12RayTracingPipeline* pipeline, uint32 bindIndex) const
 {
-    Assert(m_isCreated);
-
-    ID3D12GraphicsCommandList* commandList = commandBuffer->GetCommandList();
-    
-    if (m_viewDescriptorHandle.IsValid())
-    {
-        commandList->SetComputeRootDescriptorTable(bindIndex * 2, m_viewDescriptorHandle.gpuHandle);
-    }
-    
-    if (m_samplerDescriptorHandle.IsValid())
-    {
-        commandList->SetComputeRootDescriptorTable(bindIndex * 2 + 1, m_samplerDescriptorHandle.gpuHandle);
-    }
+    DescriptorSetOffsetMap offsets {};
+    Bind(commandBuffer, pipeline, offsets, bindIndex);
 }
 
 void DX12DescriptorSet::Bind(DX12CommandBuffer* commandBuffer, const DX12RayTracingPipeline* pipeline, const DescriptorSetOffsetMap& offsets, uint32 bindIndex) const
 {
-    // @TODO: Support dynamic offsets
-    Bind(commandBuffer, pipeline, bindIndex);
+    Assert(m_isCreated);
+
+    const DescriptorSetRootIndices& rootIndices = pipeline->GetDescriptorSetRootIndices(bindIndex);
+
+    ID3D12GraphicsCommandList* commandList = commandBuffer->GetCommandList();
+
+    // Compute dynamic buffer addresses and apply via root descriptors
+    UINT64 dynamicEntryAddresses[DescriptorSetRootIndices::MaxDynamicEntries];
+    uint32 dynamicEntryCount = 0;
+
+    for (const Name& elementName : m_layout.GetDynamicElements())
+    {
+        const DescriptorSetLayoutElement* layoutElement = m_layout.GetElement(elementName);
+        Assert(layoutElement != nullptr);
+
+        if (layoutElement->type != ShaderInputType::CBV_Dynamic
+            && layoutElement->type != ShaderInputType::SRV_Dynamic
+            && layoutElement->type != ShaderInputType::UAV_Dynamic)
+        {
+            continue;
+        }
+
+        auto elementIt = m_elements.Find(elementName);
+        if (elementIt == m_elements.End())
+        {
+            continue;
+        }
+
+        const DescriptorSetElement& element = elementIt->second;
+        if (element.values.Empty())
+        {
+            continue;
+        }
+
+        DX12GpuBuffer* buffer = StaticCast<DX12GpuBuffer>(element.values[0]);
+        if (buffer == nullptr || !buffer->IsCreated())
+        {
+            continue;
+        }
+
+        uint32 offset = 0;
+        for (uint32 j = 0; j < offsets.count; j++)
+        {
+            if (offsets.keys[j] == StringHash(elementName))
+            {
+                offset = offsets.values[j];
+                break;
+            }
+        }
+
+        if (dynamicEntryCount < rootIndices.dynamicEntryCount)
+        {
+            const uint32 rootParamIndex = rootIndices.dynamicEntryRootParamIndices[dynamicEntryCount];
+            D3D12_GPU_VIRTUAL_ADDRESS gpuAddress = buffer->GetResource()->GetGPUVirtualAddress() + offset;
+            dynamicEntryAddresses[dynamicEntryCount] = gpuAddress;
+
+            switch (layoutElement->type)
+            {
+            case ShaderInputType::CBV_Dynamic:
+                commandList->SetComputeRootConstantBufferView(rootParamIndex, gpuAddress);
+                break;
+            case ShaderInputType::SRV_Dynamic:
+                commandList->SetComputeRootShaderResourceView(rootParamIndex, gpuAddress);
+                break;
+            case ShaderInputType::UAV_Dynamic:
+                commandList->SetComputeRootUnorderedAccessView(rootParamIndex, gpuAddress);
+                break;
+            }
+            dynamicEntryCount++;
+        }
+    }
+
+    // Check if the same descriptor set + offsets are already bound
+    auto& boundDescriptorSets = commandBuffer->m_boundDescriptorSets;
+
+    if (boundDescriptorSets.Size() <= bindIndex)
+    {
+        boundDescriptorSets.Resize(bindIndex + 1);
+    }
+    else if (boundDescriptorSets[bindIndex].descriptorSet == this
+        && boundDescriptorSets[bindIndex].dynamicEntryCount == dynamicEntryCount
+        && boundDescriptorSets[bindIndex].updateVersion == m_updateVersion
+        && Memory::Compare(boundDescriptorSets[bindIndex].dynamicEntryAddresses, dynamicEntryAddresses, dynamicEntryCount * sizeof(UINT64)) == 0)
+    {
+        return;
+    }
+
+    // Bind descriptor tables (view + sampler) for compute (ray tracing uses compute queues)
+    if (m_viewDescriptorHandle.IsValid() && rootIndices.viewRootIndex != ~0u)
+    {
+        commandList->SetComputeRootDescriptorTable(rootIndices.viewRootIndex, m_viewDescriptorHandle.gpuHandle);
+    }
+
+    if (m_samplerDescriptorHandle.IsValid() && rootIndices.samplerRootIndex != ~0u)
+    {
+        commandList->SetComputeRootDescriptorTable(rootIndices.samplerRootIndex, m_samplerDescriptorHandle.gpuHandle);
+    }
+
+    // Update cache
+    boundDescriptorSets[bindIndex].descriptorSet = this;
+    boundDescriptorSets[bindIndex].updateVersion = m_updateVersion;
+    boundDescriptorSets[bindIndex].dynamicEntryCount = dynamicEntryCount;
+    Memory::Copy(boundDescriptorSets[bindIndex].dynamicEntryAddresses, dynamicEntryAddresses, dynamicEntryCount * sizeof(UINT64));
 }
 
 DescriptorSetRef DX12DescriptorSet::Clone() const

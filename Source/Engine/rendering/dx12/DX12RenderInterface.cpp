@@ -17,12 +17,17 @@
 #include <rendering/dx12/DX12AccelerationStructure.hpp>
 #include <rendering/dx12/DX12DescriptorSet.hpp>
 #include <rendering/dx12/DX12GraphicsPipeline.hpp>
+#include <rendering/dx12/DX12ComputePipeline.hpp>
 #include <rendering/dx12/DX12ShaderInstance.hpp>
+#include <rendering/dx12/DX12Helpers.hpp>
 
 #include <rendering/RenderHelpers.hpp>
 #include <rendering/RenderConfig.hpp>
 #include <rendering/Texture.hpp>
 #include <rendering/RenderableAttributes.hpp>
+#include <rendering/CBufferAllocator.hpp>
+
+#include <Core/threading/AtomicFlag.hpp>
 
 #include <engine/DeviceDetails.hpp>
 
@@ -51,6 +56,20 @@ public:
         indirectRendering = false;
         parallelRendering = false;
         dynamicDescriptorIndexing = false;
+    }
+
+    void InitializeBindless(DX12RenderInterface* renderInterface)
+    {
+        ID3D12Device* device = renderInterface->GetDevice();
+
+        // Resource Binding Tier 3 = unbounded descriptor tables (full bindless support)
+        D3D12_FEATURE_DATA_D3D12_OPTIONS options {};
+        HRESULT hr = device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &options, sizeof(options));
+        if (SUCCEEDED(hr))
+        {
+            bindlessTextures = (options.ResourceBindingTier >= D3D12_RESOURCE_BINDING_TIER_3);
+            dynamicDescriptorIndexing = (options.ResourceBindingTier >= D3D12_RESOURCE_BINDING_TIER_2);
+        }
     }
 };
 
@@ -81,9 +100,16 @@ public:
 DX12RenderInterface::DX12RenderInterface()
     : descriptorHeapManager(PoolNew<DX12DescriptorHeapManager>(*g_renderPool)),
       m_renderConfig(MakePimpl<DX12RenderConfig>()),
-      m_currentFrameIndex(0),
-      m_allocator(nullptr)
+      m_allocator(nullptr),
+      m_frameFenceEvent(nullptr),
+      m_frameFenceIndex(0)
 {
+    // Initialize fence values to 0 (no submissions yet)
+    for (uint32 i = 0; i < NumFramesInFlight; i++)
+    {
+        m_frameFenceValues[i] = 1;
+        m_submissionFrames[i] = -1;
+    }
 }
 
 DX12RenderInterface::~DX12RenderInterface()
@@ -141,63 +167,69 @@ RendererResult DX12RenderInterface::Initialize()
         }
     }
 
+#ifdef HYP_DEBUG_MODE
+#if 1
     if (SUCCEEDED(D3D12GetDebugInterface(__uuidof(ID3D12DeviceRemovedExtendedDataSettings), &m_dredSettings)))
     {
         m_dredSettings->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
         m_dredSettings->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
     }
 
-#ifdef HYP_DEBUG_MODE
     ComPtr<ID3D12Debug> debugController;
     if (SUCCEEDED(D3D12GetDebugInterface(__uuidof(ID3D12Debug), &debugController)))
+    {
         debugController->EnableDebugLayer();
+    }
+#endif // 
 #endif
 
     // create device
     res = D3D12CreateDevice(m_hardwareAdapter.Get(), D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&m_device));
     if (!SUCCEEDED(res))
         return HYP_MAKE_ERROR(RendererError, "Failed to create D3D device!", res);
-    
-    m_queueData.Reserve(10);
 
-    DX12QueueData& directQueueData = m_queueData[D3D12_COMMAND_LIST_TYPE_DIRECT];
-    directQueueData = {};
+#ifdef HYP_DEBUG_MODE
+    m_device->SetName(L"D3D12 Device");
+#endif
 
-    DX12QueueData& computeQueueData = m_queueData[D3D12_COMMAND_LIST_TYPE_COMPUTE];
-    computeQueueData = {};
+    // Initialize render config features based on device capabilities
+    static_cast<DX12RenderConfig*>(m_renderConfig.Get())->InitializeBindless(this);
 
-    DX12QueueData& copyQueueData = m_queueData[D3D12_COMMAND_LIST_TYPE_COPY];
-    copyQueueData = {};
+    static_assert(sizeof(decltype(m_queueData)) / sizeof(decltype(m_queueData[0])) > D3D12_COMMAND_LIST_TYPE_COPY,
+        "m_queueData is too small; must have size increased.");
 
-    // create queues and command allocators
+    Memory::Zero(&m_queueData, sizeof(m_queueData));
+
+    // create queues
     D3D12_COMMAND_QUEUE_DESC directDesc {};
     directDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
     directDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
+
+    DX12QueueData& directQueueData = m_queueData[D3D12_COMMAND_LIST_TYPE_DIRECT];
     m_device->CreateCommandQueue(&directDesc, __uuidof(ID3D12CommandQueue), &directQueueData.commandQueue);
+#ifdef HYP_DEBUG_MODE
+    directQueueData.commandQueue->SetName(L"D3D12 Direct Command Queue");
+#endif
 
     D3D12_COMMAND_QUEUE_DESC computeDesc {};
     computeDesc.Type = D3D12_COMMAND_LIST_TYPE_COMPUTE;
     computeDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
+
+    DX12QueueData& computeQueueData = m_queueData[D3D12_COMMAND_LIST_TYPE_COMPUTE];
     m_device->CreateCommandQueue(&computeDesc, __uuidof(ID3D12CommandQueue), &computeQueueData.commandQueue);
+#ifdef HYP_DEBUG_MODE
+    computeQueueData.commandQueue->SetName(L"D3D12 Compute Command Queue");
+#endif
 
     D3D12_COMMAND_QUEUE_DESC copyDesc {};
     copyDesc.Type = D3D12_COMMAND_LIST_TYPE_COPY;
+
+    DX12QueueData& copyQueueData = m_queueData[D3D12_COMMAND_LIST_TYPE_COPY];
     m_device->CreateCommandQueue(&copyDesc, __uuidof(ID3D12CommandQueue), &copyQueueData.commandQueue);
+#ifdef HYP_DEBUG_MODE
+    copyQueueData.commandQueue->SetName(L"D3D12 Copy Command Queue");
+#endif
     
-    for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
-    {
-        for (auto& pair : m_queueData)
-        {
-            D3D12_COMMAND_LIST_TYPE commandListType = pair.first;
-            DX12QueueData& queueData = pair.second;
-
-            res = m_device->CreateCommandAllocator(commandListType, __uuidof(ID3D12CommandAllocator), &queueData.commandAllocators[frameIndex]);
-
-            if (!SUCCEEDED(res))
-                return HYP_MAKE_ERROR(RendererError, "Failed to create command allocator for queue {}!", res, commandListType);
-        }
-    }
-
     D3D12MA::ALLOCATOR_DESC allocatorDesc {};
     allocatorDesc.pDevice = m_device.Get();
     allocatorDesc.pAdapter = m_hardwareAdapter.Get();
@@ -215,15 +247,41 @@ RendererResult DX12RenderInterface::Initialize()
         CheckResultOrReturn(frame->Create());
     }
 
-    // create main commandlist
-    m_commandBuffer = MakeHandle<DX12CommandBuffer>(D3D12_COMMAND_LIST_TYPE_DIRECT);
-    CheckResultOrReturn(m_commandBuffer->Create());
+    // create frame synchronization fence (single fence with per-frame values)
+    HRESULT hr = m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_frameFence));
+    if (FAILED(hr))
+    {
+        return HYP_MAKE_ERROR(RendererError, "Failed to create frame fence", hr);
+    }
+
+#ifdef HYP_DEBUG_MODE
+    m_frameFence->SetName(L"D3D12 Frame Fence");
+#endif
+
+    m_frameFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    if (m_frameFenceEvent == nullptr)
+    {
+        return HYP_MAKE_ERROR(RendererError, "Failed to create frame fence event");
+    }
+
+    for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
+    {
+        m_commandBuffers[frameIndex] = MakeHandle<DX12CommandBuffer>(D3D12_COMMAND_LIST_TYPE_DIRECT);
+        CheckResultOrReturn(m_commandBuffers[frameIndex]->Create());
+
+#ifdef HYP_DEBUG_MODE
+        wchar_t nameBuf[64];
+        swprintf(nameBuf, std::size(nameBuf), L"Main CommandBuffer [frame=%u]", frameIndex);
+        m_commandBuffers[frameIndex]->SetDebugName(nameBuf);
+#endif
+    }
 
     descriptorHeapManager->Initialize();
     
-    CheckResultOrReturn(RenderInterface::Initialize());
+    // In Direct3D, 256 is the minimum constant buffer alignment
+    cbufferAllocator->Initialize(256);
 
-    return {};
+    return RenderInterface::Initialize();
 }
 
 void DX12RenderInterface::Shutdown()
@@ -243,41 +301,41 @@ void DX12RenderInterface::Shutdown()
     m_asyncComputePool.Clear();
     m_submittedAsyncComputes.Clear();
 
-    for (DX12CommandBuffer* commandBuffer : m_ownedTransientCommandBuffers)
-    {
-        delete commandBuffer;
-    }
-
-    m_ownedTransientCommandBuffers.Clear();
-
-    for (DX12Fence* fence : m_ownedTransientCommandBufferFences)
-    {
-        delete fence;
-    }
-
-    m_ownedTransientCommandBufferFences.Clear();
-
     for (uint32 threadIndex = 0; threadIndex < NumRendererWorkerThreads + 1; threadIndex++)
     {
         for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
         {
-            m_transientCommandBufferFences[threadIndex][frameIndex].Clear();
-
             m_transientCommandBuffers[threadIndex][frameIndex].Clear();
             m_pendingTransientCommandBuffers[threadIndex][frameIndex].Clear();
         }
+    }
+
+    for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
+    {
+        m_transientCommandBufferFences[frameIndex].Clear();
     }
 
     m_recycledTransientCommandBufferFences.Clear();
 
     descriptorHeapManager->Shutdown();
 
-    m_commandBuffer.Reset();
+    for (DX12CommandBufferRef& commandBuffer : m_commandBuffers)
+    {
+        commandBuffer.Reset();
+    }
 
     for (DX12FrameRef& frame : m_frames)
     {
         frame.Reset();
     }
+
+    // cleanup frame fence
+    if (m_frameFenceEvent != nullptr)
+    {
+        CloseHandle(m_frameFenceEvent);
+        m_frameFenceEvent = nullptr;
+    }
+    m_frameFence.Reset();
 
     m_queueData = {};
 
@@ -297,13 +355,55 @@ const IRenderConfig& DX12RenderInterface::GetRenderConfig() const
     return *m_renderConfig;
 }
 
-DX12Frame* DX12RenderInterface::GetCurrentFrame() const
+bool DX12RenderInterface::CheckDeviceRemoved() const
 {
-    return m_frames[m_currentFrameIndex].Get();
+    return CheckDeviceRemovedReason(m_device.Get());
 }
 
-DX12Frame* DX12RenderInterface::PrepareNextFrame()
+DX12Frame* DX12RenderInterface::GetCurrentFrame() const
 {
+    return m_frames[GetFrameCounter() % NumFramesInFlight].Get();
+}
+
+HYP_DISABLE_OPTIMIZATION;
+
+void DX12RenderInterface::PrepareFrame(DX12Frame* frame)
+{
+    const uint32 frameCounter = GetFrameCounter();
+    const uint32 frameIndex = frameCounter % NumFramesInFlight;
+
+    if (m_submissionFrames[frameIndex] >= 0)
+    {
+        const uint64 waitForValue = uint64(m_submissionFrames[frameIndex]) + 1;
+        const uint64 currValue = m_frameFence->GetCompletedValue();
+
+        if (currValue < waitForValue)
+        {
+            HRESULT hr = m_frameFence->SetEventOnCompletion(waitForValue, m_frameFenceEvent);
+            if (FAILED(hr))
+            {
+                HYP_LOG(RenderingBackend, Error, "Failed to set fence completion event! Error: {}", hr);
+                CheckDeviceRemovedReason(m_device.Get());
+            }
+
+            DWORD waitResult = WaitForSingleObject(m_frameFenceEvent, INFINITE);
+            if (waitResult != WAIT_OBJECT_0)
+            {
+                HYP_LOG(RenderingBackend, Error, "Failed to wait for fence! Result: {}", waitResult);
+                CheckDeviceRemovedReason(m_device.Get());
+            }
+        }
+
+        // HYP_LOG_TEMP("Waited on {} on frame {}", waitForValue, frameIndex);
+    }
+
+    // call frame callbacks after fence is waited on
+    if (frame->OnFrameEnd.AnyBound())
+    {
+        frame->OnFrameEnd(frame);
+        frame->OnFrameEnd.RemoveAllDetached();
+    }
+
     for (auto it = m_submittedAsyncComputes.Begin(); it != m_submittedAsyncComputes.End();)
     {
         DX12AsyncCompute* elem = *it;
@@ -311,7 +411,12 @@ DX12Frame* DX12RenderInterface::PrepareNextFrame()
         if (elem->CheckStatus())
         {
             elem->OnCompleted();
+            elem->OnCompleted.RemoveAllDetached();
 
+            AssertDebug(!elem->OnCompleted.AnyBound());
+
+            // @NOTE Don't need to lock mutex since we'll only be using CreateAsyncCompute() from main render thread and render task / workers.
+            // And workers wouldn't be kicked off at this point in the frame.
             m_asyncComputePool.PushBack(elem);
 
             it = m_submittedAsyncComputes.Erase(it);
@@ -322,6 +427,7 @@ DX12Frame* DX12RenderInterface::PrepareNextFrame()
         ++it;
     }
 
+    // trim async compute pool if > 10 items
     if (m_asyncComputePool.Size() > 10)
     {
         static constexpr uint32 MaxFramesBeforeDiscard = 100;
@@ -345,43 +451,52 @@ DX12Frame* DX12RenderInterface::PrepareNextFrame()
         }
     }
 
-    const uint32 frameCounter = GetFrameCounter();
+    // Wait on all fences for the frame that is about to be reused (the frame that was submitted NumFramesInFlight frames ago).
+    auto& fences = m_transientCommandBufferFences[frameIndex];
+    for (auto it = fences.Begin(); it != fences.End();)
+    {
+        DX12Fence& fence = *it;
+        //HYP_LOG_TEMP("Waiting on transient command buffer {}, wait for fence value {} on frame {}", fence.GetDebugName(), fence.GetValue(), frameIndex);
+
+        fence.Wait(true);
+
+        m_recycledTransientCommandBufferFences.PushBack(std::move(fence));
+
+        it = fences.Erase(it);
+    }
 
     for (uint32 threadIndex = 0; threadIndex < NumRendererWorkerThreads + 1; threadIndex++)
     {
-        Array<DX12Fence*, RenderAllocator>& fences = m_transientCommandBufferFences[threadIndex][frameCounter % NumFramesInFlight];
-        for (DX12Fence* fence : fences)
+        LinkedList<DX12CommandBuffer, RenderAllocator>& freeList = m_transientCommandBuffers[threadIndex][frameIndex];
+        LinkedList<DX12CommandBuffer, RenderAllocator>& pendingList = m_pendingTransientCommandBuffers[threadIndex][frameIndex];
+        
+        for (auto it = pendingList.Begin(); it != pendingList.End();)
         {
-            fence->Wait(true);
+            DX12CommandBuffer& commandBuffer = *it;
+            Assert(!commandBuffer.IsRecording());
 
-            m_recycledTransientCommandBufferFences.PushBack(fence);
+            freeList.EmplaceBack(std::move(*it));
+
+            it = pendingList.Erase(it);
         }
-        fences.Clear();
-
-        // reset our transient command buffers
-        Array<DX12CommandBuffer*, RenderAllocator>& freeList = m_transientCommandBuffers[threadIndex][frameCounter % NumFramesInFlight];
-        Array<DX12CommandBuffer*, RenderAllocator>& pendingList = m_pendingTransientCommandBuffers[threadIndex][frameCounter % NumFramesInFlight];
-
-        for (DX12CommandBuffer* commandBuffer : pendingList)
-        {
-            Assert(!commandBuffer->IsRecording());
-
-            freeList.PushBack(commandBuffer);
-        }
-
-        pendingList.Clear();
     }
 
-    DX12Frame* frame = GetCurrentFrame();
-
-    return frame;
+    frame->OnFrameStart();
 }
 
 DX12SwapchainRef DX12RenderInterface::CreateSwapchain(ApplicationWindow* window, const Vec2u& extent)
 {
     Assert(window != nullptr);
+
+    DX12SwapchainRef swapchain = MakeHandle<DX12Swapchain>(window->GetHWND(), extent);
+    RendererResult result = swapchain->Create();
+
+    if (!result)
+    {
+        HYP_FAIL("Failed to create DX12 swapchain: {}", result.GetError().GetMessage());
+    }
     
-    return MakeHandle<DX12Swapchain>(window->GetHWND(), extent);
+    return swapchain;
 }
 
 void DX12RenderInterface::PrepareSwapchain(DX12Swapchain* swapchain)
@@ -389,102 +504,149 @@ void DX12RenderInterface::PrepareSwapchain(DX12Swapchain* swapchain)
     swapchain->PrepareForFrame(GetCurrentFrame());
 }
 
-void DX12RenderInterface::SubmitCommandBuffers(DX12Swapchain* swapchain)
-{
-    DX12QueueData& queueData = m_queueData[D3D12_COMMAND_LIST_TYPE_DIRECT];
-
-    if (m_commandBuffer->IsRecording())
-    {
-        m_commandBuffer->End();
-    }
-
-    ID3D12CommandList* commandLists[] = { m_commandBuffer->GetCommandList() };
-
-    queueData.commandQueue->ExecuteCommandLists(ArraySize(commandLists), commandLists);
-}
-
 void DX12RenderInterface::PresentToSwapchain(DX12Swapchain* swapchain)
 {
-    swapchain->PresentFrame(GetCurrentFrame());
-}
+    DX12CommandBuffer* commandBuffer = GetCurrentCommandBuffer();
+    AssertDebug(commandBuffer != nullptr);
+    AssertDebug(commandBuffer->IsRecording());
 
-DX12CommandBuffer* DX12RenderInterface::GetCurrentCommandBuffer() const
-{
-    return m_commandBuffer.Get();
+    DX12Frame* frame = GetCurrentFrame();
+    Assert(frame != nullptr);
+
+    const uint32 frameCounter = GetFrameCounter();
+    const uint32 frameIndex = frameCounter % NumFramesInFlight;
+
+    frame->WriteCommandBuffer(commandBuffer);
+
+    const DX12QueueData* queueData = GetQueueData(D3D12_COMMAND_LIST_TYPE_DIRECT);
+    AssertDebug(queueData != nullptr);
+
+    const uint64 signalValue = uint64(frameCounter) + 1;
+
+    HRESULT hr = queueData->commandQueue->Signal(m_frameFence.Get(), signalValue);
+    if (FAILED(hr))
+    {
+        HYP_LOG(RenderingBackend, Error, "Failed to signal frame fence! Error: {}", hr);
+        CheckDeviceRemovedReason(m_device.Get());
+    }
+
+    // HYP_LOG_TEMP("Signalling {} on frame {}", signalValue, frameIndex);
+
+    m_submissionFrames[frameIndex] = int64(frameCounter);
+
+    if (swapchain != nullptr)
+    {
+        swapchain->PresentFrame(frame);
+    }
 }
 
 DX12CommandBuffer& DX12RenderInterface::GetTransientCommandBuffer()
 {
     // usable from main render thread or renderer worker threads.
     const uint32 frameCounter = GetFrameCounter();
+    const uint32 frameIndex = frameCounter % NumFramesInFlight;
+
     const uint32 renderThreadIndex = CurrentRenderThreadIndex();
 
-    Array<DX12CommandBuffer*, RenderAllocator>& freeList = m_transientCommandBuffers[renderThreadIndex][frameCounter % NumFramesInFlight];
-    Array<DX12CommandBuffer*, RenderAllocator>& pendingList = m_pendingTransientCommandBuffers[renderThreadIndex][frameCounter % NumFramesInFlight];
+    LinkedList<DX12CommandBuffer, RenderAllocator>& freeList = m_transientCommandBuffers[renderThreadIndex][frameIndex];
+    LinkedList<DX12CommandBuffer, RenderAllocator>& pendingList = m_pendingTransientCommandBuffers[renderThreadIndex][frameIndex];
 
-    DX12CommandBuffer* commandBuffer = nullptr;
+    DX12CommandBuffer* pCommandBuffer = nullptr;
 
     if (freeList.Any())
     {
-        commandBuffer = freeList.PopBack();
+        pCommandBuffer = &pendingList.PushBack(freeList.PopBack());
     }
     else
     {
-        commandBuffer = new DX12CommandBuffer(D3D12_COMMAND_LIST_TYPE_DIRECT);
-        CheckResult(commandBuffer->Create());
-
-        Mutex::Guard guard(m_transientCommandBuffersMutex);
-        m_ownedTransientCommandBuffers.PushBack(commandBuffer);
+        pCommandBuffer = &pendingList.EmplaceBack(D3D12_COMMAND_LIST_TYPE_DIRECT);
+        CheckResult(pCommandBuffer->Create());
     }
 
-    pendingList.PushBack(commandBuffer);
+    pCommandBuffer->Begin();
+    BindDescriptorHeaps(*pCommandBuffer);
 
-    commandBuffer->Begin();
+#ifdef HYP_DEBUG_MODE
+    {
+        wchar_t nameBuf[128];
+        swprintf(nameBuf, std::size(nameBuf), L"Transient CommandBuffer [thread=%u][frame=%u]",
+            renderThreadIndex, frameIndex);
+        pCommandBuffer->SetDebugName(nameBuf);
+    }
+#endif
 
-    return *commandBuffer;
+    return *pCommandBuffer;
 }
 
 void DX12RenderInterface::SubmitTransientCommandBuffer(DX12CommandBuffer& commandBuffer)
 {
     const uint32 frameCounter = GetFrameCounter();
-    const uint32 renderThreadIndex = CurrentRenderThreadIndex();
+    const uint32 frameIndex = frameCounter % NumFramesInFlight;
 
     if (commandBuffer.IsRecording())
     {
         commandBuffer.End();
     }
 
-    DX12QueueData& queueData = m_queueData[D3D12_COMMAND_LIST_TYPE_DIRECT];
+    const DX12QueueData* queueData = GetQueueData(D3D12_COMMAND_LIST_TYPE_DIRECT);
+    AssertDebug(queueData != nullptr);
 
-    ID3D12CommandList* commandLists[] = { commandBuffer.GetCommandList() };
-    queueData.commandQueue->ExecuteCommandLists(ArraySize(commandLists), commandLists);
-
-    DX12Fence* fence = nullptr;
+    DX12Fence* pFence = nullptr;
 
     {
         Mutex::Guard guard(m_transientCommandBuffersMutex);
+
+        DX12Fence& fence = m_transientCommandBufferFences[frameIndex].EmplaceBack();
 
         if (m_recycledTransientCommandBufferFences.Any())
         {
-            fence = m_recycledTransientCommandBufferFences.PopBack();
+            fence = std::move(m_recycledTransientCommandBufferFences.PopFront());
         }
+        else
+        {
+            fence.Create();
+
+#ifdef HYP_DEBUG_MODE
+            wchar_t fenceNameBuf[64];
+            swprintf(fenceNameBuf, std::size(fenceNameBuf), L"Transient Fence [frame=%u]", frameIndex);
+            fence.SetDebugName(fenceNameBuf);
+#endif
+        }
+
+        pFence = &fence;
     }
 
-    if (fence == nullptr)
+    ID3D12CommandList* commandLists[] = { commandBuffer.GetCommandList() };
+    queueData->commandQueue->ExecuteCommandLists(ArraySize(commandLists), commandLists);
+
+    pFence->Increment();
+    
+    // HYP_LOG_TEMP("Submitting transient command buffer {} with value {} on frame {}", pFence->GetDebugName(), pFence->GetValue(), frameIndex);
+
+    HRESULT hr = queueData->commandQueue->Signal(pFence->GetD3D12Fence(), pFence->GetValue());
+    if (FAILED(hr))
     {
-        fence = new DX12Fence();
-        CheckResult(fence->Create());
-
-        Mutex::Guard guard(m_transientCommandBuffersMutex);
-        m_ownedTransientCommandBufferFences.PushBack(fence);
+        HYP_LOG(RenderingBackend, Error, "Failed to signal fence after executing command lists! Error: {}", hr);
+        CheckDeviceRemovedReason(m_device.Get());
     }
+}
 
-    CheckResult(fence->Reset());
+void DX12RenderInterface::BindDescriptorHeaps(DX12CommandBuffer& commandBuffer)
+{
+    ID3D12DescriptorHeap* viewHeap = descriptorHeapManager->GetDescriptorHeap(DX12DescriptorHeapType::CBV_SRV_UAV);
+    Assert(viewHeap != nullptr);
 
-    HRESULT hr = queueData.commandQueue->Signal(fence->GetD3D12Fence(), fence->GetValue());
-    Assert(SUCCEEDED(hr));
+    ID3D12DescriptorHeap* samplerHeap = descriptorHeapManager->GetDescriptorHeap(DX12DescriptorHeapType::SAMPLER);
+    Assert(samplerHeap != nullptr);
 
-    m_transientCommandBufferFences[renderThreadIndex][frameCounter % NumFramesInFlight].PushBack(fence);
+    // Only bind descriptor heaps if they have changed to avoid unnecessary API calls
+    if (commandBuffer.GetBoundViewHeap() != viewHeap || commandBuffer.GetBoundSamplerHeap() != samplerHeap)
+    {
+        ID3D12DescriptorHeap* heaps[] = { viewHeap, samplerHeap };
+        commandBuffer.GetCommandList()->SetDescriptorHeaps(UINT(std::size(heaps)), heaps);
+
+        commandBuffer.SetBoundDescriptorHeaps(viewHeap, samplerHeap);
+    }
 }
 
 DX12DescriptorSetRef DX12RenderInterface::MakeDescriptorSet(const DescriptorSetLayout& layout)
@@ -513,6 +675,8 @@ DX12GraphicsPipelineRef DX12RenderInterface::MakeGraphicsPipeline(
 #endif
     }
 
+    graphicsPipeline->SetFramebufferDesc(framebufferDesc);
+
     graphicsPipeline->SetInputLayout(attributes.GetMeshAttributes().inputLayout);
     graphicsPipeline->SetTopology(attributes.GetMeshAttributes().topology);
 
@@ -521,6 +685,13 @@ DX12GraphicsPipelineRef DX12RenderInterface::MakeGraphicsPipeline(
     graphicsPipeline->SetBlendFunction(attributes.GetMaterialAttributes().blendFunction);
     graphicsPipeline->SetDepthTest(bool(attributes.GetMaterialAttributes().flags & MAF_DEPTH_TEST));
     graphicsPipeline->SetDepthWrite(bool(attributes.GetMaterialAttributes().flags & MAF_DEPTH_WRITE));
+    graphicsPipeline->SetDepthClamp(bool(attributes.GetMaterialAttributes().flags & MAF_DEPTH_CLAMP));
+
+    if (attributes.GetMaterialAttributes().flags & MAF_DEPTH_BIAS)
+    {
+        graphicsPipeline->SetDepthBias(attributes.GetMaterialAttributes().depthBias);
+        graphicsPipeline->SetDepthBiasSlope(attributes.GetMaterialAttributes().depthBiasSlope);
+    }
     
     if (attributes.GetMaterialAttributes().flags & MAF_STENCIL_TEST)  
     {
@@ -533,15 +704,12 @@ DX12GraphicsPipelineRef DX12RenderInterface::MakeGraphicsPipeline(
         graphicsPipeline->SetStencilWrite(true);
     }
 
-    graphicsPipeline->SetFramebufferDesc(framebufferDesc);
-
     return graphicsPipeline;
 }
 
 DX12ComputePipelineRef DX12RenderInterface::MakeComputePipeline(const DX12ShaderInstanceRef& shaderInstance)
 {
-    // @TODO: Implement compute pipeline creation for DX12
-    return ComputePipelineRef();
+    return MakeHandle<DX12ComputePipeline>(shaderInstance);
 }
 
 DX12RayTracingPipelineRef DX12RenderInterface::MakeRayTracingPipeline(const DX12ShaderInstanceRef& shaderInstance)
@@ -620,24 +788,79 @@ DX12GpuTlasRef DX12RenderInterface::MakeTLAS()
 
 void DX12RenderInterface::PopulateIndirectDrawCommandsBuffer(const DX12GpuBufferRef& vertexBuffer, const DX12GpuBufferRef& indexBuffer, uint32 instanceOffset, TByteBuffer<RenderAllocator>& outByteBuffer)
 {
-    // @TODO: Implement indirect draw command buffer population for DX12
+    const size_t requiredSize = (size_t(instanceOffset) + 1) * sizeof(D3D12_DRAW_INDEXED_ARGUMENTS);
+
+    if (outByteBuffer.Size() < requiredSize)
+    {
+        outByteBuffer.SetSize(requiredSize);
+    }
+
+    uint32 numIndices = 0;
+
+    if (indexBuffer.IsValid())
+    {
+        numIndices = uint32(indexBuffer->Size() / sizeof(uint32));
+    }
+
+    D3D12_DRAW_INDEXED_ARGUMENTS* commandPtr = reinterpret_cast<D3D12_DRAW_INDEXED_ARGUMENTS*>(outByteBuffer.Data()) + instanceOffset;
+    *commandPtr = D3D12_DRAW_INDEXED_ARGUMENTS {};
+    commandPtr->IndexCountPerInstance = numIndices;
+    commandPtr->InstanceCount = 1;
+    commandPtr->StartIndexLocation = 0;
+    commandPtr->BaseVertexLocation = 0;
+    commandPtr->StartInstanceLocation = 0;
 }
 
 bool DX12RenderInterface::IsSupportedFormat(TextureFormat format, ImageSupport supportType) const
 {
-    // @TODO: Implement format support checking for DX12
-    return false;
+    DX12ViewType viewType = DX12ViewType::SRV_UAV;
+
+    if (supportType == ImageSupport::Attachment)
+    {
+        viewType = DX12ViewType::RTV_DSV;
+    }
+
+    DXGI_FORMAT dxgiFormat = ToDXGIFormat(format, viewType);
+
+    D3D12_FEATURE_DATA_FORMAT_SUPPORT formatSupport {};
+    formatSupport.Format = dxgiFormat;
+
+    HRESULT hr = m_device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &formatSupport, sizeof(formatSupport));
+    if (!SUCCEEDED(hr))
+    {
+        return false;
+    }
+
+    D3D12_FORMAT_SUPPORT1 support1 = formatSupport.Support1;
+    D3D12_FORMAT_SUPPORT2 support2 = formatSupport.Support2;
+
+    switch (supportType)
+    {
+    case ImageSupport::ShaderResource:
+        return (support1 & D3D12_FORMAT_SUPPORT1_TEXTURE2D) != 0 ||
+               (support1 & D3D12_FORMAT_SUPPORT1_TEXTURE3D) != 0 ||
+               (support1 & D3D12_FORMAT_SUPPORT1_TEXTURECUBE) != 0;
+    case ImageSupport::Attachment:
+        return (support1 & D3D12_FORMAT_SUPPORT1_RENDER_TARGET) != 0 ||
+               (support1 & D3D12_FORMAT_SUPPORT1_DEPTH_STENCIL) != 0;
+    case ImageSupport::UnorderedAccess:
+        return (support1 & D3D12_FORMAT_SUPPORT1_TYPED_UNORDERED_ACCESS_VIEW) != 0;
+    default:
+        return false;
+    }
 }
 
 TextureFormat DX12RenderInterface::FindSupportedFormat(Span<TextureFormat> possibleFormats, ImageSupport supportType) const
 {
-    // @TODO: Implement supported format finding for DX12
-    if (possibleFormats.Size() == 0)
+    for (TextureFormat format : possibleFormats)
     {
-        return InvalidTextureFormat;
+        if (IsSupportedFormat(format, supportType))
+        {
+            return format;
+        }
     }
 
-    return possibleFormats[0];
+    return InvalidTextureFormat;
 }
 
 UniquePtr<SingleTimeCommands> DX12RenderInterface::GetSingleTimeCommands()
@@ -645,7 +868,7 @@ UniquePtr<SingleTimeCommands> DX12RenderInterface::GetSingleTimeCommands()
     return MakeUnique<DX12SingleTimeCommands>();
 }
 
-DX12AsyncCompute* DX12RenderInterface::CreateAsyncCompute()
+HYP_NODISCARD DX12AsyncCompute* DX12RenderInterface::CreateAsyncCompute()
 {
     {
         Mutex::Guard guard(m_asyncComputesMutex);
@@ -676,12 +899,15 @@ void DX12RenderInterface::SubmitAsyncCompute(DX12AsyncCompute* asyncCompute)
 
 void DX12RenderInterface::ReleaseTransientMemory()
 {
-    // @TODO: Implement transient memory release for DX12
+    GetCurrentFrame()->ResetTransientStates();
 }
 
-void DX12RenderInterface::NextFrame()
+void DX12RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
 {
-    m_currentFrameIndex = (m_currentFrameIndex + 1) % NumFramesInFlight;
+    RenderInterface::BeginFrame(pCancelFlag);
+
+    // Rebind descriptor heaps after command buffer reset in BeginFrame()
+    BindDescriptorHeaps(*GetCurrentCommandBuffer());
 }
 
 #pragma endregion DX12RenderInterface
@@ -694,6 +920,9 @@ void DX12RenderInterface::InitDeviceDetails(DeviceDetails& deviceDetails)
     D3D12_FEATURE_DATA_D3D12_OPTIONS7 options7 {};
     m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &options7, sizeof(options7));
 
+    D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 {};
+    m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5));
+
     bool isSoftware = (adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) != 0;
 
     GpuInfo info;
@@ -702,7 +931,7 @@ void DX12RenderInterface::InitDeviceDetails(DeviceDetails& deviceDetails)
     info.deviceId = adapterDesc.DeviceId;
     info.gpuModel = String(adapterDesc.Description);
     info.isDiscrete = !isSoftware;
-    info.supportsRayTracing = options7.RaytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED;
+    info.supportsRayTracing = options5.RaytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED;
 
     deviceDetails.Set(info);
 }

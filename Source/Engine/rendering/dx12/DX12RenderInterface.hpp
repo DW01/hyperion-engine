@@ -35,7 +35,6 @@ class DX12Fence;
 struct DX12QueueData
 {
     ComPtr<ID3D12CommandQueue> commandQueue;
-    FixedArray<ComPtr<ID3D12CommandAllocator>, NumFramesInFlight> commandAllocators;
 };
 
 class DX12RenderInterface final : public RenderInterface
@@ -51,10 +50,12 @@ public:
 
     HYP_FORCE_INLINE const DX12QueueData* GetQueueData(D3D12_COMMAND_LIST_TYPE commandListType) const
     {
-        auto it = m_queueData.Find(commandListType);
-        if (it != m_queueData.End())
-            return &it->second;
-        return nullptr;
+        if (HYP_UNLIKELY(commandListType) >= m_queueData.Size())
+        {
+            return nullptr;
+        }
+
+        return &m_queueData[uint32(commandListType)];
     }
 
     HYP_FORCE_INLINE D3D12MA::Allocator* GetAllocator() const
@@ -72,10 +73,26 @@ public:
     DX12SwapchainRef CreateSwapchain(ApplicationWindow* window, const Vec2u& extent) override;
 
     void PrepareSwapchain(DX12Swapchain* swapchain) override;
-    void SubmitCommandBuffers(DX12Swapchain* swapchain) override;
     void PresentToSwapchain(DX12Swapchain* swapchain) override;
 
-    DX12CommandBuffer* GetCurrentCommandBuffer() const override;
+    DX12CommandBuffer* GetCurrentCommandBuffer() const override
+    {
+        return m_commandBuffers[GetFrameCounter() % NumFramesInFlight].Get();
+    }
+
+    HYP_FORCE_INLINE uint32 GetCurrentFrameIndex() const
+    {
+        return GetFrameCounter() % NumFramesInFlight;
+    }
+
+    HYP_FORCE_INLINE ID3D12Fence* GetFrameFence() const
+    {
+        return m_frameFence.Get();
+    }
+
+    /*! \brief Checks if the D3D12 device has been removed and logs the reason.
+     *  \return true if the device has been removed, false otherwise. */
+    bool CheckDeviceRemoved() const;
 
     DX12CommandBuffer& GetTransientCommandBuffer() override;
     void SubmitTransientCommandBuffer(DX12CommandBuffer& commandBuffer) override;
@@ -129,7 +146,7 @@ public:
 
     void ReleaseTransientMemory() override;
 
-    void NextFrame() override;
+    void BeginFrame(AtomicFlag* pCancelFlag) override;
     
     ComPtr<IDXGIFactory4> dxgiFactory;
 
@@ -138,30 +155,36 @@ public:
 private:
     void InitDeviceDetails(DeviceDetails& deviceDetails) override;
 
-    DX12Frame* PrepareNextFrame() override;
+    void BindDescriptorHeaps(DX12CommandBuffer& commandBuffer);
+
+    void PrepareFrame(DX12Frame* frame) override;
 
     Pimpl<DX12RenderConfig> m_renderConfig;
 
     FixedArray<DX12FrameRef, NumFramesInFlight> m_frames;
-    uint32 m_currentFrameIndex;
 
-    DX12CommandBufferRef m_commandBuffer;
+    FixedArray<DX12CommandBufferRef, NumFramesInFlight> m_commandBuffers;
 
-    Array<DX12CommandBuffer*, RenderAllocator> m_transientCommandBuffers[NumRendererWorkerThreads + 1][NumFramesInFlight];
-    Array<DX12CommandBuffer*, RenderAllocator> m_pendingTransientCommandBuffers[NumRendererWorkerThreads + 1][NumFramesInFlight];
+    LinkedList<DX12CommandBuffer, RenderAllocator> m_transientCommandBuffers[NumRendererWorkerThreads + 1][NumFramesInFlight];
+    LinkedList<DX12CommandBuffer, RenderAllocator> m_pendingTransientCommandBuffers[NumRendererWorkerThreads + 1][NumFramesInFlight];
 
-    Array<DX12Fence*, RenderAllocator> m_transientCommandBufferFences[NumRendererWorkerThreads + 1][NumFramesInFlight];
-    Array<DX12Fence*, RenderAllocator> m_recycledTransientCommandBufferFences;
-
-    Array<DX12CommandBuffer*, RenderAllocator> m_ownedTransientCommandBuffers;
-    Array<DX12Fence*, RenderAllocator> m_ownedTransientCommandBufferFences;
+    LinkedList<DX12Fence, RenderAllocator> m_transientCommandBufferFences[NumFramesInFlight];
+    LinkedList<DX12Fence, RenderAllocator> m_recycledTransientCommandBufferFences;
     Mutex m_transientCommandBuffersMutex;
     
     ComPtr<IDXGIAdapter1> m_hardwareAdapter;
 
     ComPtr<ID3D12Device> m_device;
 
-    FlatMap<D3D12_COMMAND_LIST_TYPE, DX12QueueData> m_queueData;
+    FixedArray<DX12QueueData, 4> m_queueData;
+
+    ComPtr<ID3D12Fence> m_frameFence;
+    HANDLE m_frameFenceEvent;
+
+    FixedArray<uint64, NumFramesInFlight> m_frameFenceValues;
+    uint8 m_frameFenceIndex;
+
+    FixedArray<int64, NumFramesInFlight> m_submissionFrames;
 
     ComPtr<ID3D12DeviceRemovedExtendedDataSettings> m_dredSettings;
 

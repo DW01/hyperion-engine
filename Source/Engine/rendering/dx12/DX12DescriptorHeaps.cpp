@@ -84,6 +84,7 @@ DX12DescriptorHandle DX12DescriptorAllocator::Allocate(uint8 frameIndex, uint32 
 
     DX12DescriptorHandle descriptorHandle;
     descriptorHandle.count = count;
+    descriptorHandle.frameIndex = frameIndex;
     descriptorHandle.cpuHandle = { cpuStart.ptr + (incrementSize * allocationOffset) };
 
     if (gpuStart.ptr != 0)
@@ -122,10 +123,10 @@ void DX12DescriptorHeapManager::Initialize()
 
     // placeholder
     static constexpr uint32 MaxDescriptorsByHeapType[MaxDescriptorHeapType] = {
-        1000,   // CBV_SRV_UAV
-        1000,     // SAMPLER
-        1000,    // RTV
-        1000     // DSV
+        65536,  // CBV_SRV_UAV
+        2048,   // SAMPLER
+        16384,  // RTV
+        16384   // DSV
     };
 
     for (uint32 heapIndex = 0; heapIndex < MaxDescriptorHeapType; heapIndex++)
@@ -145,8 +146,7 @@ void DX12DescriptorHeapManager::Shutdown()
 
 DX12DescriptorHandle DX12DescriptorHeapManager::Allocate(DX12DescriptorHeapType heapType, uint32 count)
 {
-    const DX12Frame* currentFrame = g_renderInterface->GetCurrentFrame();
-    const uint8 currentFrameIndex = currentFrame ? (uint8)currentFrame->GetFrameIndex() : 0;
+    const uint8 currentFrameIndex = (uint8)(GetFrameCounter() % NumFramesInFlight);
 
     return m_descriptorAllocators[uint32(heapType)]->Allocate(currentFrameIndex, count);
 }

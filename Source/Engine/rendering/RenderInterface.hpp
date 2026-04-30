@@ -12,12 +12,17 @@
 
 #include <rendering/RenderableAttributes.hpp>
 #include <rendering/RenderObject.hpp>
-#include <rendering/GpuBuffer.hpp>
 #include <rendering/RenderConfig.hpp>
 #include <rendering/CommandRecorderAllocator.hpp>
 #include <rendering/StructuredBuffer.hpp>
 
 #include <engine/DeviceDetails.hpp>
+
+#ifdef HYP_VULKAN
+#include <rendering/vulkan/VulkanStructs.hpp>
+#elif defined(HYP_DX12)
+#include <rendering/dx12/DX12Structs.hpp>
+#endif
 
 namespace Hyperion {
 
@@ -358,9 +363,6 @@ public:
     virtual AsyncCompute* CreateAsyncCompute() = 0;
     virtual void SubmitAsyncCompute(AsyncCompute* asyncCompute) = 0;
 
-    virtual void ReleaseTransientMemory() = 0;
-    virtual void NextFrame() = 0;
-
     ShaderManager* shaderManager;
 
     BindlessStorage* bindlessStorage;
@@ -378,8 +380,8 @@ public:
 
     StructuredBuffer namedBuffers[NumNamedBuffers];
 
-    GpuBufferRef blueNoiseBuffer;
-    GpuBufferRef sphereSamplesBuffer;
+    StructuredBuffer blueNoiseBuffer;
+    StructuredBuffer sphereSamplesBuffer;
 
     Handle<Texture> envProbesTexture;
 
@@ -416,7 +418,10 @@ public:
     Resources::ResourceContainer* resources;
 
 protected:
-    virtual Frame* PrepareNextFrame() = 0;
+    virtual void NewFrameIndex() {}
+    virtual void PrepareFrame(Frame* frame) = 0;
+
+    virtual void ReleaseTransientMemory() = 0;
 
     void CreateBlueNoiseBuffer();
     void CreateSphereSamplesBuffer();

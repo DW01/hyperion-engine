@@ -17,6 +17,8 @@
 #include <rendering/GraphicsPipeline.hpp>
 #include <rendering/DescriptorSet.hpp>
 #include <rendering/TextureViewCache.hpp>
+#include <rendering/CBufferAllocator.hpp>
+#include <rendering/StructuredBufferAllocator.hpp>
 
 #include <rendering/renderers/DeferredRenderer.hpp>
 #include <rendering/renderers/UIRenderer.hpp>
@@ -112,7 +114,7 @@ void FinalPass::Render(Frame* frame, const RenderSetup& rs)
 
     cr << SetInputLayout(StaticVertexInputLayout<VT_Simple>);
 
-    cr << SetCurrentShader(ShaderDesc(NAME("BlitTexture")));
+    cr << SetCurrentShader(ShaderDesc(NAME("FinalPass")));
 
     // Need blending to composite passes and ui
     cr << SetCurrentBlendFunction(BlendFunction(
@@ -130,14 +132,12 @@ void FinalPass::Render(Frame* frame, const RenderSetup& rs)
     cr << SetShaderUniform(0, "SamplerLinear"_sh, g_renderInterface->placeholderData->GetSamplerLinear());
     cr << SetShaderUniform(1, "WorldsBuffer"_sh, g_renderInterface->namedBuffers[NamedBuffer::Worlds].gpuBuffer);
 
-    // Render each sub-view
     DeferredRenderer* dr = static_cast<DeferredRenderer*>(g_renderInterface->globalRenderers[GRT_MAIN][0]);
     AssertDebug(dr != nullptr);
 
-    // ordered by priority of the view
     for (const DeferredRenderer::RenderedViewOutput& output : dr->GetRenderedViewOutputs().items)
     {
-        cr << SetShaderUniform(2, "InTexture"_sh, output.finalImageView);
+        cr << SetShaderUniform(3, "InTexture"_sh, output.finalImageView);
 
         cr << CommitDrawState();
 
@@ -147,31 +147,31 @@ void FinalPass::Render(Frame* frame, const RenderSetup& rs)
         cr << DrawIndexed(6);
     }
 
-    if (cvShowDebugUI.Get())
-    {
-        // draw ui
-        UIRenderer* uiRenderer = static_cast<UIRenderer*>(g_renderInterface->globalRenderers[GRT_UI][0]);
+    // if (cvShowDebugUI.Get())
+    // {
+    //     // draw ui
+    //     UIRenderer* uiRenderer = static_cast<UIRenderer*>(g_renderInterface->globalRenderers[GRT_UI][0]);
 
-        if (uiRenderer != nullptr)
-        {
-            for (World* world : GetActiveWorlds())
-            {
-                for (View* view : world->GetViews())
-                {
-                    if (!(view->GetFlags() & ViewFlags::UI_VIEW))
-                    {
-                        continue;
-                    }
+    //     if (uiRenderer != nullptr)
+    //     {
+    //         for (World* world : GetActiveWorlds())
+    //         {
+    //             for (View* view : world->GetViews())
+    //             {
+    //                 if (!(view->GetFlags() & ViewFlags::UI_VIEW))
+    //                 {
+    //                     continue;
+    //                 }
 
-                    RenderSetup currentViewSetup = rs.Fork();
-                    currentViewSetup.world = world;
-                    currentViewSetup.view = view;
+    //                 RenderSetup currentViewSetup = rs.Fork();
+    //                 currentViewSetup.world = world;
+    //                 currentViewSetup.view = view;
 
-                    uiRenderer->RenderFrame(frame, currentViewSetup);
-                }
-            }
-        }
-    }
+    //                 uiRenderer->RenderFrame(frame, currentViewSetup);
+    //             }
+    //         }
+    //     }
+    // }
 
     cr << SetCurrentFramebuffer(nullptr);
 

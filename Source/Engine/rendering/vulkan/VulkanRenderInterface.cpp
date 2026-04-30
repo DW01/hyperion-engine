@@ -126,7 +126,7 @@ static VkDescriptorSetLayout CreateVkDescriptorSetLayout(VulkanDevice* device, c
 
         VkDescriptorSetLayoutBinding binding {};
         binding.descriptorCount = descriptorCount;
-        binding.descriptorType = ToVkDescriptorType(element.type);
+        binding.descriptorType = ToVkDescriptorType(element.type, element.category);
         binding.pImmutableSamplers = nullptr;
         binding.stageFlags = VK_SHADER_STAGE_ALL;
         binding.binding = element.binding;
@@ -224,12 +224,6 @@ void VulkanDynamicFunctions::Load(VulkanDevice* device)
 #if defined(HYP_MOLTENVK) && HYP_MOLTENVK && HYP_MOLTENVK_LINKED
     HYP_LOAD_FN(vkGetMoltenVKConfigurationMVK);
     HYP_LOAD_FN(vkSetMoltenVKConfigurationMVK);
-#endif
-
-#ifdef HYP_WINDOWS
-    HYP_LOAD_FN(vkGetMemoryWin32HandleKHR);
-#else
-    HYP_LOAD_FN(vkGetMemoryFdKHR);
 #endif
 
 #undef HYP_LOAD_FN
@@ -762,11 +756,10 @@ VulkanFrame* VulkanRenderInterface::GetCurrentFrame() const
     return m_frames[m_currentFrameIndex];
 }
 
-VulkanFrame* VulkanRenderInterface::PrepareNextFrame()
+void VulkanRenderInterface::PrepareFrame(VulkanFrame* frame)
 {
     const uint32 frameCounter = GetFrameCounter();
 
-    VulkanFrame* frame = GetCurrentFrame();
     {
         ENGINE_STAT_SCOPE(&s_statVulkanWaitOnFences);
 
@@ -867,10 +860,6 @@ VulkanFrame* VulkanRenderInterface::PrepareNextFrame()
     frame->OnFrameStart();
 
     m_descriptorSetManager->OnFrameStart();
-
-    AssertDebug(frame != nullptr);
-
-    return frame;
 }
 
 VulkanSwapchainRef VulkanRenderInterface::CreateSwapchain(ApplicationWindow* window, const Vec2u& extent)
@@ -1001,21 +990,28 @@ void VulkanRenderInterface::SubmitTransientCommandBuffer(VulkanCommandBuffer& co
     VulkanDeviceQueue* graphicsQueue = m_instance->GetDevice()->GetGraphicsQueue();
     Assert(graphicsQueue != nullptr);
 
-    VulkanFence& fence = m_transientCommandBufferFences[frameCounter % NumFramesInFlight].EmplaceBack();
+    VulkanFence* pFence = nullptr;
 
-    Mutex::Guard guard(m_transientCommandBuffersMutex);
-    if (m_recycledTransientCommandBufferFences.Any())
     {
-        fence = std::move(m_recycledTransientCommandBufferFences.PopFront());
-    }
-    else
-    {
-        fence.Create();
+        Mutex::Guard guard(m_transientCommandBuffersMutex);
+
+        VulkanFence& fence = m_transientCommandBufferFences[frameCounter % NumFramesInFlight].EmplaceBack();
+
+        if (m_recycledTransientCommandBufferFences.Any())
+        {
+            fence = std::move(m_recycledTransientCommandBufferFences.PopFront());
+        }
+        else
+        {
+            fence.Create();
+        }
+
+        pFence = &fence;
     }
 
     // HYP_LOG_TEMP("Submitting transient command buffer on thread {} for frame {}", renderThreadIndex, frameCounter % NumFramesInFlight);
 
-    commandBuffer.Submit(graphicsQueue, &fence, {}, {});
+    commandBuffer.Submit(graphicsQueue, pFence, {}, {});
 }
 
 VulkanDescriptorSetRef VulkanRenderInterface::MakeDescriptorSet(const DescriptorSetLayout& layout)

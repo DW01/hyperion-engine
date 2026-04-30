@@ -70,12 +70,6 @@ struct VulkanDynamicFunctions
     HYP_DECL_FN(vkSetMoltenVKConfigurationMVK);
 #endif
 
-#ifdef HYP_WINDOWS
-    HYP_DECL_FN(vkGetMemoryWin32HandleKHR);
-#else
-    HYP_DECL_FN(vkGetMemoryFdKHR);
-#endif
-
 #undef HYP_DECL_FN
 };
 
@@ -166,13 +160,6 @@ public:
     HYP_NODISCARD VulkanAsyncCompute* CreateAsyncCompute() override;
     void SubmitAsyncCompute(VulkanAsyncCompute* asyncCompute) override;
 
-    void ReleaseTransientMemory() override;
-
-    void NextFrame() override
-    {
-        m_currentFrameIndex = (m_currentFrameIndex + 1) % NumFramesInFlight;
-    }
-
     HYP_API RendererResult CreateDescriptorSet(
         VkDescriptorSetLayout vkDescriptorSetLayout,
         bool isBindlessTextures, bool isBindlessBuffers, bool isRayTracing,
@@ -191,7 +178,14 @@ public:
 private:
     void InitDeviceDetails(DeviceDetails& deviceDetails) override;
 
-    VulkanFrame* PrepareNextFrame() override;
+    void ReleaseTransientMemory() override;
+
+    void NewFrameIndex() override
+    {
+        m_currentFrameIndex = (m_currentFrameIndex + 1) % NumFramesInFlight;
+    }
+
+    void PrepareFrame(VulkanFrame* frame) override;
 
     VulkanInstance* m_instance;
 

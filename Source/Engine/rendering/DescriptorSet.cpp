@@ -18,6 +18,37 @@
 #include <DescriptorSet.generated.inl>
 
 namespace Hyperion {
+
+static constexpr uint32 ElementTypeToBufferType[uint32(ShaderInputType::MAX)] = {
+    0,                                                          // Unset
+    (1u << uint32(GpuBufferType::ConstantBuffer)),              // CBV
+    (1u << uint32(GpuBufferType::ConstantBuffer)),              // CBV_Dynamic
+    (1u << uint32(GpuBufferType::StructuredBuffer))
+        | (1u << uint32(GpuBufferType::RWStructuredBuffer))
+        | (1u << uint32(GpuBufferType::ByteAddressBuffer))
+        | (1u << uint32(GpuBufferType::RWByteAddressBuffer))
+        | (1u << uint32(GpuBufferType::ReadbackBuffer))
+        | (1u << uint32(GpuBufferType::StagingBuffer))
+        | (1u << uint32(GpuBufferType::IndirectArgsBuffer))
+        | (1u << uint32(GpuBufferType::RTMeshIndexBuffer))
+        | (1u << uint32(GpuBufferType::RTMeshVertexBuffer)),    // SRV
+    (1u << uint32(GpuBufferType::StructuredBuffer))
+        | (1u << uint32(GpuBufferType::RWStructuredBuffer))
+        | (1u << uint32(GpuBufferType::ByteAddressBuffer))
+        | (1u << uint32(GpuBufferType::RWByteAddressBuffer))
+        | (1u << uint32(GpuBufferType::ReadbackBuffer))
+        | (1u << uint32(GpuBufferType::StagingBuffer))
+        | (1u << uint32(GpuBufferType::IndirectArgsBuffer))
+        | (1u << uint32(GpuBufferType::RTMeshIndexBuffer))
+        | (1u << uint32(GpuBufferType::RTMeshVertexBuffer)),    // SRV_Dynamic
+    (1u << uint32(GpuBufferType::RWStructuredBuffer))
+        | (1u << uint32(GpuBufferType::RWByteAddressBuffer))
+        | (1u << uint32(GpuBufferType::IndirectArgsBuffer)),    // UAV
+    (1u << uint32(GpuBufferType::RWStructuredBuffer))
+        | (1u << uint32(GpuBufferType::RWByteAddressBuffer)),   // UAV_Dynamic
+    0                                                           // Sampler
+};
+
 #pragma region ShaderInputSet
 
 ShaderInput* ShaderInputSet::FindDescriptorDeclaration(StringHash name) const
@@ -134,7 +165,7 @@ DescriptorSetLayout::DescriptorSetLayout(const ShaderInputSet* decl)
             //     declPtr->name, descriptor.name, descriptorIndex, int(descriptor.slot),
             //     descriptor.count, descriptor.size, descriptor.isDynamic);
 
-            AddElement(descriptor.name, descriptor.type, descriptorIndex, descriptor.count);
+            AddElement(descriptor.name, descriptor.type, descriptorIndex, descriptor.count, descriptor.category);
         }
     }
 
@@ -144,8 +175,9 @@ DescriptorSetLayout::DescriptorSetLayout(const ShaderInputSet* decl)
     // Add to list of dynamic buffer names
     for (const auto& it : m_elements)
     {
-        if (it.second.type == ShaderInputType::UNIFORM_BUFFER_DYNAMIC
-            || it.second.type == ShaderInputType::STORAGE_BUFFER_DYNAMIC)
+        if (it.second.type == ShaderInputType::CBV_Dynamic
+            || it.second.type == ShaderInputType::SRV_Dynamic
+            || it.second.type == ShaderInputType::UAV_Dynamic)
         {
             dynamicElementsWithIndex.PushBack({ it.first, it.second.binding });
         }
@@ -191,10 +223,12 @@ DescriptorSetElement& DescriptorSetBase::SetElementT(StringHash name, uint32 ind
 
     if constexpr (std::is_base_of_v<GpuBufferBase, T>)
     {
-        static constexpr uint32 Mask = (1u << uint32(ShaderInputType::UNIFORM_BUFFER))
-            | (1u << uint32(ShaderInputType::UNIFORM_BUFFER_DYNAMIC))
-            | (1u << uint32(ShaderInputType::STORAGE_BUFFER))
-            | (1u << uint32(ShaderInputType::STORAGE_BUFFER_DYNAMIC));
+        static constexpr uint32 Mask = (1u << uint32(ShaderInputType::CBV))
+            | (1u << uint32(ShaderInputType::CBV_Dynamic))
+            | (1u << uint32(ShaderInputType::SRV))
+            | (1u << uint32(ShaderInputType::SRV_Dynamic))
+            | (1u << uint32(ShaderInputType::UAV))
+            | (1u << uint32(ShaderInputType::UAV_Dynamic));
 
         AssertDebug(Mask & (1u << uint32(layoutElement->type)), "Layout type for {} does not match given type", Name(name));
 
@@ -206,25 +240,25 @@ DescriptorSetElement& DescriptorSetBase::SetElementT(StringHash name, uint32 ind
             AssertDebug(
                 (ElementTypeToBufferType[uint32(layoutElement->type)] & (1u << uint32(bufferType))),
                 "Buffer type {} is not in the allowed types for element {}",
-                uint32(bufferType), Name(name));
+                EnumToString(bufferType), Name(name));
         }
     }
     else if constexpr (std::is_base_of_v<GpuImageViewBase, T>)
     {
-        static constexpr uint32 Mask = (1u << uint32(ShaderInputType::IMAGE))
-            | (1u << uint32(ShaderInputType::IMAGE_STORAGE));
+        static constexpr uint32 Mask = (1u << uint32(ShaderInputType::SRV))
+            | (1u << uint32(ShaderInputType::UAV));
 
         AssertDebug(Mask & (1u << uint32(layoutElement->type)), "Layout type for {} does not match given type", Name(name));
     }
     else if constexpr (std::is_base_of_v<SamplerBase, T>)
     {
-        static constexpr uint32 Mask = (1u << uint32(ShaderInputType::SAMPLER));
+        static constexpr uint32 Mask = (1u << uint32(ShaderInputType::Sampler));
 
         AssertDebug(Mask & (1u << uint32(layoutElement->type)), "Layout type for {} does not match given type", Name(name));
     }
     else if constexpr (std::is_base_of_v<GpuTlasBase, T>)
     {
-        static constexpr uint32 Mask = (1u << uint32(ShaderInputType::TLAS));
+        static constexpr uint32 Mask = (1u << uint32(ShaderInputType::SRV));
 
         AssertDebug(Mask & (1u << uint32(layoutElement->type)), "Layout type for {} does not match given type", Name(name));
     }

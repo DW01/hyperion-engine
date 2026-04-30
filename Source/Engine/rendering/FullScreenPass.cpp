@@ -39,8 +39,6 @@ namespace Hyperion {
 
 static const ShaderPropertyId s_propCheckerboarded = InternShaderProperty(ShaderProperty(NAME("CHECKERBOARDED")));
 
-static const Name s_nameFullScreenPass = NAME("FullScreenPass");
-
 struct MergeCheckerboardUniforms
 {
     Vec2u dimensions;
@@ -105,11 +103,6 @@ FullScreenPass::~FullScreenPass()
     EnqueueDeletion(std::move(m_framebuffer));
 
     // not calling EnqueueDeletion() for graphics pipeline as it is managed by the graphics pipeline caching system
-}
-
-Name FullScreenPass::GetName() const
-{
-    return s_nameFullScreenPass;
 }
 
 const GpuImageViewRef& FullScreenPass::GetFinalImageView() const
@@ -412,7 +405,7 @@ void FullScreenPass::CreateMergeCheckerboardPass()
 
     if (!m_mergeCheckerboardUniformBuffer)
     {
-        m_mergeCheckerboardUniformBuffer = g_renderInterface->MakeGpuBuffer(GpuBufferType::CONSTANT_BUFFER, sizeof(uniforms));
+        m_mergeCheckerboardUniformBuffer = g_renderInterface->MakeGpuBuffer(GpuBufferType::ConstantBuffer, sizeof(uniforms));
         CheckResult(m_mergeCheckerboardUniformBuffer->Create());
     }
 
@@ -489,7 +482,7 @@ void FullScreenPass::CopyResultToPreviousTexture(Frame* frame, const RenderSetup
     cr << InsertBarrier(srcImage, RS_COPY_SRC);
     cr << InsertBarrier(dstImage, RS_COPY_DST);
 
-    cr << Blit(srcImage, dstImage);
+    cr << CopyImage(srcImage, dstImage, srcImage->GetTextureDesc().extent);
 
     cr << InsertBarrier(srcImage, RS_SHADER_RESOURCE);
     cr << InsertBarrier(dstImage, RS_SHADER_RESOURCE);

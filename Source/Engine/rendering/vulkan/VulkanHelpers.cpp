@@ -196,26 +196,42 @@ VkImageViewType ToVkImageViewType(TextureType type)
     }
 }
 
-VkDescriptorType ToVkDescriptorType(ShaderInputType type)
+VkDescriptorType ToVkDescriptorType(ShaderInputType type, ShaderResourceCategory category)
 {
     switch (type)
     {
-    case ShaderInputType::UNIFORM_BUFFER:
+    case ShaderInputType::CBV:
         return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    case ShaderInputType::UNIFORM_BUFFER_DYNAMIC:
+    case ShaderInputType::CBV_Dynamic:
         return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    case ShaderInputType::STORAGE_BUFFER:
-        return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    case ShaderInputType::STORAGE_BUFFER_DYNAMIC:
+    case ShaderInputType::SRV:
+        switch (category)
+        {
+        case ShaderResourceCategory::Buffer:
+            return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        case ShaderResourceCategory::Image:
+            return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        case ShaderResourceCategory::AccelerationStructure:
+            return VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+        default:
+            HYP_UNREACHABLE();
+        }
+    case ShaderInputType::SRV_Dynamic:
         return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
-    case ShaderInputType::IMAGE:
-        return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    case ShaderInputType::SAMPLER:
+    case ShaderInputType::UAV:
+        switch (category)
+        {
+        case ShaderResourceCategory::Buffer:
+            return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        case ShaderResourceCategory::Image:
+            return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        default:
+            HYP_UNREACHABLE();
+        }
+    case ShaderInputType::UAV_Dynamic:
+        return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+    case ShaderInputType::Sampler:
         return VK_DESCRIPTOR_TYPE_SAMPLER;
-    case ShaderInputType::IMAGE_STORAGE:
-        return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    case ShaderInputType::TLAS:
-        return VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
     default:
         HYP_UNREACHABLE();
     }
@@ -413,43 +429,54 @@ VkBufferUsageFlags GetVkUsageFlags(GpuBufferType type)
 {
     switch (type)
     {
-    case GpuBufferType::MESH_VERTEX_BUFFER:
-        return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    case GpuBufferType::MESH_INDEX_BUFFER:
-        return VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-    case GpuBufferType::CONSTANT_BUFFER:
+    case GpuBufferType::VertexBuffer:
+        return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+            | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    case GpuBufferType::IndexBuffer:
+        return VK_BUFFER_USAGE_INDEX_BUFFER_BIT
+            | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    case GpuBufferType::ConstantBuffer:
         return VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    case GpuBufferType::STORAGE_BUFFER:
-        return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    case GpuBufferType::READBACK_BUFFER:
+    case GpuBufferType::StructuredBuffer:
+    case GpuBufferType::ByteAddressBuffer:
+        return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+            | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    case GpuBufferType::RWStructuredBuffer:
+    case GpuBufferType::RWByteAddressBuffer:
+        return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+            | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    case GpuBufferType::ReadbackBuffer:
         return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
             | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
             | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    case GpuBufferType::STAGING_BUFFER:
+    case GpuBufferType::StagingBuffer:
         return VK_BUFFER_USAGE_TRANSFER_SRC_BIT
             | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    case GpuBufferType::INDIRECT_ARGS_BUFFER:
+    case GpuBufferType::IndirectArgsBuffer:
         return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
             | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT
             | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    case GpuBufferType::SHADER_BINDING_TABLE:
+    case GpuBufferType::ShaderBindingTable:
         return VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    case GpuBufferType::ACCELERATION_STRUCTURE_BUFFER:
+    case GpuBufferType::AccelerationStructureBuffer:
         return VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    case GpuBufferType::ACCELERATION_STRUCTURE_INSTANCE_BUFFER:
+    case GpuBufferType::AccelerationStructureInstanceBuffer:
         return VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    case GpuBufferType::RT_MESH_VERTEX_BUFFER:
+    case GpuBufferType::RTMeshVertexBuffer:
         return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
             | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT                            /* for rt */
             | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR /* for rt */
-            | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    case GpuBufferType::RT_MESH_INDEX_BUFFER:
+            | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+            | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    case GpuBufferType::RTMeshIndexBuffer:
         return VK_BUFFER_USAGE_INDEX_BUFFER_BIT
             | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT                            /* for rt */
             | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR /* for rt */
-            | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    case GpuBufferType::SCRATCH_BUFFER:
-        return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+            | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+            | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    case GpuBufferType::ScratchBuffer:
+        return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+            | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     default:
         return 0;
     }
@@ -459,34 +486,37 @@ VmaMemoryUsage GetVmaMemoryUsage(GpuBufferType type, bool cpuAccessible)
 {
     switch (type)
     {
-    case GpuBufferType::MESH_VERTEX_BUFFER:
+    case GpuBufferType::VertexBuffer:
         return (cpuAccessible ? VMA_MEMORY_USAGE_CPU_TO_GPU : VMA_MEMORY_USAGE_GPU_ONLY);
-    case GpuBufferType::MESH_INDEX_BUFFER:
+    case GpuBufferType::IndexBuffer:
         return (cpuAccessible ? VMA_MEMORY_USAGE_CPU_TO_GPU : VMA_MEMORY_USAGE_GPU_ONLY);
-    case GpuBufferType::CONSTANT_BUFFER:
+    case GpuBufferType::ConstantBuffer:
         return VMA_MEMORY_USAGE_CPU_ONLY;
-    case GpuBufferType::STORAGE_BUFFER:
+    case GpuBufferType::StructuredBuffer:       // fallthrough
+    case GpuBufferType::RWStructuredBuffer:     // fallthrough
+    case GpuBufferType::ByteAddressBuffer:      // fallthrough
+    case GpuBufferType::RWByteAddressBuffer:    // fallthrough
         return (cpuAccessible ? VMA_MEMORY_USAGE_CPU_TO_GPU : VMA_MEMORY_USAGE_GPU_ONLY);
-    case GpuBufferType::READBACK_BUFFER:
+    case GpuBufferType::ReadbackBuffer:
         return (cpuAccessible ? VMA_MEMORY_USAGE_CPU_TO_GPU : VMA_MEMORY_USAGE_GPU_ONLY);
-    case GpuBufferType::STAGING_BUFFER:
+    case GpuBufferType::StagingBuffer:
         return VMA_MEMORY_USAGE_CPU_ONLY;
-    case GpuBufferType::INDIRECT_ARGS_BUFFER:
+    case GpuBufferType::IndirectArgsBuffer:
         // ignore cpuAccessible for indirect args buffer
         return VMA_MEMORY_USAGE_GPU_ONLY;
-    case GpuBufferType::SHADER_BINDING_TABLE:
+    case GpuBufferType::ShaderBindingTable:
         return VMA_MEMORY_USAGE_CPU_TO_GPU;
-    case GpuBufferType::ACCELERATION_STRUCTURE_BUFFER:
+    case GpuBufferType::AccelerationStructureBuffer:
         return VMA_MEMORY_USAGE_CPU_TO_GPU;
-    case GpuBufferType::ACCELERATION_STRUCTURE_INSTANCE_BUFFER:
+    case GpuBufferType::AccelerationStructureInstanceBuffer:
         return VMA_MEMORY_USAGE_CPU_TO_GPU;
-    case GpuBufferType::RT_MESH_VERTEX_BUFFER:
-        // ignore cpuAccessible for RT mesh vertex buffer, as it cannot be CPU accessible regardless
+    case GpuBufferType::RTMeshVertexBuffer:
+        // ignore cpuAccessible for RT mesh vertex buffer
         return VMA_MEMORY_USAGE_GPU_ONLY;
-    case GpuBufferType::RT_MESH_INDEX_BUFFER:
-        // ignore cpuAccessible for RT mesh index buffer, as it cannot be CPU accessible regardless
+    case GpuBufferType::RTMeshIndexBuffer:
+        // ignore cpuAccessible for RT mesh index buffer
         return VMA_MEMORY_USAGE_GPU_ONLY;
-    case GpuBufferType::SCRATCH_BUFFER:
+    case GpuBufferType::ScratchBuffer:
         return VMA_MEMORY_USAGE_CPU_TO_GPU;
     default:
         return VMA_MEMORY_USAGE_UNKNOWN;
@@ -497,34 +527,37 @@ VmaAllocationCreateFlags GetVkAllocationCreateFlags(GpuBufferType type, bool cpu
 {
     switch (type)
     {
-    case GpuBufferType::MESH_VERTEX_BUFFER:
+    case GpuBufferType::VertexBuffer:
         return (cpuAccessible ? VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT : 0);
-    case GpuBufferType::MESH_INDEX_BUFFER:
+    case GpuBufferType::IndexBuffer:
         return (cpuAccessible ? VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT : 0);
-    case GpuBufferType::CONSTANT_BUFFER:
+    case GpuBufferType::ConstantBuffer:
         return VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-    case GpuBufferType::STORAGE_BUFFER:
+    case GpuBufferType::StructuredBuffer:
+    case GpuBufferType::ByteAddressBuffer:
+    case GpuBufferType::RWStructuredBuffer:
+    case GpuBufferType::RWByteAddressBuffer:
         return (cpuAccessible ? VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT : 0);
-    case GpuBufferType::READBACK_BUFFER:
+    case GpuBufferType::ReadbackBuffer:
         return (cpuAccessible ? VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT : 0);
-    case GpuBufferType::STAGING_BUFFER:
+    case GpuBufferType::StagingBuffer:
         return VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-    case GpuBufferType::INDIRECT_ARGS_BUFFER:
+    case GpuBufferType::IndirectArgsBuffer:
         // ignore cpuAccessible for indirect args buffer, as it cannot be CPU accessible regardless
         return 0;
-    case GpuBufferType::SHADER_BINDING_TABLE:
+    case GpuBufferType::ShaderBindingTable:
         return VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-    case GpuBufferType::ACCELERATION_STRUCTURE_BUFFER:
+    case GpuBufferType::AccelerationStructureBuffer:
         return VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-    case GpuBufferType::ACCELERATION_STRUCTURE_INSTANCE_BUFFER:
+    case GpuBufferType::AccelerationStructureInstanceBuffer:
         return VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-    case GpuBufferType::RT_MESH_VERTEX_BUFFER:
+    case GpuBufferType::RTMeshVertexBuffer:
         // ignore cpuAccessible for RT mesh vertex buffer, as it cannot be CPU accessible regardless
         return 0;
-    case GpuBufferType::RT_MESH_INDEX_BUFFER:
+    case GpuBufferType::RTMeshIndexBuffer:
         // ignore cpuAccessible for RT mesh index buffer, as it cannot be CPU accessible regardless
         return 0;
-    case GpuBufferType::SCRATCH_BUFFER:
+    case GpuBufferType::ScratchBuffer:
         return VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
     default:
         HYP_FAIL("Invalid gpu buffer type for allocation create flags");

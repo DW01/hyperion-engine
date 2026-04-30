@@ -712,15 +712,14 @@ extern struct ShaderVariantPerms
     OptionalVertexAttributes : VertexTypeMask
 end
 extern enum ShaderInputType : uint8
-    UNSET,
-    UNIFORM_BUFFER,
-    UNIFORM_BUFFER_DYNAMIC,
-    STORAGE_BUFFER,
-    STORAGE_BUFFER_DYNAMIC,
-    IMAGE,
-    IMAGE_STORAGE,
-    SAMPLER,
-    TLAS,
+    Unset,
+    CBV,
+    CBV_Dynamic,
+    SRV,
+    SRV_Dynamic,
+    UAV,
+    UAV_Dynamic,
+    Sampler,
     MAX
 end
 extern struct StencilFunction
@@ -878,19 +877,22 @@ extern enum StencilCompareOp : uint8
 end
 extern enum GpuBufferType : uint8
     NONE = 0,
-    MESH_INDEX_BUFFER,
-    MESH_VERTEX_BUFFER,
-    CONSTANT_BUFFER,
-    STORAGE_BUFFER,
-    READBACK_BUFFER,
-    STAGING_BUFFER,
-    INDIRECT_ARGS_BUFFER,
-    SHADER_BINDING_TABLE,
-    ACCELERATION_STRUCTURE_BUFFER,
-    ACCELERATION_STRUCTURE_INSTANCE_BUFFER,
-    RT_MESH_INDEX_BUFFER,
-    RT_MESH_VERTEX_BUFFER,
-    SCRATCH_BUFFER,
+    IndexBuffer,
+    VertexBuffer,
+    ConstantBuffer,
+    StructuredBuffer,
+    RWStructuredBuffer,
+    ByteAddressBuffer,
+    RWByteAddressBuffer,
+    ReadbackBuffer,
+    StagingBuffer,
+    IndirectArgsBuffer,
+    ShaderBindingTable,
+    AccelerationStructureBuffer,
+    AccelerationStructureInstanceBuffer,
+    RTMeshIndexBuffer,
+    RTMeshVertexBuffer,
+    ScratchBuffer,
     MAX
 end
 extern enum TextureWrapMode : uint8
@@ -932,6 +934,13 @@ extern enum ShaderModuleType : uint8
     Miss,
     Max
 end
+extern enum ShaderResourceCategory : uint8
+    Unknown,
+    Buffer,
+    Image,
+    Sampler,
+    AccelerationStructure
+end
 extern enum BlendModeFactor : uint8
     BMF_NONE,
     BMF_ONE,
@@ -969,6 +978,12 @@ end
 extern class UISubsystem : Subsystem
     AddDebugOverlay(debugOverlay : OverlayBase) -> void
     RemoveDebugOverlay(debugOverlay : OverlayBase) -> bool
+end
+extern struct DescriptorSetLayoutElement
+    Type : ShaderInputType
+    Binding : uint32
+    Count : uint32
+    Category : ShaderResourceCategory
 end
 extern struct DebugDrawerConfig
     Enabled : bool
@@ -1940,6 +1955,7 @@ extern struct ShaderInput
     Size : uint32
     IsDynamic : bool
     StructInfo : ShaderStruct
+    Category : ShaderResourceCategory
     Index : uint32
 end
 extern enum ShaderInputSetFlags : uint8

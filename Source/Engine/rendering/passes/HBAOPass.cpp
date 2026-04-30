@@ -53,6 +53,7 @@ CVar<float> cvHBAOPower { "Rendering.HBAOPower", 2.5f, "Rendering.HBAO.Power" };
 HBAO::HBAO(Vec2u extent, GBuffer* gbuffer)
     : FullScreenPass(TextureFormat::R16F, extent, gbuffer)
 {
+    SetPassName(NAME("HBAO"));
 }
 
 HBAO::~HBAO()
@@ -90,7 +91,7 @@ void HBAO::Render(Frame* frame, const RenderSetup& renderSetup)
         constants.radius = cvHBAORadius.Get();
         constants.power = cvHBAOPower.Get();
 
-        m_cbuffer = g_renderInterface->MakeGpuBuffer(GpuBufferType::CONSTANT_BUFFER, sizeof(constants));
+        m_cbuffer = g_renderInterface->MakeGpuBuffer(GpuBufferType::ConstantBuffer, sizeof(constants));
         CheckResult(m_cbuffer->Create());
 
         m_cbuffer->Copy(sizeof(constants), &constants);

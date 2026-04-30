@@ -40,31 +40,7 @@ class RenderResourceBase;
 
 enum class GpuBufferType : uint8;
 
-class IRenderProxy;
 class ObjectBase;
-
-constexpr uint32 ElementTypeToBufferType[uint32(ShaderInputType::MAX)] = {
-    0,                                    // UNSET
-    (1u << uint32(GpuBufferType::CONSTANT_BUFFER)), // UNIFORM_BUFFER
-    (1u << uint32(GpuBufferType::CONSTANT_BUFFER)), // UNIFORM_BUFFER_DYNAMIC
-    (1u << uint32(GpuBufferType::STORAGE_BUFFER))
-        | (1u << uint32(GpuBufferType::READBACK_BUFFER))
-        | (1u << uint32(GpuBufferType::STAGING_BUFFER))
-        | (1u << uint32(GpuBufferType::INDIRECT_ARGS_BUFFER))
-        | (1u << uint32(GpuBufferType::RT_MESH_INDEX_BUFFER))
-        | (1u << uint32(GpuBufferType::RT_MESH_VERTEX_BUFFER)), // STORAGE_BUFFER
-
-    (1u << uint32(GpuBufferType::STORAGE_BUFFER))
-        | (1u << uint32(GpuBufferType::READBACK_BUFFER))
-        | (1u << uint32(GpuBufferType::STAGING_BUFFER))
-        | (1u << uint32(GpuBufferType::INDIRECT_ARGS_BUFFER))
-        | (1u << uint32(GpuBufferType::RT_MESH_INDEX_BUFFER))
-        | (1u << uint32(GpuBufferType::RT_MESH_VERTEX_BUFFER)),  // STORAGE_BUFFER_DYNAMIC
-    0,                                                           // IMAGE
-    0,                                                           // IMAGE_STORAGE
-    0,                                                           // SAMPLER
-    (1u << uint32(GpuBufferType::ACCELERATION_STRUCTURE_BUFFER)) // ACCELERATION_STRUCTURE
-};
 
 template <class T>
 struct DescriptorSetElementTypeInfo;
@@ -72,29 +48,31 @@ struct DescriptorSetElementTypeInfo;
 template <>
 struct DescriptorSetElementTypeInfo<GpuBuffer>
 {
-    static constexpr uint32 mask = (1u << uint32(ShaderInputType::UNIFORM_BUFFER))
-        | (1u << uint32(ShaderInputType::UNIFORM_BUFFER_DYNAMIC))
-        | (1u << uint32(ShaderInputType::STORAGE_BUFFER))
-        | (1u << uint32(ShaderInputType::STORAGE_BUFFER_DYNAMIC));
+    static constexpr uint32 mask = (1u << uint32(ShaderInputType::CBV))
+        | (1u << uint32(ShaderInputType::CBV_Dynamic))
+        | (1u << uint32(ShaderInputType::SRV))
+        | (1u << uint32(ShaderInputType::SRV_Dynamic))
+        | (1u << uint32(ShaderInputType::UAV))
+        | (1u << uint32(ShaderInputType::UAV_Dynamic));
 };
 
 template <>
 struct DescriptorSetElementTypeInfo<GpuImageView>
 {
-    static constexpr uint32 mask = (1u << uint32(ShaderInputType::IMAGE))
-        | (1u << uint32(ShaderInputType::IMAGE_STORAGE));
+    static constexpr uint32 mask = (1u << uint32(ShaderInputType::SRV))
+        | (1u << uint32(ShaderInputType::UAV));
 };
 
 template <>
 struct DescriptorSetElementTypeInfo<Sampler>
 {
-    static constexpr uint32 mask = (1u << uint32(ShaderInputType::SAMPLER));
+    static constexpr uint32 mask = (1u << uint32(ShaderInputType::Sampler));
 };
 
 template <>
 struct DescriptorSetElementTypeInfo<GpuTlas>
 {
-    static constexpr uint32 mask = (1u << uint32(ShaderInputType::TLAS));
+    static constexpr uint32 mask = (1u << uint32(ShaderInputType::SRV));
 };
 
 HYP_STRUCT()
@@ -103,7 +81,7 @@ struct DescriptorSetLayoutElement
     HYP_STRUCT_BODY(DescriptorSetLayoutElement);
 
     HYP_FIELD()
-    ShaderInputType type = ShaderInputType::UNSET;
+    ShaderInputType type = ShaderInputType::Unset;
 
     HYP_FIELD()
     uint32 binding = ~0u; // has to be set
@@ -111,12 +89,22 @@ struct DescriptorSetLayoutElement
     HYP_FIELD()
     uint32 count = 1; // Set to -1 for bindless
 
+    HYP_FIELD()
+    ShaderResourceCategory category = ShaderResourceCategory::Unknown;
+
     HYP_FORCE_INLINE bool IsBuffer() const
     {
-        return type == ShaderInputType::UNIFORM_BUFFER
-            || type == ShaderInputType::UNIFORM_BUFFER_DYNAMIC
-            || type == ShaderInputType::STORAGE_BUFFER
-            || type == ShaderInputType::STORAGE_BUFFER_DYNAMIC;
+        return category == ShaderResourceCategory::Buffer;
+    }
+
+    HYP_FORCE_INLINE bool IsImage() const
+    {
+        return category == ShaderResourceCategory::Image;
+    }
+
+    HYP_FORCE_INLINE bool IsAccelerationStructure() const
+    {
+        return category == ShaderResourceCategory::AccelerationStructure;
     }
 
     HYP_FORCE_INLINE bool IsBindless() const
@@ -248,9 +236,9 @@ public:
         return m_elements;
     }
 
-    HYP_FORCE_INLINE void AddElement(Name name, ShaderInputType type, uint32 binding, uint32 count)
+    HYP_FORCE_INLINE void AddElement(Name name, ShaderInputType type, uint32 binding, uint32 count, ShaderResourceCategory category = ShaderResourceCategory::Unknown)
     {
-        m_elements.Insert(name, DescriptorSetLayoutElement { type, binding, count });
+        m_elements.Insert(name, DescriptorSetLayoutElement { type, binding, count, category });
     }
 
     HYP_FORCE_INLINE const DescriptorSetLayoutElement* GetElement(StringHash name) const

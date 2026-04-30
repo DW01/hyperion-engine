@@ -38,9 +38,9 @@ DECLARE_SRV_DYNAMIC(Default, CamerasBuffer) StructuredBuffer<Camera> _cameras_bu
 
 #ifdef INSTANCING
 DECLARE_SRV(Default, EntitiesBuffer) StructuredBuffer<Entity> entities;
-DECLARE_SRV_DYNAMIC(Default, EntityInstanceBatchesBuffer) StructuredBuffer<MeshEntityInstanceBatch> entity_instance_batches;
+DECLARE_SRV_DYNAMIC(Default, EntityInstanceBatchesBuffer) ByteAddressBuffer entity_instance_batches;
 
-#define entity_instance_batch entity_instance_batches[0]
+#define entity_instance_batch entity_instance_batches.Load<MeshEntityInstanceBatch>(0)
 #else // !INSTANCING
 
 DECLARE_BUFFER_DYNAMIC(Default, CBuffer) cbuffer CBuffer
@@ -51,11 +51,9 @@ DECLARE_BUFFER_DYNAMIC(Default, CBuffer) cbuffer CBuffer
 #endif // INSTANCING
 
 #ifdef SKINNING
-#include "include/Skeleton.hlsli"
-
-DECLARE_SRV_DYNAMIC(Default, SkeletonsBuffer) StructuredBuffer<Skeleton> skeletons;
-
-#endif
+DECLARE_SRV_DYNAMIC(Default, SkeletonsBuffer) StructuredBuffer<float4x4> SkeletonsBuffer;
+#include "include/Skinning.hlsli"
+#endif // SKINNING
 
 float4x4 LookAt(float3 pos, float3 target, float3 up)
 {
@@ -88,7 +86,7 @@ VSOutput VSMain(VSInput input, uint ViewId : SV_ViewID, uint instanceId : SV_Ins
 #endif
 
 #if defined(SKINNING) && defined(HYP_ATTRIBUTE_a_bone_indices) && defined(HYP_ATTRIBUTE_a_bone_weights)
-    float4x4 skinning_matrix = CreateSkinningMatrix(skeletons[0], input.a_bone_indices, input.a_bone_weights);
+    float4x4 skinning_matrix = CreateSkinningMatrix(input.a_bone_indices, input.a_bone_weights);
 
     position = mul(model_matrix, mul(skinning_matrix, float4(input.a_position, 1.0)));
     normal_matrix = mul(normal_matrix, transpose(inverse((float3x3)skinning_matrix)));

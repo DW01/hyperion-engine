@@ -32,6 +32,12 @@ public:
     RendererResult Create() override;
 
     void OnFrameStart() override;
+
+    void WriteCommandBuffer(CommandBuffer* commandBuffer) override;
+
+    void ResetTransientStates();
+
+private:
 };
 
 } // namespace Hyperion

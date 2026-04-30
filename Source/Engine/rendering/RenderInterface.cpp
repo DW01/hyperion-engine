@@ -678,7 +678,7 @@ RendererResult RenderInterface::Initialize()
     CreateBlueNoiseBuffer();
     CreateEnvProbesTexture();
 
-    globalDescriptorTable->Create();
+    CheckResultOrReturn(globalDescriptorTable->Create());
 
     for (uint32 i = 0; i < GRT_MAX; i++)
     {
@@ -774,8 +774,9 @@ void RenderInterface::Shutdown()
         grb.Shutdown();
     }
 
-    blueNoiseBuffer.Reset();
-    sphereSamplesBuffer.Reset();
+    blueNoiseBuffer.Shutdown();
+    sphereSamplesBuffer.Shutdown();
+
     envProbesTexture.Reset();
 
     shadowMapCache->Shutdown();
@@ -856,7 +857,7 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
     const uint32 slot = Framework::s_frameIndex[Framework::TT_FrameDataConsumer];
     const uint32 currFrame = GetFrameCounter();
 
-    PrepareNextFrame();
+    PrepareFrame(GetCurrentFrame());
 
     Framework::BufferedData& bufferedData = Framework::s_bufferedData[slot];
 
@@ -1069,8 +1070,6 @@ void RenderInterface::EndFrame()
 
     Framework::BufferedData& bufferedData = Framework::s_bufferedData[slot];
     bufferedData.activeWorlds.Clear();
-    
-    //sbufferAllocator->UpdateAllUsedInFrame(GetCurrentFrame()->preRenderCommands);
 
     stagingBufferPool->Cleanup();
 
@@ -1210,7 +1209,7 @@ void RenderInterface::EndFrame()
     CVarManager::GetInstance().Advance();
 
     ReleaseTransientMemory();
-    NextFrame();
+    NewFrameIndex();
 
     state.Reset();
 
@@ -1596,8 +1595,9 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
         subResource.numLayers = MathUtil::Min(subResource.numLayers, image->NumArrayLayers() - subResource.baseArrayLayer);
         subResource.numLevels = MathUtil::Min(subResource.numLevels, image->NumMips() - subResource.baseMipLevel);
 
-        /*HYP_LOG_TEMP("Desire {} (mip: {} : {}) in resource state {} for {} shader input {}.", image->GetDebugName(), subResource.baseMipLevel, subResource.numLevels, EnumToString(desiredResourceState),
-            EnumToString(inputType), uniform.name);*/
+        //HYP_LOG_TEMP("Shader: {}  Desire {} (mip: {} : {}) in resource state {} for {} shader input {}.",
+        //    state.attributes.GetShaderName(),
+        //    image->GetDebugName(), subResource.baseMipLevel, subResource.numLevels, EnumToString(desiredResourceState), EnumToString(reg), uniform.name);
 
         if (image->GetResourceState() != desiredResourceState || image->HasSubResourceStates())
         {
@@ -1659,7 +1659,22 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
 
     if (psoType == PSO_Graphics)
     {
-        if (state.boundFramebuffer == nullptr)
+        if (state.framebuffer != state.boundFramebuffer)
+        {
+            if (state.boundFramebuffer != nullptr)
+            {
+                state.boundFramebuffer->EndCapture(commandBuffer);
+                state.boundFramebuffer = nullptr;
+            }
+
+            AssertDebug(state.framebuffer != nullptr,
+                "No framebuffer bound at the time of CommitDrawState!");
+
+            state.framebuffer->BeginCapture(commandBuffer);
+
+            state.boundFramebuffer = state.framebuffer;
+        }
+        else if (state.boundFramebuffer == nullptr)
         {
             AssertDebug(state.framebuffer != nullptr,
                 "No framebuffer bound at the time of CommitDrawState!");
@@ -1910,30 +1925,22 @@ void RenderInterface::CreateBlueNoiseBuffer()
             + ((scramblingTileOffset - (sobol256spp256dOffset + sobol256spp256dSize)) + scramblingTileSize)
             + ((rankingTileOffset - (scramblingTileOffset + scramblingTileSize)) + rankingTileSize));
 
-    blueNoiseBuffer = MakeGpuBuffer(GpuBufferType::STORAGE_BUFFER, sizeof(BlueNoiseBuffer));
-#if HYP_DEBUG_MODE
-    blueNoiseBuffer->SetDebugName(NAME("BlueNoiseBuffer"));
-#endif
+    blueNoiseBuffer = StructuredBuffer(1, sizeof(BlueNoiseBuffer));
+    blueNoiseBuffer.Initialize();
 
-    blueNoiseBuffer->SetIsCpuAccessible(true);
-    CheckResult(blueNoiseBuffer->Create());
+    blueNoiseBuffer.Write(sobol256spp256dOffset, sobol256spp256dSize, &BlueNoise::sobol256spp256d[0]);
+    blueNoiseBuffer.Write(scramblingTileOffset, scramblingTileSize, &BlueNoise::scramblingTile[0]);
+    blueNoiseBuffer.Write(rankingTileOffset, rankingTileSize, &BlueNoise::rankingTile[0]);
 
-    blueNoiseBuffer->Copy(sobol256spp256dOffset, sobol256spp256dSize, &BlueNoise::sobol256spp256d[0]);
-    blueNoiseBuffer->Copy(scramblingTileOffset, scramblingTileSize, &BlueNoise::scramblingTile[0]);
-    blueNoiseBuffer->Copy(rankingTileOffset, rankingTileSize, &BlueNoise::rankingTile[0]);
+    blueNoiseBuffer.Flush();
 }
 
 void RenderInterface::CreateSphereSamplesBuffer()
 {
     HYP_SCOPE;
 
-    sphereSamplesBuffer = MakeGpuBuffer(GpuBufferType::STORAGE_BUFFER, sizeof(Vec4f) * 4096);
-#if HYP_DEBUG_MODE
-    sphereSamplesBuffer->SetDebugName(NAME("SphereSamplesBuffer"));
-#endif
-
-    sphereSamplesBuffer->SetIsCpuAccessible(true);
-    CheckResult(sphereSamplesBuffer->Create());
+    sphereSamplesBuffer = StructuredBuffer(4096, sizeof(Vec4f));
+    sphereSamplesBuffer.Initialize();
 
     Vec4f* sphereSamples = new Vec4f[4096];
 
@@ -1947,8 +1954,8 @@ void RenderInterface::CreateSphereSamplesBuffer()
         sphereSamples[i] = Vec4f(sample, 0.0f);
     }
 
-    sphereSamplesBuffer->Copy(sizeof(Vec4f) * 4096, sphereSamples);
-    sphereSamplesBuffer->Flush(0, sizeof(Vec4f) * 4096);
+    sphereSamplesBuffer.Write(0, sizeof(Vec4f) * 4096, sphereSamples);
+    sphereSamplesBuffer.Flush();
 
     delete[] sphereSamples;
 }
@@ -2007,17 +2014,17 @@ DECLARE_RENDER_DATA_CONTAINER(Texture, NullProxy, NamedBuffer::Invalid, nullptr,
 DECLARE_RENDER_DATA_CONTAINER(Skeleton, RenderProxySkeleton, NamedBuffer::Skeletons, nullptr, &s_skeletonBinder);
 
 
-#define DECLARE_SRV_COND(setName, name, type, count, cond) \
-    static ShaderInputGroup::DeclareDescriptor HYP_UNIQUE_NAME(Descriptor_##name)(&GetStaticDescriptorTableDeclaration(), HYP_NAME_UNSAFE(setName), type, ShaderRegister::SRV, HYP_NAME_UNSAFE(name), HYP_MAKE_CONST_ARG(cond), count)
-#define DECLARE_UAV_COND(setName, name, type, count, cond) \
-    static ShaderInputGroup::DeclareDescriptor HYP_UNIQUE_NAME(Descriptor_##name)(&GetStaticDescriptorTableDeclaration(), HYP_NAME_UNSAFE(setName), type, ShaderRegister::UAV, HYP_NAME_UNSAFE(name), HYP_MAKE_CONST_ARG(cond), count)
+#define DECLARE_SRV_COND(setName, name, type, count, cond, cat) \
+    static ShaderInputGroup::DeclareDescriptor HYP_UNIQUE_NAME(Descriptor_##name)(&GetStaticDescriptorTableDeclaration(), HYP_NAME_UNSAFE(setName), type, ShaderRegister::SRV, HYP_NAME_UNSAFE(name), HYP_MAKE_CONST_ARG(cond), count, ~0u, false, cat)
+#define DECLARE_UAV_COND(setName, name, type, count, cond, cat) \
+    static ShaderInputGroup::DeclareDescriptor HYP_UNIQUE_NAME(Descriptor_##name)(&GetStaticDescriptorTableDeclaration(), HYP_NAME_UNSAFE(setName), type, ShaderRegister::UAV, HYP_NAME_UNSAFE(name), HYP_MAKE_CONST_ARG(cond), count, ~0u, false, cat)
 #define DECLARE_BUFFER_COND(setName, name, type, count, size, isDynamic, cond) \
     static ShaderInputGroup::DeclareDescriptor HYP_UNIQUE_NAME(Descriptor_##name)(&GetStaticDescriptorTableDeclaration(), HYP_NAME_UNSAFE(setName), type, ShaderRegister::BUFFER, HYP_NAME_UNSAFE(name), HYP_MAKE_CONST_ARG(cond), count, size, isDynamic)
 #define DECLARE_SAMPLER_COND(setName, name, type, count, cond) \
-    static ShaderInputGroup::DeclareDescriptor HYP_UNIQUE_NAME(Descriptor_##name)(&GetStaticDescriptorTableDeclaration(), HYP_NAME_UNSAFE(setName), type, ShaderRegister::SAMPLER, HYP_NAME_UNSAFE(name), HYP_MAKE_CONST_ARG(cond), count)
+    static ShaderInputGroup::DeclareDescriptor HYP_UNIQUE_NAME(Descriptor_##name)(&GetStaticDescriptorTableDeclaration(), HYP_NAME_UNSAFE(setName), type, ShaderRegister::SAMPLER, HYP_NAME_UNSAFE(name), HYP_MAKE_CONST_ARG(cond), count, ~0u, false)
 
-#define DECLARE_SRV(setName, name, type, count) DECLARE_SRV_COND(setName, name, type, count, true)
-#define DECLARE_UAV(setName, name, type, count) DECLARE_UAV_COND(setName, name, type, count, true)
+#define DECLARE_SRV(setName, name, type, count) DECLARE_SRV_COND(setName, name, type, count, true, ShaderResourceCategory::Buffer)
+#define DECLARE_UAV(setName, name, type, count) DECLARE_UAV_COND(setName, name, type, count, true, ShaderResourceCategory::Buffer)
 #define DECLARE_BUFFER(setName, name, type, count, size, isDynamic) DECLARE_BUFFER_COND(setName, name, type, count, size, isDynamic, true)
 #define DECLARE_SAMPLER(setName, name, type, count) DECLARE_SAMPLER_COND(setName, name, type, count, true)
 

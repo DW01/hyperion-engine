@@ -15,6 +15,7 @@
 #undef INCLUDE_FROM_RHI_BASE
 
 #include <rendering/dx12/DX12CommandBuffer.hpp>
+#include <rendering/dx12/DX12GpuBuffer.hpp>
 
 // Fwd declaration
 namespace D3D12MA { class Allocation; }
@@ -48,12 +49,18 @@ public:
 
     RendererResult Resize(const Vec3u& extent) override;
 
-    HANDLE GetNativeHandle() const override;
-
-    void SetResourceState(ResourceState newState) override;
-
     ResourceState GetSubResourceState(const ImageSubResource& subResource) const;
     void SetSubResourceState(const ImageSubResource& subResource, ResourceState newState);
+
+    void ResetToAttachmentState()
+    {
+        const ResourceState attachmentState = m_textureDesc.IsDepthStencil()
+            ? RS_DEPTH_STENCIL
+            : RS_RENDER_TARGET;
+        m_resourceState = attachmentState;
+        m_stencilState = attachmentState;
+        m_subResourceStates.Clear();
+    }
 
     void InsertBarrier(
         DX12CommandBuffer* commandBuffer,
@@ -70,21 +77,26 @@ public:
         bool onlyDepth = false,
         bool onlyStencil = false) override;
 
-    RendererResult Blit(
+    /*! \brief Inserts a UAV barrier to ensure all UAV writes complete before subsequent reads.
+     *  Required in DX12 when reading from a subresource that was previously written as a UAV.
+     *  \param commandBuffer The command buffer to insert the barrier into. */
+    void InsertUAVBarrier(CommandBuffer* commandBuffer) override;
+
+    void Blit(
         DX12CommandBuffer* commandBuffer,
         const DX12GpuImage* srcImage) override;
 
-    RendererResult Blit(
+    void Blit(
         DX12CommandBuffer* commandBuffer,
         const DX12GpuImage* srcImage,
-        Rect<uint32> srcRect,
-        Rect<uint32> dstRect) override;
+        const Rect<uint32>& srcRect,
+        const Rect<uint32>& dstRect) override;
         
-    RendererResult Blit(
+    void Blit(
         DX12CommandBuffer* commandBuffer,
         const DX12GpuImage* srcImage,
-        Rect<uint32> srcRect,
-        Rect<uint32> dstRect,
+        const Rect<uint32>& srcRect,
+        const Rect<uint32>& dstRect,
         const ImageSubResource& srcSubResource,
         const ImageSubResource& dstSubResource) override;
 
@@ -99,7 +111,17 @@ public:
 
     void CopyToBuffer(
         DX12CommandBuffer* commandBuffer,
-        DX12GpuBuffer* dstBuffer) const override;
+        DX12GpuBuffer* dstBuffer,
+        const ImageSubResource& subResource) const override;
+
+    void CopyFrom(
+        DX12CommandBuffer* commandBuffer,
+        const DX12GpuImage* srcImage,
+        const Vec3u& srcOffset,
+        const Vec3u& dstOffset,
+        const Vec3u& extent,
+        const ImageSubResource& srcSubResource,
+        const ImageSubResource& dstSubResource) override;
 
     DX12GpuImageViewRef MakeLayerImageView(uint32 layerIndex) const override;
 
@@ -110,6 +132,9 @@ public:
 private:
     ComPtr<ID3D12Resource> m_resource;
     ComPtr<D3D12MA::Allocation> m_allocation;
+
+    bool m_isHandleOwned = true;
+    size_t m_size;
 };
 
 } // namespace Hyperion
