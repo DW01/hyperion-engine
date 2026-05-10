@@ -1,6 +1,8 @@
 ## About Hyperion
 
-Hyperion Engine is a high performance game engine written in C++ 20, with a focus on modern rendering techniques such as clustered shading, gpu driven rendering, ray tracing, and a high performance Vulkan graphics backend. This project started as a fork of [an earlier engine project](https://github.com/ajmd17/apex-engine) that I started working on in 2016, but has since been almost completely rewritten and redesigned from the ground up.
+Hyperion Engine is a high performance game engine written in C++20, with a focus on modern rendering techniques such as clustered shading, gpu driven rendering, ray tracing, and a high performance Vulkan graphics backend. This project started as a fork of [an earlier engine project](https://github.com/ajmd17/apex-engine) that I started working on in 2016, but has since been almost completely rewritten and redesigned from the ground up.
+
+Additionally, we have a WIP DirectX 12 rendering backend, but it is not at par with the Vulkan implementation.
 
 #### Editor screenshot
 
