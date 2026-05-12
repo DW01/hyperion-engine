@@ -144,7 +144,7 @@ bool GraphicsPipelineBase::MatchesSignature(
 
     if (materialAttributes.shaderName != shader.baseName
         || ((shader.properties & materialAttributes.shaderProperties) != shader.properties)
-        || (shader.inputLayout.mask & meshAttributes.inputLayout.mask) != shader.inputLayout.mask)
+        || meshAttributes.inputLayout.mask != shader.inputLayout.mask)
     {
         return false;
     }

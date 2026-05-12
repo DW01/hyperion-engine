@@ -294,8 +294,9 @@ void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(Frame* frame, BakeJobBase* 
 
     Assert(hitsBuffer.cpuBuffer.Size() >= outHits.Size() * sizeof(LightmapHit));
 
-    GpuBufferRef stagingBuffer = RI.MakeGpuBuffer(GpuBufferType::StagingBuffer, outHits.Size() * sizeof(LightmapHit));
-    Assert(stagingBuffer->Create());
+    GpuBufferRef readbackBuffer = RI.MakeGpuBuffer(GpuBufferType::ReadbackBuffer, outHits.Size() * sizeof(LightmapHit));
+    readbackBuffer->SetIsCpuAccessible(true);
+    Assert(readbackBuffer->Create());
 
     UniquePtr<SingleTimeCommands> singleTimeCommands = RI.GetSingleTimeCommands();
 
@@ -304,18 +305,18 @@ void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(Frame* frame, BakeJobBase* 
             const ResourceState previousResourceState = hitsBuffer.gpuBuffer->GetResourceState();
 
             cr << InsertBarrier(hitsBuffer.gpuBuffer, RS_COPY_SRC);
-            cr << InsertBarrier(stagingBuffer, RS_COPY_DST);
+            cr << InsertBarrier(readbackBuffer, RS_COPY_DST);
 
-            cr << CopyBuffer(hitsBuffer.gpuBuffer, stagingBuffer, uint32(outHits.Size() * sizeof(LightmapHit)));
+            cr << CopyBuffer(hitsBuffer.gpuBuffer, readbackBuffer, uint32(outHits.Size() * sizeof(LightmapHit)));
 
-            cr << InsertBarrier(stagingBuffer, RS_COPY_SRC);
+            cr << InsertBarrier(readbackBuffer, RS_COPY_SRC);
             cr << InsertBarrier(hitsBuffer.gpuBuffer, previousResourceState);
         });
 
     Assert(singleTimeCommands->Execute());
 
-    stagingBuffer->Read(sizeof(LightmapHit) * outHits.Size(), outHits.Data());
-    stagingBuffer.Reset();
+    readbackBuffer->Read(sizeof(LightmapHit) * outHits.Size(), outHits.Data());
+    readbackBuffer.Reset();
 }
 
 void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& renderSetup, BakeJobBase* job, Span<const LightmapRay> rays, uint32 rayOffset)

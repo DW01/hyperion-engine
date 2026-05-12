@@ -131,7 +131,7 @@ PSOutput PSMain(PSInput input)
         uint2 gbufferDimensions;
         gbuffer_material_texture.GetDimensions(gbufferDimensions.x, gbufferDimensions.y);
 
-        uint2 pixelCoord = uint2(texcoord * max(0, int2(gbufferDimensions) - 1));
+        uint2 pixelCoord = clamp(uint2(texcoord * max(0, int2(gbufferDimensions))), 0, int2(gbufferDimensions) - 1);
 
         uint2 materialData = gbuffer_material_texture.Load(int3(pixelCoord, 0)).xy;
 
@@ -141,10 +141,10 @@ PSOutput PSMain(PSInput input)
         roughness = materialParams.roughness;
         roughness = clamp(roughness, 0.001, 0.999);
 
-        // const float perceptual_roughness = sqrt(roughness);
+        const float perceptualRoughness = sqrt(roughness);
 
-        const float gloss = 1.0 - roughness;
-        const float cone_angle = RoughnessToConeAngle(roughness) * 0.5;
+        const float gloss = 1.0 - perceptualRoughness;
+        const float cone_angle = RoughnessToConeAngle(perceptualRoughness) * 0.5;
 
         const float trace_size = float(max(ssrConstants.dimension.x, ssrConstants.dimension.y));
         const float max_mip_level = 9.0;

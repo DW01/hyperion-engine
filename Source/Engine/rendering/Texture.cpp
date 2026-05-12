@@ -102,9 +102,6 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
 
     CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder();
 
-    // Cannot be in a render pass while transitioning images
-    cr << SetCurrentFramebuffer(nullptr);
-
     if (uploadTextureData)
     {
         ConstByteView imageData = texture.GetImageData();
@@ -179,9 +176,20 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
 #endif
 
         CheckResultOrReturn(stagingBuffer->Create());
+        
+        //GpuBuffer* stagingBuffer = RI.stagingBufferPool->AcquireStagingBuffer(imageData.Size());
+        Assert(stagingBuffer != nullptr && stagingBuffer->IsCreated());
         stagingBuffer->Copy(imageData.Size(), imageData.Data());
-
         HYP_DEFER({ EnqueueDeletion(std::move(stagingBuffer)); });
+
+        //// Temp debug
+        //if (texture.GetType() == TextureType::Cubemap && texture.GetName().ToString().Contains("_Prefiltered"))
+        //{
+        //    Bitmap_RGBA8 bitmap(imageData.Slice(0, texture.GetTextureDesc().GetMipByteSize(0, /* includeArrayLayers */ true)), texture.GetExtent().x * 6, texture.GetExtent().y);
+        //    FileByteWriter tmpWriter("EnvProbeTest.bmp");
+        //    bitmap.Write(&tmpWriter);
+        //    tmpWriter.Close();
+        //}
 
         cr << InsertBarrier(stagingBuffer, RS_COPY_SRC);
         cr << InsertBarrier(&image, RS_COPY_DST);
@@ -202,7 +210,7 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
 
             for (uint8 mipIndex = 0; mipIndex < uint8(numMips); mipIndex++)
             {
-                const uint32 mipSize = textureDesc.GetMipByteSize(mipIndex);
+                const uint32 mipSize = textureDesc.GetMipByteSize(mipIndex, /* includeArrayLayers */ true);
 
                 uint32 mipBlockStart = 0;
                 if (mipIndex != 0)
@@ -212,19 +220,14 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
                     AssertDebug(mipBlockStart != 0);
                 }
 
-                for (uint32 layerIndex = 0; layerIndex < numArrayLayers; layerIndex++)
-                {
-                    uint32 finalOffset = mipBlockStart + (mipSize * layerIndex);
+                AssertDebug(mipBlockStart + mipSize <= imageData.Size());
 
-                    AssertDebug(finalOffset + mipSize <= stagingBuffer->Size());
-
-                    cr << CopyBufferToImage(
-                        stagingBuffer,
-                        &image,
-                        /* byteOffset */ finalOffset,
-                        /* dstMipIndex */ mipIndex,
-                        /* dstArrayLayer */ layerIndex);
-                }
+                cr << CopyBufferToImage(
+                    stagingBuffer,
+                    &image,
+                    /* byteOffset */ mipBlockStart,
+                    /* dstMipIndex */ mipIndex,
+                    /* dstArrayLayer */ UINT16_MAX);
             }
         }
         else
@@ -264,12 +267,15 @@ Texture::Texture(const TextureDesc& textureDesc)
     : AssetObject(s_nameTextureDefault),
       m_textureDesc(textureDesc)
 {
+    AssertDebug(textureDesc.extent.Volume() > 0);
 }
 
 Texture::Texture(const TextureDesc& textureDesc, ConstByteView imageData)
     : AssetObject(s_nameTextureDefault),
       m_textureDesc(textureDesc)
 {
+    AssertDebug(textureDesc.extent.Volume() > 0);
+
     AllocateBlobData(m_imageData, imageData.Data(), imageData.Size(), 1);
 }
 
@@ -298,7 +304,10 @@ RendererResult Texture::Create()
 
     if (!m_gpuImage.IsValid())
     {
-        Assert(m_textureDesc.extent.Volume() > 0);
+        if (m_textureDesc.extent.Volume() == 0)
+        {
+            return HYP_MAKE_ERROR(RendererError, "Texture must have non-zero extent");
+        }
 
         GpuImageRef gpuImage = RI.MakeImage(m_textureDesc);
 

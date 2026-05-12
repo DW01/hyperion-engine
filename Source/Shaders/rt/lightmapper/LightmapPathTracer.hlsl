@@ -200,9 +200,9 @@ void RayGenMain()
                         environmentRadiance += env * ENVIRONMENT_INTENSITY;
                     }
                 }
-                
+
                 radiance += beta * environmentRadiance.rgb;
-                    
+
                 break;
             }
 
@@ -348,7 +348,7 @@ void RayGenMain()
                 for (uint envProbeIdx = 0; envProbeIdx < rayTracingConstants.numBoundEnvProbes && environmentRadiance.a < 1.0; envProbeIdx++)
                 {
                     const EnvProbe envProbe = envProbes[envProbeIdx];
-                    
+
                     if (envProbe.texture_index != ~0u)
                     {
                         float4 env = EnvProbeSample(sampler_linear, envProbesTexture, envProbe.texture_index, direction, 6.0);
@@ -409,7 +409,7 @@ void RayGenMain()
                         float G = V_SmithGGXCorrelated(roughness, NdotV, NdotL);
 
                         Li += float4(beta * visibility * light_color * NdotL * (
-                            (1.0 - F) * diffuseColor * HYP_FMATH_ONE_OVER_PI + 
+                            (1.0 - F) * diffuseColor * HYP_FMATH_ONE_OVER_PI +
                             F * G * D
                         ), 1.0);
                     }
@@ -421,7 +421,7 @@ void RayGenMain()
                     float d = sqrt(d2);
                     float3 L = toLight / d;
                     float visibility = 1.0 - CheckInShadow(hitPos, N, L, max(0.0, d - RAY_OFFSET));
-                    
+
                     float NdotL = max(dot(N, L), 0.0);
 
                     if (NdotL > 0.0 && visibility > 0.0)
@@ -429,19 +429,19 @@ void RayGenMain()
                         float3 light_color = light.color.rgb * light.position_intensity.w;
 
                         float attenuation = 1.0 / d2;
-                        
+
                         float3 H = normalize(-direction + L);
 
                         float NdotH = max(dot(N, H), 0.0);
                         float LdotH = max(dot(L, H), 0.0);
                         float NdotV = max(dot(N, -direction), 0.0);
-                        
+
                         float3 F = F_Schlick(F0, LdotH);
                         float G = V_SmithGGXCorrelated(roughness, NdotV, NdotL);
                         float D = DistributionGGX(NdotH, sqrt(roughness));
-                        
+
                         Li += float4(beta * light_color * attenuation * visibility * NdotL * (
-                            (1.0 - F) * diffuseColor * HYP_FMATH_ONE_OVER_PI + 
+                            (1.0 - F) * diffuseColor * HYP_FMATH_ONE_OVER_PI +
                             F * G * D
                         ), 1.0);
                     }
@@ -472,7 +472,7 @@ void RayGenMain()
             origin = hitPos + N * RAY_OFFSET;
             direction = wi;
         }
-        
+
         // if the ray never hit anything, set alpha to 0 so that probes can blend between each other. If it hit something, set alpha to 1 so that the result is not blended with other probes.
         Li.a = sampleIsMiss ? 0.0 : 1.0;
         //Li.a = 1.0;
@@ -514,7 +514,7 @@ void RayGenMain()
         for (uint envProbeIdx = 0; envProbeIdx < rayTracingConstants.numBoundEnvProbes && environmentRadiance.a < 1.0; envProbeIdx++)
         {
             const EnvProbe envProbe = envProbes[envProbeIdx];
-            
+
             if (envProbe.texture_index != ~0u)
             {
                 float4 env = EnvProbeSample(sampler_linear, envProbesTexture, envProbe.texture_index, direction, 6.0);
@@ -574,7 +574,7 @@ void RayGenMain()
                 float d = sqrt(d2);
                 float3 L = toLight / d;
                 float visibility = 1.0 - CheckInShadow(hitPos, N, L, max(0.0, d - RAY_OFFSET));
-                
+
                 float NdotL = max(dot(N, L), 0.0);
 
                 if (NdotL > 0.0 && visibility > 0.0)
@@ -582,7 +582,7 @@ void RayGenMain()
                     float3 light_color = light.color.rgb * light.position_intensity.w;
 
                     float attenuation = 1.0 / d2;
-                    
+
                     radiance += float4(light_color * attenuation * visibility * NdotL, 1.0);
                 }
             }
@@ -634,7 +634,7 @@ void RayGenMain()
         float dist = payload.distance;
         // get perspective divide factor for this fragment so that we can reconstruct linear depth in the shader that reads the shadowmap
         // float4 clipPos = mul(float4(ray.origin + ray.direction * dist, 1.0), world_shader_data.viewProjMat);
-        
+
         finalColor = float4(dist, 0.0, 0.0, 1.0);
     }
     else

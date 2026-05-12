@@ -130,7 +130,7 @@ void EnvProbe::Init()
             {
                 m_texture = MakeHandle<Texture>(TextureDesc {
                     TextureType::Texture2D,
-                    TextureFormat::RGBA16F,
+                    TextureFormat::RGBA8,
                     Vec3u { m_dimensions, 1 },
                     TFM_LINEAR_MIPMAP,
                     TFM_LINEAR,

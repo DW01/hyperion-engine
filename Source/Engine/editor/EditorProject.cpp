@@ -218,13 +218,13 @@ Result EditorProject::SaveAs(FilePath filepath)
         "Saving project",
         "Registering assets",
         /* isForegroundTask */ true);
-        
+
     registry.PutAssetsDeep(m_gameInstance->GetWorld());
 
     GlobalContextScope saveContextScope { EditorProjectSaveContext {} };
-    
+
     taskScope.GetEditorTask()->SetDescription("Saving project metadata");
-    
+
     ToJSONOptions opts;
     opts.skipTransientProperties = true;
     opts.writeClassNames = true;
@@ -242,7 +242,7 @@ Result EditorProject::SaveAs(FilePath filepath)
     wri.Close();
 
     m_filepath = filepath;
-    
+
     taskScope.GetEditorTask()->SetDescription("Saving package data");
 
     registry.SaveDirtyAssets();
@@ -259,9 +259,9 @@ Result EditorProject::SaveAs(FilePath filepath)
             return HYP_MAKE_ERROR(Error, "Failed to save BlobStorage table of contents: {}", saveTOCResult.GetError().GetMessage());
         }
     }
-    
+
     OnProjectSaved(MakeStrongRef(this));
-    
+
     m_lastSavedTime = Time::Now();
 
     return {};
@@ -307,12 +307,12 @@ TResult<Handle<EditorProject>> EditorProject::Load(const FilePath& filepath)
     // create registry to load assets into
     Handle<AssetRegistry> registry = MakeHandle<AssetRegistry>(
         AssetRegistryId::Game, registryDir);
-        
+
     registry->Initialize();
 
     // Load asset descs for the registry before attempting to load the assets themselves
     registry->LoadAssetDescs();
-    
+
     Handle<EditorProject> project;
 
     { // load project and all its assets into the registry we just created.
@@ -375,14 +375,7 @@ Handle<EditorProject> EditorProject::CreateNew()
     Handle<World> world = MakeHandle<World>(NAME("MainWorld"), WorldFlags::DEFAULT);
     gameInstance->SetWorld(world);
 
-    // Create and set up AssetRegistry with proper project path for the new project.
     const FilePath projectDir = ::Hyperion::GetProjectsDirectory() / *projectName;
-
-    if (!projectDir.MkDir())
-    {
-        HYP_LOG(Editor, Error, "Failed to create project directory: '{}'", projectDir);
-        return Handle<EditorProject>::Null();
-    }
 
     Handle<AssetRegistry> registry = MakeHandle<AssetRegistry>(AssetRegistryId::Game, projectDir);
     registry->Initialize();

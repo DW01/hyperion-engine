@@ -50,7 +50,7 @@ void CommandRecorderAllocator::Shutdown()
         AtomicDecrement(&m_tempCommandRecordersCount);
     }
 
-    m_renderThreadCommandRecorder.Reset(/* freeMemory */ true);
+    root.Reset(/* freeMemory */ true);
 }
 
 void CommandRecorderAllocator::UpdateQueue()
@@ -86,7 +86,7 @@ void CommandRecorderAllocator::UpdateQueue()
             continue;
         }
 
-        m_renderThreadCommandRecorder.Concat(commandRecorder);
+        root.Concat(commandRecorder);
 
         // commandRecorder is now reset
 
@@ -98,12 +98,6 @@ void CommandRecorderAllocator::UpdateQueue()
 
 CommandRecorder& CommandRecorderAllocator::GetCommandRecorder()
 {
-    if (IsOnThread(g_renderThread))
-    {
-        ++m_renderThreadCommandRecorder.writeCount;
-        return m_renderThreadCommandRecorder;
-    }
-
     Mutex::Guard guard(m_mutex);
 
     AtomicIncrement(&m_tempCommandRecordersCount);

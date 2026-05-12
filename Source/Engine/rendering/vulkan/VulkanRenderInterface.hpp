@@ -218,6 +218,9 @@ private:
     LinkedList<VulkanCommandBuffer, VulkanAllocator> m_transientCommandBuffers[NumRendererWorkerThreads + 1][NumFramesInFlight];
     LinkedList<VulkanCommandBuffer, VulkanAllocator> m_pendingTransientCommandBuffers[NumRendererWorkerThreads + 1][NumFramesInFlight];
 
+    LinkedList<VulkanSemaphore, VulkanAllocator> m_transientCommandBufferSemaphores[NumFramesInFlight];
+    LinkedList<VulkanSemaphore, VulkanAllocator> m_recycledTransientCommandBufferSemaphores;
+
     LinkedList<VulkanFence, VulkanAllocator> m_transientCommandBufferFences[NumFramesInFlight];
     LinkedList<VulkanFence, VulkanAllocator> m_recycledTransientCommandBufferFences;
 

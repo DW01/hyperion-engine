@@ -40,6 +40,8 @@
 
 #include <Core/utilities/DeferredScope.hpp>
 
+#include <util/img/Bitmap.hpp>
+
 #include <HyperionEngine.hpp>
 
 #include <EnvProbePass.generated.inl>
@@ -75,6 +77,8 @@ struct ConvolveProbeUniforms
     Vec2u outImageDimensions;
     Vec2u inImageDimensions;
 };
+
+HYP_DISABLE_OPTIMIZATION;
 
 void ConvolveEnvProbeCubemap(
     const Handle<Texture>& inTexture,
@@ -254,9 +258,10 @@ void ConvolveEnvProbeCubemap(
 
             HYP_LOG(Rendering, Info, "Readback of convolved EnvProbe {} completed, size {} bytes", envProbeStrong->GetName(), buffer.Size());
 
-            auto resGuard = prefilteredEnvMap->GetWriteScope();
+            auto textureResGuard = prefilteredEnvMap->GetWriteScope();
 
             TextureDesc desc = prefilteredEnvMap->GetTextureDesc();
+            AssertDebug(desc.extent.Volume() != 0 && desc.extent.Volume() <= 2048*2048);
 
             // sanity check
             Assert(buffer.Size() == desc.GetByteSize(/* allMips */ true));
@@ -266,7 +271,7 @@ void ConvolveEnvProbeCubemap(
             view.last = view.first + buffer.Size();
 
             // set all mip offsets.
-            Memory::Zero(desc.mipOffsets.Data(), desc.mipOffsets.ByteSize());
+            desc.mipOffsets = {};
 
             const uint8 numMips = desc.NumMips();
 
@@ -282,14 +287,13 @@ void ConvolveEnvProbeCubemap(
 
                 mipOffset += mipByteSize;
             }
-
+            
+            // Update image data and desc
             prefilteredEnvMap->SetTextureDesc(desc);
-
-            // Copy to cpu side data
             prefilteredEnvMap->SetImageData(view);
 
-            // mark dirty so it gets saved on project save.
-            envProbeStrong->MarkDirty();
+            auto envProbeResGuard = envProbeStrong->GetWriteScope();
+            envProbeStrong->SetBakedTexture(prefilteredEnvMap);
         }, /* allMips */ true);
     }
 

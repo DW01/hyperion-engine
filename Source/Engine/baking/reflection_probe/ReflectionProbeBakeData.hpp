@@ -18,7 +18,7 @@ template <>
 class BakeData<ReflectionProbe> : public BakeDataBase
 {
 public:
-    using BitmapType = Bitmap_RGBA16F;
+    using BitmapType = Bitmap_RGBA8;
 
     BakeData()
         : m_envProbe(nullptr)

@@ -50,20 +50,8 @@
       "AO": false
     },
     "Vulkan": {
-      "DebugLayers": false,
-      "TimelineSemaphores": false
-    },
-    "RayTracing": {
-      "Enabled": false,
-      "Reflections": {
-        "Enabled": false
-      },
-      "GI": {
-        "Enabled": false
-      },
-      "PathTracing": {
-        "Enabled": false
-      }
+      "DebugLayers": true,
+      "TimelineSemaphores": true
     }
   },
   "Editor": {

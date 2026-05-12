@@ -440,18 +440,17 @@ VkBufferUsageFlags GetVkUsageFlags(GpuBufferType type)
     case GpuBufferType::StructuredBuffer:
     case GpuBufferType::ByteAddressBuffer:
         return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+            | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
             | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     case GpuBufferType::RWStructuredBuffer:
     case GpuBufferType::RWByteAddressBuffer:
         return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
-            | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    case GpuBufferType::ReadbackBuffer:
-        return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
             | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
             | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    case GpuBufferType::ReadbackBuffer:
+        return VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     case GpuBufferType::StagingBuffer:
-        return VK_BUFFER_USAGE_TRANSFER_SRC_BIT
-            | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        return VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     case GpuBufferType::IndirectArgsBuffer:
         return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
             | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT

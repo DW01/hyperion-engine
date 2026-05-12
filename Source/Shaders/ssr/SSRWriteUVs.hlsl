@@ -100,9 +100,9 @@ bool TraceRays(
     ray_direction = normalize(ray_direction);
     float3 currStep = ssrConstants.ray_step * ray_direction;
     float3 currPosition = ray_origin;
-    
+
     const int max_iterations = int(ssrConstants.num_iterations);
-    
+
     num_iterations = 0.0;
     hit_weight = 0.0;
     hit_pixel = float2(0.0, 0.0);
@@ -114,9 +114,9 @@ bool TraceRays(
         currPosition += currStep;
 
         hit_pixel = GetProjectedPositionFromView(camera.projection, currPosition);
-        
+
         if (hit_pixel.x != saturate(hit_pixel.x) || hit_pixel.y != saturate(hit_pixel.y)) return false;
-        
+
         float depth = SAMPLE_TEXTURE_2D(sampler_nearest, gbuffer_depth_texture, hit_pixel).r;
         float4 view_space_position = ReconstructViewSpacePositionFromDepth(camera.invProjMat, hit_pixel, depth);
 
@@ -165,11 +165,15 @@ float CalculateAlpha(
     float3 ray_direction)
 {
     float alpha = 1.0;
-    alpha *= 1.0 - (num_iterations / ssrConstants.num_iterations);
+    alpha *= saturate(1.0 - (num_iterations / ssrConstants.num_iterations));
 
+    // Fade hits that hit outside the screen
     float2 hit_pixel_ndc = hit_pixel * 2.0 - 1.0;
-    float max_dimension = saturate(max(abs(hit_pixel_ndc.x), abs(hit_pixel_ndc.y)));
-    alpha *= 1.0 - max(0.0, max_dimension - ssrConstants.screen_edge_fade_start) / (1.0 - ssrConstants.screen_edge_fade_end);
+    alpha *= saturate(1.0 - max(abs(hit_pixel_ndc.x), abs(hit_pixel_ndc.y)) / ssrConstants.screen_edge_fade_start);
+
+    // // Fade hits that approach the viewer's eye
+    // float dp = dot(ray_direction, hit_point);
+    // alpha *= saturate(1.0 - dp / 20.0);
 
     return alpha;
 }
@@ -184,10 +188,10 @@ PSOutput PSMain(PSInput input)
     uint2 gbufferDimensions;
     gbuffer_material_texture.GetDimensions(gbufferDimensions.x, gbufferDimensions.y);
 
-    uint2 pixelCoord = uint2(texcoord * max(0, int2(gbufferDimensions) - 1));
+    uint2 pixelCoord = clamp(uint2(texcoord * max(0, int2(gbufferDimensions))), 0, int2(gbufferDimensions) - 1);
 
     uint2 materialData = gbuffer_material_texture.Load(int3(pixelCoord, 0)).xy;
-    
+
     const float4 normalSample = SAMPLE_TEXTURE_2D(sampler_nearest, gbuffer_normals_texture, texcoord);
 
     GBufferMaterialParams materialParams;
@@ -198,7 +202,7 @@ PSOutput PSMain(PSInput input)
 
     const float depth = SAMPLE_TEXTURE_2D(sampler_nearest, gbuffer_depth_texture, texcoord).r;
 
-    if (depth > 0.99999 || roughness > MAX_ROUGHNESS)
+    if (depth > 0.99999 || perceptualRoughness > MAX_ROUGHNESS)
     {
         output.out_color = (float4)0.0;
         return output;
@@ -253,7 +257,7 @@ PSOutput PSMain(PSInput input)
     float alpha = CalculateAlpha(num_iterations, hit_pixel, hit_point, dist, ray_direction) * float(intersect);
 
     alpha *= float(hit_pixel.x == saturate(hit_pixel.x) && hit_pixel.y == saturate(hit_pixel.y));
-    alpha *= 1.0 - (roughness / MAX_ROUGHNESS);
+    alpha *= 1.0 - (perceptualRoughness / MAX_ROUGHNESS);
 
     hit_pixel = saturate(hit_pixel);
     hit_pixel *= float(alpha > HYP_FMATH_EPSILON);

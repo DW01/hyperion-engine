@@ -682,6 +682,11 @@ DX12CommandBuffer& DX12RenderInterface::GetTransientCommandBuffer()
 
 void DX12RenderInterface::SubmitTransientCommandBuffer(DX12CommandBuffer& commandBuffer)
 {
+    // @FIXME ensure synchronization between transient command buffers is at par
+    // with Vulkan -- Vulkan uses semaphores to sync between command buffers,
+    // we need to ensure we have the fence value of the previously submitted transient command buffer
+    // and can wait upon it.
+
     const uint32 frameCounter = GetFrameCounter();
     const uint32 frameIndex = frameCounter % NumFramesInFlight;
 

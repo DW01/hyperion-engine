@@ -26,6 +26,8 @@
 
 namespace Hyperion {
 
+extern HYP_API const FilePath& GetTempDirectory();
+
 namespace ConvolveProbe {
 void ConvolveEnvProbeCubemap(
     const Handle<Texture>& inTexture,
@@ -96,79 +98,89 @@ void Baker<ReflectionProbe>::OnCompleted_Internal()
         return;
     }
 
+    // prevent writing on other threads
+    auto resGuard = m_envProbe->GetWriteScope();
+
     const Vec2u dimensions = m_envProbe->GetDimensions();
+    AssertDebug(dimensions.Volume() > 0);
 
     // Convert lightmap data to bitmaps (6 faces stacked vertically)
     BakeData<ReflectionProbe>::BitmapType bitmap = m_bakeData.ToBitmap();
 
-    TextureDesc textureDesc {
+    TextureDesc desc {
         TextureType::Cubemap,
         bitmap.GetFormat(),
-        Vec3u { dimensions.x, dimensions.y, 1 },
-        TFM_LINEAR,
+        Vec3u { dimensions, 1 },
+        TFM_LINEAR_MIPMAP,
         TFM_LINEAR,
         TWM_CLAMP_TO_EDGE
     };
 
-    Handle<Texture> cubemap = MakeHandle<Texture>(textureDesc, bitmap.ToByteView());
-    cubemap->SetName(NAME_FMT("{}_SrcCubemap", m_envProbe->GetName()));
-    cubemap->SetIsTransient(true);
+    ByteBuffer buffer = ByteBuffer(bitmap.ToByteView());
+
+    bitmap = {};
+
+    Texture::GenerateMipmaps(desc, buffer);
+
+    Handle<Texture> prefiltered = MakeHandle<Texture>(desc, buffer.ToByteView());
+
+    //
+
+    //// temp
+    //FileByteWriter tempWriter(GetTempDirectory() / "TempEnvProbe.bmp");
+    //bitmap.Write(&tempWriter);
+    //tempWriter.Close();
+
+    buffer.Clear();
+
+    prefiltered->SetName(NAME_FMT("{}_Prefiltered", m_envProbe->GetName()));
+    GetCurrentAssetRegistry()->PutAsset(prefiltered);
+
+    CheckResult(prefiltered->Create());
+
+    m_envProbe->SetBakedTexture(prefiltered);
 
     // Covolves the env probe cubemap and computes SH coefficients on the GPU
-    struct ProcessEnvProbeCommand : public RenderCommand
+    struct ProcessReflectionProbePayload
     {
         Handle<EnvProbe> envProbe;
-        Handle<Texture> cubemap;
+    };
 
-        ProcessEnvProbeCommand(const Handle<EnvProbe>& envProbe, const Handle<Texture>& cubemap)
-            : envProbe(envProbe),
-              cubemap(cubemap)
+    class ProcessReflectionProbe : public CmdBase
+    {
+    public:
+        ProcessReflectionProbePayload* payload;
+
+        explicit ProcessReflectionProbe(ProcessReflectionProbePayload* payload)
+            : payload(payload)
         {
+
         }
 
-        ~ProcessEnvProbeCommand() override
+        static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
         {
-        }
+            ProcessReflectionProbe* cmdCasted = static_cast<ProcessReflectionProbe*>(cmd);
 
-        RendererResult operator()() override
-        {
-            CheckResult(cubemap->Create());
-
-            // prevent writing on other threads
+            const Handle<EnvProbe>& envProbe = cmdCasted->payload->envProbe;
+            
             auto resGuard = envProbe->GetWriteScope();
 
-            Handle<Texture> prefiltered = MakeHandle<Texture>(TextureDesc {
-                TextureType::Cubemap,
-                cubemap->GetFormat(),
-                Vec3u { envProbe->GetDimensions().x, envProbe->GetDimensions().y, 1 },
-                TFM_LINEAR_MIPMAP,
-                TFM_LINEAR,
-                TWM_CLAMP_TO_EDGE
-            });
+            const Handle<Texture>& texture = envProbe->GetBakedTexture();
 
-            prefiltered->SetName(NAME_FMT("{}_Prefiltered", envProbe->GetName()));
-            GetCurrentAssetRegistry()->PutAsset(prefiltered);
+            Assert(texture.IsValid());
 
-            CheckResult(prefiltered->Create());
+            ConvolveProbe::ConvolveEnvProbeCubemap(texture, *envProbe);
+            ComputeSH::ComputeEnvProbeSphericalHarmonics(*envProbe, *texture);
 
-            envProbe->SetBakedTexture(prefiltered);
+            HYP_LOG(Lightmap, Verbose, "EnvProbe {} lightmap baking complete! Radiance and irradiance textures created.", envProbe->Id());
 
-            ConvolveProbe::ConvolveEnvProbeCubemap(cubemap, *envProbe);
-            ComputeSH::ComputeEnvProbeSphericalHarmonics(*envProbe, *cubemap);
-
-            RI.GetCurrentFrame()->OnFrameEnd.Bind([cubemap = cubemap, envProbe = envProbe](Frame*) mutable
-                {
-                    EnqueueDeletion(std::move(cubemap));
-                    EnqueueDeletion(std::move(envProbe));
-                });
-
-            return {};
+            delete cmdCasted->payload;
         }
     };
 
-    PUSH_RENDER_COMMAND(ProcessEnvProbeCommand, m_envProbe, cubemap);
-
-    HYP_LOG(Lightmap, Verbose, "EnvProbe {} lightmap baking complete! Radiance and irradiance textures created.", m_envProbe->Id());
+    CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder();
+    cr << ProcessReflectionProbe(new ProcessReflectionProbePayload { m_envProbe });
+    cr.Done();
 }
 
 } // namespace Baking

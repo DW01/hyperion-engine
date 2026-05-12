@@ -393,8 +393,8 @@ void VulkanGpuBuffer::CopyFrom(
 
     Assert((srcOffset + count <= srcBuffer->Size()) && (dstOffset + count <= Size()), "Copy out of bounds!");
 
-    //AssertDebug(srcBuffer->GetBufferUsageFlags() & VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    //AssertDebug(GetBufferUsageFlags() & VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    AssertDebug(srcBuffer->GetBufferUsageFlags() & VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    AssertDebug(GetBufferUsageFlags() & VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
     VkBufferCopy region {};
     region.size = count;

@@ -500,6 +500,9 @@ void GenerateMipmaps::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
 
     Texture* inTexture = cmdCasted->inTexture;
 
+#ifdef HYP_VULKAN
+    inTexture->GetGpuImage()->GenerateMipmaps(commandBuffer);
+#else
     const TextureDesc& desc = inTexture->GetTextureDesc();
 
     const uint8 numMips = uint8(desc.NumMips());
@@ -534,12 +537,12 @@ void GenerateMipmaps::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
     }
 
     /* Allocate per-mip views and cbuffers for the temp image */
-    Array<GpuImageView*, RenderTempAllocator> inputViews;
-    Array<GpuImageView*, RenderTempAllocator> outputViews;
+    Array<GpuImageView*, RenderAllocator> inputViews;
+    Array<GpuImageView*, RenderAllocator> outputViews;
 
-    Array<GpuBuffer*, RenderTempAllocator> cbuffers;
-    Array<size_t, RenderTempAllocator> cbufferOffsets;
-    Array<size_t, RenderTempAllocator> cbufferSizes;
+    Array<GpuBuffer*, RenderAllocator> cbuffers;
+    Array<size_t, RenderAllocator> cbufferOffsets;
+    Array<size_t, RenderAllocator> cbufferSizes;
 
     inputViews.Reserve(numMips - 1);
     outputViews.Reserve(numMips - 1);
@@ -726,6 +729,7 @@ void GenerateMipmaps::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
                 ShaderModuleType::None);
         }
     }
+#endif // !HYP_VULKAN
 
     inTexture->GetGpuImage()->InsertBarrier(
         commandBuffer,

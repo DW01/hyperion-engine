@@ -1067,10 +1067,7 @@ void FogVolumePass::Create()
     m_volumeMesh->SetName(NAME("FogVolumeMesh"));
     InitObject(m_volumeMesh);
 
-    ShaderPropertySet shaderProperties;
-    shaderProperties.Add(InternShaderProperty(ShaderProperty(NAME("MAX_LIGHTS"), int(MaxBoundLightsPerFogVolume))));
-
-    m_shaderDesc = ShaderDesc(NAME("ApplyFogVolume"), shaderProperties);
+    m_shaderDesc = ShaderDesc(NAME("ApplyFogVolume"));
 
     FullScreenPass::Create();
 }
@@ -1905,9 +1902,9 @@ public:
             envProbes.EmplaceBack(envProbe, &envProbeProxy->bufferData, envProbeBindingIndex);
         }
 
-        // Sort env probes, we want sky first
         Vec3f cameraPosition = cameraProxy->bufferData.cameraPosition.GetXYZ();
 
+        // Sort env probes, we want sky LAST so other env probes fall back to it.
         std::sort(envProbes.Begin(), envProbes.End(),
             [&cameraPosition](const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& a, const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& b)
             {
@@ -1916,12 +1913,12 @@ public:
 
                 if (aIsSky && !bIsSky)
                 {
-                    return true;
+                    return false;
                 }
 
                 if (!aIsSky && bIsSky)
                 {
-                    return false;
+                    return true;
                 }
 
                 if (aIsSky && bIsSky)
@@ -1939,8 +1936,10 @@ public:
                 return aDistSq < bDistSq;
             });
 
-        for (const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& tup : envProbes)
+        for (size_t envProbeIndex = 0; envProbeIndex < envProbes.Size(); envProbeIndex++)
         {
+            const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& tup = envProbes[envProbeIndex];
+
             const EnvProbe& envProbe = *tup.GetElement<0>();
             const EnvProbeShaderData& envProbeData = *tup.GetElement<1>();
             const uint32 envProbeBindingIndex = tup.GetElement<2>();
@@ -1959,38 +1958,38 @@ public:
                         tile.envProbeIndices[tile.numEnvProbes++] = uint16(envProbeBindingIndex);
                     }
                 }
+
+                continue;
             }
-            else
+
+            uint32 tileMinX;
+            uint32 tileMinY;
+            uint32 tileMaxX;
+            uint32 tileMaxY;
+            float probeVSZMin;
+            float probeVSZMax;
+
+            if (!ProjectAABBToScreenTiles(aabbMinWS, aabbMaxWS, tileMinX, tileMinY, tileMaxX, tileMaxY, probeVSZMin, probeVSZMax))
             {
-                uint32 tileMinX;
-                uint32 tileMinY;
-                uint32 tileMaxX;
-                uint32 tileMaxY;
-                float probeVSZMin;
-                float probeVSZMax;
+                continue;
+            }
 
-                if (!ProjectAABBToScreenTiles(aabbMinWS, aabbMaxWS, tileMinX, tileMinY, tileMaxX, tileMaxY, probeVSZMin, probeVSZMax))
+            const int32 zBinMin = CalculateZBin(MathUtil::Max(probeVSZMin, cameraNear));
+            const int32 zBinMax = CalculateZBin(MathUtil::Min(probeVSZMax, cameraFar));
+
+            for (int32 z = zBinMin; z <= zBinMax; z++)
+            {
+                for (uint32 y = tileMinY; y <= tileMaxY; y++)
                 {
-                    continue;
-                }
-
-                const int32 zBinMin = CalculateZBin(MathUtil::Max(probeVSZMin, cameraNear));
-                const int32 zBinMax = CalculateZBin(MathUtil::Min(probeVSZMax, cameraFar));
-
-                for (int32 z = zBinMin; z <= zBinMax; z++)
-                {
-                    for (uint32 y = tileMinY; y <= tileMaxY; y++)
+                    for (uint32 x = tileMinX; x <= tileMaxX; x++)
                     {
-                        for (uint32 x = tileMinX; x <= tileMaxX; x++)
+                        const uint32 clusterIndex = (uint32(z) * numTilesY + y) * numTilesX + x;
+
+                        Tile& tile = tempTiles[clusterIndex];
+
+                        if (tile.numEnvProbes < MaxEnvProbesPerTile)
                         {
-                            const uint32 clusterIndex = (uint32(z) * numTilesY + y) * numTilesX + x;
-
-                            Tile& tile = tempTiles[clusterIndex];
-
-                            if (tile.numEnvProbes < MaxEnvProbesPerTile)
-                            {
-                                tile.envProbeIndices[tile.numEnvProbes++] = uint16(envProbeBindingIndex);
-                            }
+                            tile.envProbeIndices[tile.numEnvProbes++] = uint16(envProbeBindingIndex);
                         }
                     }
                 }

@@ -29,6 +29,26 @@ VulkanSemaphore::VulkanSemaphore()
 {
 }
 
+VulkanSemaphore& VulkanSemaphore::operator=(VulkanSemaphore&& other) noexcept
+{
+    if (this != &other)
+    {
+        if (m_handle != VK_NULL_HANDLE)
+        {
+            EnqueueDeletion(FunctionWrapper<Proc<void()>>([handle = m_handle]()
+                {
+                    vkDestroySemaphore(RI.GetDevice()->GetDevice(), handle, nullptr);
+                }));
+        }
+
+        m_handle = other.m_handle;
+        m_type = other.m_type;
+        other.m_handle = VK_NULL_HANDLE;
+    }
+
+    return *this;
+}
+
 VulkanSemaphore::~VulkanSemaphore()
 {
     if (m_handle != VK_NULL_HANDLE)

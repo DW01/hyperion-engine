@@ -747,10 +747,12 @@ void VulkanRenderInterface::Shutdown()
     RenderInterface::Shutdown();
 
     m_recycledTransientCommandBufferFences.Clear();
+    m_recycledTransientCommandBufferSemaphores.Clear();
 
     for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
     {
         m_transientCommandBufferFences[frameIndex].Clear();
+        m_transientCommandBufferSemaphores[frameIndex].Clear();
 
         for (uint32 threadIndex = 0; threadIndex < NumRendererWorkerThreads + 1; threadIndex++)
         {
@@ -874,6 +876,16 @@ void VulkanRenderInterface::PrepareFrame(VulkanFrame* frame)
         m_recycledTransientCommandBufferFences.PushBack(std::move(fence));
 
         it = fences.Erase(it);
+    }
+
+    auto& semaphores = m_transientCommandBufferSemaphores[frameCounter % NumFramesInFlight];
+    for (auto it = semaphores.Begin(); it != semaphores.End();)
+    {
+        VulkanSemaphore& semaphore = *it;
+
+        m_recycledTransientCommandBufferSemaphores.PushBack(std::move(semaphore));
+
+        it = semaphores.Erase(it);
     }
 
     for (uint32 threadIndex = 0; threadIndex < NumRendererWorkerThreads + 1; threadIndex++)
@@ -1045,6 +1057,7 @@ VulkanCommandBuffer& VulkanRenderInterface::GetTransientCommandBuffer()
 void VulkanRenderInterface::SubmitTransientCommandBuffer(VulkanCommandBuffer& commandBuffer)
 {
     const uint32 frameCounter = GetFrameCounter();
+    const uint32 frameIndex = frameCounter % NumFramesInFlight;
     const uint32 renderThreadIndex = CurrentRenderThreadIndex();
 
     if (commandBuffer.IsRecording())
@@ -1057,10 +1070,33 @@ void VulkanRenderInterface::SubmitTransientCommandBuffer(VulkanCommandBuffer& co
 
     VulkanFence* pFence = nullptr;
 
+    // Previous transient command buffer semaphore, if applicable.
+    VulkanSemaphore* pWaitSemaphore = nullptr;
+    VulkanSemaphore* pSignalSemaphore = nullptr;
+
     {
         Mutex::Guard guard(m_transientCommandBuffersMutex);
 
-        VulkanFence& fence = m_transientCommandBufferFences[frameCounter % NumFramesInFlight].EmplaceBack();
+        if (m_transientCommandBufferSemaphores[frameIndex].Any())
+        {
+            pWaitSemaphore = &m_transientCommandBufferSemaphores[frameIndex].Back();
+        }
+
+        // Add signal semaphore
+        VulkanSemaphore& signalSemaphore = m_transientCommandBufferSemaphores[frameIndex].EmplaceBack();
+        pSignalSemaphore = &signalSemaphore;
+
+        if (m_recycledTransientCommandBufferSemaphores.Any())
+        {
+            signalSemaphore = std::move(m_recycledTransientCommandBufferSemaphores.PopFront());
+        }
+        else
+        {
+            CheckResult(signalSemaphore.Create());
+        }
+
+        VulkanFence& fence = m_transientCommandBufferFences[frameIndex].EmplaceBack();
+        pFence = &fence;
 
         if (m_recycledTransientCommandBufferFences.Any())
         {
@@ -1071,12 +1107,20 @@ void VulkanRenderInterface::SubmitTransientCommandBuffer(VulkanCommandBuffer& co
             fence.Create();
         }
 
-        pFence = &fence;
+        // HYP_LOG_TEMP("Submitting transient command buffer on thread {} for frame {}", renderThreadIndex, frameCounter % NumFramesInFlight);
+
+        Span<VulkanSemaphore*> waitSemaphoreSpan {};
+        if (pWaitSemaphore != nullptr)
+        {
+            waitSemaphoreSpan = { &pWaitSemaphore, 1 };
+        }
+
+        commandBuffer.Submit(
+            graphicsQueue,
+            pFence,
+            waitSemaphoreSpan,
+            Span<VulkanSemaphore*> { &pSignalSemaphore, 1 });
     }
-
-    // HYP_LOG_TEMP("Submitting transient command buffer on thread {} for frame {}", renderThreadIndex, frameCounter % NumFramesInFlight);
-
-    commandBuffer.Submit(graphicsQueue, pFence, {}, {});
 }
 
 VulkanDescriptorSetRef VulkanRenderInterface::MakeDescriptorSet(const DescriptorSetLayout& layout)

@@ -37,6 +37,18 @@ public:
     {
     }
 
+    VulkanSemaphore(const VulkanSemaphore&) = delete;
+    VulkanSemaphore& operator=(const VulkanSemaphore&) = delete;
+
+    VulkanSemaphore(VulkanSemaphore&& other) noexcept
+        : m_handle(other.m_handle),
+          m_type(other.m_type)
+    {
+        other.m_handle = VK_NULL_HANDLE;
+    }
+
+    VulkanSemaphore& operator=(VulkanSemaphore&& other) noexcept;
+
     ~VulkanSemaphore() override;
 
     HYP_FORCE_INLINE VkSemaphore GetVulkanHandle() const

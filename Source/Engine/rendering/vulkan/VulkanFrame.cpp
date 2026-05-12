@@ -112,7 +112,7 @@ void VulkanFrame::WriteCommandBuffer(VulkanCommandBuffer* commandBuffer)
 
     commandRecorders.PushBack(&preRenderCommands);
     commandRecorders.PushBack(&cr);
-    commandRecorders.PushBack(&RI.commandRecorderAllocator.GetCommandRecorder());
+    commandRecorders.PushBack(&RI.commandRecorderAllocator.root);
     commandRecorders.PushBack(&postRenderCommands);
 
     for (CommandRecorder* commandRecorder : commandRecorders)

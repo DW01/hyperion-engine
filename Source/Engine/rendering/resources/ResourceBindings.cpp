@@ -95,10 +95,12 @@ void OnBindingChanged_ReflectionProbe(EnvProbe* envProbe, uint32 prev, uint32 ne
         const GpuImageRef& dstImage = RI.envProbesTexture->GetGpuImage();
         Assert(dstImage.IsValid());
 
-        Frame* currentFrame = RI.GetCurrentFrame();
-        Assert(currentFrame != nullptr);
+        if (HYP_UNLIKELY(!srcImage.IsValid() || !dstImage.IsValid()))
+        {
+            return;
+        }
 
-        CommandRecorder& cr = currentFrame->preRenderCommands;
+        CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder();
 
         cr << InsertBarrier(srcImage, RS_COPY_SRC);
         cr << InsertBarrier(dstImage, RS_COPY_DST);
@@ -112,16 +114,20 @@ void OnBindingChanged_ReflectionProbe(EnvProbe* envProbe, uint32 prev, uint32 ne
 
             ImageSubResource srcSubResource {};
             srcSubResource.baseMipLevel = mipIndex;
+            srcSubResource.numLevels = 1;
             srcSubResource.baseArrayLayer = 0;
             srcSubResource.numLayers = 6;
 
             ImageSubResource dstSubResource {};
             dstSubResource.baseMipLevel = mipIndex;
+            dstSubResource.numLevels = 1;
             dstSubResource.baseArrayLayer = uint16(6 * next);
             dstSubResource.numLayers = 6;
 
             const Vec3u srcMipExtent = srcImage->GetTextureDesc().GetMipExtent(mipIndex);
             const Vec3u dstMipExtent = dstImage->GetTextureDesc().GetMipExtent(mipIndex);
+
+            //cr << CopyImage(srcImage, dstImage, srcMipExtent, srcSubResource, dstSubResource);
 
             cr << Blit(
                 srcImage,
@@ -140,6 +146,8 @@ void OnBindingChanged_ReflectionProbe(EnvProbe* envProbe, uint32 prev, uint32 ne
 
         cr << InsertBarrier(srcImage, RS_SHADER_RESOURCE);
         cr << InsertBarrier(dstImage, RS_SHADER_RESOURCE);
+
+        cr.Done();
     }
 }
 

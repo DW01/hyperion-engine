@@ -96,6 +96,13 @@ auto BakeData<ReflectionProbe>::ToBitmap() const -> BitmapType
 
                 color /= color.w;
 
+                color = MathUtil::Max(color, Vec4f::Zero());
+
+                if constexpr (!BitmapType::Helper::IsFloatingPoint)
+                {
+                    color = MathUtil::Min(color, Vec4f::One());
+                }
+
                 AssertDebug(!MathUtil::IsNaN(color));
 
                 bitmap.GetPixelReference(x, bitmapY).SetRGBA(color);
