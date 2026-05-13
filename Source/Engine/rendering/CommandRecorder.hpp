@@ -1007,7 +1007,7 @@ public:
 
     void Done()
     {
-        if (!(--writeCount))
+        if (!--writeCount)
         {
             m_writableState.Release();
         }
@@ -1136,6 +1136,8 @@ public:
 
     void Prepare(Frame* frame);
     void Execute(CommandBuffer* commandBuffer);
+
+    void Submit();
 
 private:
     void ResizeBuffer(size_t newSize) override

@@ -57,7 +57,6 @@ void DX12Frame::WriteCommandBuffer(CommandBuffer* commandBuffer)
 
     commandRecorders.PushBack(&preRenderCommands);
     commandRecorders.PushBack(&cr);
-    commandRecorders.PushBack(&RI.commandRecorderAllocator.GetCommandRecorder());
     commandRecorders.PushBack(&postRenderCommands);
 
     for (CommandRecorder* commandRecorder : commandRecorders)
@@ -83,6 +82,10 @@ void DX12Frame::WriteCommandBuffer(CommandBuffer* commandBuffer)
     {
         commandBuffer->End();
     }
+
+    // GPU-wait on all transient command buffer submissions for this frame
+    // before executing the main command buffer, ensuring proper ordering.
+    RI.InsertTransientSyncBarrier();
 
     const DX12QueueData* queueData = RI.GetQueueData(D3D12_COMMAND_LIST_TYPE_DIRECT);
     Assert(queueData != nullptr);

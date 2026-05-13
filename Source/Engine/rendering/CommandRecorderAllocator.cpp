@@ -86,7 +86,7 @@ void CommandRecorderAllocator::UpdateQueue()
             continue;
         }
 
-        root.Concat(commandRecorder);
+        //root.Concat(commandRecorder);
 
         // commandRecorder is now reset
 
@@ -98,6 +98,11 @@ void CommandRecorderAllocator::UpdateQueue()
 
 CommandRecorder& CommandRecorderAllocator::GetCommandRecorder()
 {
+    // if (IsOnThread(g_renderThread))
+    // {
+    //     ++root.writeCount;
+    //     return root;
+    // }
     Mutex::Guard guard(m_mutex);
 
     AtomicIncrement(&m_tempCommandRecordersCount);

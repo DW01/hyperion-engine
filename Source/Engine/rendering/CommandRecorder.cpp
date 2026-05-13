@@ -37,7 +37,25 @@
 
 namespace Hyperion {
 
-#pragma region CommandRecorder
+#pragma region CommandRecorderBase
+
+
+#pragma endregion CommandRecorderBase
+
+#pragma region TCommandRecorder
+
+template <>
+void TCommandRecorder<RenderAllocator>::Submit()
+{
+    Done();
+
+    Assert(writeCount == 0);
+    CommandBuffer& commandBuffer = RI.GetTransientCommandBuffer();
+
+    Execute(&commandBuffer);
+
+    RI.SubmitTransientCommandBuffer(commandBuffer);
+}
 
 template <>
 void TCommandRecorder<RenderAllocator>::Prepare(Frame* frame)
@@ -79,7 +97,7 @@ void TCommandRecorder<RenderAllocator>::Execute(CommandBuffer* commandBuffer)
     m_writableState.Release();
 }
 
-#pragma endregion CommandRecorder
+#pragma endregion TCommandRecorder
 
 #pragma region BindVertexBuffer
 

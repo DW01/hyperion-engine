@@ -151,6 +151,8 @@ public:
     void ReleaseTransientMemory() override;
 
     void BeginFrame(AtomicFlag* pCancelFlag) override;
+    
+    void InsertTransientSyncBarrier();
 
     ComPtr<IDXGIFactory4> dxgiFactory;
 
@@ -175,6 +177,9 @@ private:
     LinkedList<DX12Fence, RenderAllocator> m_transientCommandBufferFences[NumFramesInFlight];
     LinkedList<DX12Fence, RenderAllocator> m_recycledTransientCommandBufferFences;
     Mutex m_transientCommandBuffersMutex;
+
+    ComPtr<ID3D12Fence> m_transientSyncFence;
+    FixedArray<uint64, NumFramesInFlight> m_transientSyncValues;
 
     ComPtr<IDXGIAdapter1> m_hardwareAdapter;
 

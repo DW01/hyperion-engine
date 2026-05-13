@@ -91,7 +91,7 @@ void ConvolveEnvProbeCubemap(
     // because CreateGpuImage in Texture.cpp creates its own command recorder,
     // so we need that one to run before this one.
     CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder();
-    HYP_DEFER({ cr.Done(); });
+    HYP_DEFER({ cr.Submit(); });
 
     Handle<Texture> prefilteredEnvMap = envProbe.GetPrefilteredEnvMap();
     Assert(prefilteredEnvMap.IsValid() && prefilteredEnvMap->IsCreated());
@@ -287,7 +287,7 @@ void ConvolveEnvProbeCubemap(
 
                 mipOffset += mipByteSize;
             }
-            
+
             // Update image data and desc
             prefilteredEnvMap->SetTextureDesc(desc);
             prefilteredEnvMap->SetImageData(view);
@@ -596,7 +596,7 @@ void ComputeEnvProbeSphericalHarmonics(
     }
     else
     {
-        cr.Done();
+        cr.Submit();
     }
 }
 

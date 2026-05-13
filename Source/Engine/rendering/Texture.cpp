@@ -176,7 +176,7 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
 #endif
 
         CheckResultOrReturn(stagingBuffer->Create());
-        
+
         //GpuBuffer* stagingBuffer = RI.stagingBufferPool->AcquireStagingBuffer(imageData.Size());
         Assert(stagingBuffer != nullptr && stagingBuffer->IsCreated());
         stagingBuffer->Copy(imageData.Size(), imageData.Data());
@@ -244,7 +244,7 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
         cr << InsertBarrier(&image, initialState);
     }
 
-    cr.Done();
+    cr.Submit();
 
     return {};
 }
@@ -696,7 +696,7 @@ void Texture::EnqueueReadback(Proc<void(GpuBuffer&)>&& callback, bool allMips)
     CheckResult(readbackBuffer->Create());
 
     CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder();
-    HYP_DEFER({ cr.Done(); });
+    HYP_DEFER({ cr.Submit(); });
 
     cr << InsertBarrier(m_gpuImage, RS_COPY_SRC);
     cr << InsertBarrier(readbackBuffer, RS_COPY_DST);

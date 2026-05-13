@@ -101,7 +101,7 @@ RendererResult VulkanAttachmentMap::Create()
 
     CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder();
     TransitionFramebufferAttachments(cr, framebuffer, attachments.ToSpan());
-    cr.Done();
+    cr.Submit();
 
     return {};
 }
