@@ -294,6 +294,8 @@ void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(Frame* frame, BakeJobBase* 
 
     Assert(hitsBuffer.cpuBuffer.Size() >= outHits.Size() * sizeof(LightmapHit));
 
+    RI.GetDevice()->WaitIdle();
+
     GpuBufferRef readbackBuffer = RI.MakeGpuBuffer(GpuBufferType::ReadbackBuffer, outHits.Size() * sizeof(LightmapHit));
     readbackBuffer->SetIsCpuAccessible(true);
     Assert(readbackBuffer->Create());

@@ -352,9 +352,6 @@ uint32 BakeJobBase::Process(uint32 maxTexels)
         return 0;
     }
 
-    /// \todo : Radiance map won't need as many samples as irradiance due to having less variance in directions,
-    // we should separate BakeJob to be per- shading type, so the radiance one can finish earlier.
-
     for (UniquePtr<ILightmapRenderer>& lightmapRenderer : *m_params.renderers)
     {
         AssertDebug(lightmapRenderer != nullptr);

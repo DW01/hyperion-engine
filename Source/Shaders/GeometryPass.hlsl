@@ -101,7 +101,7 @@ DECLARE_BUFFER_DYNAMIC(Default, CBuffer) cbuffer CBuffer
 
 #include "include/Parallax.hlsli"
 
-#define DEBUG_RAW_REFLECTIONS
+// #define DEBUG_RAW_REFLECTIONS
 
 PSOutput PSMain(PSInput input)
 {
@@ -346,7 +346,7 @@ PSOutput PSMain(PSInput input)
 #endif // SHADING_TYPE_FORWARD
 
 #ifdef DEBUG_RAW_REFLECTIONS
-    roughness = 0.01;
+    roughness = 0.005;
 #endif
 
     // https://www.elopezr.com/temporal-aa-and-the-quest-for-the-holy-trail/
