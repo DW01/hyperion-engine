@@ -217,11 +217,12 @@ void VulkanDynamicFunctions::Load(VulkanDevice* device)
     HYP_LOAD_FN(vkGetSemaphoreCounterValue);
 
 #if HYP_DEBUG_MODE
-    // HYP_LOAD_FN(vkCmdDebugMarkerBeginEXT);
-    // HYP_LOAD_FN(vkCmdDebugMarkerEndEXT);
-    // HYP_LOAD_FN(vkCmdDebugMarkerInsertEXT);
-    // HYP_LOAD_FN(vkDebugMarkerSetNameEXT);
+    HYP_LOAD_FN(vkCmdDebugMarkerBeginEXT);
+    HYP_LOAD_FN(vkCmdDebugMarkerEndEXT);
+    HYP_LOAD_FN(vkCmdDebugMarkerInsertEXT);
+    HYP_LOAD_FN(vkDebugMarkerSetObjectNameEXT);
     HYP_LOAD_FN(vkSetDebugUtilsObjectNameEXT);
+    HYP_LOAD_FN(vkSetDebugUtilsObjectTagEXT);
 #endif
 
 #if defined(HYP_MOLTENVK) && HYP_MOLTENVK && HYP_MOLTENVK_LINKED
@@ -627,6 +628,10 @@ RendererResult VulkanRenderInterface::Initialize()
 {
     m_renderConfig = MakePimpl<VulkanRenderConfig>();
     m_descriptorSetManager = MakePimpl<VulkanDescriptorSetManager>();
+
+    // CrashHandler must be initialized before we create the Vulkan instance
+    crashHandler = PoolNew<CrashHandler>(*g_renderPool);
+    crashHandler->Initialize();
 
     m_frames.Resize(NumFramesInFlight);
     m_commandBuffers.Resize(NumFramesInFlight);

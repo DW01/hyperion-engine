@@ -38,6 +38,7 @@ public:
 
 #if HYP_DEBUG_MODE
     void SetDebugName(Name name);
+    void SetDebugNameLayout(Name name);
 #endif
 
 protected:

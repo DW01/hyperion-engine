@@ -302,8 +302,34 @@ RendererResult VulkanRenderPass::Create()
 
     VULKAN_CHECK(vkCreateRenderPass(RI.GetDevice()->GetDevice(), &renderPassInfo, nullptr, &m_handle));
 
+#if HYP_DEBUG_MODE
+    SetDebugName(debugName);
+#endif
+
     return {};
 }
+
+#if HYP_DEBUG_MODE
+
+void VulkanRenderPass::SetDebugName(Name name)
+{
+    if (m_handle == VK_NULL_HANDLE)
+    {
+        return;
+    }
+
+    if (RI.dynamicFunctions.vkSetDebugUtilsObjectNameEXT)
+    {
+        VkDebugUtilsObjectNameInfoEXT objectNameInfo { VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
+        objectNameInfo.objectType = VK_OBJECT_TYPE_RENDER_PASS;
+        objectNameInfo.objectHandle = (uint64)m_handle;
+        objectNameInfo.pObjectName = name.LookupString();
+
+        RI.dynamicFunctions.vkSetDebugUtilsObjectNameEXT(RI.GetDevice()->GetDevice(), &objectNameInfo);
+    }
+}
+
+#endif
 
 void VulkanRenderPass::Begin(VulkanCommandBuffer* cmd, VulkanFramebuffer* framebuffer)
 {

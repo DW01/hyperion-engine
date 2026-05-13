@@ -77,6 +77,12 @@ public:
     void WaitForValue(uint64 value, uint64 timeoutNs = UINT64_MAX);
     uint64 GetCounterValue() const;
 
+#if HYP_DEBUG_MODE
+    void SetDebugName(Name name);
+
+    Name debugName;
+#endif
+
 private:
     VkSemaphore m_handle;
     VulkanSemaphoreType m_type;

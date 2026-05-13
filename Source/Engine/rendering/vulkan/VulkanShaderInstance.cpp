@@ -270,6 +270,7 @@ void VulkanShaderInstance::SetDebugName(Name name)
         return;
     }
 
+    const char* baseName = name.LookupString();
     for (VulkanShaderModule& shaderModule : m_shaderModules)
     {
         if (!shaderModule.handle)
@@ -279,10 +280,12 @@ void VulkanShaderInstance::SetDebugName(Name name)
 
         if (RI.dynamicFunctions.vkSetDebugUtilsObjectNameEXT)
         {
+            String fullName = HYP_FORMAT("{}::{}", baseName, shaderModule.moduleName.Data());
+
             VkDebugUtilsObjectNameInfoEXT objectNameInfo { VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
             objectNameInfo.objectType = VK_OBJECT_TYPE_SHADER_MODULE;
             objectNameInfo.objectHandle = (uint64)shaderModule.handle;
-            objectNameInfo.pObjectName = shaderModule.moduleName.Data();
+            objectNameInfo.pObjectName = fullName.Data();
 
             RI.dynamicFunctions.vkSetDebugUtilsObjectNameEXT(RI.GetDevice()->GetDevice(), &objectNameInfo);
         }

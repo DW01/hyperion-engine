@@ -133,6 +133,7 @@ RendererResult VulkanRayTracingPipeline::Create()
 #if HYP_DEBUG_MODE
     if (Name debugName = GetDebugName())
     {
+        SetDebugNameLayout(debugName);
         SetDebugName(debugName);
     }
 #endif

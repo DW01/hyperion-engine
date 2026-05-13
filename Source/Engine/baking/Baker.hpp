@@ -12,6 +12,7 @@
 #include <Core/threading/AtomicVar.hpp>
 #include <Core/threading/Task.hpp>
 #include <Core/threading/Semaphore.hpp>
+#include <Core/threading/ThreadSignal.hpp>
 
 #include <Core/reflection/ObjectBase.hpp>
 #include <Core/reflection/Handle.hpp>
@@ -145,7 +146,8 @@ public:
     virtual void CleanJobData(BakeJobBase* job)
     {
     }
-    virtual void ReadHitsBuffer(Frame* frame, BakeJobBase* job, Span<LightmapHit> outHits) = 0;
+
+    virtual void ReadHitsBuffer(Frame* frame, BakeJobBase* job, size_t count, Proc<void(Span<LightmapHit> hits)>&& callback) = 0;
     virtual void Render(Frame* frame, const RenderSetup& renderSetup, BakeJobBase* job, Span<const LightmapRay> rays, uint32 rayOffset) = 0;
 
 protected:

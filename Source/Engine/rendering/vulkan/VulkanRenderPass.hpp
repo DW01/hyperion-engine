@@ -73,8 +73,16 @@ public:
 
     RendererResult Create();
 
+#if HYP_DEBUG_MODE
+    void SetDebugName(Name name);
+#endif
+
     void Begin(VulkanCommandBuffer* cmd, VulkanFramebuffer* framebuffer);
     void End(VulkanCommandBuffer* cmd);
+    
+#if HYP_DEBUG_MODE
+    Name debugName;
+#endif
 
 private:
     void CreateDependencies();

@@ -56,7 +56,7 @@ struct LightmapRay
 
 DECLARE_SRV(LightmapPathTracer, RaysBuffer) StructuredBuffer<float4> ray_data;
 
-DECLARE_BUFFER_DYNAMIC(LightmapPathTracer, CBuffer) cbuffer CBuffer
+DECLARE_BUFFER(LightmapPathTracer, CBuffer) cbuffer CBuffer
 {
     RayTracingConstants rayTracingConstants;
     Light lights[MAX_LIGHTS];
@@ -191,7 +191,7 @@ void RayGenMain()
             {
                 float4 environmentRadiance = (float4)0.0;
 
-                for (uint envProbeIdx = 0; envProbeIdx < rayTracingConstants.numBoundEnvProbes && environmentRadiance.a < 1.0; envProbeIdx++)
+                for (uint envProbeIdx = 0; envProbeIdx < min(rayTracingConstants.numBoundEnvProbes, 16) && environmentRadiance.a < 1.0; envProbeIdx++)
                 {
                     const EnvProbe envProbe = envProbes[envProbeIdx];
                     if (envProbe.texture_index != ~0u)
@@ -220,7 +220,7 @@ void RayGenMain()
 
             beta *= albedo * (1.0 - metalness) * HYP_FMATH_ONE_OVER_PI;
 
-            for (uint light_index = 0; light_index < rayTracingConstants.numBoundLights; light_index++)
+            for (uint light_index = 0; light_index < min(rayTracingConstants.numBoundLights, 16); light_index++)
             {
                 const Light light = lights[light_index];
                 float3 light_color = light.color.rgb * light.position_intensity.w;
@@ -278,7 +278,7 @@ void RayGenMain()
 
     float3 radiance = float3(0.0, 0.0, 0.0);
 
-    for (uint light_index = 0; light_index < rayTracingConstants.numBoundLights; light_index++)
+    for (uint light_index = 0; light_index < min(rayTracingConstants.numBoundLights, 16); light_index++)
     {
         if (lights[light_index].type == HYP_LIGHT_TYPE_DIRECTIONAL)
         {

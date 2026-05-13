@@ -68,6 +68,7 @@ struct VulkanDynamicFunctions
     HYP_DECL_FN(vkCmdDebugMarkerInsertEXT);
     HYP_DECL_FN(vkDebugMarkerSetObjectNameEXT);
     HYP_DECL_FN(vkSetDebugUtilsObjectNameEXT);
+    HYP_DECL_FN(vkSetDebugUtilsObjectTagEXT);
 #endif
 
 #if defined(HYP_MOLTENVK) && HYP_MOLTENVK && HYP_MOLTENVK_LINKED

@@ -51,10 +51,18 @@ public:
     void Create(bool createSignaled = false);
     void Wait(bool timeoutLoop = false);
     void Reset();
-    
+
+#if HYP_DEBUG_MODE
+    void SetDebugName(Name name);
+#endif
+
     VkFence handle;
     VkResult lastFrameResult;
     bool isSubmitted;
+    
+#if HYP_DEBUG_MODE
+    Name debugName;
+#endif
 };
 
 } // namespace Hyperion

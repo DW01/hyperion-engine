@@ -346,7 +346,7 @@ PSOutput PSMain(PSInput input)
 #endif // SHADING_TYPE_FORWARD
 
 #ifdef DEBUG_RAW_REFLECTIONS
-    roughness = 0.005;
+    roughness = 0.02;
 #endif
 
     // https://www.elopezr.com/temporal-aa-and-the-quest-for-the-holy-trail/

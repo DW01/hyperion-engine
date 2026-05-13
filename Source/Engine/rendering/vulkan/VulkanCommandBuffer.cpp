@@ -140,6 +140,13 @@ RendererResult VulkanCommandBuffer::Create()
         vkAllocateCommandBuffers(RI.GetDevice()->GetDevice(), &allocInfo, &m_handle),
         "Failed to allocate command buffer");
 
+#if HYP_DEBUG_MODE
+    if (Name debugName = GetDebugName())
+    {
+        SetDebugName(debugName);
+    }
+#endif
+
     return {};
 }
 
@@ -374,5 +381,29 @@ void VulkanCommandBuffer::DebugMarkerEnd() const
     }
 #endif
 }
+
+#if HYP_DEBUG_MODE
+
+void VulkanCommandBuffer::SetDebugName(Name name)
+{
+    CommandBufferBase::SetDebugName(name);
+
+    if (m_handle == VK_NULL_HANDLE)
+    {
+        return;
+    }
+
+    if (RI.dynamicFunctions.vkSetDebugUtilsObjectNameEXT)
+    {
+        VkDebugUtilsObjectNameInfoEXT objectNameInfo { VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
+        objectNameInfo.objectType = VK_OBJECT_TYPE_COMMAND_BUFFER;
+        objectNameInfo.objectHandle = (uint64)m_handle;
+        objectNameInfo.pObjectName = name.LookupString();
+
+        RI.dynamicFunctions.vkSetDebugUtilsObjectNameEXT(RI.GetDevice()->GetDevice(), &objectNameInfo);
+    }
+}
+
+#endif
 
 } // namespace Hyperion

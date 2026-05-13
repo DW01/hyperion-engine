@@ -68,23 +68,6 @@ void CrashHandler::Initialize()
         GFSDK_Aftermath_GpuCrashDumpFeatureFlags_DeferDebugInfoCallbacks,
         [](const void* dump, const uint32 size, void*)
         {
-            GFSDK_Aftermath_CrashDump_Status status = GFSDK_Aftermath_CrashDump_Status_Unknown;
-            Assert(GFSDK_Aftermath_GetCrashDumpStatus(&status) == GFSDK_Aftermath_Result_Success);
-
-            const auto start = std::chrono::steady_clock::now();
-            auto elapsed = std::chrono::milliseconds::zero();
-
-            // Loop while Aftermath crash dump data collection has not finished or
-            // the application is still processing the crash dump data.
-            while (status != GFSDK_Aftermath_CrashDump_Status_CollectingDataFailed && status != GFSDK_Aftermath_CrashDump_Status_Finished && elapsed.count() < 1000)
-            {
-                // Sleep a couple of milliseconds and poll the status again.
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                Assert(GFSDK_Aftermath_GetCrashDumpStatus(&status) == GFSDK_Aftermath_Result_Success);
-
-                elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start);
-            }
-
             GFSDK_Aftermath_GpuCrashDump_Decoder decoder = {};
             Assert(GFSDK_Aftermath_GpuCrashDump_CreateDecoder(
                        GFSDK_Aftermath_Version_API,
@@ -133,10 +116,9 @@ void CrashHandler::Initialize()
 
                     if (GFSDK_Aftermath_SUCCEED(result))
                     {
-                        // Print information for each active shader
                         for (const GFSDK_Aftermath_GpuCrashDump_GpuInfo& info : infos)
                         {
-                            HYP_BREAKPOINT;
+
                         }
                     }
                 }

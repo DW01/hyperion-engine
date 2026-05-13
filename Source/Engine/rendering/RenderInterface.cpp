@@ -606,7 +606,6 @@ RendererResult RenderInterface::Initialize()
     stagingBufferPool = PoolNew<StagingBufferPool>(*g_renderPool);
     blasCache = PoolNew<BLASCache>(*g_renderPool);
     shadowMapCache = PoolNew<ShadowMapCache>(*g_renderPool);
-    crashHandler = PoolNew<CrashHandler>(*g_renderPool);
 
     InitDeviceDetails(deviceDetails);
 
@@ -640,8 +639,6 @@ RendererResult RenderInterface::Initialize()
 #endif // HYP_DEBUG_MODE
         }
     }
-
-    crashHandler->Initialize();
 
     resources = PoolNew<ResourceContainer>(*g_renderPool);
 

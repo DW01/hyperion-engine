@@ -163,6 +163,7 @@ RendererResult VulkanComputePipeline::Create()
 #if HYP_DEBUG_MODE
     if (Name debugName = GetDebugName())
     {
+        SetDebugNameLayout(debugName);
         VulkanPipelineBase::SetDebugName(debugName);
     }
 #endif
