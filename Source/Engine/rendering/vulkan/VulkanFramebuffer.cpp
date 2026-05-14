@@ -179,7 +179,7 @@ RendererResult VulkanFramebuffer::Create()
     attachmentImageViews.Reserve(m_attachmentMap.attachments.Size());
 
     uint32 numLayers = 1;
-    bool shouldClearFramebuffer = true;
+    [[maybe_unused]] bool shouldClearFramebuffer = true;
 
     for (const auto& it : m_attachmentMap.attachments)
     {

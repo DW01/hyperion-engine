@@ -2325,6 +2325,7 @@ void DeferredPass::ResizeView(Viewport viewport, View* view, DeferredPassData& p
     passData.punctualLightingPass->Resize(newSize);
     passData.ambientLightingPass->Resize(newSize);
 
+    passData.depthPyramidRenderer.Reset();
     passData.depthPyramidRenderer = MakeUnique<DepthPyramidRenderer>(gbuffer);
     passData.depthPyramidRenderer->Create();
 

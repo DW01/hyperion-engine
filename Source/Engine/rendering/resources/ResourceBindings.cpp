@@ -89,13 +89,13 @@ void OnBindingChanged_ReflectionProbe(EnvProbe* envProbe, uint32 prev, uint32 ne
         }
 
         // blit to the array texture
-        const GpuImageRef& srcImage = proxyCasted->texture->GetGpuImage();
-        AssertDebug(srcImage.IsValid());
+        GpuImage* srcImage = proxyCasted->texture->GetGpuImage();
+        AssertDebug(srcImage != nullptr);
 
-        const GpuImageRef& dstImage = RI.envProbesTexture->GetGpuImage();
-        Assert(dstImage.IsValid());
+        GpuImage* dstImage = RI.envProbesTexture->GetGpuImage();
+        AssertDebug(dstImage != nullptr);
 
-        if (HYP_UNLIKELY(!srcImage.IsValid() || !dstImage.IsValid()))
+        if (HYP_UNLIKELY(!srcImage || !dstImage))
         {
             return;
         }
@@ -127,21 +127,20 @@ void OnBindingChanged_ReflectionProbe(EnvProbe* envProbe, uint32 prev, uint32 ne
             const Vec3u srcMipExtent = srcImage->GetTextureDesc().GetMipExtent(mipIndex);
             const Vec3u dstMipExtent = dstImage->GetTextureDesc().GetMipExtent(mipIndex);
 
-            //cr << CopyImage(srcImage, dstImage, srcMipExtent, srcSubResource, dstSubResource);
-
-            cr << Blit(
-                srcImage,
-                dstImage,
-                Rect<uint32> {
-                    0, 0,
-                    srcMipExtent.x, srcMipExtent.y
-                },
-                Rect<uint32> {
-                    0, 0,
-                    dstMipExtent.x, dstMipExtent.y
-                },
-                srcSubResource,
-                dstSubResource);
+            if (srcMipExtent == dstMipExtent && srcImage->GetTextureDesc().format == dstImage->GetTextureDesc().format)
+            {
+                cr << CopyImage(srcImage, dstImage, srcMipExtent, srcSubResource, dstSubResource);
+            }
+            else
+            {
+                cr << Blit(
+                    srcImage,
+                    dstImage,
+                    Rect<uint32> { 0, 0, srcMipExtent.x, srcMipExtent.y },
+                    Rect<uint32> { 0, 0, dstMipExtent.x, dstMipExtent.y },
+                    srcSubResource,
+                    dstSubResource);
+            }
         }
 
         cr << InsertBarrier(srcImage, RS_SHADER_RESOURCE);

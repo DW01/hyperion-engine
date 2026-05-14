@@ -545,8 +545,6 @@ void EnvProbe::SetBakedTexture(const Handle<Texture>& texture)
 
 void ReflectionProbe::BakeCubemap()
 {
-    HYP_SCOPE;
-
     World* world = GetWorld();
     AssertDebug(world != nullptr);
 

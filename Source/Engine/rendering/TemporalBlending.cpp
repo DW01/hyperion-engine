@@ -141,7 +141,6 @@ void TemporalBlending::Resize(Vec2u newSize)
 
 void TemporalBlending::Resize_Internal(Vec2u newSize)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     if (m_extent == newSize)
@@ -213,7 +212,6 @@ void TemporalBlending::CreateImages()
 
 void TemporalBlending::Render(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     AssertDebug(renderSetup.world && renderSetup.view);

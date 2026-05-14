@@ -114,7 +114,6 @@ Scene::~Scene()
 
 void Scene::Init()
 {
-    HYP_SCOPE;
     AssetObject::Init();
 
     m_entityManager->SetWorld(m_world);
@@ -162,7 +161,6 @@ Camera* Scene::GetPrimaryCamera() const
 
 void Scene::SetWorld(World* world)
 {
-    HYP_SCOPE;
     AssertOnThread(m_ownerThreadId);
 
     if (m_world == world)
@@ -183,7 +181,6 @@ void Scene::SetWorld(World* world)
 
 Handle<Node> Scene::FindNodeByName(StringHash name) const
 {
-    HYP_SCOPE;
     AssertOnThread(m_ownerThreadId);
 
     Assert(m_root);
@@ -198,7 +195,6 @@ Handle<Node> Scene::FindNodeByName(StringHash name) const
 
 void Scene::SetRoot(const Handle<Node>& root)
 {
-    HYP_SCOPE;
     AssertOnThread(m_ownerThreadId);
 
     if (root == m_root)
@@ -225,8 +221,6 @@ void Scene::SetRoot(const Handle<Node>& root)
 
 bool Scene::AddToWorld(World* world)
 {
-    HYP_SCOPE;
-
     AssertOnThread(g_simThread);
 
     if (world == m_world)
@@ -248,7 +242,6 @@ bool Scene::AddToWorld(World* world)
 
 bool Scene::RemoveFromWorld()
 {
-    HYP_SCOPE;
     AssertOnThread(g_simThread);
 
     if (m_world == nullptr)

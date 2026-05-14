@@ -124,14 +124,10 @@ UniquePtr<Buildable> AstAsExpression::Build(AstVisitor* visitor, Module* mod)
 
     UniquePtr<BytecodeChunk> chunk = BytecodeUtil::Make<BytecodeChunk>();
 
-    bool typeSpecBuilt = false;
-
     // if the type spec has side effects, build it in even though it's not needed for the cast
     if (m_typeSpecification->MayHaveSideEffects())
     {
         chunk->Append(m_typeSpecification->Build(visitor, mod));
-
-        typeSpecBuilt = true;
     }
 
     if (m_isType == TRI_TRUE)
