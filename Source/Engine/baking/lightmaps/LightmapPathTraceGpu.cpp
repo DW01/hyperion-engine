@@ -182,7 +182,7 @@ void LightmapRenderer_GpuPathTracing::CreateAccelerationStructures()
 
     bool hasBlas = false;
 
-    const Handle<View>& view = m_lightmapper->GetView();
+    const Handle<View>& view = m_baker->GetView();
     Assert(view != nullptr);
 
     RenderProxyList& rpl = GetConsumerProxyList(view);
@@ -241,7 +241,7 @@ void LightmapRenderer_GpuPathTracing::CreateAccelerationStructures()
 
 void LightmapRenderer_GpuPathTracing::UpdatePipelineState(Frame* frame, BakeJobBase* job)
 {
-    Assert(m_lightmapper != nullptr);
+    Assert(m_baker != nullptr);
 
     JobData& jd = m_jobData[job];
 
@@ -314,9 +314,9 @@ void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(
                     Span<LightmapHit> hits;
                     hits.first = reinterpret_cast<LightmapHit*>(buffer->Map());
                     hits.last = hits.first + (buffer->Size() / sizeof(LightmapHit));
-                    
+
                     cb(hits);
-                    
+
                     buffer->Release();
 
                     delete &payload;
@@ -371,7 +371,7 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
     }
 
     UpdatePipelineState(frame, job);
-    
+
     JobData& jd = m_jobData[job];
 
     GpuBuffer* cbuffer = jd.cbuffer;
@@ -416,7 +416,7 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
         for (EnvProbe* envProbe : rpl.GetEnvProbes())
         {
             if ((envProbe->IsA(SkyProbe::StaticClass()) /* || envProbe->IsA(ReflectionProbe::StaticClass()) */)
-                && envProbe != m_lightmapper->GetSource()) // we don't want to bind a probe if it is being baked!
+                && envProbe != m_baker->GetSource()) // we don't want to bind a probe if it is being baked!
             {
                 if (numBoundEnvProbes >= LightmapVolumeMaxBoundEnvProbes)
                 {
@@ -433,7 +433,7 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
         }
 
         if (renderSetup.envProbe != nullptr
-            && renderSetup.envProbe != m_lightmapper->GetSource()
+            && renderSetup.envProbe != m_baker->GetSource()
             && numBoundEnvProbes < LightmapVolumeMaxBoundEnvProbes)
         {
             auto it = tempEnvProbes.FindIf([envProbe = renderSetup.envProbe](const auto& pair)
@@ -479,7 +479,7 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
             }
 
             LightShaderData dummy {};
-            
+
             AssertDebug(cbufferWriteOffset + sizeof(LightShaderData) <= cbufferSize);
 
             Memory::Copy(cbufferPtr + cbufferWriteOffset, &dummy, sizeof(LightShaderData));

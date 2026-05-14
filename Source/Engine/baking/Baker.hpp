@@ -120,7 +120,7 @@ class ILightmapRenderer
 {
 protected:
     ILightmapRenderer(BakerBase* lightmapper)
-        : m_lightmapper(lightmapper)
+        : m_baker(lightmapper)
     {
         AssertDebug(lightmapper != nullptr);
     }
@@ -151,7 +151,7 @@ public:
     virtual void Render(Frame* frame, const RenderSetup& renderSetup, BakeJobBase* job, Span<const LightmapRay> rays, uint32 rayOffset) = 0;
 
 protected:
-    BakerBase* m_lightmapper;
+    BakerBase* m_baker;
 };
 
 HYP_CLASS(Abstract)

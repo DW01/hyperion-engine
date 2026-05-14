@@ -118,18 +118,16 @@ void Baker<ReflectionProbe>::OnCompleted_Internal()
 
     ByteBuffer buffer = ByteBuffer(bitmap.ToByteView());
 
+    //// temp
+    FileByteWriter tempWriter(GetTempDirectory() / "TempEnvProbe.bmp");
+    bitmap.Write(&tempWriter);
+    tempWriter.Close();
+
     bitmap = {};
 
     Texture::GenerateMipmaps(desc, buffer);
 
     Handle<Texture> prefiltered = MakeHandle<Texture>(desc, buffer.ToByteView());
-
-    //
-
-    //// temp
-    //FileByteWriter tempWriter(GetTempDirectory() / "TempEnvProbe.bmp");
-    //bitmap.Write(&tempWriter);
-    //tempWriter.Close();
 
     buffer.Clear();
 

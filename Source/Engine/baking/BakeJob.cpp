@@ -155,7 +155,7 @@ public:
 
 BakeJobBase::BakeJobBase(BakeJobParams&& params)
     : tracingCompleteSignal(0),
-      m_lightmapper(nullptr),
+      m_baker(nullptr),
       m_params(std::move(params)),
       m_texelIndex(0),
       m_lastLoggedPercentage(0),
@@ -217,12 +217,12 @@ void BakeJobBase::AddTask(TaskBatch* taskBatch)
 
 bool BakeJobBase::HasRemainingTexels() const
 {
-    return m_texelIndex < m_texelIndices.Size() * m_lightmapper->NumTexelSamples();
+    return m_texelIndex < m_texelIndices.Size() * m_baker->NumTexelSamples();
 }
 
 void BakeJobBase::GatherTexels(uint32 maxTexels, Array<LightmapTexel*>& outTexels)
 {
-    const bool hasRays = m_lightmapper->PerformsRayTracing();
+    const bool hasRays = m_baker->PerformsRayTracing();
 
     BakeDataBase& bakeData = GetBakeData();
 
@@ -243,7 +243,7 @@ void BakeJobBase::GatherTexels(uint32 maxTexels, Array<LightmapTexel*>& outTexel
 
 uint32 BakeJobBase::ProcessTexels(Span<LightmapTexel*> texels, uint32 texelOffset)
 {
-    if (!m_lightmapper->PerformsRayTracing())
+    if (!m_baker->PerformsRayTracing())
     {
         return 0;
     }
@@ -363,10 +363,10 @@ uint32 BakeJobBase::Process(uint32 maxTexels)
         }
     }
 
-    if (m_texelIndex >= m_texelIndices.Size() * m_lightmapper->NumTexelSamples()
+    if (m_texelIndex >= m_texelIndices.Size() * m_baker->NumTexelSamples()
         && tracingCompleteSignal.IsSignalled(expectedSignalValue))
     {
-        HYP_LOG(Lightmap, Verbose, "Lightmap job {}: All texels processed ({} / {}), stopping", m_uuid, m_texelIndex, m_texelIndices.Size() * m_lightmapper->NumTexelSamples());
+        HYP_LOG(Lightmap, Verbose, "Lightmap job {}: All texels processed ({} / {}), stopping", m_uuid, m_texelIndex, m_texelIndices.Size() * m_baker->NumTexelSamples());
 
         Stop();
 
@@ -390,13 +390,13 @@ uint32 BakeJobBase::Process(uint32 maxTexels)
         }
     }
 
-    const uint32 totalNumTexels = uint32(m_texelIndices.Size()) * m_lightmapper->NumTexelSamples();
+    const uint32 totalNumTexels = uint32(m_texelIndices.Size()) * m_baker->NumTexelSamples();
     AssertDebug(totalNumTexels > 0);
 
     maxTexels = MathUtil::Min(maxTexels, totalNumTexels);
-    maxTexels = MathUtil::Min(maxTexels, m_lightmapper->MaxTexelsPerFrame());
+    maxTexels = MathUtil::Min(maxTexels, m_baker->MaxTexelsPerFrame());
 
-    if (m_lightmapper->PerformsRayTracing())
+    if (m_baker->PerformsRayTracing())
     {
         if (m_params.renderers->Empty())
         {

@@ -28,7 +28,7 @@ public:
     void OnFrameStart();
     void OnFrameEnd();
 
-    Handle<Texture> AcquireScratchImage(TextureFormat format, Vec3u extent);
+    Handle<Texture> AcquireScratchImage(TextureType type, TextureFormat format, Vec3u extent);
 
     void Shutdown();
 

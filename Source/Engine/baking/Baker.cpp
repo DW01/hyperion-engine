@@ -658,7 +658,7 @@ void BakerBase::AddJob(UniquePtr<BakeJobBase>&& job)
         return;
     }
 
-    job->m_lightmapper = this;
+    job->m_baker = this;
 
     Mutex::Guard guard(m_queueMutex);
     m_queue.PushBack(std::move(job));

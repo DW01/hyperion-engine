@@ -27,6 +27,7 @@
 #include <rendering/ShaderInstance.hpp>
 #include <rendering/RendererMain.hpp>
 #include <rendering/RenderHelpers.hpp>
+#include <rendering/ScratchImageAllocator.hpp>
 
 #include <rendering/shadows/ShadowMapCache.hpp>
 
@@ -97,12 +98,10 @@ void ConvolveEnvProbeCubemap(
     Handle<Texture> srcTexture;
     bool needsMipMapGeneration = false;
 
-    TextureDesc dstTextureDesc = prefilteredEnvMap->GetTextureDesc();
-    dstTextureDesc.imageUsage = IU_STORAGE | IU_SAMPLED;
-
-    Handle<Texture> dstTexture = MakeHandle<Texture>(dstTextureDesc);
-    dstTexture->SetName(NAME("EnvProbeRenderer_DstColorTexture"));
-    CheckResult(dstTexture->Create());
+    Handle<Texture> dstTexture = RI.scratchImageAllocator->AcquireScratchImage(
+        TextureType::Cubemap,
+        prefilteredEnvMap->GetFormat(),
+        prefilteredEnvMap->GetExtent());
 
     if (inTexture->HasMipMaps())
     {
@@ -111,20 +110,12 @@ void ConvolveEnvProbeCubemap(
     else
     {
         needsMipMapGeneration = true;
-
+        
         // copy into new texture, we need to generate mips on it before convolving
-        srcTexture = MakeHandle<Texture>(
-            TextureDesc {
-                TextureType::Cubemap,
-                prefilteredEnvMap->GetFormat(),
-                inTexture->GetExtent(),
-                TFM_LINEAR_MIPMAP,
-                TFM_LINEAR,
-                TWM_CLAMP_TO_EDGE
-            });
-
-        srcTexture->SetName(NAME("EnvProbeRenderer_SrcColorTexture"));
-        CheckResult(srcTexture->Create());
+        srcTexture = RI.scratchImageAllocator->AcquireScratchImage(
+            TextureType::Cubemap,
+            prefilteredEnvMap->GetFormat(),
+            inTexture->GetExtent());
     }
 
     ConvolveProbeUniforms uniforms {};
@@ -358,11 +349,6 @@ void ConvolveEnvProbeCubemap(
 
     // keep some resources around until we know we're done with them from this pass
     EnqueueDeletion(std::move(buffers));
-
-    if (needsMipMapGeneration)
-    {
-        EnqueueDeletion(std::move(srcTexture));
-    }
 }
 
 } // namespace ConvolveProbe

@@ -184,7 +184,7 @@ protected:
     void Stop();
     void Stop(const Error& error);
 
-    BakerBase* m_lightmapper;
+    BakerBase* m_baker;
 
     BakeJobParams m_params;
 

@@ -696,7 +696,7 @@ void Texture::EnqueueReadback(Proc<void(GpuBuffer&)>&& callback, bool allMips)
     CheckResult(readbackBuffer->Create());
 
     CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder();
-    HYP_DEFER({ cr.Submit(); });
+    HYP_DEFER({ cr.Done(); });
 
     cr << InsertBarrier(m_gpuImage, RS_COPY_SRC);
     cr << InsertBarrier(readbackBuffer, RS_COPY_DST);

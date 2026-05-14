@@ -312,7 +312,7 @@ void Mesh::UnpageBlobData()
 
 void Mesh::UploadGpuData()
 {
-    gpuUploadSemaphore.Reset();
+    isUploaded.Store(false);
 
     auto resGuard = GetReadScope();
 
@@ -470,7 +470,7 @@ void Mesh::UploadGpuData()
                 mesh->m_indexBuffer = std::move(indexBuffer);
             }
 
-            mesh->gpuUploadSemaphore.Signal();
+            mesh->isUploaded.Store(true);
 
             return {};
         }
@@ -481,13 +481,12 @@ void Mesh::UploadGpuData()
 
 void Mesh::ReleaseGpuData()
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     m_vertexBuffer.Reset();
     m_indexBuffer.Reset();
 
-    gpuUploadSemaphore.Reset();
+    isUploaded.Store(false);
 }
 
 Result Mesh::Rename(Name name)
@@ -520,7 +519,7 @@ void Mesh::SetMeshData(
     if (IsInitCalled())
     {
         // needs reupload!
-        if (m_flags[MeshFlags::ViewIndependent] || gpuUploadSemaphore.IsSignaled())
+        if (m_flags[MeshFlags::ViewIndependent] || isUploaded.Load())
         {
             UploadGpuData();
         }
