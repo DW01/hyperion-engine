@@ -9,6 +9,7 @@
 #include <Core/memory/Pimpl.hpp>
 #include <Core/memory/pool/Pool.hpp>
 
+#include <Core/threading/AtomicVar.hpp>
 #include <Core/threading/util/ThreadId.hpp>
 
 #include <Core/profiling/PerformanceClock.hpp>
@@ -59,8 +60,9 @@ public:
         return 0.0;
     }
 
-    virtual void Reset()
+    virtual double Reset()
     {
+        return 0.0;
     }
 };
 
@@ -152,9 +154,9 @@ public:
         return static_cast<double>(static_cast<T>(AtomicAdd(const_cast<volatile InternalType*>(&m_value), InternalType(0))));
     }
 
-    virtual void Reset() override
+    virtual double Reset() override
     {
-        AtomicExchange(&m_value, InternalType(0));
+        return static_cast<double>(AtomicExchange(&m_value, InternalType(0)));
     }
 
 private:
@@ -168,51 +170,42 @@ class HYP_API EngineStatTimer : public EngineStatBase
 public:
     explicit EngineStatTimer(UTF8StringView path, bool resetPerFrame = true)
         : EngineStatBase(EST_TIMER, path),
-          m_clock(),
-          m_totalMs(0.0)
+          m_totalMicroseconds { 0 }
     {
         EngineStatBase::resetPerFrame = resetPerFrame;
     }
 
-    /// @TODO Make thread safe with atomics.
-    /// Just record the duration, use EngineStatScope to handle the actual timing and recording of the value.
-    /// Then use uint64 for the value and convert to double in GetValue() to avoid issues with atomics and floating point types.
-
-    void StartTiming()
+    /*! \brief Atomically record elapsed time in milliseconds.
+     *  Called by EngineStatScope on its destructor. Thread-safe - can be called from any thread. */
+    void RecordElapsedMs(double ms)
     {
-        m_clock.Start();
-    }
-
-    void StopTiming()
-    {
-        m_clock.Stop();
-        m_totalMs += m_clock.ElapsedMs();
+        m_totalMicroseconds.Increment(static_cast<uint64>(ms * 1000.0), MemoryOrder::RELAXED);
     }
 
     virtual double GetValue() const override
     {
-        return m_totalMs;
+        return static_cast<double>(const_cast<EngineStatTimer *>(this)->m_totalMicroseconds.Get(MemoryOrder::RELAXED)) / 1000.0;
     }
 
-    virtual void Reset() override
+    virtual double Reset() override
     {
-        m_clock = PerformanceClock();
-        m_totalMs = 0.0;
+        const uint64 oldValue = m_totalMicroseconds.Exchange(0, MemoryOrder::RELAXED);
+        return static_cast<double>(oldValue) / 1000.0;
     }
 
 private:
-    PerformanceClock m_clock;
-    double m_totalMs;
+    threading::AtomicVar<uint64> m_totalMicroseconds;
 };
 
 struct EngineStatScope
 {
     EngineStatScope(EngineStatTimer* timer)
-        : stat(timer)
+        : stat(timer),
+          clock()
     {
         if (timer)
         {
-            timer->StartTiming();
+            clock.Start();
         }
     }
 
@@ -226,18 +219,13 @@ struct EngineStatScope
     {
         if (stat)
         {
-            switch (stat->type)
-            {
-            case EST_TIMER:
-                static_cast<EngineStatTimer*>(stat)->StopTiming();
-                break;
-            default:
-                break;
-            }
+            clock.Stop();
+            stat->RecordElapsedMs(clock.ElapsedMs());
         }
     }
 
-    EngineStatBase* stat;
+    EngineStatTimer* stat;
+    PerformanceClock clock;
 };
 
 struct EngineStatsSnapshotValue

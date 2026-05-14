@@ -24,9 +24,9 @@
 
 #include <vulkan/vulkan.h>
 
-namespace Hyperion {
+#include <rendering/vulkan/VulkanGpuTimerBackend.hpp>
 
-class ApplicationWindow;
+namespace Hyperion {
 
 class VulkanInstance;
 class VulkanAsyncCompute;
@@ -116,6 +116,10 @@ public:
 
     void PrepareSwapchain(VulkanSwapchain* swapchain) override;
     void PresentToSwapchain(VulkanSwapchain* swapchain) override;
+
+    void BeginFrame(AtomicFlag* pCancelFlag) override;
+
+    void RecordGpuTimestamp(VulkanCommandBuffer* cmd, VulkanGpuTimerBackend::QueryIndex queryIndex);
 
     VulkanCommandBuffer* GetCurrentCommandBuffer() const override;
 
@@ -210,6 +214,8 @@ private:
     Pimpl<VulkanDescriptorSetManager> m_descriptorSetManager;
 
     Pimpl<VulkanTextureCache> m_textureCache;
+
+    Pimpl<VulkanGpuTimerBackend> m_gpuTimerBackend;
 
     Array<VulkanFrameRef, VulkanAllocator> m_frames;
     uint32 m_currentFrameIndex;

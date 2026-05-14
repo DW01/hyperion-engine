@@ -424,16 +424,12 @@ void EngineStats::Advance()
             continue;
         }
 
-        double value = stat->GetValue();
-
-        // reset stats that have resetPerFrame as true.
-        if (stat->resetPerFrame)
-        {
-            stat->Reset();
-        }
+        double value = stat->resetPerFrame
+            ? stat->Reset()     // Atomically read AND reset
+            : stat->GetValue();
 
         const double currValue = GetSampleData(statId, sampleIdx);
-        SetSampleData(statId, sampleIdx, value + currValue);
+        SetSampleData(statId, sampleIdx, currValue + value);
     }
 
     const uint32 actualNumSamples = MathUtil::Min(m_impl->numSamples + 1u, EngineStatsNumSamples);

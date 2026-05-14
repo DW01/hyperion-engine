@@ -1025,7 +1025,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
 
         prevMesh = meshProxy.mesh;
 
-        if (!drawCallCollection.suppressStats)
+        if (!drawCallCollection.suppressStats && prepassStage != DepthPrepass::DPP_InPrepass)
         {
             g_statDrawCalls++;
             g_statTriangles += meshProxy.numIndices / 3;
@@ -1116,7 +1116,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
         prevMesh = meshProxy.mesh;
 
         // @NOTE For indirect rendering we would need to read back the number of drawn instances from the GPU to get correct stats.
-        if (!drawCallCollection.suppressStats)
+        if (!drawCallCollection.suppressStats && prepassStage != DepthPrepass::DPP_InPrepass)
         {
             g_statInstancedDrawCalls += entityInstanceBatch->numEntities;
             g_statTriangles += meshProxy.numIndices / 3;

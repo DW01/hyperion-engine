@@ -23,6 +23,7 @@
 #include <rendering/vulkan/VulkanAsyncCompute.hpp>
 #include <rendering/vulkan/VulkanRayTracingPipeline.hpp>
 #include <rendering/vulkan/VulkanAccelerationStructure.hpp>
+#include <rendering/vulkan/VulkanGpuTimerBackend.hpp>
 
 #include <rendering/util/DeletionQueue.hpp>
 
@@ -63,6 +64,10 @@ static constexpr bool UseResetDescriptorPool = false;
 static constexpr uint32 MaxDescriptorPools = 32;
 
 static EngineStatTimer s_statVulkanFrameSync("Rendering/Vulkan/FrameSync");
+static EngineStatTimer g_statGpuFrameTime("Rendering/GPU/FrameTime");
+static EngineStatTimer g_statGpuPreRender("Rendering/GPU/PreRender");
+static EngineStatTimer g_statGpuMainRender("Rendering/GPU/MainRender");
+static EngineStatTimer g_statGpuPostRender("Rendering/GPU/PostRender");
 
 enum VulkanDescriptorPoolRequirements : uint8
 {
@@ -687,6 +692,12 @@ RendererResult VulkanRenderInterface::Initialize()
         CheckResultOrReturn(frame->Create());
     }
 
+    m_gpuTimerBackend = MakePimpl<VulkanGpuTimerBackend>();
+    if (!m_gpuTimerBackend->Initialize(m_instance->GetDevice()))
+    {
+        HYP_LOG(RenderingBackend, Info, "GPU timestamp queries not supported on this device");
+    }
+
     dynamicFunctions.Load(m_instance->GetDevice());
 
     const VulkanFeatures& deviceFeatures = m_instance->GetDevice()->GetFeatures();
@@ -749,6 +760,9 @@ void VulkanRenderInterface::Shutdown()
     m_asyncComputePool.Clear();
     m_submittedAsyncComputes.Clear();
 
+    m_gpuTimerBackend->Destroy();
+    m_gpuTimerBackend.Reset();
+
     RenderInterface::Shutdown();
 
     m_recycledTransientCommandBufferFences.Clear();
@@ -772,6 +786,18 @@ void VulkanRenderInterface::Shutdown()
 
     PoolDelete(*g_vulkanPool, m_instance);
     m_instance = nullptr;
+}
+
+void VulkanRenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
+{
+    RenderInterface::BeginFrame(pCancelFlag);
+
+    m_gpuTimerBackend->RecordFrameStart(GetCurrentCommandBuffer(), m_currentFrameIndex);
+}
+
+void VulkanRenderInterface::RecordGpuTimestamp(VulkanCommandBuffer* cmd, VulkanGpuTimerBackend::QueryIndex queryIndex)
+{
+    m_gpuTimerBackend->WriteTimestamp(cmd, m_currentFrameIndex, queryIndex);
 }
 
 VulkanFrame* VulkanRenderInterface::GetCurrentFrame() const
@@ -807,6 +833,31 @@ void VulkanRenderInterface::PrepareFrame(VulkanFrame* frame)
         else
         {
             frame->GetFence()->Wait(true);
+        }
+    }
+
+    // Read back GPU timestamps from the completed frame
+    {
+        const GpuFrameTimings timings = m_gpuTimerBackend->ResolveFrameResults(m_currentFrameIndex);
+
+        if (timings.frameTotalMs > 0.0)
+        {
+            g_statGpuFrameTime.RecordElapsedMs(timings.frameTotalMs);
+
+            if (timings.preRenderMs > 0.0)
+            {
+                g_statGpuPreRender.RecordElapsedMs(timings.preRenderMs);
+            }
+
+            if (timings.mainRenderMs > 0.0)
+            {
+                g_statGpuMainRender.RecordElapsedMs(timings.mainRenderMs);
+            }
+
+            if (timings.postRenderMs > 0.0)
+            {
+                g_statGpuPostRender.RecordElapsedMs(timings.postRenderMs);
+            }
         }
     }
 
@@ -964,6 +1015,8 @@ void VulkanRenderInterface::PresentToSwapchain(VulkanSwapchain* swapchain)
 
     VulkanFrame* frame = GetCurrentFrame();
     frame->WriteCommandBuffer(commandBuffer);
+
+    m_gpuTimerBackend->RecordFrameEnd(commandBuffer, m_currentFrameIndex);
 
     commandBuffer->End();
 
