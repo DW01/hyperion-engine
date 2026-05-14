@@ -147,7 +147,7 @@ void OnBindingChanged_ReflectionProbe(EnvProbe* envProbe, uint32 prev, uint32 ne
         cr << InsertBarrier(srcImage, RS_SHADER_RESOURCE);
         cr << InsertBarrier(dstImage, RS_SHADER_RESOURCE);
 
-        cr.Submit();
+        cr.Done();
     }
 }
 

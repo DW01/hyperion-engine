@@ -244,7 +244,7 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
         cr << InsertBarrier(&image, initialState);
     }
 
-    cr.Submit();
+    cr.Done();
 
     return {};
 }

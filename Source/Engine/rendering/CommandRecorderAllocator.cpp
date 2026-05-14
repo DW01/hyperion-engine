@@ -86,7 +86,8 @@ void CommandRecorderAllocator::UpdateQueue()
             continue;
         }
 
-        //root.Concat(commandRecorder);
+        // Concat to root (only happens if the Submit() method hasn't been called)
+        root.Concat(commandRecorder);
 
         // commandRecorder is now reset
 

@@ -78,8 +78,6 @@ struct ConvolveProbeUniforms
     Vec2u inImageDimensions;
 };
 
-HYP_DISABLE_OPTIMIZATION;
-
 void ConvolveEnvProbeCubemap(
     const Handle<Texture>& inTexture,
     const EnvProbe& envProbe)

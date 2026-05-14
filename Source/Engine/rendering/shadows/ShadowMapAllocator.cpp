@@ -130,7 +130,7 @@ void ShadowMapAllocator::Initialize()
         cr << FillImage(m_clearTexture->GetGpuImage(), 1.0f, ImageSubResource {});
         cr << InsertBarrier(m_clearTexture->GetGpuImage(), RS_COPY_SRC);
 
-        cr.Submit();
+        cr.Done();
     }
 }
 

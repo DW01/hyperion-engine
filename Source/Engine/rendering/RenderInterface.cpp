@@ -798,6 +798,7 @@ void RenderInterface::Shutdown()
         }
 
         namedPasses[i].Clear();
+        namedPasses[i].Refit();
     }
 
     DebugDrawer::GetInstance().Shutdown();
