@@ -131,7 +131,7 @@ void VulkanFrame::WriteCommandBuffer(VulkanCommandBuffer* commandBuffer)
         preRenderCommands.Execute(commandBuffer);
         preRenderCommands.Reset(/* freeMemory */ false);
 
-        RI.RecordGpuTimestamp(commandBuffer, VulkanGpuTimerBackend::AfterPreRender);
+        RI.RecordGpuTimestamp(commandBuffer, GpuTimerBackend::AfterPreRender);
 
         // Main render phase (cr + root)
         cr.Execute(commandBuffer);
@@ -140,7 +140,7 @@ void VulkanFrame::WriteCommandBuffer(VulkanCommandBuffer* commandBuffer)
         RI.commandRecorderAllocator.root.Execute(commandBuffer);
         RI.commandRecorderAllocator.root.Reset(/* freeMemory */ false);
 
-        RI.RecordGpuTimestamp(commandBuffer, VulkanGpuTimerBackend::AfterMainRender);
+        RI.RecordGpuTimestamp(commandBuffer, GpuTimerBackend::AfterMainRender);
 
         // Post-render phase
         postRenderCommands.Execute(commandBuffer);

@@ -31,6 +31,7 @@ class DX12RenderConfig;
 class DX12DescriptorHeapManager;
 class DX12AsyncCompute;
 class DX12Fence;
+class DX12GpuTimerBackend;
 
 struct DX12QueueData
 {
@@ -151,6 +152,9 @@ public:
     void ReleaseTransientMemory() override;
 
     void BeginFrame(AtomicFlag* pCancelFlag) override;
+
+    void RecordGpuTimestamp(CommandBuffer* cmd, GpuTimerBackend::QueryIndex queryIndex) override;
+    GpuFrameTimings ResolveGpuFrameResults(uint32 completedFrameIndex) override;
     
     void InsertTransientSyncBarrier();
 
@@ -166,6 +170,7 @@ private:
     void PrepareFrame(DX12Frame* frame) override;
 
     Pimpl<DX12RenderConfig> m_renderConfig;
+    Pimpl<DX12GpuTimerBackend> m_gpuTimerBackend;
 
     FixedArray<DX12FrameRef, NumFramesInFlight> m_frames;
 

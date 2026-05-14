@@ -795,9 +795,14 @@ void VulkanRenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
     m_gpuTimerBackend->RecordFrameStart(GetCurrentCommandBuffer(), m_currentFrameIndex);
 }
 
-void VulkanRenderInterface::RecordGpuTimestamp(VulkanCommandBuffer* cmd, VulkanGpuTimerBackend::QueryIndex queryIndex)
+void VulkanRenderInterface::RecordGpuTimestamp(CommandBuffer* cmd, GpuTimerBackend::QueryIndex queryIndex)
 {
-    m_gpuTimerBackend->WriteTimestamp(cmd, m_currentFrameIndex, queryIndex);
+    m_gpuTimerBackend->WriteTimestamp(static_cast<VulkanCommandBuffer*>(cmd), m_currentFrameIndex, queryIndex);
+}
+
+GpuFrameTimings VulkanRenderInterface::ResolveGpuFrameResults(uint32 completedFrameIndex)
+{
+    return m_gpuTimerBackend->ResolveFrameResults(completedFrameIndex);
 }
 
 VulkanFrame* VulkanRenderInterface::GetCurrentFrame() const
@@ -838,7 +843,7 @@ void VulkanRenderInterface::PrepareFrame(VulkanFrame* frame)
 
     // Read back GPU timestamps from the completed frame
     {
-        const GpuFrameTimings timings = m_gpuTimerBackend->ResolveFrameResults(m_currentFrameIndex);
+        const GpuFrameTimings timings = ResolveGpuFrameResults(m_currentFrameIndex);
 
         if (timings.frameTotalMs > 0.0)
         {

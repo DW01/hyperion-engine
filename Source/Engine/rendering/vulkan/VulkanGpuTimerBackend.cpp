@@ -14,7 +14,8 @@
 namespace Hyperion {
 
 VulkanGpuTimerBackend::VulkanGpuTimerBackend()
-    : m_frames { }
+    : GpuTimerBackend(),
+      m_frames { }
 {
 }
 
@@ -23,9 +24,10 @@ VulkanGpuTimerBackend::~VulkanGpuTimerBackend()
     Destroy();
 }
 
-bool VulkanGpuTimerBackend::Initialize(VulkanDevice* device)
+bool VulkanGpuTimerBackend::Initialize(DeviceBase* device)
 {
-    m_device = device;
+    VulkanDevice* vulkanDevice = static_cast<VulkanDevice*>(device);
+    m_device = vulkanDevice;
 
     if (!m_device)
     {
@@ -98,14 +100,25 @@ void VulkanGpuTimerBackend::Destroy()
     m_isSupported = false;
 }
 
-void VulkanGpuTimerBackend::RecordFrameStart(VulkanCommandBuffer* cmd, uint32 frameIndex)
+bool VulkanGpuTimerBackend::IsSupported() const
+{
+    return m_isSupported;
+}
+
+double VulkanGpuTimerBackend::GetTimestampPeriod() const
+{
+    return m_timestampPeriod;
+}
+
+void VulkanGpuTimerBackend::RecordFrameStart(CommandBufferBase* cmd, uint32 frameIndex)
 {
     if (!m_isSupported || !cmd)
     {
         return;
     }
 
-    VkCommandBuffer vkCmd = cmd->GetVulkanHandle();
+    VulkanCommandBuffer* vkCmdBuf = static_cast<VulkanCommandBuffer*>(cmd);
+    VkCommandBuffer vkCmd = vkCmdBuf->GetVulkanHandle();
     PerFrameState& frameState = m_frames[frameIndex];
 
     vkCmdResetQueryPool(vkCmd, frameState.queryPool, 0, NumQueriesPerFrame);
@@ -114,30 +127,23 @@ void VulkanGpuTimerBackend::RecordFrameStart(VulkanCommandBuffer* cmd, uint32 fr
     frameState.resultsPending = true;
 }
 
-void VulkanGpuTimerBackend::WriteTimestamp(VulkanCommandBuffer* cmd, uint32 frameIndex, QueryIndex queryIndex)
+void VulkanGpuTimerBackend::WriteTimestamp(CommandBufferBase* cmd, uint32 frameIndex, QueryIndex queryIndex)
 {
     if (!m_isSupported || !cmd)
     {
         return;
     }
 
-    VkCommandBuffer vkCmd = cmd->GetVulkanHandle();
+    VulkanCommandBuffer* vkCmdBuf = static_cast<VulkanCommandBuffer*>(cmd);
+    VkCommandBuffer vkCmd = vkCmdBuf->GetVulkanHandle();
     PerFrameState& frameState = m_frames[frameIndex];
 
     vkCmdWriteTimestamp(vkCmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frameState.queryPool, uint32(queryIndex));
 }
 
-void VulkanGpuTimerBackend::RecordFrameEnd(VulkanCommandBuffer* cmd, uint32 frameIndex)
+void VulkanGpuTimerBackend::RecordFrameEnd(CommandBufferBase* cmd, uint32 frameIndex)
 {
-    if (!m_isSupported || !cmd)
-    {
-        return;
-    }
-
-    VkCommandBuffer vkCmd = cmd->GetVulkanHandle();
-    PerFrameState& frameState = m_frames[frameIndex];
-
-    vkCmdWriteTimestamp(vkCmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frameState.queryPool, QueryIndex::FrameEnd);
+    WriteTimestamp(cmd, frameIndex, QueryIndex::FrameEnd);
 }
 
 double VulkanGpuTimerBackend::ComputeDeltaMs(uint64 start, uint64 end) const

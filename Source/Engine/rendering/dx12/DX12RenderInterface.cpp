@@ -13,6 +13,7 @@
 #include <rendering/dx12/DX12Frame.hpp>
 #include <rendering/dx12/DX12Swapchain.hpp>
 #include <rendering/dx12/DX12AsyncCompute.hpp>
+#include <rendering/dx12/DX12GpuTimerBackend.hpp>
 #include <rendering/dx12/DX12Fence.hpp>
 #include <rendering/dx12/DX12AccelerationStructure.hpp>
 #include <rendering/dx12/DX12DescriptorSet.hpp>
@@ -130,6 +131,7 @@ RendererResult DX12RenderInterface::Initialize()
 
     descriptorHeapManager = PoolNew<DX12DescriptorHeapManager>(*g_renderPool);
     m_renderConfig = MakePimpl<DX12RenderConfig>();
+    m_gpuTimerBackend = MakePimpl<DX12GpuTimerBackend>();
 
     uint32 createFactoryFlags = 0;
 
@@ -448,6 +450,8 @@ void DX12RenderInterface::Shutdown()
     m_transientSyncFence.Reset();
 
     m_queueData = {};
+
+    m_gpuTimerBackend.Reset();
 
     RenderInterface::Shutdown();
 
@@ -1059,6 +1063,16 @@ void DX12RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
 
     // Rebind descriptor heaps after command buffer reset in BeginFrame()
     BindDescriptorHeaps(*GetCurrentCommandBuffer());
+}
+
+void DX12RenderInterface::RecordGpuTimestamp(CommandBuffer* cmd, GpuTimerBackend::QueryIndex queryIndex)
+{
+    // DX12 GPU timing not yet implemented
+}
+
+GpuFrameTimings DX12RenderInterface::ResolveGpuFrameResults(uint32 completedFrameIndex)
+{
+    return GpuFrameTimings { };
 }
 
 void DX12RenderInterface::InsertTransientSyncBarrier()

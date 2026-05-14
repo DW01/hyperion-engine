@@ -119,7 +119,8 @@ public:
 
     void BeginFrame(AtomicFlag* pCancelFlag) override;
 
-    void RecordGpuTimestamp(VulkanCommandBuffer* cmd, VulkanGpuTimerBackend::QueryIndex queryIndex);
+    void RecordGpuTimestamp(CommandBuffer* cmd, GpuTimerBackend::QueryIndex queryIndex) override;
+    GpuFrameTimings ResolveGpuFrameResults(uint32 completedFrameIndex) override;
 
     VulkanCommandBuffer* GetCurrentCommandBuffer() const override;
 

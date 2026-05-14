@@ -15,6 +15,7 @@
 #include <rendering/RenderConfig.hpp>
 #include <rendering/CommandRecorderAllocator.hpp>
 #include <rendering/RawBuffer.hpp>
+#include <rendering/GpuTimerBackend.hpp>
 
 #include <engine/DeviceDetails.hpp>
 
@@ -323,6 +324,9 @@ public:
 
     virtual void BeginFrame(AtomicFlag* pCancelFlag);
     virtual void EndFrame();
+
+    virtual void RecordGpuTimestamp(CommandBuffer* cmd, GpuTimerBackend::QueryIndex queryIndex) = 0;
+    virtual GpuFrameTimings ResolveGpuFrameResults(uint32 completedFrameIndex) = 0;
 
     virtual SwapchainRef CreateSwapchain(ApplicationWindow* window, const Vec2u& extent) = 0;
 

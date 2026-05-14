@@ -136,6 +136,8 @@ static constexpr StringHash GBufferTextureNames[GTN_MAX] = {
 };
 
 static EngineStatTimer s_statDeferredPass("Rendering/Deferred/DeferredPass");
+static EngineStatTimer s_statClusterLights("Rendering/ClusterLights");
+static EngineStatTimer s_statClusterEnvProbes("Rendering/ClusterEnvProbes");
 
 // Global stat counter instances
 EngineStatCounter<uint32> g_statDrawCalls("Rendering/DrawCalls");
@@ -1828,61 +1830,67 @@ public:
             return outMinX <= outMaxX && outMinY <= outMaxY;
         };
 
-        for (Light* light : rpl.GetLights())
         {
-            const LightType lightType = light->GetLightType();
-
-            if (!DeferredRendererHelpers::CanClusterLight(lightType))
+            ENGINE_STAT_SCOPE(&s_statClusterLights);
+            for (Light* light : rpl.GetLights())
             {
-                continue;
-            }
+                const LightType lightType = light->GetLightType();
 
-            const uint32 lightBindingIndex = Resources::GetBinding(light);
-
-            if (lightBindingIndex == ~0u)
-            {
-                continue;
-            }
-
-            RenderProxyLight* lightProxy = static_cast<RenderProxyLight*>(GetRenderProxy(light));
-            AssertDebug(lightProxy != nullptr);
-
-            const Vec3f lightPosWS = lightProxy->bufferData.positionIntensity.GetXYZ();
-            const Vec3f lightPosVS = viewMatrix * lightPosWS;
-            const float lightRadius = float(Float16::FromRaw(uint16(lightProxy->bufferData.radiusFalloffPacked & 0xFFFFu)));
-
-            uint32 tileMinX;
-            uint32 tileMinY;
-            uint32 tileMaxX;
-            uint32 tileMaxY;
-
-            if (!ProjectSphereToScreenAABB(lightPosVS, lightRadius, tileMinX, tileMinY, tileMaxX, tileMaxY))
-            {
-                continue;
-            }
-
-            const float lightDistVS = lightPosVS.z;
-            const int32 zBinMin = CalculateZBin(MathUtil::Max(lightDistVS - lightRadius, cameraNear));
-            const int32 zBinMax = CalculateZBin(MathUtil::Min(lightDistVS + lightRadius, cameraFar));
-
-            for (int32 z = zBinMin; z <= zBinMax; z++)
-            {
-                for (uint32 y = tileMinY; y <= tileMaxY; y++)
+                if (!DeferredRendererHelpers::CanClusterLight(lightType))
                 {
-                    for (uint32 x = tileMinX; x <= tileMaxX; x++)
+                    continue;
+                }
+
+                const uint32 lightBindingIndex = Resources::GetBinding(light);
+
+                if (lightBindingIndex == ~0u)
+                {
+                    continue;
+                }
+
+                RenderProxyLight* lightProxy = static_cast<RenderProxyLight*>(GetRenderProxy(light));
+                AssertDebug(lightProxy != nullptr);
+
+                const Vec3f lightPosWS = lightProxy->bufferData.positionIntensity.GetXYZ();
+                const Vec3f lightPosVS = viewMatrix * lightPosWS;
+                const float lightRadius = float(Float16::FromRaw(uint16(lightProxy->bufferData.radiusFalloffPacked & 0xFFFFu)));
+
+                uint32 tileMinX;
+                uint32 tileMinY;
+                uint32 tileMaxX;
+                uint32 tileMaxY;
+
+                if (!ProjectSphereToScreenAABB(lightPosVS, lightRadius, tileMinX, tileMinY, tileMaxX, tileMaxY))
+                {
+                    continue;
+                }
+
+                const float lightDistVS = lightPosVS.z;
+                const int32 zBinMin = CalculateZBin(MathUtil::Max(lightDistVS - lightRadius, cameraNear));
+                const int32 zBinMax = CalculateZBin(MathUtil::Min(lightDistVS + lightRadius, cameraFar));
+
+                for (int32 z = zBinMin; z <= zBinMax; z++)
+                {
+                    for (uint32 y = tileMinY; y <= tileMaxY; y++)
                     {
-                        const uint32 clusterIndex = (uint32(z) * numTilesY + y) * numTilesX + x;
-
-                        Tile& tile = tempTiles[clusterIndex];
-
-                        if (tile.numLights < MaxLightsPerTile)
+                        for (uint32 x = tileMinX; x <= tileMaxX; x++)
                         {
-                            tile.lightIndices[tile.numLights++] = uint16(lightBindingIndex);
+                            const uint32 clusterIndex = (uint32(z) * numTilesY + y) * numTilesX + x;
+
+                            Tile& tile = tempTiles[clusterIndex];
+
+                            if (tile.numLights < MaxLightsPerTile)
+                            {
+                                tile.lightIndices[tile.numLights++] = uint16(lightBindingIndex);
+                            }
                         }
                     }
                 }
             }
         }
+        
+        // Start env probes
+        ENGINE_STAT_SCOPE(&s_statClusterEnvProbes);
 
         Array<Tuple<EnvProbe*, EnvProbeShaderData*, uint32>, RenderAllocator> envProbes;
         envProbes.Reserve(rpl.GetEnvProbes().NumCurrent());
@@ -1995,6 +2003,9 @@ public:
                 }
             }
         }
+
+        // Continue timing lights (env probes already going)
+        ENGINE_STAT_SCOPE(&s_statClusterLights);
 
         Array<TileGridData, RenderAllocator>& gridData = allocation.gridData;
         gridData.Resize(totalTiles);

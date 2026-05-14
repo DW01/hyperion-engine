@@ -1,0 +1,62 @@
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+ */
+
+#pragma once
+
+#ifndef INCLUDE_FROM_RHI_BASE
+#define INCLUDE_FROM_RHI
+#include <rendering/GpuTimerBackend.hpp>
+#endif
+
+#undef INCLUDE_FROM_RHI
+#undef INCLUDE_FROM_RHI_BASE
+
+namespace Hyperion {
+
+class DX12GpuTimerBackend final : public GpuTimerBackend
+{
+public:
+    DX12GpuTimerBackend() = default;
+    ~DX12GpuTimerBackend() override = default;
+
+    bool Initialize(DeviceBase* device) override
+    {
+        return false;
+    }
+
+    void Destroy() override
+    {
+    }
+
+    bool IsSupported() const override
+    {
+        return false;
+    }
+
+    double GetTimestampPeriod() const override
+    {
+        return 0.0;
+    }
+
+    void RecordFrameStart(CommandBufferBase* cmd, uint32 frameIndex) override
+    {
+    }
+
+    void WriteTimestamp(CommandBufferBase* cmd, uint32 frameIndex, QueryIndex queryIndex) override
+    {
+    }
+
+    void RecordFrameEnd(CommandBufferBase* cmd, uint32 frameIndex) override
+    {
+    }
+
+    GpuFrameTimings ResolveFrameResults(uint32 completedFrameIndex) override
+    {
+        return GpuFrameTimings { };
+    }
+};
+
+} // namespace Hyperion

@@ -6,6 +6,14 @@
 
 #pragma once
 
+#ifndef INCLUDE_FROM_RHI_BASE
+#define INCLUDE_FROM_RHI
+#include <rendering/GpuTimerBackend.hpp>
+#endif
+
+#undef INCLUDE_FROM_RHI
+#undef INCLUDE_FROM_RHI_BASE
+
 #include <Core/Constants.hpp>
 #include <Core/containers/FixedArray.hpp>
 
@@ -14,61 +22,24 @@
 namespace Hyperion {
 
 class VulkanDevice;
-class VulkanCommandBuffer;
 
-struct GpuFrameTimings
-{
-    double frameTotalMs = 0.0;
-    double preRenderMs = 0.0;
-    double mainRenderMs = 0.0;
-    double postRenderMs = 0.0;
-};
-
-class VulkanGpuTimerBackend
+class VulkanGpuTimerBackend final : public GpuTimerBackend
 {
 public:
-    static constexpr uint32 NumQueriesPerFrame = 4;
-
-    enum QueryIndex : uint32
-    {
-        FrameStart = 0,
-        AfterPreRender = 1,
-        AfterMainRender = 2,
-        FrameEnd = 3
-    };
-
     VulkanGpuTimerBackend();
-    ~VulkanGpuTimerBackend();
+    ~VulkanGpuTimerBackend() override;
 
-    bool Initialize(VulkanDevice* device);
-    void Destroy();
+    bool Initialize(DeviceBase* device) override;
+    void Destroy() override;
 
-    /*! \brief Reset query pool and write frame-start timestamp.
-     *  Must be called after commandBuffer->Begin() and before any render work. */
-    void RecordFrameStart(VulkanCommandBuffer* cmd, uint32 frameIndex);
+    bool IsSupported() const override;
+    double GetTimestampPeriod() const override;
 
-    /*! \brief Write an intermediate timestamp at the given query index. */
-    void WriteTimestamp(VulkanCommandBuffer* cmd, uint32 frameIndex, QueryIndex queryIndex);
+    void RecordFrameStart(CommandBufferBase* cmd, uint32 frameIndex) override;
+    void WriteTimestamp(CommandBufferBase* cmd, uint32 frameIndex, QueryIndex queryIndex) override;
+    void RecordFrameEnd(CommandBufferBase* cmd, uint32 frameIndex) override;
 
-    /*! \brief Write frame-end timestamp.
-     *  Must be called just before commandBuffer->End(). */
-    void RecordFrameEnd(VulkanCommandBuffer* cmd, uint32 frameIndex);
-
-    /*! \brief Read back GPU timestamps for a completed frame.
-     *  Must be called after the GPU has finished work for the given frame slot
-     *  (i.e. after the fence/timeline semaphore wait in PrepareFrame).
-     *  \return All GPU timing values in milliseconds. Zero values indicate not available. */
-    GpuFrameTimings ResolveFrameResults(uint32 completedFrameIndex);
-
-    HYP_FORCE_INLINE bool IsSupported() const
-    {
-        return m_isSupported;
-    }
-
-    HYP_FORCE_INLINE double GetTimestampPeriod() const
-    {
-        return m_timestampPeriod;
-    }
+    GpuFrameTimings ResolveFrameResults(uint32 completedFrameIndex) override;
 
 private:
     double ComputeDeltaMs(uint64 start, uint64 end) const;
