@@ -91,7 +91,7 @@ namespace Hyperion {
 
 void HandleSignal(int signum);
 
-EngineStatTimer g_statRenderUpdate("Render/Update");
+EngineStatTimer g_statRenderUpdate("CPU/RenderThread");
 EngineStatCounter<uint32> g_statViews("Rendering/Views");
 
 ThreadSignal g_renderInitSignal { 0 };

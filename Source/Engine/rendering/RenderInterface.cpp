@@ -124,7 +124,7 @@ static_assert(MaxFramesBeforeDiscard >= MinSafeDeleteCycles,
 // iterations per frame for cleaning up unused resources for passes
 static constexpr int FrameCleanupBudget = 16;
 
-EngineStatTimer g_statRenderThreadSync("Render/Sync");
+EngineStatTimer g_statRenderThreadSync("CPU/SemWait");
 static EngineStatTimer s_statViewDataAllocTime { "Rendering/ViewData/AllocTime", /* resetPerFrame */ false };
 
 namespace Framework {
