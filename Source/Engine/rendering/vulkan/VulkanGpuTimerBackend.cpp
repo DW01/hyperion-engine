@@ -16,14 +16,14 @@
 namespace Hyperion {
 
 VulkanGpuTimerBackend::VulkanGpuTimerBackend()
-    : GpuTimerBackend(),
+    : GpuTimerBackendBase(),
       m_frames { }
 {
 }
 
 VulkanGpuTimerBackend::~VulkanGpuTimerBackend()
 {
-    Destroy();
+    Shutdown();
 }
 
 bool VulkanGpuTimerBackend::Initialize(DeviceBase* device)
@@ -69,7 +69,7 @@ bool VulkanGpuTimerBackend::Initialize(DeviceBase* device)
     {
         if (vkCreateQueryPool(m_device->GetDevice(), &queryPoolCreateInfo, nullptr, &m_frames[i].queryPool) != VK_SUCCESS)
         {
-            Destroy();
+            Shutdown();
             return false;
         }
     }
@@ -78,7 +78,7 @@ bool VulkanGpuTimerBackend::Initialize(DeviceBase* device)
     return true;
 }
 
-void VulkanGpuTimerBackend::Destroy()
+void VulkanGpuTimerBackend::Shutdown()
 {
     if (!m_device)
     {
@@ -183,6 +183,8 @@ void VulkanGpuTimerBackend::WriteStopTimestamp(VulkanCommandBuffer* cmd, uint32 
     const uint32 queryIndex = slot * 2 + 1;
 
     vkCmdWriteTimestamp(cmd->GetVulkanHandle(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frameState.queryPool, queryIndex);
+
+    timer->querySlotIndex = UINT32_MAX;
 }
 
 double VulkanGpuTimerBackend::ComputeDeltaMs(uint64 start, uint64 end) const

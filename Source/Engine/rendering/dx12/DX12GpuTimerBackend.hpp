@@ -16,7 +16,7 @@
 
 namespace Hyperion {
 
-class DX12GpuTimerBackend final : public GpuTimerBackend
+class DX12GpuTimerBackend final : public GpuTimerBackendBase
 {
 public:
     DX12GpuTimerBackend() = default;

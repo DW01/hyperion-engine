@@ -24,14 +24,14 @@ namespace Hyperion {
 class VulkanDevice;
 class EngineStatGpuTimer;
 
-class VulkanGpuTimerBackend final : public GpuTimerBackend
+class VulkanGpuTimerBackend final : public GpuTimerBackendBase
 {
 public:
     VulkanGpuTimerBackend();
     ~VulkanGpuTimerBackend() override;
 
     bool Initialize(DeviceBase* device) override;
-    void Destroy() override;
+    void Shutdown() override;
 
     bool IsSupported() const override;
     double GetTimestampPeriod() const override;
@@ -54,7 +54,6 @@ private:
 
     VulkanDevice* m_device = nullptr;
     FixedArray<PerFrameState, NumFramesInFlight> m_frames;
-    Array<EngineStatGpuTimer*, VulkanAllocator> m_timers;
     double m_timestampPeriod = 0.0;
     bool m_isSupported = false;
 };

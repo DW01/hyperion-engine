@@ -135,9 +135,15 @@ static constexpr StringHash GBufferTextureNames[GTN_MAX] = {
     "GBufferDepthTexture"_sh
 };
 
-static EngineStatTimer s_statDeferredPass("Rendering/Deferred/DeferredPass");
 static EngineStatTimer s_statClusterLights("Rendering/ClusterLights");
 static EngineStatTimer s_statClusterEnvProbes("Rendering/ClusterEnvProbes");
+
+static EngineStatGpuTimer s_statDeferredPass("Rendering/GPU/DeferredPass");
+static EngineStatGpuTimer s_statDepthPrepass("Rendering/GPU/DepthPrepass");
+static EngineStatGpuTimer s_statBuildHiZ("Rendering/GPU/BuildHiZ");
+static EngineStatGpuTimer s_statFillOpaque("Rendering/GPU/FillOpaque");
+static EngineStatGpuTimer s_statFillTranslucent("Rendering/GPU/FillTranslucent");
+static EngineStatGpuTimer s_statFillDebug("Rendering/GPU/FillDebug");
 
 // Global stat counter instances
 EngineStatCounter<uint32> g_statDrawCalls("Rendering/DrawCalls");
@@ -2760,6 +2766,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
     if (performDepthPrepass)
     {
+        ENGINE_STAT_GPU_SCOPE(&s_statDepthPrepass);
+
         if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Any() || renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any())
         {
             renderCollector.ExecuteDrawCalls(frame, rs, depthPrepassFramebuffer, PrepassRenderBucketsMask, true);
@@ -2807,6 +2815,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Any()
         || (!cvEnableLightmapVolumes.Get() && renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any()))
     {
+        ENGINE_STAT_GPU_SCOPE(&s_statFillOpaque);
+
         renderCollector.ExecuteDrawCalls(frame, rs, RenderBucketMask<RenderBucket::Opaque>);
 
         if (!cvEnableLightmapVolumes.Get())
@@ -2832,6 +2842,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         // The lightmap bucket's framebuffer has a color attachment that will write into the opaque framebuffer's color attachment.
         if (renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any())
         {
+            ENGINE_STAT_GPU_SCOPE(&s_statFillOpaque);
+
             frame->cr << SetCurrentFramebuffer(lightmapPassFramebuffer);
 
             if (performDepthPrepass)
@@ -2932,7 +2944,7 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     passData.postProcessing->RenderPre(frame, rs);
 
     { // deferred lighting on opaque objects
-        ENGINE_STAT_SCOPE(&s_statDeferredPass);
+        ENGINE_STAT_GPU_SCOPE(&s_statDeferredPass);
 
         // Pre-transition resources to avoid breaking the render pass for barriers
         frame->cr << InsertBarrier(
@@ -2976,6 +2988,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
     if (!performDepthPrepass)
     { // render Hi-Z
+        ENGINE_STAT_GPU_SCOPE(&s_statBuildHiZ);
+
         passData.depthPyramidRenderer->Render(frame);
 
         passData.cullData.depthPyramidImageView = passData.depthPyramidRenderer->GetResultImageView();
@@ -2983,6 +2997,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     }
 
     { // combined + translucent (forward pass)
+        ENGINE_STAT_GPU_SCOPE(&s_statFillTranslucent);
+
         frame->cr << SetCurrentFramebuffer(translucentPassFramebuffer);
 
         { // Render the deferred lighting into the translucent pass framebuffer with a full screen quad.
@@ -3068,6 +3084,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     if (renderCollector.mappingsByBucket[uint32(RenderBucket::Debug)].Any()
         || DebugDrawer::GetInstance().NumEnqueuedDrawCommands() > 0)
     {
+        ENGINE_STAT_GPU_SCOPE(&s_statFillDebug);
+
         frame->cr << SetCurrentFramebuffer(debugPassFramebuffer);
 
         ExecuteDrawCalls(frame, rs, renderCollector, RenderBucketMask<RenderBucket::Debug>);

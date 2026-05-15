@@ -118,11 +118,7 @@ public:
     void PresentToSwapchain(VulkanSwapchain* swapchain) override;
 
     void BeginFrame(AtomicFlag* pCancelFlag) override;
-
-    void RecordStartTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer) override;
-    void RecordStopTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer) override;
-
-    void ResolveGpuFrameResults(uint32 completedFrameIndex) override;
+    void EndFrame() override;
 
     VulkanCommandBuffer* GetCurrentCommandBuffer() const override;
 
@@ -180,6 +176,10 @@ public:
 
     HYP_NODISCARD VulkanAsyncCompute* CreateAsyncCompute() override;
     void SubmitAsyncCompute(VulkanAsyncCompute* asyncCompute) override;
+
+    void RecordStartTimestamp(VulkanCommandBuffer* cmd, EngineStatGpuTimer* timer) override;
+    void RecordStopTimestamp(VulkanCommandBuffer* cmd, EngineStatGpuTimer* timer) override;
+    void ResolveGpuFrameResults(uint32 completedFrameIndex) override;
 
     HYP_API RendererResult CreateDescriptorSet(
         VkDescriptorSetLayout vkDescriptorSetLayout,

@@ -328,7 +328,6 @@ public:
 
     virtual void RecordStartTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer) = 0;
     virtual void RecordStopTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer) = 0;
-
     virtual void ResolveGpuFrameResults(uint32 completedFrameIndex) = 0;
 
     virtual SwapchainRef CreateSwapchain(ApplicationWindow* window, const Vec2u& extent) = 0;

@@ -147,16 +147,15 @@ public:
     HYP_NODISCARD DX12AsyncCompute* CreateAsyncCompute() override;
     void SubmitAsyncCompute(DX12AsyncCompute* asyncCompute) override;
 
+    void RecordStartTimestamp(DX12CommandBuffer* cmd, EngineStatGpuTimer* timer) override;
+    void RecordStopTimestamp(DX12CommandBuffer* cmd, EngineStatGpuTimer* timer) override;
+    void ResolveGpuFrameResults(uint32 completedFrameIndex) override;
+
     UniquePtr<SingleTimeCommands> GetSingleTimeCommands() override;
 
     void ReleaseTransientMemory() override;
 
     void BeginFrame(AtomicFlag* pCancelFlag) override;
-
-    void RecordStartTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer) override;
-    void RecordStopTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer) override;
-
-    void ResolveGpuFrameResults(uint32 completedFrameIndex) override;
 
     void InsertTransientSyncBarrier();
 

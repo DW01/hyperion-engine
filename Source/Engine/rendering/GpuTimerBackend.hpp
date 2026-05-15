@@ -14,21 +14,33 @@ class DeviceBase;
 class CommandBufferBase;
 class EngineStatGpuTimer;
 
-class GpuTimerBackend
+class GpuTimerBackendBase
 {
 public:
-    virtual ~GpuTimerBackend() = default;
+    virtual ~GpuTimerBackendBase() = default;
 
     virtual bool Initialize(DeviceBase* device) = 0;
-    virtual void Destroy() = 0;
+    virtual void Shutdown() = 0;
 
     virtual bool IsSupported() const = 0;
     virtual double GetTimestampPeriod() const = 0;
+
+    void OnFrameStart()
+    {
+        m_timers.Clear();
+    }
+
+    void OnFrameEnd()
+    {
+    }
 
     virtual void WriteStartTimestamp(CommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer) = 0;
     virtual void WriteStopTimestamp(CommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer) = 0;
 
     virtual void ResolveFrameResults(uint32 completedFrameIndex) = 0;
+
+protected:
+    Array<EngineStatGpuTimer*, RHIAllocator> m_timers;
 };
 
 } // namespace Hyperion

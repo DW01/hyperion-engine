@@ -22,7 +22,7 @@ namespace Hyperion {
 class EngineStatsRecorder;
 struct EngineStatsSnapshot;
 class EngineStatGroup;
-class GpuTimerBackend;
+class GpuTimerBackendBase;
 
 static constexpr uint32 EngineStatsNumSamples = 1000;
 static constexpr uint32 EngineStatsMinSamples = 10;

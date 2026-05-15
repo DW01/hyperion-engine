@@ -49,6 +49,8 @@ namespace Hyperion {
 
 HYP_DECLARE_LOG_CHANNEL(RenderingBackend);
 
+static EngineStatGpuTimer s_statGpuFrameTime("Rendering/GPU/FrameTime");
+
 // #define HYP_DX12_ENABLE_DEBUG_LAYER
 // #define HYP_DX12_ENABLE_DRED
 
@@ -451,6 +453,7 @@ void DX12RenderInterface::Shutdown()
 
     m_queueData = {};
 
+    m_gpuTimerBackend->Shutdown();
     m_gpuTimerBackend.Reset();
 
     RenderInterface::Shutdown();
@@ -656,6 +659,9 @@ void DX12RenderInterface::PresentToSwapchain(DX12Swapchain* swapchain)
         HYP_LOG(RenderingBackend, Error, "Failed to signal frame fence! Error: {}", hr);
         CheckDeviceRemovedReason(m_device.Get());
     }
+
+    RecordStopTimestamp(GetCurrentCommandBuffer(), &s_statGpuFrameTime);
+    m_gpuTimerBackend->OnFrameEnd();
 
     // HYP_LOG_TEMP("Signalling {} on frame {}", signalValue, frameIndex);
 
@@ -1052,6 +1058,21 @@ void DX12RenderInterface::SubmitAsyncCompute(DX12AsyncCompute* asyncCompute)
     m_submittedAsyncComputes.PushBack(asyncCompute);
 }
 
+void DX12RenderInterface::RecordStartTimestamp(DX12CommandBuffer* cmd, EngineStatGpuTimer* timer)
+{
+    // @todo:
+}
+
+void DX12RenderInterface::RecordStopTimestamp(DX12CommandBuffer* cmd, EngineStatGpuTimer* timer)
+{
+    // @todo:
+}
+
+void DX12RenderInterface::ResolveGpuFrameResults(uint32 completedFrameIndex)
+{
+    // @todo:
+}
+
 void DX12RenderInterface::ReleaseTransientMemory()
 {
     GetCurrentFrame()->ResetTransientStates();
@@ -1061,23 +1082,12 @@ void DX12RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
 {
     RenderInterface::BeginFrame(pCancelFlag);
 
+    m_gpuTimerBackend->BeginFrame();
+
+    RecordStartTimestamp(GetCurrentCommandBuffer(), &s_statGpuFrameTime);
+
     // Rebind descriptor heaps after command buffer reset in BeginFrame()
     BindDescriptorHeaps(*GetCurrentCommandBuffer());
-}
-
-void DX12RenderInterface::RecordStartTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer)
-{
-    m_gpuTimerBackend->WriteStartTimestamp(static_cast<DX12CommandBuffer*>(cmd), GetFrameCounter() % NumFramesInFlight, timer);
-}
-
-void DX12RenderInterface::RecordStopTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer)
-{
-    m_gpuTimerBackend->WriteStopTimestamp(static_cast<DX12CommandBuffer*>(cmd), GetFrameCounter() % NumFramesInFlight, timer);
-}
-
-void DX12RenderInterface::ResolveGpuFrameResults(uint32 completedFrameIndex)
-{
-    m_gpuTimerBackend->ResolveFrameResults(completedFrameIndex);
 }
 
 void DX12RenderInterface::InsertTransientSyncBarrier()

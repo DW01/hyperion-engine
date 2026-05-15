@@ -27,10 +27,6 @@ namespace Hyperion {
 
 extern VulkanRenderInterface RI;
 
-extern EngineStatGpuTimer g_statGpuPreRender;
-extern EngineStatGpuTimer g_statGpuMainRender;
-extern EngineStatGpuTimer g_statGpuPostRender;
-
 VulkanFrame::VulkanFrame()
     : FrameBase(0),
       m_queueSubmitFence(nullptr),
@@ -132,26 +128,10 @@ void VulkanFrame::WriteCommandBuffer(VulkanCommandBuffer* commandBuffer)
         OnPresent.RemoveAllDetached();
     }
 
+    for (CommandRecorder* commandRecorder : commandRecorders)
     {
-        ENGINE_STAT_GPU_SCOPE(&g_statGpuPreRender);
-
-        preRenderCommands.Execute(commandBuffer);
-        preRenderCommands.Reset(/* freeMemory */ false);
-    }
-    {
-        ENGINE_STAT_GPU_SCOPE(&g_statGpuMainRender);
-
-        cr.Execute(commandBuffer);
-        cr.Reset(/* freeMemory */ false);
-
-        RI.commandRecorderAllocator.root.Execute(commandBuffer);
-        RI.commandRecorderAllocator.root.Reset(/* freeMemory */ false);
-    }
-    {
-        ENGINE_STAT_GPU_SCOPE(&g_statGpuPostRender);
-
-        postRenderCommands.Execute(commandBuffer);
-        postRenderCommands.Reset(/* freeMemory */ false);
+        commandRecorder->Execute(commandBuffer);
+        commandRecorder->Reset(/* freeMemory */ false);
     }
 }
 
