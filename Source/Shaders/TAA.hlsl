@@ -12,7 +12,7 @@ DECLARE_SAMPLER(TAA, SamplerNearest) SamplerState sampler_nearest;
 
 DECLARE_UAV(TAA, OutColorImage) RWTexture2D<float4> output_image;
 
-DECLARE_BUFFER(TAA, TAAConstants) cbuffer TAAConstants
+DECLARE_BUFFER_DYNAMIC(TAA, TAAConstants) cbuffer TAAConstants
 {
     uint2 dimensions;
     uint2 depth_texture_dimensions;

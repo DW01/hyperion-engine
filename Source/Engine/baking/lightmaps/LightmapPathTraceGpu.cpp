@@ -345,7 +345,6 @@ void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(
 
 void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& renderSetup, BakeJobBase* job, Span<const LightmapRay> rays, uint32 rayOffset)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     if (rays.Size() == 0)
@@ -362,11 +361,10 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
 
     CreateAccelerationStructures();
 
-    Assert(m_tlas && m_tlas->IsCreated());
-
-    if (!m_tlas->IsCreated())
+    if (!m_tlas || !m_tlas->IsCreated())
     {
         // no GpuBlas to process if TLAS not created
+        HYP_LOG(Lightmap, Error, "No top level acceleration structure created, cannot bake lightmap");
         return;
     }
 
