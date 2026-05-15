@@ -51,6 +51,12 @@ public:
     static Handle<Mesh> Merge(const Mesh* a, const Mesh* b);
 
     static Handle<Mesh> BuildVoxelMesh(const VoxelOctree& voxelOctree);
+
+    static Handle<Mesh> Cylinder(float radius, float height, uint32 numSegments);
+
+    static Handle<Mesh> Cone(float radius, float height, uint32 numSegments);
+
+    static Handle<Mesh> Torus(float majorRadius, float minorRadius, uint32 majorSegments, uint32 minorSegments);
 };
 
 } // namespace Hyperion

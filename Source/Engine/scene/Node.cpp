@@ -88,17 +88,14 @@ Node::Node(Name name, const Transform& localTransform, Scene* scene)
       m_scene(scene != nullptr ? scene : GetDetachedSceneForCurrentThread()),
       m_transformLocked(false)
 {
-    if (scene != nullptr)
+    for (const Handle<Node>& child : m_childNodes)
     {
-        for (const Handle<Node>& child : m_childNodes)
+        if (!child.IsValid())
         {
-            if (!child.IsValid())
-            {
-                continue;
-            }
-
-            child->SetScene(m_scene);
+            continue;
         }
+
+        child->SetScene(m_scene);
     }
 }
 

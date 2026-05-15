@@ -9,6 +9,7 @@
 #include <util/MeshBuilder.hpp>
 
 #include <Core/math/Triangle.hpp>
+#include <Core/math/MathUtil.hpp>
 
 #include <rendering/Mesh.hpp>
 
@@ -655,6 +656,216 @@ Handle<Mesh> MeshBuilder::BuildVoxelMesh(const VoxelOctree& voxelOctree)
     mesh->SetMeshData(meshDesc, vertexArrayView, indices.ToByteView());
 
     mesh->SetName(NAME("MeshBuilder_VoxelMesh"));
+
+    return mesh;
+}
+
+Handle<Mesh> MeshBuilder::Cylinder(float radius, float height, uint32 numSegments)
+{
+    numSegments = MathUtil::Max(numSegments, 3u);
+
+    Array<SimpleVertex> vertices;
+    vertices.Reserve(numSegments * 12); // 6 shaft verts + 3 top cap + 3 bottom cap per segment
+
+    const float halfHeight = height * 0.5f;
+
+    for (uint32 i = 0; i < numSegments; i++)
+    {
+        const float angle = (MathUtil::pi<float> * 2.0f * float(i)) / float(numSegments);
+        const float nextAngle = (MathUtil::pi<float> * 2.0f * float(i + 1)) / float(numSegments);
+
+        const float cosA = MathUtil::Cos(angle);
+        const float sinA = MathUtil::Sin(angle);
+        const float cosNext = MathUtil::Cos(nextAngle);
+        const float sinNext = MathUtil::Sin(nextAngle);
+
+        const Vec3f normalA(cosA, 0.0f, sinA);
+        const Vec3f normalNext(cosNext, 0.0f, sinNext);
+
+        const Vec3f bottomA(radius * cosA, -halfHeight, radius * sinA);
+        const Vec3f bottomNext(radius * cosNext, -halfHeight, radius * sinNext);
+        const Vec3f topA(radius * cosA, halfHeight, radius * sinA);
+        const Vec3f topNext(radius * cosNext, halfHeight, radius * sinNext);
+
+        vertices.PushBack(SimpleVertex { bottomA, normalA, Vec2f(float(i) / float(numSegments), 0.0f) });
+        vertices.PushBack(SimpleVertex { bottomNext, normalNext, Vec2f(float(i + 1) / float(numSegments), 0.0f) });
+        vertices.PushBack(SimpleVertex { topA, normalA, Vec2f(float(i) / float(numSegments), 1.0f) });
+
+        vertices.PushBack(SimpleVertex { topA, normalA, Vec2f(float(i) / float(numSegments), 1.0f) });
+        vertices.PushBack(SimpleVertex { bottomNext, normalNext, Vec2f(float(i + 1) / float(numSegments), 0.0f) });
+        vertices.PushBack(SimpleVertex { topNext, normalNext, Vec2f(float(i + 1) / float(numSegments), 1.0f) });
+
+        const Vec3f bottomNormal(0.0f, -1.0f, 0.0f);
+        const Vec3f topNormal(0.0f, 1.0f, 0.0f);
+        const Vec3f bottomCenter(0.0f, -halfHeight, 0.0f);
+        const Vec3f topCenter(0.0f, halfHeight, 0.0f);
+
+        vertices.PushBack(SimpleVertex { bottomCenter, bottomNormal, Vec2f(cosA * 0.5f + 0.5f, sinA * 0.5f + 0.5f) });
+        vertices.PushBack(SimpleVertex { bottomNext, bottomNormal, Vec2f(cosNext * 0.5f + 0.5f, sinNext * 0.5f + 0.5f) });
+        vertices.PushBack(SimpleVertex { bottomA, bottomNormal, Vec2f(cosA * 0.5f + 0.5f, sinA * 0.5f + 0.5f) });
+
+        vertices.PushBack(SimpleVertex { topCenter, topNormal, Vec2f(cosA * 0.5f + 0.5f, sinA * 0.5f + 0.5f) });
+        vertices.PushBack(SimpleVertex { topA, topNormal, Vec2f(cosA * 0.5f + 0.5f, sinA * 0.5f + 0.5f) });
+        vertices.PushBack(SimpleVertex { topNext, topNormal, Vec2f(cosNext * 0.5f + 0.5f, sinNext * 0.5f + 0.5f) });
+    }
+
+    auto deduped = CalculateIndices(vertices);
+
+    MeshDesc meshDesc {};
+    meshDesc.meshAttributes.inputLayout = { VT_Simple };
+    meshDesc.numIndices = uint32(deduped.second.Size());
+    meshDesc.numVertices = uint32(deduped.first.Size());
+
+    Handle<Mesh> mesh = MakeHandle<Mesh>();
+    mesh->SetName(NAME("MeshBuilder_Cylinder"));
+
+    VertexArrayView vertexArrayView {};
+    vertexArrayView.floatData = reinterpret_cast<const float*>(deduped.first.Data());
+    vertexArrayView.vertexCount = deduped.first.Size();
+    vertexArrayView.layoutDesc = { VT_Simple };
+
+    mesh->SetMeshData(meshDesc, vertexArrayView, deduped.second.ToByteView());
+
+    return mesh;
+}
+
+Handle<Mesh> MeshBuilder::Cone(float radius, float height, uint32 numSegments)
+{
+    numSegments = MathUtil::Max(numSegments, 3u);
+
+    Array<SimpleVertex> vertices;
+    vertices.Reserve(numSegments * 9); // 6 side verts + 3 bottom cap per segment
+
+    const float halfHeight = height * 0.5f;
+    const Vec3f tip(0.0f, halfHeight, 0.0f);
+
+    for (uint32 i = 0; i < numSegments; i++)
+    {
+        const float angle = (MathUtil::pi<float> * 2.0f * float(i)) / float(numSegments);
+        const float nextAngle = (MathUtil::pi<float> * 2.0f * float(i + 1)) / float(numSegments);
+
+        const float cosA = MathUtil::Cos(angle);
+        const float sinA = MathUtil::Sin(angle);
+        const float cosNext = MathUtil::Cos(nextAngle);
+        const float sinNext = MathUtil::Sin(nextAngle);
+
+        const Vec3f baseA(radius * cosA, -halfHeight, radius * sinA);
+        const Vec3f baseNext(radius * cosNext, -halfHeight, radius * sinNext);
+
+        const Vec3f sideNormalA = Vec3f(cosA * height, radius, sinA * height).Normalize();
+        const Vec3f sideNormalNext = Vec3f(cosNext * height, radius, sinNext * height).Normalize();
+
+        vertices.PushBack(SimpleVertex { baseA, sideNormalA, Vec2f(float(i) / float(numSegments), 0.0f) });
+        vertices.PushBack(SimpleVertex { baseNext, sideNormalNext, Vec2f(float(i + 1) / float(numSegments), 0.0f) });
+        vertices.PushBack(SimpleVertex { tip, sideNormalA, Vec2f(float(i) / float(numSegments), 1.0f) });
+
+        vertices.PushBack(SimpleVertex { tip, sideNormalNext, Vec2f(float(i + 1) / float(numSegments), 1.0f) });
+        vertices.PushBack(SimpleVertex { baseNext, sideNormalNext, Vec2f(float(i + 1) / float(numSegments), 0.0f) });
+        vertices.PushBack(SimpleVertex { baseA, sideNormalA, Vec2f(float(i) / float(numSegments), 0.0f) });
+
+        const Vec3f bottomNormal(0.0f, -1.0f, 0.0f);
+        const Vec3f bottomCenter(0.0f, -halfHeight, 0.0f);
+
+        vertices.PushBack(SimpleVertex { bottomCenter, bottomNormal, Vec2f(cosA * 0.5f + 0.5f, sinA * 0.5f + 0.5f) });
+        vertices.PushBack(SimpleVertex { baseNext, bottomNormal, Vec2f(cosNext * 0.5f + 0.5f, sinNext * 0.5f + 0.5f) });
+        vertices.PushBack(SimpleVertex { baseA, bottomNormal, Vec2f(cosA * 0.5f + 0.5f, sinA * 0.5f + 0.5f) });
+    }
+
+    auto deduped = CalculateIndices(vertices);
+
+    MeshDesc meshDesc {};
+    meshDesc.meshAttributes.inputLayout = { VT_Simple };
+    meshDesc.numIndices = uint32(deduped.second.Size());
+    meshDesc.numVertices = uint32(deduped.first.Size());
+
+    Handle<Mesh> mesh = MakeHandle<Mesh>();
+    mesh->SetName(NAME("MeshBuilder_Cone"));
+
+    VertexArrayView vertexArrayView {};
+    vertexArrayView.floatData = reinterpret_cast<const float*>(deduped.first.Data());
+    vertexArrayView.vertexCount = deduped.first.Size();
+    vertexArrayView.layoutDesc = { VT_Simple };
+
+    mesh->SetMeshData(meshDesc, vertexArrayView, deduped.second.ToByteView());
+
+    return mesh;
+}
+
+Handle<Mesh> MeshBuilder::Torus(float majorRadius, float minorRadius, uint32 majorSegments, uint32 minorSegments)
+{
+    majorSegments = MathUtil::Max(majorSegments, 3u);
+    minorSegments = MathUtil::Max(minorSegments, 3u);
+
+    Array<SimpleVertex> vertices;
+    vertices.Reserve(majorSegments * minorSegments * 6); // 2 triangles per quad
+
+    for (uint32 i = 0; i < majorSegments; i++)
+    {
+        const float theta = (MathUtil::pi<float> * 2.0f * float(i)) / float(majorSegments);
+        const float nextTheta = (MathUtil::pi<float> * 2.0f * float(i + 1)) / float(majorSegments);
+
+        const float cosT = MathUtil::Cos(theta);
+        const float sinT = MathUtil::Sin(theta);
+        const float cosNextT = MathUtil::Cos(nextTheta);
+        const float sinNextT = MathUtil::Sin(nextTheta);
+
+        const Vec3f ringCenter(cosT, 0.0f, sinT);
+        const Vec3f ringCenterNext(cosNextT, 0.0f, sinNextT);
+
+        for (uint32 j = 0; j < minorSegments; j++)
+        {
+            const float phi = (MathUtil::pi<float> * 2.0f * float(j)) / float(minorSegments);
+            const float nextPhi = (MathUtil::pi<float> * 2.0f * float(j + 1)) / float(minorSegments);
+
+            const float cosP = MathUtil::Cos(phi);
+            const float sinP = MathUtil::Sin(phi);
+            const float cosNextP = MathUtil::Cos(nextPhi);
+            const float sinNextP = MathUtil::Sin(nextPhi);
+
+            const float r1 = majorRadius + minorRadius * cosP;
+            const float r2 = majorRadius + minorRadius * cosNextP;
+
+            const Vec3f v0(r1 * cosT, minorRadius * sinP, r1 * sinT);
+            const Vec3f v1(r1 * cosNextT, minorRadius * sinP, r1 * sinNextT);
+            const Vec3f v2(r2 * cosNextT, minorRadius * sinNextP, r2 * sinNextT);
+            const Vec3f v3(r2 * cosT, minorRadius * sinNextP, r2 * sinT);
+
+            const Vec3f n0(cosP * cosT, sinP, cosP * sinT);
+            const Vec3f n1(cosP * cosNextT, sinP, cosP * sinNextT);
+            const Vec3f n2(cosNextP * cosNextT, sinNextP, cosNextP * sinNextT);
+            const Vec3f n3(cosNextP * cosT, sinNextP, cosNextP * sinT);
+
+            const Vec2f uv0(float(i) / float(majorSegments), float(j) / float(minorSegments));
+            const Vec2f uv1(float(i + 1) / float(majorSegments), float(j) / float(minorSegments));
+            const Vec2f uv2(float(i + 1) / float(majorSegments), float(j + 1) / float(minorSegments));
+            const Vec2f uv3(float(i) / float(majorSegments), float(j + 1) / float(minorSegments));
+
+            vertices.PushBack(SimpleVertex { v0, n0, uv0 });
+            vertices.PushBack(SimpleVertex { v1, n1, uv1 });
+            vertices.PushBack(SimpleVertex { v2, n2, uv2 });
+
+            vertices.PushBack(SimpleVertex { v0, n0, uv0 });
+            vertices.PushBack(SimpleVertex { v2, n2, uv2 });
+            vertices.PushBack(SimpleVertex { v3, n3, uv3 });
+        }
+    }
+
+    auto deduped = CalculateIndices(vertices);
+
+    MeshDesc meshDesc {};
+    meshDesc.meshAttributes.inputLayout = { VT_Simple };
+    meshDesc.numIndices = uint32(deduped.second.Size());
+    meshDesc.numVertices = uint32(deduped.first.Size());
+
+    Handle<Mesh> mesh = MakeHandle<Mesh>();
+    mesh->SetName(NAME("MeshBuilder_Torus"));
+
+    VertexArrayView vertexArrayView {};
+    vertexArrayView.floatData = reinterpret_cast<const float*>(deduped.first.Data());
+    vertexArrayView.vertexCount = deduped.first.Size();
+    vertexArrayView.layoutDesc = { VT_Simple };
+
+    mesh->SetMeshData(meshDesc, vertexArrayView, deduped.second.ToByteView());
 
     return mesh;
 }
