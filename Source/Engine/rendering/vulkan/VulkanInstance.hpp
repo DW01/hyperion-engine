@@ -10,7 +10,7 @@
 
 #include <rendering/vulkan/VulkanDevice.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <Core/Types.hpp>
 

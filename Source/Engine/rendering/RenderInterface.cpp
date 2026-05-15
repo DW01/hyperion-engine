@@ -27,7 +27,7 @@
 #include <rendering/MaterialInstance.hpp>
 #include <rendering/Mesh.hpp>
 #include <rendering/RendererMain.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/ShaderInstance.hpp>
 #include <rendering/RenderMemory.hpp>
 #include <rendering/DescriptorSet.hpp>

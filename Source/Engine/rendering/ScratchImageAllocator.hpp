@@ -12,7 +12,7 @@
 #include <Core/memory/Pimpl.hpp>
 
 #include <rendering/RenderMemory.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 namespace Hyperion {
 

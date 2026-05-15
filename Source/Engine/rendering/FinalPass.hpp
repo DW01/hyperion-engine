@@ -12,7 +12,7 @@
 
 #include <Core/Types.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/Shared.hpp>
 
 namespace Hyperion {

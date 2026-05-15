@@ -22,7 +22,7 @@
 #include <Core/math/Vector4.hpp>
 
 #include <rendering/GraphicsPipelineCache.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderMemory.hpp>
 #include <rendering/RenderableAttributes.hpp>
 #include <rendering/Shared.hpp>
@@ -247,7 +247,7 @@ public:
     {
         return uint32(m_headers[GetRingIndex()].Size());
     }
-    
+
     void Initialize();
     void Shutdown();
 

@@ -13,7 +13,7 @@
 #include <rendering/RenderProxyList.hpp>
 #include <rendering/RenderProxy.hpp>
 #include <rendering/RenderCommand.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderConfig.hpp>
 #include <rendering/Device.hpp>
 #include <rendering/Frame.hpp>

@@ -14,7 +14,7 @@
 #undef INCLUDE_FROM_RHI
 #undef INCLUDE_FROM_RHI_BASE
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <rendering/vulkan/VulkanSemaphore.hpp>
 #include <rendering/vulkan/VulkanFence.hpp>

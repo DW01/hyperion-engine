@@ -13,7 +13,7 @@
 #include <Core/utilities/EnumFlags.hpp>
 #include <Core/utilities/IdGenerator.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <Core/Types.hpp>
 

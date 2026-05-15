@@ -9,7 +9,7 @@
 #include <rendering/RenderInterface.hpp>
 #include <rendering/CommandRecorder.hpp>
 #include <rendering/Texture.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/GpuImage.hpp>
 #include <rendering/Sampler.hpp>
 #include <rendering/Frame.hpp>

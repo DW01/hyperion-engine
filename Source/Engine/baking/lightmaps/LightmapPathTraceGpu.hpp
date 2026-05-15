@@ -8,7 +8,7 @@
 
 #include <baking/Baker.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RawBuffer.hpp>
 
 #include <Core/memory/RefCountedPtr.hpp>

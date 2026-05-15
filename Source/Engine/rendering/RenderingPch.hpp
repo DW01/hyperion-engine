@@ -8,7 +8,7 @@
 #include <Core/threading/TaskSystem.hpp>
 
 #include <rendering/RenderResult.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderMemory.hpp>
 #include <rendering/Shared.hpp>
 #include <rendering/Buffers.hpp>

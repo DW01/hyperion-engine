@@ -18,7 +18,7 @@
 
 #include <rendering/RenderableAttributes.hpp>
 #include <rendering/GraphicsPipelineCache.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/Shared.hpp>
 
 namespace Hyperion {
@@ -140,7 +140,7 @@ public:
 
     virtual void Render(Frame* frame, const RenderSetup& renderSetup);
     virtual void RenderToFramebuffer(Frame* frame, const RenderSetup& renderSetup, Framebuffer* framebuffer) final;
-    
+
     void RenderFullScreenQuad(Frame* frame, const RenderSetup& renderSetup);
 
     void Begin(Frame* frame, const RenderSetup& renderSetup);

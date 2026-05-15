@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/GpuImage.hpp>
 
 #include <Core/functional/Proc.hpp>
@@ -25,7 +25,7 @@ class SwapchainBase : public ObjectBase
 
 public:
     static Pool* GetAllocator() { return g_rhiPool; }
-    
+
     virtual ~SwapchainBase() override = default;
 
     virtual bool IsCreated() const = 0;

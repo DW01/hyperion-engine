@@ -7,7 +7,7 @@
 #pragma once
 
 #include <rendering/RenderResult.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/Shared.hpp>
 
 #include <Core/Defines.hpp>
@@ -21,9 +21,9 @@ class GpuImageViewBase : public ObjectBase
 
 public:
     static Pool* GetAllocator() { return g_rhiPool; }
-    
+
     virtual ~GpuImageViewBase() override;
-    
+
 #if HYP_DEBUG_MODE
     Name GetDebugName() const
     {
@@ -76,7 +76,7 @@ protected:
 
     GpuImageRef m_image;
     ImageSubResource m_subResource;
-    
+
 #if HYP_DEBUG_MODE
     Name m_debugName;
 #endif

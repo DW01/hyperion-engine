@@ -15,7 +15,7 @@
 #include <rendering/CullData.hpp>
 
 #include <rendering/Shared.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderMemory.hpp>
 
 namespace Hyperion {
@@ -74,7 +74,7 @@ public:
 
     void PushDrawCall(size_t drawCallIndex, const DrawCallStorage& drawCalls, DrawCommandData& out);
     void PushInstancedDrawCall(size_t drawCallIndex, const InstancedDrawCallStorage& drawCalls, DrawCommandData& out);
-    
+
     void UpdateBufferData(CommandRecorder& cr, bool* outWasResized);
 
     void ResetDrawState();

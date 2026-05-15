@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderResult.hpp>
 
 #include <rendering/dx12/DX12Shared.hpp>
@@ -53,14 +53,14 @@ public:
         return m_debugName;
     }
 #endif
-    
+
     bool isSubmitted;
 
 private:
     ComPtr<ID3D12Fence> m_fence;
     HANDLE m_eventHandle;
     uint64 m_value;
-    
+
 #if HYP_DEBUG_MODE
     WideString m_debugName;
 #endif

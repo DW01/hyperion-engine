@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderResult.hpp>
 #include <rendering/Shared.hpp>
 
@@ -21,7 +21,7 @@ class SamplerBase : public ObjectBase
 
 public:
     static Pool* GetAllocator() { return g_rhiPool; }
-    
+
     virtual ~SamplerBase() override = default;
 
     HYP_FORCE_INLINE TextureFilterMode GetMinFilterMode() const
@@ -47,7 +47,7 @@ public:
     virtual bool IsCreated() const = 0;
 
     virtual RendererResult Create() = 0;
-    
+
 #if HYP_DEBUG_MODE
     Name GetDebugName() const
     {
@@ -75,7 +75,7 @@ protected:
     TextureFilterMode m_magFilterMode = TFM_NEAREST;
     TextureWrapMode m_wrapMode = TWM_CLAMP_TO_EDGE;
     SamplerCompareOp m_compareOp = SamplerCompareOp::None;
-    
+
 #if HYP_DEBUG_MODE
     Name m_debugName;
 #endif

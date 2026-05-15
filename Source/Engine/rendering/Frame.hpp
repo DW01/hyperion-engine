@@ -7,7 +7,7 @@
 #pragma once
 
 #include <rendering/RenderResult.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <rendering/CommandRecorder.hpp>
 

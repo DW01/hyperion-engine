@@ -27,7 +27,7 @@
 #include <rendering/MaterialInstance.hpp>
 #include <rendering/Texture.hpp>
 #include <rendering/PlaceholderData.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/GpuBuffer.hpp>
 #include <rendering/Device.hpp>
 #include <rendering/DescriptorSet.hpp>
@@ -1915,7 +1915,7 @@ public:
                 }
             }
         }
-        
+
         // Start env probes
         ENGINE_STAT_SCOPE(&s_statClusterEnvProbes);
 
@@ -2019,7 +2019,7 @@ public:
                     for (uint32 x = tileMinX; x <= tileMaxX; x++)
                     {
                         const uint32 clusterIndex = (uint32(z) * numTilesY + y) * numTilesX + x;
-                        
+
                         AssertDebug(tempTiles.Size() >= clusterIndex);
 
                         Tile& tile = tempTiles[clusterIndex];
@@ -2807,7 +2807,7 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
                 frame->cr << SetCurrentFramebuffer(nullptr);
             }
         }
-        
+
         { // Build hi-z
             ENGINE_STAT_GPU_SCOPE(&s_statBuildHiZ);
 

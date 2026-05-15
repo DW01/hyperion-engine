@@ -14,7 +14,7 @@
 #include <Core/reflection/ObjectBase.hpp>
 #include <Core/reflection/Handle.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/Texture.hpp>
 #include <rendering/Shared.hpp>
 
@@ -27,7 +27,7 @@ class AttachmentBase : public Texture
 
 public:
     virtual ~AttachmentBase() override = default;
-    
+
     static Pool* GetAllocator() { return g_rhiPool; }
 
     HYP_FORCE_INLINE const GpuImageViewRef& GetImageView() const
@@ -104,7 +104,7 @@ protected:
         const GpuImageViewRef& imageView, // May be null
         const FramebufferWeakRef& framebuffer,
         const AttachmentDesc& attachmentDesc);
-    
+
     AttachmentBase(
         const TextureDesc& textureDesc,
         const FramebufferWeakRef& framebuffer,

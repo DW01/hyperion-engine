@@ -24,7 +24,7 @@
 
 #include <rendering/Shared.hpp>
 #include <rendering/RenderableAttributes.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 namespace Hyperion {
 

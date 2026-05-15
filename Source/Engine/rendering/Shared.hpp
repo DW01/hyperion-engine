@@ -22,7 +22,7 @@
 #include <Core/math/Color.hpp>
 
 #include <rendering/Vertex.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderResult.hpp>
 #include <rendering/RenderMemory.hpp>
 

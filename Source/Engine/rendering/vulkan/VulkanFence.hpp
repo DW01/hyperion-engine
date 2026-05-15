@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <vulkan/vulkan.h>
 
@@ -45,7 +45,7 @@ public:
     {
         return handle;
     }
-    
+
     bool CheckStatus();
 
     void Create(bool createSignaled = false);
@@ -59,7 +59,7 @@ public:
     VkFence handle;
     VkResult lastFrameResult;
     bool isSubmitted;
-    
+
 #if HYP_DEBUG_MODE
     Name debugName;
 #endif

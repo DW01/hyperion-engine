@@ -11,7 +11,7 @@
 #include <asset/AssetReference.hpp>
 #include <asset/AssetObject.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/Shared.hpp>
 
 #include <Core/containers/FixedArray.hpp>
@@ -125,7 +125,7 @@ public:
     }
 
     void SetImageData(ConstByteView imageData);
-    
+
     virtual RendererResult Create();
     virtual bool IsCreated() const;
 

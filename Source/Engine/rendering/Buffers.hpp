@@ -21,7 +21,7 @@
 
 #include <Core/Defines.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/Shared.hpp>
 #include <rendering/GpuBuffer.hpp>
 #include <rendering/Frame.hpp>
@@ -108,7 +108,7 @@ class StagingBufferPool
 {
 public:
     StagingBufferPool();
-    
+
     void OnFrameStart();
     void OnFrameEnd();
 

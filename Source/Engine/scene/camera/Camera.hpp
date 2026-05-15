@@ -18,7 +18,7 @@
 
 #include <input/InputHandler.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <scene/Entity.hpp>
 

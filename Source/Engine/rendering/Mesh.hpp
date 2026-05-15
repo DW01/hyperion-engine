@@ -24,7 +24,7 @@
 #include <rendering/RenderableAttributes.hpp>
 #include <rendering/Shared.hpp>
 #include <rendering/Vertex.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <asset/AssetObject.hpp>
 #include <asset/AssetReference.hpp>

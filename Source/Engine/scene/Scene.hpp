@@ -23,7 +23,7 @@
 
 #include <scene/camera/Camera.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <asset/AssetObject.hpp>
 

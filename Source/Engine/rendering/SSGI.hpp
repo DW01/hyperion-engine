@@ -8,7 +8,7 @@
 
 #include <rendering/TemporalBlending.hpp>
 #include <rendering/FullScreenPass.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <Core/config/Config.hpp>
 
@@ -37,7 +37,7 @@ public:
 
 private:
     static constexpr uint32 NumDownsamplePasses = 4;
-    
+
     Handle<Texture> m_ssgiTexture;
 
     Handle<Texture> m_downsampleTextures[NumDownsamplePasses];

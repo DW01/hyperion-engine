@@ -12,7 +12,7 @@
 
 #include <rendering/Framebuffer.hpp>
 #include <rendering/CommandBuffer.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderMemory.hpp>
 #include <rendering/RenderableAttributes.hpp>
 #include <rendering/Vertex.hpp>

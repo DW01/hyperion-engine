@@ -18,7 +18,7 @@
 #include <rendering/GpuBuffer.hpp>
 #include <rendering/DescriptorSet.hpp>
 #include <rendering/ComputePipeline.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderProxyList.hpp>
 #include <rendering/RenderProxy.hpp>
 #include <rendering/AsyncCompute.hpp>
@@ -110,7 +110,7 @@ void ConvolveEnvProbeCubemap(
     else
     {
         needsMipMapGeneration = true;
-        
+
         // copy into new texture, we need to generate mips on it before convolving
         srcTexture = RI.scratchImageAllocator->AcquireScratchImage(
             TextureType::Cubemap,

@@ -15,7 +15,7 @@
 #include <rendering/vulkan/VulkanFeatures.hpp>
 
 #include <rendering/Device.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <rendering/util/DeletionQueue.hpp>
 

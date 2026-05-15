@@ -23,7 +23,7 @@
 #include <rendering/RenderableAttributes.hpp>
 #include <rendering/DrawCall.hpp>
 #include <rendering/CommandRecorder.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderGroup.hpp>
 #include <rendering/Shared.hpp>
 

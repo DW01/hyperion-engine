@@ -11,7 +11,7 @@
 #include <rendering/RenderInterface.hpp>
 #include <rendering/Frame.hpp>
 #include <rendering/CommandRecorder.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/DescriptorSet.hpp>
 #include <rendering/GraphicsPipeline.hpp>
 #include <rendering/ComputePipeline.hpp>

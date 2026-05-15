@@ -13,7 +13,7 @@
 
 #include <Core/functional/Delegate.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/DrawCall.hpp>
 
 namespace Hyperion {

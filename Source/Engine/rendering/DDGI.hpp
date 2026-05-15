@@ -7,7 +7,7 @@
 #pragma once
 
 #include <rendering/Shared.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <Core/math/BoundingBox.hpp>
 

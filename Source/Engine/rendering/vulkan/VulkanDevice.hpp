@@ -27,7 +27,7 @@
 #include <Core/utilities/Span.hpp>
 #include <Core/utilities/Optional.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderResult.hpp>
 #include <rendering/Shared.hpp>
 

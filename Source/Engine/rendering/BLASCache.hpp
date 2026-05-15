@@ -8,7 +8,7 @@
 
 #include <Core/memory/Pimpl.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/AccelerationStructure.hpp>
 
 namespace Hyperion {
@@ -23,7 +23,7 @@ class BLASCache
 {
 public:
     BLASCache();
-    
+
     BLASCache(const BLASCache& other) = delete;
     BLASCache& operator=(const BLASCache& other) = delete;
 

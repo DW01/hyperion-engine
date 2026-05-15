@@ -20,7 +20,7 @@
 #include <Core/threading/Mutex.hpp>
 #include <Core/Defines.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <Core/Types.hpp>
 #include <Core/Constants.hpp>

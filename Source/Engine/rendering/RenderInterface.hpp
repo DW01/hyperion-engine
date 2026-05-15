@@ -11,7 +11,7 @@
 #include <Core/reflection/Handle.hpp>
 
 #include <rendering/RenderableAttributes.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderConfig.hpp>
 #include <rendering/CommandRecorderAllocator.hpp>
 #include <rendering/RawBuffer.hpp>

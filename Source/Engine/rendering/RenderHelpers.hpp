@@ -10,7 +10,7 @@
 
 #include <Core/functional/Proc.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderMemory.hpp>
 
 #include <Core/Types.hpp>
