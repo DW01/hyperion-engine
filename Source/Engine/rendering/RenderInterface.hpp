@@ -326,7 +326,9 @@ public:
     virtual void BeginFrame(AtomicFlag* pCancelFlag);
     virtual void EndFrame();
 
-    virtual void RecordGpuTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer, bool isStart) = 0;
+    virtual void RecordStartTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer) = 0;
+    virtual void RecordStopTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer) = 0;
+
     virtual void ResolveGpuFrameResults(uint32 completedFrameIndex) = 0;
 
     virtual SwapchainRef CreateSwapchain(ApplicationWindow* window, const Vec2u& extent) = 0;

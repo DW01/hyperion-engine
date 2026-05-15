@@ -119,7 +119,9 @@ public:
 
     void BeginFrame(AtomicFlag* pCancelFlag) override;
 
-    void RecordGpuTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer, bool isStart) override;
+    void RecordStartTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer) override;
+    void RecordStopTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer) override;
+
     void ResolveGpuFrameResults(uint32 completedFrameIndex) override;
 
     VulkanCommandBuffer* GetCurrentCommandBuffer() const override;

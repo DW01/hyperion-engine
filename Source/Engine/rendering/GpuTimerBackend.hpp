@@ -25,7 +25,8 @@ public:
     virtual bool IsSupported() const = 0;
     virtual double GetTimestampPeriod() const = 0;
 
-    virtual void WriteTimestamp(CommandBufferBase* cmd, uint32 frameIndex, EngineStatGpuTimer* timer, bool isStart) = 0;
+    virtual void WriteStartTimestamp(CommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer) = 0;
+    virtual void WriteStopTimestamp(CommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer) = 0;
 
     virtual void ResolveFrameResults(uint32 completedFrameIndex) = 0;
 };

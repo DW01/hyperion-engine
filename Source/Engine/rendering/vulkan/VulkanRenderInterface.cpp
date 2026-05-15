@@ -792,12 +792,17 @@ void VulkanRenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
 {
     RenderInterface::BeginFrame(pCancelFlag);
 
-    m_gpuTimerBackend->WriteTimestamp(GetCurrentCommandBuffer(), GetFrameCounter() % NumFramesInFlight, &g_statGpuFrameTime, true);
+    m_gpuTimerBackend->WriteStartTimestamp(GetCurrentCommandBuffer(), GetFrameCounter() % NumFramesInFlight, &g_statGpuFrameTime);
 }
 
-void VulkanRenderInterface::RecordGpuTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer, bool isStart)
+void VulkanRenderInterface::RecordStartTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer)
 {
-    m_gpuTimerBackend->WriteTimestamp(static_cast<VulkanCommandBuffer*>(cmd), GetFrameCounter() % NumFramesInFlight, timer, isStart);
+    m_gpuTimerBackend->WriteStartTimestamp(static_cast<VulkanCommandBuffer*>(cmd), GetFrameCounter() % NumFramesInFlight, timer);
+}
+
+void VulkanRenderInterface::RecordStopTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer)
+{
+    m_gpuTimerBackend->WriteStopTimestamp(static_cast<VulkanCommandBuffer*>(cmd), GetFrameCounter() % NumFramesInFlight, timer);
 }
 
 void VulkanRenderInterface::ResolveGpuFrameResults(uint32 completedFrameIndex)
@@ -999,7 +1004,7 @@ void VulkanRenderInterface::PresentToSwapchain(VulkanSwapchain* swapchain)
     VulkanFrame* frame = GetCurrentFrame();
     frame->WriteCommandBuffer(commandBuffer);
 
-    m_gpuTimerBackend->WriteTimestamp(commandBuffer, GetFrameCounter() % NumFramesInFlight, &g_statGpuFrameTime, false);
+    m_gpuTimerBackend->WriteStopTimestamp(commandBuffer, GetFrameCounter() % NumFramesInFlight, &g_statGpuFrameTime);
 
     commandBuffer->End();
 

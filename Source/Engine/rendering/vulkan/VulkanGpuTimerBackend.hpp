@@ -36,7 +36,8 @@ public:
     bool IsSupported() const override;
     double GetTimestampPeriod() const override;
 
-    void WriteTimestamp(CommandBufferBase* cmd, uint32 frameIndex, EngineStatGpuTimer* timer, bool isStart) override;
+    void WriteStartTimestamp(VulkanCommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer) override;
+    void WriteStopTimestamp(VulkanCommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer) override;
 
     void ResolveFrameResults(uint32 completedFrameIndex) override;
 
@@ -51,13 +52,9 @@ private:
         bool resultsPending = false;
     };
 
-    static constexpr uint32 MaxGpuTimers = 32;
-    static constexpr uint32 MaxGpuQueriesPerFrame = MaxGpuTimers * 2;
-
     VulkanDevice* m_device = nullptr;
     FixedArray<PerFrameState, NumFramesInFlight> m_frames;
-    FixedArray<EngineStatGpuTimer*, MaxGpuTimers> m_timerSlots;
-    uint32 m_numTimerSlots = 0;
+    Array<EngineStatGpuTimer*, VulkanAllocator> m_timers;
     double m_timestampPeriod = 0.0;
     bool m_isSupported = false;
 };

@@ -41,7 +41,11 @@ public:
         return 0.0;
     }
 
-    void WriteTimestamp(CommandBufferBase* cmd, uint32 frameIndex, EngineStatGpuTimer* timer, bool isStart) override
+    void WriteStartTimestamp(DX12CommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer) override
+    {
+    }
+
+    void WriteStopTimestamp(DX12CommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer) override
     {
     }
 

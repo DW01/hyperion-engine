@@ -17,9 +17,7 @@ namespace Hyperion {
 
 VulkanGpuTimerBackend::VulkanGpuTimerBackend()
     : GpuTimerBackend(),
-      m_frames { },
-      m_timerSlots { },
-      m_numTimerSlots(0)
+      m_frames { }
 {
 }
 
@@ -60,14 +58,12 @@ bool VulkanGpuTimerBackend::Initialize(DeviceBase* device)
         return false;
     }
 
-    const VkQueryPoolCreateInfo queryPoolCreateInfo {
-        .sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .queryType = VK_QUERY_TYPE_TIMESTAMP,
-        .queryCount = MaxGpuQueriesPerFrame,
-        .pipelineStatistics = 0
-    };
+    VkQueryPoolCreateInfo queryPoolCreateInfo { VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO };
+    queryPoolCreateInfo.pNext = nullptr;
+    queryPoolCreateInfo.flags = 0;
+    queryPoolCreateInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+    queryPoolCreateInfo.queryCount = MaxGpuTimestampQueriesPerFrame;
+    queryPoolCreateInfo.pipelineStatistics = 0;
 
     for (uint32 i = 0; i < NumFramesInFlight; i++)
     {
@@ -99,8 +95,8 @@ void VulkanGpuTimerBackend::Destroy()
         m_frames[i].resultsPending = false;
     }
 
-    m_timerSlots = { };
-    m_numTimerSlots = 0;
+    m_timers.Clear();
+
     m_isSupported = false;
 }
 
@@ -121,20 +117,21 @@ uint32 VulkanGpuTimerBackend::GetOrCreateQuerySlot(EngineStatGpuTimer* timer)
         return timer->querySlotIndex;
     }
 
-    if (m_numTimerSlots >= MaxGpuTimers)
+    if (uint32(m_timers.Size()) >= MaxGpuTimers)
     {
         return UINT32_MAX;
     }
 
-    const uint32 slot = m_numTimerSlots++;
-    m_timerSlots[slot] = timer;
+    m_timers.PushBack(timer);
+
+    const uint32 slot = uint32(m_timers.Size() - 1);
 
     timer->querySlotIndex = slot;
 
     return slot;
 }
 
-void VulkanGpuTimerBackend::WriteTimestamp(CommandBufferBase* cmd, uint32 frameIndex, EngineStatGpuTimer* timer, bool isStart)
+void VulkanGpuTimerBackend::WriteStartTimestamp(VulkanCommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer)
 {
     if (!m_isSupported || !cmd || !timer)
     {
@@ -148,19 +145,44 @@ void VulkanGpuTimerBackend::WriteTimestamp(CommandBufferBase* cmd, uint32 frameI
         return;
     }
 
-    VulkanCommandBuffer* vkCmdBuf = static_cast<VulkanCommandBuffer*>(cmd);
-    VkCommandBuffer vkCmd = vkCmdBuf->GetVulkanHandle();
     PerFrameState& frameState = m_frames[frameIndex];
 
     if (!frameState.resultsPending)
     {
-        vkCmdResetQueryPool(vkCmd, frameState.queryPool, 0, MaxGpuQueriesPerFrame);
+        vkCmdResetQueryPool(cmd->GetVulkanHandle(), frameState.queryPool, 0, MaxGpuTimestampQueriesPerFrame);
         frameState.resultsPending = true;
     }
 
-    const uint32 queryIndex = slot * 2 + (isStart ? 0 : 1);
+    const uint32 queryIndex = slot * 2;
 
-    vkCmdWriteTimestamp(vkCmd, isStart ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frameState.queryPool, queryIndex);
+    vkCmdWriteTimestamp(cmd->GetVulkanHandle(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, frameState.queryPool, queryIndex);
+}
+
+void VulkanGpuTimerBackend::WriteStopTimestamp(VulkanCommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer)
+{
+    if (!m_isSupported || !cmd || !timer)
+    {
+        return;
+    }
+
+    const uint32 slot = GetOrCreateQuerySlot(timer);
+
+    if (slot >= MaxGpuTimers)
+    {
+        return;
+    }
+
+    PerFrameState& frameState = m_frames[frameIndex];
+
+    if (!frameState.resultsPending)
+    {
+        vkCmdResetQueryPool(cmd->GetVulkanHandle(), frameState.queryPool, 0, MaxGpuTimestampQueriesPerFrame);
+        frameState.resultsPending = true;
+    }
+
+    const uint32 queryIndex = slot * 2 + 1;
+
+    vkCmdWriteTimestamp(cmd->GetVulkanHandle(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frameState.queryPool, queryIndex);
 }
 
 double VulkanGpuTimerBackend::ComputeDeltaMs(uint64 start, uint64 end) const
@@ -187,13 +209,13 @@ void VulkanGpuTimerBackend::ResolveFrameResults(uint32 completedFrameIndex)
         return;
     }
 
-    uint64 timestampsAndAvailability[MaxGpuQueriesPerFrame * 2] = { };
+    uint64 timestampsAndAvailability[MaxGpuTimestampQueriesPerFrame * 2] {};
 
     const VkResult result = vkGetQueryPoolResults(
         m_device->GetDevice(),
         frameState.queryPool,
         0,
-        MaxGpuQueriesPerFrame,
+        MaxGpuTimestampQueriesPerFrame,
         sizeof(timestampsAndAvailability),
         timestampsAndAvailability,
         sizeof(uint64) * 2,
@@ -206,9 +228,9 @@ void VulkanGpuTimerBackend::ResolveFrameResults(uint32 completedFrameIndex)
 
     frameState.resultsPending = false;
 
-    for (uint32 i = 0; i < m_numTimerSlots; i++)
+    for (uint32 i = 0; i < uint32(m_timers.Size()); i++)
     {
-        EngineStatGpuTimer* timer = m_timerSlots[i];
+        EngineStatGpuTimer* timer = m_timers[i];
 
         if (!timer)
         {

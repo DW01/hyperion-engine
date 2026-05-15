@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <Core/Constants.hpp>
+
 #include <Core/threading/AtomicVar.hpp>
 #include <Core/threading/util/ThreadId.hpp>
 
@@ -24,10 +26,7 @@ class GpuTimerBackend;
 
 static constexpr uint32 EngineStatsNumSamples = 1000;
 static constexpr uint32 EngineStatsMinSamples = 10;
-static constexpr uint32 EngineStatsMaxStats = 32;
-
-static constexpr uint32 MaxGpuTimers = 32;
-static constexpr uint32 MaxGpuQueriesPerFrame = MaxGpuTimers * 2;
+static constexpr uint32 EngineStatsMaxStats = 128;
 
 static constexpr int StatIdMsPerFrame = 0;
 static constexpr int StatIdFps = 1;

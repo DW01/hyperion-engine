@@ -1065,9 +1065,14 @@ void DX12RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
     BindDescriptorHeaps(*GetCurrentCommandBuffer());
 }
 
-void DX12RenderInterface::RecordGpuTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer, bool isStart)
+void DX12RenderInterface::RecordStartTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer)
 {
-    m_gpuTimerBackend->WriteTimestamp(static_cast<DX12CommandBuffer*>(cmd), GetFrameCounter() % NumFramesInFlight, timer, isStart);
+    m_gpuTimerBackend->WriteStartTimestamp(static_cast<DX12CommandBuffer*>(cmd), GetFrameCounter() % NumFramesInFlight, timer);
+}
+
+void DX12RenderInterface::RecordStopTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer)
+{
+    m_gpuTimerBackend->WriteStopTimestamp(static_cast<DX12CommandBuffer*>(cmd), GetFrameCounter() % NumFramesInFlight, timer);
 }
 
 void DX12RenderInterface::ResolveGpuFrameResults(uint32 completedFrameIndex)

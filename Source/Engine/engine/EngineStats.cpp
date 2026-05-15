@@ -58,7 +58,7 @@ struct EngineStatsRecorderImpl
     EngineStatsRecorderImpl(const EngineStatsRecorderImpl& other) = delete;
     EngineStatsRecorderImpl& operator=(const EngineStatsRecorderImpl& other) = delete;
 
-    virtual ~EngineStatsRecorderImpl()
+    ~EngineStatsRecorderImpl()
     {
         delete[] snapshots;
         delete[] statsBuffer;
@@ -562,7 +562,7 @@ EngineStatGpuScope::EngineStatGpuScope(EngineStatGpuTimer* inTimer)
     if (timer)
     {
         CommandBuffer* commandBuffer = RI.GetCurrentCommandBuffer();
-        RI.RecordGpuTimestamp(commandBuffer, timer, true);
+        RI.RecordStartTimestamp(commandBuffer, timer);
     }
 }
 
@@ -571,7 +571,7 @@ EngineStatGpuScope::~EngineStatGpuScope()
     if (timer)
     {
         CommandBuffer* commandBuffer = RI.GetCurrentCommandBuffer();
-        RI.RecordGpuTimestamp(commandBuffer, timer, false);
+        RI.RecordStopTimestamp(commandBuffer, timer);
     }
 }
 
