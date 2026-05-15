@@ -144,6 +144,7 @@ static EngineStatGpuTimer s_statBuildHiZ("Rendering/GPU/BuildHiZ");
 static EngineStatGpuTimer s_statFillOpaque("Rendering/GPU/FillOpaque");
 static EngineStatGpuTimer s_statFillTranslucent("Rendering/GPU/FillTranslucent");
 static EngineStatGpuTimer s_statFillDebug("Rendering/GPU/FillDebug");
+static EngineStatGpuTimer s_statOcclusionCulling("Rendering/GPU/OcclusionCulling");
 
 // Global stat counter instances
 EngineStatCounter<uint32> g_statDrawCalls("Rendering/DrawCalls");
@@ -797,7 +798,6 @@ void TonemapPass::Render(Frame* frame, const RenderSetup& rs)
     DeferredPassData* dpd = DynamicCast<DeferredPassData>(rs.passData);
     AssertDebug(dpd != nullptr);
 
-    const uint32 frameIndex = frame->GetFrameIndex();
     const FramebufferRef& inputsFramebuffer = dpd->view.GetUnsafe()->GetOutputTarget().GetFramebuffer(RenderBucket::Opaque);
 
     uint32 numShaderUniforms = 0;
@@ -910,8 +910,6 @@ void LightmapPass::Resize_Internal(Vec2u newSize)
 void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup& renderSetup, Framebuffer* framebuffer)
 {
     AssertDebug(renderSetup.world && renderSetup.volume && renderSetup.view);
-
-    const uint32 frameIndex = frame->GetFrameIndex();
 
     LightmapVolume* volume = DynamicCast<LightmapVolume>(renderSetup.volume);
     AssertDebug(volume != nullptr);
@@ -1303,8 +1301,6 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
     AssertDebug(rs.world && rs.view);
     AssertDebug(rs.passData != nullptr);
 
-    const uint32 frameIndex = frame->GetFrameIndex();
-
     RenderProxyList& rpl = GetConsumerProxyList(rs.view);
     rpl.BeginRead();
     HYP_DEFER({ rpl.EndRead(); });
@@ -1657,6 +1653,8 @@ public:
 
         // @TODO VP offset
 
+        // Would be nice to make this a compute shader at some point
+
         RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(view->GetCamera()));
         Assert(cameraProxy != nullptr);
 
@@ -1743,12 +1741,22 @@ public:
             const float pixMinY = (1.0f - (ndcCenterY + ndcRadiusY)) * halfH;
             const float pixMaxY = (1.0f - (ndcCenterY - ndcRadiusY)) * halfH;
 
-            outMinX = uint32(MathUtil::Max(int32(pixMinX) / int32(TileSize), 0));
-            outMinY = uint32(MathUtil::Max(int32(pixMinY) / int32(TileSize), 0));
-            outMaxX = uint32(MathUtil::Min(int32(pixMaxX) / int32(TileSize), int32(numTilesX - 1)));
-            outMaxY = uint32(MathUtil::Min(int32(pixMaxY) / int32(TileSize), int32(numTilesY - 1)));
+            const int32 minX = MathUtil::Max(int32(pixMinX) / int32(TileSize), 0);
+            const int32 minY = MathUtil::Max(int32(pixMinY) / int32(TileSize), 0);
+            const int32 maxX = MathUtil::Min(int32(pixMaxX) / int32(TileSize), int32(numTilesX - 1));
+            const int32 maxY = MathUtil::Min(int32(pixMaxY) / int32(TileSize), int32(numTilesY - 1));
 
-            return outMinX <= outMaxX && outMinY <= outMaxY;
+            if (minX > maxX || minY > maxY)
+            {
+                return false;
+            }
+
+            outMinX = uint32(minX);
+            outMinY = uint32(minY);
+            outMaxX = uint32(maxX);
+            outMaxY = uint32(maxY);
+
+            return true;
         };
 
         auto ProjectAABBToScreenTiles = [&viewMatrix, &projMatrix, &extent, cameraNear, numTilesX, numTilesY](
@@ -1828,12 +1836,22 @@ public:
             const float pixMinY = (1.0f - ndcMaxY) * halfH;
             const float pixMaxY = (1.0f - ndcMinY) * halfH;
 
-            outMinX = uint32(MathUtil::Max(int32(pixMinX) / int32(TileSize), 0));
-            outMinY = uint32(MathUtil::Max(int32(pixMinY) / int32(TileSize), 0));
-            outMaxX = uint32(MathUtil::Min(int32(pixMaxX) / int32(TileSize), int32(numTilesX - 1)));
-            outMaxY = uint32(MathUtil::Min(int32(pixMaxY) / int32(TileSize), int32(numTilesY - 1)));
+            const int32 minX = MathUtil::Max(int32(pixMinX) / int32(TileSize), 0);
+            const int32 minY = MathUtil::Max(int32(pixMinY) / int32(TileSize), 0);
+            const int32 maxX = MathUtil::Min(int32(pixMaxX) / int32(TileSize), int32(numTilesX - 1));
+            const int32 maxY = MathUtil::Min(int32(pixMaxY) / int32(TileSize), int32(numTilesY - 1));
 
-            return outMinX <= outMaxX && outMinY <= outMaxY;
+            if (minX > maxX || minY > maxY)
+            {
+                return false;
+            }
+
+            outMinX = uint32(minX);
+            outMinY = uint32(minY);
+            outMaxX = uint32(maxX);
+            outMaxY = uint32(maxY);
+
+            return true;
         };
 
         {
@@ -1882,6 +1900,9 @@ public:
                         for (uint32 x = tileMinX; x <= tileMaxX; x++)
                         {
                             const uint32 clusterIndex = (uint32(z) * numTilesY + y) * numTilesX + x;
+
+                            // yikes.. What?
+                            AssertDebug(tempTiles.Size() >= clusterIndex);
 
                             Tile& tile = tempTiles[clusterIndex];
 
@@ -1998,6 +2019,8 @@ public:
                     for (uint32 x = tileMinX; x <= tileMaxX; x++)
                     {
                         const uint32 clusterIndex = (uint32(z) * numTilesY + y) * numTilesX + x;
+                        
+                        AssertDebug(tempTiles.Size() >= clusterIndex);
 
                         Tile& tile = tempTiles[clusterIndex];
 
@@ -2734,7 +2757,11 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     }
     else
     {
-        renderCollector.PerformOcclusionCulling(frame, rs, AllRenderBucketsMask);
+        {
+            ENGINE_STAT_GPU_SCOPE(&s_statOcclusionCulling);
+
+            renderCollector.PerformOcclusionCulling(frame, rs, AllRenderBucketsMask);
+        }
 
         renderCollector.BeginRecordDrawCalls(frame, rs, AllRenderBucketsMask);
     }
@@ -2766,24 +2793,34 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
     if (performDepthPrepass)
     {
-        ENGINE_STAT_GPU_SCOPE(&s_statDepthPrepass);
+        { // Render prepass
+            ENGINE_STAT_GPU_SCOPE(&s_statDepthPrepass);
 
-        if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Any() || renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any())
-        {
-            renderCollector.ExecuteDrawCalls(frame, rs, depthPrepassFramebuffer, PrepassRenderBucketsMask, true);
+            if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Any() || renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any())
+            {
+                renderCollector.ExecuteDrawCalls(frame, rs, depthPrepassFramebuffer, PrepassRenderBucketsMask, true);
+            }
+            else
+            {
+                frame->cr << SetCurrentFramebuffer(depthPrepassFramebuffer);
+                frame->cr << ClearFramebuffer(depthPrepassFramebuffer);
+                frame->cr << SetCurrentFramebuffer(nullptr);
+            }
         }
-        else
-        {
-            frame->cr << SetCurrentFramebuffer(depthPrepassFramebuffer);
-            frame->cr << ClearFramebuffer(depthPrepassFramebuffer);
-            frame->cr << SetCurrentFramebuffer(nullptr);
+        
+        { // Build hi-z
+            ENGINE_STAT_GPU_SCOPE(&s_statBuildHiZ);
+
+            passData.depthPyramidRenderer->Render(frame);
+            passData.cullData.depthPyramidImageView = passData.depthPyramidRenderer->GetResultImageView();
+            passData.cullData.depthPyramidDimensions = passData.depthPyramidRenderer->GetExtent();
         }
 
-        passData.depthPyramidRenderer->Render(frame);
-        passData.cullData.depthPyramidImageView = passData.depthPyramidRenderer->GetResultImageView();
-        passData.cullData.depthPyramidDimensions = passData.depthPyramidRenderer->GetExtent();
+        {
+            ENGINE_STAT_GPU_SCOPE(&s_statOcclusionCulling);
 
-        renderCollector.PerformOcclusionCulling(frame, rs, AllRenderBucketsMask);
+            renderCollector.PerformOcclusionCulling(frame, rs, AllRenderBucketsMask);
+        }
 
         renderCollector.BeginRecordDrawCalls(frame, rs, AllRenderBucketsMask);
     }

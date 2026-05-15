@@ -203,8 +203,6 @@ void SSGI::Render(Frame* frame, const RenderSetup& renderSetup)
     AssertDebug(renderSetup.world && renderSetup.view);
     AssertDebug(renderSetup.passData != nullptr);
 
-    const uint32 frameIndex = frame->GetFrameIndex();
-
     DeferredPassData* dpd = DynamicCast<DeferredPassData>(renderSetup.passData);
     AssertDebug(dpd != nullptr);
 

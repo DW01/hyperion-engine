@@ -993,7 +993,7 @@ void VulkanRenderInterface::PresentToSwapchain(VulkanSwapchain* swapchain)
     VulkanFrame* frame = GetCurrentFrame();
     frame->WriteCommandBuffer(commandBuffer);
 
-    RecordStopTimestamp(GetCurrentCommandBuffer(), &s_statGpuFrameTime);
+    m_gpuTimerBackend->WriteStopTimestamp(commandBuffer, &s_statGpuFrameTime);
     m_gpuTimerBackend->OnFrameEnd();
 
     commandBuffer->End();
@@ -1428,17 +1428,21 @@ void VulkanRenderInterface::SubmitAsyncCompute(VulkanAsyncCompute* asyncCompute)
 
 void VulkanRenderInterface::RecordStartTimestamp(VulkanCommandBuffer* cmd, EngineStatGpuTimer* timer)
 {
-    if (m_gpuTimerBackend)
+    VulkanFrame* frame = GetCurrentFrame();
+
+    if (frame && m_gpuTimerBackend)
     {
-        m_gpuTimerBackend->WriteStartTimestamp(cmd, GetFrameCounter() % NumFramesInFlight, timer);
+        frame->cr << RecordGpuTimestamp(timer, m_gpuTimerBackend.Get(), /* isStart */ true);
     }
 }
 
 void VulkanRenderInterface::RecordStopTimestamp(VulkanCommandBuffer* cmd, EngineStatGpuTimer* timer)
 {
-    if (m_gpuTimerBackend)
+    VulkanFrame* frame = GetCurrentFrame();
+
+    if (frame && m_gpuTimerBackend)
     {
-        m_gpuTimerBackend->WriteStopTimestamp(cmd, GetFrameCounter() % NumFramesInFlight, timer);
+        frame->cr << RecordGpuTimestamp(timer, m_gpuTimerBackend.Get(), /* isStart */ false);
     }
 }
 

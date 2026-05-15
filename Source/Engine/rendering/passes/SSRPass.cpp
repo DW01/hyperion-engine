@@ -277,7 +277,6 @@ void SSRPass::Render(Frame* frame, const RenderSetup& renderSetup)
 
     UpdatePipelineState(frame, renderSetup);
 
-    const uint32 frameIndex = frame->GetFrameIndex();
     CommandRecorder& cr = frame->cr;
 
     GpuBuffer* cbuffer = nullptr;

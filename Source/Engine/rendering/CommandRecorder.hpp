@@ -35,6 +35,8 @@ class View;
 class StructuredBuffer;
 class RWStructuredBuffer;
 class ByteAddressBuffer;
+class EngineStatGpuTimer;
+class GpuTimerBackendBase;
 
 class alignas(void*) CmdBase
 {
@@ -905,6 +907,24 @@ public:
 
     uint32 startIndex;
     ShaderUniforms shaderUniforms;
+};
+
+class RecordGpuTimestamp final : public CmdBase
+{
+public:
+    RecordGpuTimestamp(EngineStatGpuTimer* timer, GpuTimerBackendBase* backend, bool isStart)
+        : m_timer(timer),
+          m_backend(backend),
+          m_isStart(isStart)
+    {
+    }
+
+    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+
+private:
+    EngineStatGpuTimer* m_timer;
+    GpuTimerBackendBase* m_backend;
+    bool m_isStart;
 };
 
 class CommitDrawState final : public CmdBase

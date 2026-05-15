@@ -11,6 +11,8 @@
 #include "VulkanCommandBuffer.hpp"
 #include "VulkanFeatures.hpp"
 
+#include <rendering/RenderInterface.hpp>
+
 #include <engine/EngineStats.hpp>
 
 namespace Hyperion {
@@ -131,12 +133,14 @@ uint32 VulkanGpuTimerBackend::GetOrCreateQuerySlot(EngineStatGpuTimer* timer)
     return slot;
 }
 
-void VulkanGpuTimerBackend::WriteStartTimestamp(VulkanCommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer)
+void VulkanGpuTimerBackend::WriteStartTimestamp(VulkanCommandBuffer* cmd, EngineStatGpuTimer* timer)
 {
     if (!m_isSupported || !cmd || !timer)
     {
         return;
     }
+
+    const uint32 frameIndex = GetFrameCounter() % NumFramesInFlight;
 
     const uint32 slot = GetOrCreateQuerySlot(timer);
 
@@ -158,12 +162,14 @@ void VulkanGpuTimerBackend::WriteStartTimestamp(VulkanCommandBuffer* cmd, uint32
     vkCmdWriteTimestamp(cmd->GetVulkanHandle(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, frameState.queryPool, queryIndex);
 }
 
-void VulkanGpuTimerBackend::WriteStopTimestamp(VulkanCommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer)
+void VulkanGpuTimerBackend::WriteStopTimestamp(VulkanCommandBuffer* cmd, EngineStatGpuTimer* timer)
 {
     if (!m_isSupported || !cmd || !timer)
     {
         return;
     }
+
+    const uint32 frameIndex = GetFrameCounter() % NumFramesInFlight;
 
     const uint32 slot = GetOrCreateQuerySlot(timer);
 
@@ -197,6 +203,7 @@ double VulkanGpuTimerBackend::ComputeDeltaMs(uint64 start, uint64 end) const
     return double(end - start) * m_timestampPeriod * 1e-6;
 }
 
+HYP_DISABLE_OPTIMIZATION;
 void VulkanGpuTimerBackend::ResolveFrameResults(uint32 completedFrameIndex)
 {
     if (!m_isSupported)

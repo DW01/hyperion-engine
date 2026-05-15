@@ -467,17 +467,6 @@ RendererResult VulkanGraphicsPipeline::Rebuild()
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     pipelineInfo.basePipelineIndex = -1;
 
-    float specializationInfoData = 0.0f;
-
-    VkSpecializationMapEntry specializationMapEntry { 0, 0, sizeof(float) };
-
-    VkSpecializationInfo specializationInfo {
-        .mapEntryCount = 1,
-        .pMapEntries = &specializationMapEntry,
-        .dataSize = sizeof(float),
-        .pData = &specializationInfoData
-    };
-
     VULKAN_CHECK_MSG(
         vkCreateGraphicsPipelines(RI.GetDevice()->GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_handle),
         "Failed to create graphics pipeline");

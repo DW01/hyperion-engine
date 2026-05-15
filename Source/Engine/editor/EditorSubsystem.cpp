@@ -2297,8 +2297,6 @@ void EditorSubsystem::InitViewport()
 
     uiSubsystem->GetUIStage()->UpdateSize(true);
 
-    Vec2u viewportSize = MathUtil::Max(Vec2u(uiSubsystem->GetUIStage()->GetActualSize()), Vec2u::One());
-
     m_delegateHandlers.Remove(&backdropPanel->OnClick);
     m_delegateHandlers.Add(backdropPanel->OnClick.Bind([this](const MouseEvent& event)
         {

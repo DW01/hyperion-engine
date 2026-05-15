@@ -122,7 +122,7 @@ static void InitStat(EngineStats* stats, EngineStatBase* stat, UTF8StringView pa
             statName = curr;
             break;
         }
-        
+
         const StringHash currHash = StringHash(curr);
 
         EngineStatBase* foundStat = nullptr;

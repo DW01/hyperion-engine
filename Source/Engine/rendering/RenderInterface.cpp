@@ -1491,7 +1491,7 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
     static_assert(0b1111 >= uint8(ShaderRegister::MAX));
 
     uint8 dsStates[MaxDescriptorSetsBound] {};
-    uint8 dsIndices = 0;
+    [[maybe_unused]] uint8 dsIndices = 0;
 
     // set up uniform index to sets mapping
     TBitset<FixedAllocator<2>> bits { state.dirtyUniforms | state.dirtyBufferOffsets | state.validUniforms };
@@ -1818,7 +1818,6 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
         for (auto currBit = bits.Begin(); bits.AnyBitsSet(); currBit = bits.Begin())
         {
             const uint8 uniformIndex = (uint8)*currBit;
-            const ShaderUniform& uniform = state.shaderUniforms[uniformIndex];
 
             uint8 setIndex = uniformMappings[uniformIndex].setIndex;
 

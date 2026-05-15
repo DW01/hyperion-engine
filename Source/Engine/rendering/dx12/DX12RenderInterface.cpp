@@ -648,19 +648,7 @@ void DX12RenderInterface::PresentToSwapchain(DX12Swapchain* swapchain)
 
     frame->WriteCommandBuffer(commandBuffer);
 
-    const DX12QueueData* queueData = GetQueueData(D3D12_COMMAND_LIST_TYPE_DIRECT);
-    AssertDebug(queueData != nullptr);
-
-    const uint64 signalValue = uint64(frameCounter) + 1;
-
-    HRESULT hr = queueData->commandQueue->Signal(m_frameFence.Get(), signalValue);
-    if (FAILED(hr))
-    {
-        HYP_LOG(RenderingBackend, Error, "Failed to signal frame fence! Error: {}", hr);
-        CheckDeviceRemovedReason(m_device.Get());
-    }
-
-    RecordStopTimestamp(GetCurrentCommandBuffer(), &s_statGpuFrameTime);
+    m_gpuTimerBackend->WriteStopTimestamp(commandBuffer, &s_statGpuFrameTime);
     m_gpuTimerBackend->OnFrameEnd();
 
     // HYP_LOG_TEMP("Signalling {} on frame {}", signalValue, frameIndex);
@@ -1060,12 +1048,22 @@ void DX12RenderInterface::SubmitAsyncCompute(DX12AsyncCompute* asyncCompute)
 
 void DX12RenderInterface::RecordStartTimestamp(DX12CommandBuffer* cmd, EngineStatGpuTimer* timer)
 {
-    // @todo:
+    DX12Frame* frame = GetCurrentFrame();
+
+    if (frame && m_gpuTimerBackend)
+    {
+        frame->cr << RecordGpuTimestamp(timer, m_gpuTimerBackend.Get(), /* isStart */ true);
+    }
 }
 
 void DX12RenderInterface::RecordStopTimestamp(DX12CommandBuffer* cmd, EngineStatGpuTimer* timer)
 {
-    // @todo:
+    DX12Frame* frame = GetCurrentFrame();
+
+    if (frame && m_gpuTimerBackend)
+    {
+        frame->cr << RecordGpuTimestamp(timer, m_gpuTimerBackend.Get(), /* isStart */ false);
+    }
 }
 
 void DX12RenderInterface::ResolveGpuFrameResults(uint32 completedFrameIndex)

@@ -36,8 +36,8 @@ public:
     bool IsSupported() const override;
     double GetTimestampPeriod() const override;
 
-    void WriteStartTimestamp(VulkanCommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer) override;
-    void WriteStopTimestamp(VulkanCommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer) override;
+    void WriteStartTimestamp(VulkanCommandBuffer* cmd, EngineStatGpuTimer* timer) override;
+    void WriteStopTimestamp(VulkanCommandBuffer* cmd, EngineStatGpuTimer* timer) override;
 
     void ResolveFrameResults(uint32 completedFrameIndex) override;
 

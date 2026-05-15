@@ -36,6 +36,7 @@
 
 #include <engine/EngineDriver.hpp>
 #include <engine/CVarManager.hpp>
+#include <engine/EngineStats.hpp>
 
 #include <asset/AssetRegistry.hpp>
 
@@ -44,6 +45,8 @@ namespace Hyperion {
 class DeferredPassData;
 
 HYP_DECLARE_LOG_CHANNEL(Rendering);
+
+static EngineStatGpuTimer s_statBloom("Rendering/GPU/Bloom");
 
 struct BloomUniforms
 {
@@ -201,13 +204,12 @@ void BloomPass::Create()
 
 void BloomPass::Render(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
+
+    ENGINE_STAT_GPU_SCOPE(&s_statBloom);
 
     AssertDebug(renderSetup.world && renderSetup.view);
     AssertDebug(renderSetup.passData != nullptr);
-
-    const uint32 frameIndex = frame->GetFrameIndex();
 
     DeferredPassData* dpd = DynamicCast<DeferredPassData>(renderSetup.passData);
     AssertDebug(dpd != nullptr);

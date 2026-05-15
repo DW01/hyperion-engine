@@ -154,8 +154,6 @@ const GpuImageViewRef& FullScreenPass::GetPreviousFrameColorImageView() const
 
 void FullScreenPass::Create()
 {
-    HYP_SCOPE;
-
     Assert(!m_isInitialized);
 
     CreateFullScreenQuad();
@@ -222,7 +220,6 @@ void FullScreenPass::Resize(Vec2u newSize)
 
 void FullScreenPass::Resize_Internal(Vec2u newSize)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     if (m_extent == newSize)
@@ -268,8 +265,6 @@ void FullScreenPass::Resize_Internal(Vec2u newSize)
 
 void FullScreenPass::CreateFullScreenQuad()
 {
-    HYP_SCOPE;
-
     m_fullScreenQuad = MeshBuilder::Quad();
     m_fullScreenQuad->SetFlags(MeshFlags::ViewIndependent);
     InitObject(m_fullScreenQuad);
@@ -277,8 +272,6 @@ void FullScreenPass::CreateFullScreenQuad()
 
 void FullScreenPass::CreateFramebuffer()
 {
-    HYP_SCOPE;
-
     if (m_flags & FSP_EXTERNAL_RENDERTARGET)
     {
         // will use RenderToFramebuffer() with other framebuffer one instead
@@ -348,8 +341,6 @@ void FullScreenPass::CreateFramebuffer()
 
 void FullScreenPass::CreateTemporalBlending()
 {
-    HYP_SCOPE;
-
     if (!UsesTemporalBlending())
     {
         return;
@@ -393,8 +384,6 @@ void FullScreenPass::CreateHistoryTexture()
 
 void FullScreenPass::CreateMergeCheckerboardPass()
 {
-    HYP_SCOPE;
-
     if (!ShouldRenderCheckerboarded())
     {
         return;
@@ -423,12 +412,9 @@ void FullScreenPass::CreateMergeCheckerboardPass()
 
 void FullScreenPass::DrawHistoryTexture(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     AssertDebug(renderSetup.world);
-
-    const uint32 frameIndex = frame->GetFrameIndex();
 
     CommandRecorder& cr = frame->cr;
 
@@ -469,7 +455,6 @@ void FullScreenPass::DrawHistoryTexture(Frame* frame, const RenderSetup& renderS
 
 void FullScreenPass::CopyResultToPreviousTexture(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     CommandRecorder& cr = frame->cr;
@@ -490,10 +475,7 @@ void FullScreenPass::CopyResultToPreviousTexture(Frame* frame, const RenderSetup
 
 void FullScreenPass::MergeCheckerboard(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
-
-    const uint32 frameIndex = frame->GetFrameIndex();
 
     CommandRecorder& cr = frame->cr;
 
@@ -514,7 +496,6 @@ void FullScreenPass::MergeCheckerboard(Frame* frame, const RenderSetup& renderSe
 
 void FullScreenPass::Render(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     AssertDebug(renderSetup.world);
@@ -542,62 +523,18 @@ void FullScreenPass::Render(Frame* frame, const RenderSetup& renderSetup)
 
 void FullScreenPass::RenderToFramebuffer(Frame* frame, const RenderSetup& renderSetup, Framebuffer* framebuffer)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     AssertDebug(renderSetup.world);
     AssertDebug(framebuffer != nullptr);
 
-    CommandRecorder& cr = frame->cr;
-
-    // are we responsible for starting/ending framebuffer recording?
-    //bool shouldStartRecording = !framebuffer->IsDeferredRecording();
-    //bool shouldEndRecording = shouldStartRecording;
-
-    AssertDebug(framebuffer->IsDeferredRecording());
-
-    Array<InsertBarrier, RenderAllocator> preRenderBarriers;
-
-    /*if (!framebuffer->IsDeferredRecording())
-    {
-        for (int i = 0; i < framebuffer->NumAttachments(); i++)
-        {
-            AttachmentBase* attachment = framebuffer->GetAttachment(i);
-            AssertDebug(attachment != nullptr);
-
-            if (attachment->GetLoadOperation() == LoadOperation::LOAD)
-            {
-                preRenderBarriers.PushBack(InsertBarrier(attachment->GetGpuImage(), attachment->IsDepthAttachment() ? RS_DEPTH_STENCIL : RS_RENDER_TARGET));
-            }
-        }
-    }
-
-    if (preRenderBarriers.Any())
-    {
-        for (InsertBarrier& ib : preRenderBarriers)
-        {
-            cr << ib;
-        }
-    }*/
-
-    //if (shouldStartRecording)
-    //{
-    //    cr << SetCurrentFramebuffer(framebuffer);
-    //}
-
     RenderToFramebuffer_Internal(frame, renderSetup, framebuffer);
-
-    //if (shouldEndRecording)
-    //{
-    //    cr << SetCurrentFramebuffer(nullptr);
-    //}
 
     m_isFirstFrame = false;
 }
 
 void FullScreenPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup& renderSetup, Framebuffer* framebuffer)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     CommandRecorder& cr = frame->cr;
@@ -652,7 +589,6 @@ void FullScreenPass::RenderFullScreenQuad(Frame* frame, const RenderSetup& rende
 
 void FullScreenPass::Begin(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     AssertDebug(renderSetup.world && renderSetup.view);
@@ -697,7 +633,6 @@ void FullScreenPass::Begin(Frame* frame, const RenderSetup& renderSetup)
 
 void FullScreenPass::End(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     AssertDebug(renderSetup.world && renderSetup.view);

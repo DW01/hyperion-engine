@@ -205,9 +205,6 @@ void ConvolveEnvProbeCubemap(
 
         cr << InsertBarrier(dstTexture->GetGpuImage(), RS_UNORDERED_ACCESS, subResource);
 
-        const Frame* currFrame = RI.GetCurrentFrame();
-        const uint32 frameIndex = currFrame ? currFrame->GetFrameIndex() : 0;
-
         // @TODO Just write the env probe to constant buffer?
         cr << SetShaderUniform(0, "CurrentEnvProbe"_sh, RI.namedBuffers[NamedBuffer::EnvProbes], Resources::GetBinding(&envProbe));
         cr << SetShaderUniform(1, "SphereSamplesBuffer"_sh, RI.sphereSamplesBuffer);

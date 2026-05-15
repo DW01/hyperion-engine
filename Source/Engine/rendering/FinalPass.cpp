@@ -87,8 +87,6 @@ void FinalPass::Render(Frame* frame, const RenderSetup& rs)
         return;
     }
 
-    uint32 frameIndex = frame->GetFrameIndex();
-
     CommandRecorder& cr = frame->cr;
 
     const uint32 acquiredImageIndex = rs.swapchain->GetAcquiredImageIndex();

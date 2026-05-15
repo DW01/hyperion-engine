@@ -29,6 +29,8 @@
 
 #include <rendering/util/ShaderCompiler.hpp>
 
+#include <rendering/GpuTimerBackend.hpp>
+
 #include <Core/reflection/Enum.hpp>
 
 #include <scene/View.hpp>
@@ -1693,5 +1695,25 @@ void FillImage::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
 }
 
 #pragma endregion FillImage
+
+#pragma region RecordGpuTimestamp
+
+void RecordGpuTimestamp::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
+{
+    auto* self = static_cast<RecordGpuTimestamp*>(cmd);
+
+    if (self->m_isStart)
+    {
+        self->m_backend->WriteStartTimestamp(commandBuffer, self->m_timer);
+    }
+    else
+    {
+        self->m_backend->WriteStopTimestamp(commandBuffer, self->m_timer);
+    }
+
+    static_assert(std::is_trivially_destructible_v<RecordGpuTimestamp>);
+}
+
+#pragma endregion RecordGpuTimestamp
 
 } // namespace Hyperion

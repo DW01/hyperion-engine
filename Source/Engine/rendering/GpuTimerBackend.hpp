@@ -34,8 +34,8 @@ public:
     {
     }
 
-    virtual void WriteStartTimestamp(CommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer) = 0;
-    virtual void WriteStopTimestamp(CommandBuffer* cmd, uint32 frameIndex, EngineStatGpuTimer* timer) = 0;
+    virtual void WriteStartTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer) = 0;
+    virtual void WriteStopTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer) = 0;
 
     virtual void ResolveFrameResults(uint32 completedFrameIndex) = 0;
 
