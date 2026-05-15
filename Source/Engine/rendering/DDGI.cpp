@@ -325,11 +325,8 @@ void DDGI::Render(Frame* frame, const RenderSetup& renderSetup)
     frame->cr << InsertBarrier(m_irradianceImage, RS_UNORDERED_ACCESS);
     frame->cr << InsertBarrier(m_depthImage, RS_UNORDERED_ACCESS);
 
-    static const ShaderPropertyId s_propHysteresis = InternShaderProperty(ShaderProperty(NAME("HYSTERESIS"), float(0.98f)));
-
     // Update irradiance
     shaderProperties = ShaderPropertySet();
-    shaderProperties.Add(s_propHysteresis);
     shaderProperties.Add(s_propUpdateProbeDataModeIrradiance);
 
     frame->cr << SetCurrentShader(ShaderDesc(NAME("UpdateProbeData"), shaderProperties));
@@ -344,7 +341,6 @@ void DDGI::Render(Frame* frame, const RenderSetup& renderSetup)
 
     // Update depth
     shaderProperties = ShaderPropertySet();
-    shaderProperties.Add(s_propHysteresis);
     shaderProperties.Add(s_propUpdateProbeDataModeDepth);
 
     frame->cr << SetCurrentShader(ShaderDesc(NAME("UpdateProbeData"), shaderProperties));

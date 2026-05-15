@@ -198,8 +198,6 @@ public:
 
         void Push(const EntryHeader& header)
         {
-            HYP_SCOPE;
-
             AssertDebug(currHeaders == &headers[0] || currHeaders == &headers[1]);
 
             currHeaders->PushBack(header);
@@ -248,8 +246,6 @@ public:
 
         virtual void* Alloc(uint32 size, uint32 alignment, EntryHeader& outHeader) override
         {
-            HYP_SCOPE;
-
             AssertDebug(alignment <= 16);
 
             const uint32 alignedOffset = ByteUtil::AlignAs(bufferPos, alignment);
@@ -272,8 +268,6 @@ public:
 
         virtual void ResizeBuffer(size_t newMinSize) override
         {
-            HYP_SCOPE;
-
             buffer.SetSize(newMinSize, /* zeroize */ false);
         }
     };
@@ -332,7 +326,8 @@ public:
     }
 
     /*! \brief Allocate storage for custom deleter of type T. The instance will need to be constructed using placement new by the caller.
-     *  Allows for an optional frame index for the deleter to be called on. If ~0u, will be called on the next frame.
+     *  Allows for an optional frame index in the range of 0..NumFramesInFlight for the deleter to be called on.
+     *     If ~0u, will fall back to default behavior (when MinSafeDeleteCycles frames have passed)
      * \param destructFn Function pointer to the destructor function for T.
      * \param ppGuard Pointer-to-pointer of a mutex guard that will be set if locking is required. The caller is responsible for deleting the guard if set
      *  \param desiredIdx Desired frame index to delete on, or ~0u for next frame. */
@@ -384,8 +379,6 @@ static inline void EnqueueDeletion(FunctionWrapper<TFunction>&& func)
 
     FunctionWrapper<TFunction>** ppPayload = DeletionQueue::GetInstance().AllocCustom<FunctionWrapper<TFunction>*>([](void* ptr)
         {
-            AssertOnThread(g_renderThread);
-
             FunctionWrapper<TFunction>* pPayload = *reinterpret_cast<FunctionWrapper<TFunction>**>(ptr);
             AssertDebug(pPayload != nullptr);
 

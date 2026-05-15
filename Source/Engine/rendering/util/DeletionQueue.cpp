@@ -103,7 +103,6 @@ DeletionQueue::~DeletionQueue() = default;
 
 void DeletionQueue::Shutdown()
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     const uint32 bufferIndex = GetRingIndex();
@@ -202,7 +201,6 @@ void DeletionQueue::Shutdown()
 
 void DeletionQueue::GetCounterValues(uint32& outNumElements, uint32& outTotalBytes) const
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     outNumElements = 0;
@@ -300,7 +298,6 @@ int DeletionQueue::Iterate(int maxIter)
 
 size_t DeletionQueue::ForceDeleteAll(uint32 bufferIndex)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     AssertDebug(bufferIndex < m_entryLists.Size());
@@ -353,7 +350,6 @@ size_t DeletionQueue::ForceDeleteAll(uint32 bufferIndex)
 
 void DeletionQueue::UpdateCounter(uint32 bufferIndex)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     AssertDebug(bufferIndex < m_entryLists.Size());
@@ -367,7 +363,6 @@ void DeletionQueue::UpdateCounter(uint32 bufferIndex)
 
 void DeletionQueue::Flush()
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
     
     uint32 bufferIndex = GetRingIndex();
@@ -468,8 +463,6 @@ void DeletionQueue::UpdateEntryListQueue()
 
 DeletionQueue::EntryListBase& DeletionQueue::GetCurrentEntryList(Mutex::Guard** ppGuard)
 {
-    HYP_SCOPE;
-
     AssertDebug(ppGuard != nullptr);
     *ppGuard = nullptr;
 

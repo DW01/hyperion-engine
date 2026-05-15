@@ -1700,15 +1700,15 @@ void FillImage::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
 
 void RecordGpuTimestamp::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
 {
-    auto* self = static_cast<RecordGpuTimestamp*>(cmd);
+    RecordGpuTimestamp* cmdCasted = static_cast<RecordGpuTimestamp*>(cmd);
 
-    if (self->m_isStart)
+    if (cmdCasted->m_isStart)
     {
-        self->m_backend->WriteStartTimestamp(commandBuffer, self->m_timer);
+        RI.RecordStartTimestamp(commandBuffer, cmdCasted->m_timer);
     }
     else
     {
-        self->m_backend->WriteStopTimestamp(commandBuffer, self->m_timer);
+        RI.RecordStopTimestamp(commandBuffer, cmdCasted->m_timer);
     }
 
     static_assert(std::is_trivially_destructible_v<RecordGpuTimestamp>);

@@ -1428,21 +1428,17 @@ void VulkanRenderInterface::SubmitAsyncCompute(VulkanAsyncCompute* asyncCompute)
 
 void VulkanRenderInterface::RecordStartTimestamp(VulkanCommandBuffer* cmd, EngineStatGpuTimer* timer)
 {
-    VulkanFrame* frame = GetCurrentFrame();
-
-    if (frame && m_gpuTimerBackend)
+    if (m_gpuTimerBackend)
     {
-        frame->cr << RecordGpuTimestamp(timer, m_gpuTimerBackend.Get(), /* isStart */ true);
+        m_gpuTimerBackend->WriteStartTimestamp(cmd, timer);
     }
 }
 
 void VulkanRenderInterface::RecordStopTimestamp(VulkanCommandBuffer* cmd, EngineStatGpuTimer* timer)
 {
-    VulkanFrame* frame = GetCurrentFrame();
-
-    if (frame && m_gpuTimerBackend)
+    if (m_gpuTimerBackend)
     {
-        frame->cr << RecordGpuTimestamp(timer, m_gpuTimerBackend.Get(), /* isStart */ false);
+        m_gpuTimerBackend->WriteStopTimestamp(cmd, timer);
     }
 }
 

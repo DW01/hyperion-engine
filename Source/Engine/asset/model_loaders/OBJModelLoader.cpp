@@ -185,7 +185,6 @@ OBJModel OBJModelLoader::LoadModel(LoaderState& state)
         if (tokens[0] == "v")
         {
             Vec3f position = ReadVector<Vec3f>(tokens, 1);
-            position.z = -position.z;
             model.positions.PushBack(position);
 
             continue;
@@ -194,7 +193,6 @@ OBJModel OBJModelLoader::LoadModel(LoaderState& state)
         if (tokens[0] == "vn")
         {
             Vec3f normal = ReadVector<Vec3f>(tokens, 1);
-            normal.z = -normal.z;
             model.normals.PushBack(normal);
 
             continue;
@@ -385,12 +383,14 @@ LoadedAsset OBJModelLoader::BuildModel(LoaderState& state, OBJModel& model)
                 {
                     vertex.SetPosition(GetIndexedVertexProperty(objIndex.vertex, model.positions));
 
+
                     meshAabb = meshAabb.Union(vertex.GetPosition());
                 }
 
                 if (hasNormals)
                 {
                     vertex.SetNormal(GetIndexedVertexProperty(objIndex.normal, model.normals));
+
                 }
 
                 if (hasTexcoords)

@@ -23,6 +23,7 @@ class EngineStatsRecorder;
 struct EngineStatsSnapshot;
 class EngineStatGroup;
 class GpuTimerBackendBase;
+class CommandRecorderBase;
 
 static constexpr uint32 EngineStatsNumSamples = 1000;
 static constexpr uint32 EngineStatsMinSamples = 10;
@@ -242,7 +243,7 @@ struct EngineStatScope
 
 struct EngineStatGpuScope
 {
-    EngineStatGpuScope(EngineStatGpuTimer* timer);
+    EngineStatGpuScope(EngineStatGpuTimer* inTimer, CommandRecorderBase* inCommandRecorder = nullptr);
     ~EngineStatGpuScope();
 
     EngineStatGpuScope(const EngineStatGpuScope&) = delete;
@@ -252,6 +253,7 @@ struct EngineStatGpuScope
     EngineStatGpuScope& operator=(EngineStatGpuScope&&) noexcept = delete;
 
     EngineStatGpuTimer* timer;
+    CommandRecorderBase* commandRecorder;
 };
 
 struct EngineStatsSnapshotValue
@@ -386,6 +388,6 @@ private:
 };
 
 #define ENGINE_STAT_SCOPE(timer) EngineStatScope HYP_CONCAT(engineStatScope, __LINE__)(timer)
-#define ENGINE_STAT_GPU_SCOPE(timer) EngineStatGpuScope HYP_CONCAT(engineStatGpuScope, __LINE__)(timer)
+#define ENGINE_STAT_GPU_SCOPE(timer, ...) EngineStatGpuScope HYP_CONCAT(engineStatGpuScope, __LINE__)(timer, ##__VA_ARGS__)
 
 } // namespace Hyperion

@@ -912,9 +912,8 @@ public:
 class RecordGpuTimestamp final : public CmdBase
 {
 public:
-    RecordGpuTimestamp(EngineStatGpuTimer* timer, GpuTimerBackendBase* backend, bool isStart)
+    RecordGpuTimestamp(EngineStatGpuTimer* timer, bool isStart)
         : m_timer(timer),
-          m_backend(backend),
           m_isStart(isStart)
     {
     }
@@ -923,7 +922,6 @@ public:
 
 private:
     EngineStatGpuTimer* m_timer;
-    GpuTimerBackendBase* m_backend;
     bool m_isStart;
 };
 

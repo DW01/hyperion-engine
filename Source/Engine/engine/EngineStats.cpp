@@ -15,6 +15,7 @@
 
 #include <rendering/RenderInterface.hpp>
 #include <rendering/CommandBuffer.hpp>
+#include <rendering/Frame.hpp>
 
 #include <rendering/util/DeletionQueue.hpp>
 
@@ -556,23 +557,23 @@ EngineStatGroup::~EngineStatGroup()
 
 #pragma region EngineStatGpuScope
 
-EngineStatGpuScope::EngineStatGpuScope(EngineStatGpuTimer* inTimer)
-    : timer(inTimer)
+EngineStatGpuScope::EngineStatGpuScope(EngineStatGpuTimer* inTimer, CommandRecorderBase* inCommandRecorder)
+    : timer(inTimer),
+      commandRecorder(inCommandRecorder)
 {
-    if (timer)
+    AssertDebug(timer != nullptr);
+
+    if (!commandRecorder)
     {
-        CommandBuffer* commandBuffer = RI.GetCurrentCommandBuffer();
-        RI.RecordStartTimestamp(commandBuffer, timer);
+        commandRecorder = &RI.GetCurrentFrame()->cr;
     }
+
+    *commandRecorder << RecordGpuTimestamp(timer, /* isStart */ true);
 }
 
 EngineStatGpuScope::~EngineStatGpuScope()
 {
-    if (timer)
-    {
-        CommandBuffer* commandBuffer = RI.GetCurrentCommandBuffer();
-        RI.RecordStopTimestamp(commandBuffer, timer);
-    }
+    *commandRecorder << RecordGpuTimestamp(timer, /* isStart */ false);
 }
 
 #pragma endregion EngineStatGpuScope

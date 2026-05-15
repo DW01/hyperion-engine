@@ -231,8 +231,6 @@ ShaderPropertySet BloomPass::GetShaderProperties() const
 
 void BloomPass::ExtractBrightAreas(Frame* frame, const RenderSetup& renderSetup, const FramebufferRef& inputsFramebuffer, DeferredPassData* dpd)
 {
-    HYP_SCOPE;
-
     CommandRecorder& cr = frame->cr;
 
     const Vec2u extent = ShouldRenderHalfRes() ? m_extent / 2 : m_extent;
@@ -275,8 +273,6 @@ void BloomPass::ExtractBrightAreas(Frame* frame, const RenderSetup& renderSetup,
 
 void BloomPass::Downsample(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
-
     CommandRecorder& cr = frame->cr;
 
     for (uint32 i = 0; i < NumMipLevels - 1; i++)
@@ -319,8 +315,6 @@ void BloomPass::Downsample(Frame* frame, const RenderSetup& renderSetup)
 
 void BloomPass::Upsample(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
-
     CommandRecorder& cr = frame->cr;
 
     for (uint32 i = 0; i < NumMipLevels - 1; i++)

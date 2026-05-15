@@ -286,7 +286,7 @@ void ConvolveEnvProbeCubemap(
     }
 
     // Update in env probes texture array if bound
-    if (envProbe.IsA(SkyProbe::StaticClass()) || envProbe.IsA(ReflectionProbe::StaticClass()))
+    if (envProbe.IsA<SkyProbe>() || envProbe.IsA<ReflectionProbe>())
     {
         const uint32 boundIndex = Resources::GetBinding(&envProbe);
 
