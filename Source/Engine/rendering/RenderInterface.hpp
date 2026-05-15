@@ -66,6 +66,7 @@ class EngineConfig;
 class SamplerCache;
 struct SamplerDesc;
 class RenderGroupCache;
+class EngineStatGpuTimer;
 
 class CBufferAllocator;
 class BufferAllocator;
@@ -325,8 +326,8 @@ public:
     virtual void BeginFrame(AtomicFlag* pCancelFlag);
     virtual void EndFrame();
 
-    virtual void RecordGpuTimestamp(CommandBuffer* cmd, GpuTimerBackend::QueryIndex queryIndex) = 0;
-    virtual GpuFrameTimings ResolveGpuFrameResults(uint32 completedFrameIndex) = 0;
+    virtual void RecordGpuTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer, bool isStart) = 0;
+    virtual void ResolveGpuFrameResults(uint32 completedFrameIndex) = 0;
 
     virtual SwapchainRef CreateSwapchain(ApplicationWindow* window, const Vec2u& extent) = 0;
 

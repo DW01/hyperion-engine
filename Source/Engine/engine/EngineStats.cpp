@@ -7,12 +7,15 @@
 #include <HyperionPch.hpp>
 
 #include <engine/EngineStats.hpp>
+#include <engine/EngineGlobals.hpp>
 
 #include <Core/math/MathUtil.hpp>
 
 #include <Core/threading/AtomicVar.hpp>
 
 #include <rendering/RenderInterface.hpp>
+#include <rendering/CommandBuffer.hpp>
+
 #include <rendering/util/DeletionQueue.hpp>
 
 #include <EngineStats.generated.inl>
@@ -21,7 +24,6 @@ namespace Hyperion {
 
 HYP_DECLARE_LOG_CHANNEL(Engine);
 
-static constexpr size_t StatPoolBlockSize = 1 << 18;
 static constexpr const char* RootStatGroupName = "Root";
 static constexpr utf::Char32 PathSeparator = utf::Char32('/');
 
@@ -29,19 +31,10 @@ static constexpr int NumReservedStatIds = 5;
 
 static AtomicVar<int> s_nextStatId { NumReservedStatIds };
 
-static ByteBuffer CreateSamplesBuffer()
-{
-    ByteBuffer buf;
-    buf.SetSize(sizeof(double) * EngineStatsMaxStats * EngineStatsNumSamples);
-
-    return buf;
-}
-
 struct EngineStatsRecorderImpl
 {
-    EngineStatsSnapshot snapshots[RingBufferDepth];
-
-    ByteBuffer statsBuffer;
+    EngineStatsSnapshot* snapshots;
+    double* statsBuffer;
 
     ClockTimer counter;
     double deltaAccum;
@@ -49,13 +42,26 @@ struct EngineStatsRecorderImpl
     uint32 sampleIndex;
 
     EngineStatsRecorderImpl()
-        : snapshots(),
-          statsBuffer(CreateSamplesBuffer()),
+        : snapshots(nullptr),
+          statsBuffer(nullptr),
           deltaAccum(0.0),
           numSamples(0),
           sampleIndex(0)
     {
         counter.delta = 1.0;
+
+        snapshots = new EngineStatsSnapshot[RingBufferDepth];
+
+        statsBuffer = new double[EngineStatsMaxStats * EngineStatsNumSamples];
+    }
+
+    EngineStatsRecorderImpl(const EngineStatsRecorderImpl& other) = delete;
+    EngineStatsRecorderImpl& operator=(const EngineStatsRecorderImpl& other) = delete;
+
+    virtual ~EngineStatsRecorderImpl()
+    {
+        delete[] snapshots;
+        delete[] statsBuffer;
     }
 };
 
@@ -116,12 +122,14 @@ static void InitStat(EngineStats* stats, EngineStatBase* stat, UTF8StringView pa
             statName = curr;
             break;
         }
+        
+        const StringHash currHash = StringHash(curr);
 
         EngineStatBase* foundStat = nullptr;
 
         for (EngineStatBase* stat : currentGroup->stats)
         {
-            if (stat->name == StringHash(curr))
+            if (stat->name == currHash)
             {
                 foundStat = stat;
                 break;
@@ -173,7 +181,7 @@ EngineStats::EngineStats()
     : root(nullptr),
       linearStats {}
 {
-    m_impl = MakePimpl<EngineStatsRecorderImpl>();
+    m_impl = new EngineStatsRecorderImpl;
 
     root = new EngineStatGroup(UTF8StringView(RootStatGroupName), true);
 
@@ -194,7 +202,8 @@ EngineStats::~EngineStats()
     delete root;
     root = nullptr;
 
-    m_impl.Reset();
+    delete m_impl;
+    m_impl = nullptr;
 }
 
 EngineStatBase* EngineStats::GetStat(UTF8StringView path) const
@@ -237,11 +246,13 @@ EngineStatBase* EngineStats::GetStat(UTF8StringView path) const
             return nullptr;
         }
 
+        const StringHash currHash = StringHash(curr);
+
         bool found = false;
 
         for (EngineStatBase* stat : currentGroup->stats)
         {
-            if (stat->name == StringHash(curr))
+            if (stat->name == currHash)
             {
                 currentStat = stat;
                 found = true;
@@ -307,8 +318,16 @@ void EngineStats::SetSampleData(int statId, uint32 sampleIdx, double value)
         return;
     }
 
-    double* base = reinterpret_cast<double*>(m_impl->statsBuffer.Data());
-    base[statId * EngineStatsNumSamples + sampleIdx] = value;
+    double* base = m_impl->statsBuffer;
+    if (HYP_UNLIKELY(!base))
+    {
+        return;
+    }
+
+    const size_t idx = statId * EngineStatsNumSamples + sampleIdx;
+    AssertDebug(idx < EngineStatsNumSamples * EngineStatsMaxStats);
+
+    base[idx] = value;
 }
 
 double EngineStats::GetSampleData(int statId, uint32 sampleIdx) const
@@ -318,8 +337,16 @@ double EngineStats::GetSampleData(int statId, uint32 sampleIdx) const
         return 0.0;
     }
 
-    const double* base = reinterpret_cast<const double*>(m_impl->statsBuffer.Data());
-    return base[statId * EngineStatsNumSamples + sampleIdx];
+    const double* base = m_impl->statsBuffer;
+    if (HYP_UNLIKELY(!base))
+    {
+        return 0.0;
+    }
+
+    const size_t idx = statId * EngineStatsNumSamples + sampleIdx;
+    AssertDebug(idx < EngineStatsNumSamples * EngineStatsMaxStats);
+
+    return base[idx];
 }
 
 double EngineStats::CalculateFps() const
@@ -351,7 +378,7 @@ void EngineStats::Prepare()
     const uint32 sampleIdx = m_impl->sampleIndex % EngineStatsNumSamples;
 
     // clear sample data for this sample index
-    for (int statId = 0; statId < EngineStatsMaxStats; statId++)
+    for (int statId = 0; statId < int(EngineStatsMaxStats); statId++)
     {
         SetSampleData(statId, sampleIdx, 0.0);
     }
@@ -364,7 +391,7 @@ void EngineStats::RecordValueSet(const EngineStatsValueSet& valueSet)
 
     const uint32 sampleIdx = m_impl->sampleIndex % EngineStatsNumSamples;
 
-    for (int statId = 0; statId < EngineStatsMaxStats; ++statId)
+    for (int statId = 0; statId < int(EngineStatsMaxStats); ++statId)
     {
         const double value = valueSet.values[statId];
 
@@ -412,12 +439,10 @@ void EngineStats::Advance()
     SetSampleData(StatIdMsPerFrame, sampleIdx, msPerFrame);
     SetSampleData(StatIdFps, sampleIdx, m_impl->counter.delta > 0.0 ? (1.0 / (m_impl->counter.delta)) : 0.0);
 
-    EngineStats& engineStats = *g_engineStats;
-
     // integrate values into sample data
     for (int statId = NumReservedStatIds; statId < EngineStatsMaxStats; ++statId)
     {
-        EngineStatBase* stat = engineStats.linearStats[statId];
+        EngineStatBase* stat = linearStats[statId];
 
         if (!stat)
         {
@@ -441,7 +466,7 @@ void EngineStats::Advance()
 
         if (statId >= NumReservedStatIds)
         {
-            EngineStatBase* stat = engineStats.linearStats[statId];
+            EngineStatBase* stat = linearStats[statId];
             if (!stat)
             {
                 continue;
@@ -528,5 +553,28 @@ EngineStatGroup::~EngineStatGroup()
 }
 
 #pragma endregion EngineStatBase
+
+#pragma region EngineStatGpuScope
+
+EngineStatGpuScope::EngineStatGpuScope(EngineStatGpuTimer* inTimer)
+    : timer(inTimer)
+{
+    if (timer)
+    {
+        CommandBuffer* commandBuffer = RI.GetCurrentCommandBuffer();
+        RI.RecordGpuTimestamp(commandBuffer, timer, true);
+    }
+}
+
+EngineStatGpuScope::~EngineStatGpuScope()
+{
+    if (timer)
+    {
+        CommandBuffer* commandBuffer = RI.GetCurrentCommandBuffer();
+        RI.RecordGpuTimestamp(commandBuffer, timer, false);
+    }
+}
+
+#pragma endregion EngineStatGpuScope
 
 } // namespace Hyperion

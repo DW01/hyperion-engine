@@ -63,11 +63,11 @@ namespace Hyperion {
 static constexpr bool UseResetDescriptorPool = false;
 static constexpr uint32 MaxDescriptorPools = 32;
 
-static EngineStatTimer s_statVulkanFrameSync("Rendering/Vulkan/FrameSync");
-static EngineStatTimer g_statGpuFrameTime("Rendering/GPU/FrameTime");
-static EngineStatTimer g_statGpuPreRender("Rendering/GPU/PreRender");
-static EngineStatTimer g_statGpuMainRender("Rendering/GPU/MainRender");
-static EngineStatTimer g_statGpuPostRender("Rendering/GPU/PostRender");
+EngineStatTimer s_statVulkanFrameSync("Rendering/Vulkan/FrameSync");
+EngineStatGpuTimer g_statGpuFrameTime("Rendering/GPU/FrameTime");
+EngineStatGpuTimer g_statGpuPreRender("Rendering/GPU/PreRender");
+EngineStatGpuTimer g_statGpuMainRender("Rendering/GPU/MainRender");
+EngineStatGpuTimer g_statGpuPostRender("Rendering/GPU/PostRender");
 
 enum VulkanDescriptorPoolRequirements : uint8
 {
@@ -792,17 +792,17 @@ void VulkanRenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
 {
     RenderInterface::BeginFrame(pCancelFlag);
 
-    m_gpuTimerBackend->RecordFrameStart(GetCurrentCommandBuffer(), m_currentFrameIndex);
+    m_gpuTimerBackend->WriteTimestamp(GetCurrentCommandBuffer(), GetFrameCounter() % NumFramesInFlight, &g_statGpuFrameTime, true);
 }
 
-void VulkanRenderInterface::RecordGpuTimestamp(CommandBuffer* cmd, GpuTimerBackend::QueryIndex queryIndex)
+void VulkanRenderInterface::RecordGpuTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer, bool isStart)
 {
-    m_gpuTimerBackend->WriteTimestamp(static_cast<VulkanCommandBuffer*>(cmd), m_currentFrameIndex, queryIndex);
+    m_gpuTimerBackend->WriteTimestamp(static_cast<VulkanCommandBuffer*>(cmd), GetFrameCounter() % NumFramesInFlight, timer, isStart);
 }
 
-GpuFrameTimings VulkanRenderInterface::ResolveGpuFrameResults(uint32 completedFrameIndex)
+void VulkanRenderInterface::ResolveGpuFrameResults(uint32 completedFrameIndex)
 {
-    return m_gpuTimerBackend->ResolveFrameResults(completedFrameIndex);
+    m_gpuTimerBackend->ResolveFrameResults(completedFrameIndex);
 }
 
 VulkanFrame* VulkanRenderInterface::GetCurrentFrame() const
@@ -842,29 +842,7 @@ void VulkanRenderInterface::PrepareFrame(VulkanFrame* frame)
     }
 
     // Read back GPU timestamps from the completed frame
-    {
-        const GpuFrameTimings timings = ResolveGpuFrameResults(m_currentFrameIndex);
-
-        if (timings.frameTotalMs > 0.0)
-        {
-            g_statGpuFrameTime.RecordElapsedMs(timings.frameTotalMs);
-
-            if (timings.preRenderMs > 0.0)
-            {
-                g_statGpuPreRender.RecordElapsedMs(timings.preRenderMs);
-            }
-
-            if (timings.mainRenderMs > 0.0)
-            {
-                g_statGpuMainRender.RecordElapsedMs(timings.mainRenderMs);
-            }
-
-            if (timings.postRenderMs > 0.0)
-            {
-                g_statGpuPostRender.RecordElapsedMs(timings.postRenderMs);
-            }
-        }
-    }
+    ResolveGpuFrameResults(frameCounter % NumFramesInFlight);
 
     // call frame callbacks after GPU sync is complete
     if (frame->OnFrameEnd.AnyBound())
@@ -1021,7 +999,7 @@ void VulkanRenderInterface::PresentToSwapchain(VulkanSwapchain* swapchain)
     VulkanFrame* frame = GetCurrentFrame();
     frame->WriteCommandBuffer(commandBuffer);
 
-    m_gpuTimerBackend->RecordFrameEnd(commandBuffer, m_currentFrameIndex);
+    m_gpuTimerBackend->WriteTimestamp(commandBuffer, GetFrameCounter() % NumFramesInFlight, &g_statGpuFrameTime, false);
 
     commandBuffer->End();
 

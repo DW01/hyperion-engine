@@ -19,11 +19,17 @@
 
 #include <rendering/util/DeletionQueue.hpp>
 
+#include <engine/EngineStats.hpp>
+
 #include <VulkanFrame.generated.inl>
 
 namespace Hyperion {
 
 extern VulkanRenderInterface RI;
+
+extern EngineStatGpuTimer g_statGpuPreRender;
+extern EngineStatGpuTimer g_statGpuMainRender;
+extern EngineStatGpuTimer g_statGpuPostRender;
 
 VulkanFrame::VulkanFrame()
     : FrameBase(0),
@@ -127,22 +133,23 @@ void VulkanFrame::WriteCommandBuffer(VulkanCommandBuffer* commandBuffer)
     }
 
     {
-        // Pre-render phase
+        ENGINE_STAT_GPU_SCOPE(&g_statGpuPreRender);
+
         preRenderCommands.Execute(commandBuffer);
         preRenderCommands.Reset(/* freeMemory */ false);
+    }
+    {
+        ENGINE_STAT_GPU_SCOPE(&g_statGpuMainRender);
 
-        RI.RecordGpuTimestamp(commandBuffer, GpuTimerBackend::AfterPreRender);
-
-        // Main render phase (cr + root)
         cr.Execute(commandBuffer);
         cr.Reset(/* freeMemory */ false);
 
         RI.commandRecorderAllocator.root.Execute(commandBuffer);
         RI.commandRecorderAllocator.root.Reset(/* freeMemory */ false);
+    }
+    {
+        ENGINE_STAT_GPU_SCOPE(&g_statGpuPostRender);
 
-        RI.RecordGpuTimestamp(commandBuffer, GpuTimerBackend::AfterMainRender);
-
-        // Post-render phase
         postRenderCommands.Execute(commandBuffer);
         postRenderCommands.Reset(/* freeMemory */ false);
     }

@@ -6,9 +6,6 @@
 
 #pragma once
 
-#include <Core/memory/Pimpl.hpp>
-#include <Core/memory/pool/Pool.hpp>
-
 #include <Core/threading/AtomicVar.hpp>
 #include <Core/threading/util/ThreadId.hpp>
 
@@ -23,10 +20,14 @@ namespace Hyperion {
 class EngineStatsRecorder;
 struct EngineStatsSnapshot;
 class EngineStatGroup;
+class GpuTimerBackend;
 
 static constexpr uint32 EngineStatsNumSamples = 1000;
 static constexpr uint32 EngineStatsMinSamples = 10;
 static constexpr uint32 EngineStatsMaxStats = 32;
+
+static constexpr uint32 MaxGpuTimers = 32;
+static constexpr uint32 MaxGpuQueriesPerFrame = MaxGpuTimers * 2;
 
 static constexpr int StatIdMsPerFrame = 0;
 static constexpr int StatIdFps = 1;
@@ -197,6 +198,18 @@ private:
     threading::AtomicVar<uint64> m_totalMicroseconds;
 };
 
+class HYP_API EngineStatGpuTimer : public EngineStatTimer
+{
+public:
+    explicit EngineStatGpuTimer(UTF8StringView path, bool resetPerFrame = true)
+        : EngineStatTimer(path, resetPerFrame),
+          querySlotIndex(UINT32_MAX)
+    {
+    }
+
+    uint32 querySlotIndex;
+};
+
 struct EngineStatScope
 {
     EngineStatScope(EngineStatTimer* timer)
@@ -226,6 +239,20 @@ struct EngineStatScope
 
     EngineStatTimer* stat;
     PerformanceClock clock;
+};
+
+struct EngineStatGpuScope
+{
+    EngineStatGpuScope(EngineStatGpuTimer* timer);
+    ~EngineStatGpuScope();
+
+    EngineStatGpuScope(const EngineStatGpuScope&) = delete;
+    EngineStatGpuScope& operator=(const EngineStatGpuScope&) = delete;
+
+    EngineStatGpuScope(EngineStatGpuScope&&) noexcept = delete;
+    EngineStatGpuScope& operator=(EngineStatGpuScope&&) noexcept = delete;
+
+    EngineStatGpuTimer* timer;
 };
 
 struct EngineStatsSnapshotValue
@@ -356,9 +383,10 @@ private:
 
     void RecordStat(int statId, EngineStatType type, double value);
 
-    Pimpl<struct EngineStatsRecorderImpl> m_impl;
+    struct EngineStatsRecorderImpl* m_impl;
 };
 
 #define ENGINE_STAT_SCOPE(timer) EngineStatScope HYP_CONCAT(engineStatScope, __LINE__)(timer)
+#define ENGINE_STAT_GPU_SCOPE(timer) EngineStatGpuScope HYP_CONCAT(engineStatGpuScope, __LINE__)(timer)
 
 } // namespace Hyperion

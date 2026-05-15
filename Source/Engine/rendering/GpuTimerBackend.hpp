@@ -12,28 +12,11 @@ namespace Hyperion {
 
 class DeviceBase;
 class CommandBufferBase;
-
-struct GpuFrameTimings
-{
-    double frameTotalMs = 0.0;
-    double preRenderMs = 0.0;
-    double mainRenderMs = 0.0;
-    double postRenderMs = 0.0;
-};
+class EngineStatGpuTimer;
 
 class GpuTimerBackend
 {
 public:
-    static constexpr uint32 NumQueriesPerFrame = 4;
-
-    enum QueryIndex : uint32
-    {
-        FrameStart = 0,
-        AfterPreRender = 1,
-        AfterMainRender = 2,
-        FrameEnd = 3
-    };
-
     virtual ~GpuTimerBackend() = default;
 
     virtual bool Initialize(DeviceBase* device) = 0;
@@ -42,11 +25,9 @@ public:
     virtual bool IsSupported() const = 0;
     virtual double GetTimestampPeriod() const = 0;
 
-    virtual void RecordFrameStart(CommandBufferBase* cmd, uint32 frameIndex) = 0;
-    virtual void WriteTimestamp(CommandBufferBase* cmd, uint32 frameIndex, QueryIndex queryIndex) = 0;
-    virtual void RecordFrameEnd(CommandBufferBase* cmd, uint32 frameIndex) = 0;
+    virtual void WriteTimestamp(CommandBufferBase* cmd, uint32 frameIndex, EngineStatGpuTimer* timer, bool isStart) = 0;
 
-    virtual GpuFrameTimings ResolveFrameResults(uint32 completedFrameIndex) = 0;
+    virtual void ResolveFrameResults(uint32 completedFrameIndex) = 0;
 };
 
 } // namespace Hyperion

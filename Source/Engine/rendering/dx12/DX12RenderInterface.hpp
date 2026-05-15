@@ -153,8 +153,8 @@ public:
 
     void BeginFrame(AtomicFlag* pCancelFlag) override;
 
-    void RecordGpuTimestamp(CommandBuffer* cmd, GpuTimerBackend::QueryIndex queryIndex) override;
-    GpuFrameTimings ResolveGpuFrameResults(uint32 completedFrameIndex) override;
+    void RecordGpuTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer, bool isStart) override;
+    void ResolveGpuFrameResults(uint32 completedFrameIndex) override;
     
     void InsertTransientSyncBarrier();
 

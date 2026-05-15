@@ -11,11 +11,15 @@
 #include "VulkanCommandBuffer.hpp"
 #include "VulkanFeatures.hpp"
 
+#include <engine/EngineStats.hpp>
+
 namespace Hyperion {
 
 VulkanGpuTimerBackend::VulkanGpuTimerBackend()
     : GpuTimerBackend(),
-      m_frames { }
+      m_frames { },
+      m_timerSlots { },
+      m_numTimerSlots(0)
 {
 }
 
@@ -37,8 +41,6 @@ bool VulkanGpuTimerBackend::Initialize(DeviceBase* device)
     const VkPhysicalDeviceLimits& limits = m_device->GetFeatures().GetPhysicalDeviceProperties().limits;
     m_timestampPeriod = double(limits.timestampPeriod);
 
-    // Check the graphics queue family's timestampValidBits to determine if
-    // timestamp queries are supported on the queue we will be using.
     const uint32 graphicsFamilyIndex = m_device->GetQueueFamilyIndices().graphicsFamily.Get();
 
     uint32 queueFamilyCount = 0;
@@ -63,7 +65,7 @@ bool VulkanGpuTimerBackend::Initialize(DeviceBase* device)
         .pNext = nullptr,
         .flags = 0,
         .queryType = VK_QUERY_TYPE_TIMESTAMP,
-        .queryCount = NumQueriesPerFrame,
+        .queryCount = MaxGpuQueriesPerFrame,
         .pipelineStatistics = 0
     };
 
@@ -97,6 +99,8 @@ void VulkanGpuTimerBackend::Destroy()
         m_frames[i].resultsPending = false;
     }
 
+    m_timerSlots = { };
+    m_numTimerSlots = 0;
     m_isSupported = false;
 }
 
@@ -110,9 +114,36 @@ double VulkanGpuTimerBackend::GetTimestampPeriod() const
     return m_timestampPeriod;
 }
 
-void VulkanGpuTimerBackend::RecordFrameStart(CommandBufferBase* cmd, uint32 frameIndex)
+uint32 VulkanGpuTimerBackend::GetOrCreateQuerySlot(EngineStatGpuTimer* timer)
 {
-    if (!m_isSupported || !cmd)
+    if (timer->querySlotIndex < MaxGpuTimers)
+    {
+        return timer->querySlotIndex;
+    }
+
+    if (m_numTimerSlots >= MaxGpuTimers)
+    {
+        return UINT32_MAX;
+    }
+
+    const uint32 slot = m_numTimerSlots++;
+    m_timerSlots[slot] = timer;
+
+    timer->querySlotIndex = slot;
+
+    return slot;
+}
+
+void VulkanGpuTimerBackend::WriteTimestamp(CommandBufferBase* cmd, uint32 frameIndex, EngineStatGpuTimer* timer, bool isStart)
+{
+    if (!m_isSupported || !cmd || !timer)
+    {
+        return;
+    }
+
+    const uint32 slot = GetOrCreateQuerySlot(timer);
+
+    if (slot >= MaxGpuTimers)
     {
         return;
     }
@@ -121,29 +152,15 @@ void VulkanGpuTimerBackend::RecordFrameStart(CommandBufferBase* cmd, uint32 fram
     VkCommandBuffer vkCmd = vkCmdBuf->GetVulkanHandle();
     PerFrameState& frameState = m_frames[frameIndex];
 
-    vkCmdResetQueryPool(vkCmd, frameState.queryPool, 0, NumQueriesPerFrame);
-    vkCmdWriteTimestamp(vkCmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, frameState.queryPool, QueryIndex::FrameStart);
-
-    frameState.resultsPending = true;
-}
-
-void VulkanGpuTimerBackend::WriteTimestamp(CommandBufferBase* cmd, uint32 frameIndex, QueryIndex queryIndex)
-{
-    if (!m_isSupported || !cmd)
+    if (!frameState.resultsPending)
     {
-        return;
+        vkCmdResetQueryPool(vkCmd, frameState.queryPool, 0, MaxGpuQueriesPerFrame);
+        frameState.resultsPending = true;
     }
 
-    VulkanCommandBuffer* vkCmdBuf = static_cast<VulkanCommandBuffer*>(cmd);
-    VkCommandBuffer vkCmd = vkCmdBuf->GetVulkanHandle();
-    PerFrameState& frameState = m_frames[frameIndex];
+    const uint32 queryIndex = slot * 2 + (isStart ? 0 : 1);
 
-    vkCmdWriteTimestamp(vkCmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frameState.queryPool, uint32(queryIndex));
-}
-
-void VulkanGpuTimerBackend::RecordFrameEnd(CommandBufferBase* cmd, uint32 frameIndex)
-{
-    WriteTimestamp(cmd, frameIndex, QueryIndex::FrameEnd);
+    vkCmdWriteTimestamp(vkCmd, isStart ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frameState.queryPool, queryIndex);
 }
 
 double VulkanGpuTimerBackend::ComputeDeltaMs(uint64 start, uint64 end) const
@@ -156,47 +173,63 @@ double VulkanGpuTimerBackend::ComputeDeltaMs(uint64 start, uint64 end) const
     return double(end - start) * m_timestampPeriod * 1e-6;
 }
 
-GpuFrameTimings VulkanGpuTimerBackend::ResolveFrameResults(uint32 completedFrameIndex)
+void VulkanGpuTimerBackend::ResolveFrameResults(uint32 completedFrameIndex)
 {
-    GpuFrameTimings timings { };
-
     if (!m_isSupported)
     {
-        return timings;
+        return;
     }
 
     PerFrameState& frameState = m_frames[completedFrameIndex];
 
     if (!frameState.resultsPending)
     {
-        return timings;
+        return;
     }
 
-    uint64 timestamps[NumQueriesPerFrame] = { };
+    uint64 timestampsAndAvailability[MaxGpuQueriesPerFrame * 2] = { };
 
     const VkResult result = vkGetQueryPoolResults(
         m_device->GetDevice(),
         frameState.queryPool,
         0,
-        NumQueriesPerFrame,
-        sizeof(timestamps),
-        timestamps,
-        sizeof(uint64),
-        VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+        MaxGpuQueriesPerFrame,
+        sizeof(timestampsAndAvailability),
+        timestampsAndAvailability,
+        sizeof(uint64) * 2,
+        VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);
+
+    if (result != VK_SUCCESS && result != VK_NOT_READY)
+    {
+        return;
+    }
 
     frameState.resultsPending = false;
 
-    if (result != VK_SUCCESS)
+    for (uint32 i = 0; i < m_numTimerSlots; i++)
     {
-        return timings;
+        EngineStatGpuTimer* timer = m_timerSlots[i];
+
+        if (!timer)
+        {
+            continue;
+        }
+
+        const uint32 startIndex = i * 2;
+        const uint32 endIndex = i * 2 + 1;
+
+        const bool startAvailable = timestampsAndAvailability[startIndex * 2 + 1] != 0;
+        const bool endAvailable = timestampsAndAvailability[endIndex * 2 + 1] != 0;
+
+        if (startAvailable && endAvailable)
+        {
+            const double elapsedMs = ComputeDeltaMs(timestampsAndAvailability[startIndex * 2], timestampsAndAvailability[endIndex * 2]);
+            if (elapsedMs > 0.0)
+            {
+                timer->RecordElapsedMs(elapsedMs);
+            }
+        }
     }
-
-    timings.preRenderMs = ComputeDeltaMs(timestamps[FrameStart], timestamps[AfterPreRender]);
-    timings.mainRenderMs = ComputeDeltaMs(timestamps[AfterPreRender], timestamps[AfterMainRender]);
-    timings.postRenderMs = ComputeDeltaMs(timestamps[AfterMainRender], timestamps[FrameEnd]);
-    timings.frameTotalMs = ComputeDeltaMs(timestamps[FrameStart], timestamps[FrameEnd]);
-
-    return timings;
 }
 
 } // namespace Hyperion

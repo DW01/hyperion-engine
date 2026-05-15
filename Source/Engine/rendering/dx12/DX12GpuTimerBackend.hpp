@@ -41,21 +41,12 @@ public:
         return 0.0;
     }
 
-    void RecordFrameStart(CommandBufferBase* cmd, uint32 frameIndex) override
+    void WriteTimestamp(CommandBufferBase* cmd, uint32 frameIndex, EngineStatGpuTimer* timer, bool isStart) override
     {
     }
 
-    void WriteTimestamp(CommandBufferBase* cmd, uint32 frameIndex, QueryIndex queryIndex) override
+    void ResolveFrameResults(uint32 completedFrameIndex) override
     {
-    }
-
-    void RecordFrameEnd(CommandBufferBase* cmd, uint32 frameIndex) override
-    {
-    }
-
-    GpuFrameTimings ResolveFrameResults(uint32 completedFrameIndex) override
-    {
-        return GpuFrameTimings { };
     }
 };
 

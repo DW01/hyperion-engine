@@ -1065,14 +1065,14 @@ void DX12RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
     BindDescriptorHeaps(*GetCurrentCommandBuffer());
 }
 
-void DX12RenderInterface::RecordGpuTimestamp(CommandBuffer* cmd, GpuTimerBackend::QueryIndex queryIndex)
+void DX12RenderInterface::RecordGpuTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer, bool isStart)
 {
-    // DX12 GPU timing not yet implemented
+    m_gpuTimerBackend->WriteTimestamp(static_cast<DX12CommandBuffer*>(cmd), GetFrameCounter() % NumFramesInFlight, timer, isStart);
 }
 
-GpuFrameTimings DX12RenderInterface::ResolveGpuFrameResults(uint32 completedFrameIndex)
+void DX12RenderInterface::ResolveGpuFrameResults(uint32 completedFrameIndex)
 {
-    return GpuFrameTimings { };
+    m_gpuTimerBackend->ResolveFrameResults(completedFrameIndex);
 }
 
 void DX12RenderInterface::InsertTransientSyncBarrier()
