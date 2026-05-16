@@ -1578,6 +1578,54 @@ DEFINE_EDITOR_COMMAND(Paste);
 
 #pragma endregion Paste
 
+#pragma region SelectAll
+
+class HYP_API EditorCommandSelectAll final : public EditorCommandBase
+{
+    HYP_OBJECT_BODY(EditorCommandSelectAll);
+
+public:
+    virtual ~EditorCommandSelectAll() override = default;
+
+    virtual String GetText() const override
+    {
+        return "Select All";
+    }
+
+    virtual void Execute(EditorSubsystem* subsystem) override
+    {
+        AssertOnThread(g_simThread);
+
+        const Handle<Scene> activeScene = subsystem->GetActiveScene();
+        if (!activeScene.IsValid())
+        {
+            HYP_LOG(Editor, Warning, "EditorCommandSelectAll: no active scene");
+            return;
+        }
+
+        const Handle<Node>& root = activeScene->GetRoot();
+        if (!root.IsValid())
+        {
+            HYP_LOG(Editor, Warning, "EditorCommandSelectAll: scene has no root node");
+            return;
+        }
+
+        Array<Node*> descendants = root->GetDescendantsArray();
+
+        subsystem->ClearSelection();
+        subsystem->AddToSelection(root);
+
+        for (Node* descendant : descendants)
+        {
+            subsystem->AddToSelection(MakeStrongRef(descendant));
+        }
+    }
+};
+
+DEFINE_EDITOR_COMMAND(SelectAll);
+
+#pragma endregion SelectAll
+
 #undef DEFINE_EDITOR_COMMAND
 
 } // namespace Hyperion

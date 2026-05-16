@@ -2,6 +2,7 @@ using Avalonia.Threading;
 using Hyperion;
 using Hyperion.Editor.Commands;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
@@ -29,6 +30,7 @@ namespace Hyperion.Editor.ViewModels
         public EditorCommand Exit => new EditorCommand("Exit");
         public EditorCommand Undo => new EditorCommand("Undo");
         public EditorCommand Redo => new EditorCommand("Redo");
+        public EditorCommand SelectAll => new EditorCommand("SelectAll");
 
         private string _undoHeader = "_Undo";
         public string UndoHeader
@@ -598,6 +600,93 @@ namespace Hyperion.Editor.ViewModels
 
             bool isRootNode = SceneHierarchy.IsRootNode(node);
             Inspector.SetSelectedNode(node, SceneHierarchy.Scene, isRootNode);
+        }
+
+        public void HandleShiftClick(NodeViewModel clickedNode)
+        {
+            Dispatcher.UIThread.VerifyAccess();
+
+            if (!_isReady)
+            {
+                return;
+            }
+
+            // Save the anchor (currently selected/focused node) before updating it
+            NodeViewModel? anchorNode = SceneHierarchy.SelectedNode;
+
+            // Get the clicked node's native reference
+            Node clickedNodeRef = clickedNode.Node;
+
+            // Set the clicked node as the new focused node (with notification suppressed)
+            SceneHierarchy.SelectNodeFromEngine(clickedNodeRef);
+
+            // Get flattened list of all visible nodes in tree order
+            List<NodeViewModel> flatNodes = SceneHierarchy.GetFlattenedNodes();
+
+            int anchorIndex = -1;
+            int clickedIndex = -1;
+
+            for (int i = 0; i < flatNodes.Count; i++)
+            {
+                if (anchorNode != null && flatNodes[i] == anchorNode)
+                {
+                    anchorIndex = i;
+                }
+
+                if (flatNodes[i] == clickedNode)
+                {
+                    clickedIndex = i;
+                }
+            }
+
+            if (clickedIndex == -1)
+            {
+                return;
+            }
+
+            // If no previous anchor, treat as normal single-click selection
+            if (anchorIndex == -1)
+            {
+                anchorIndex = clickedIndex;
+            }
+
+            // Determine range bounds
+            int rangeStart = Math.Min(anchorIndex, clickedIndex);
+            int rangeEnd = Math.Max(anchorIndex, clickedIndex);
+
+            // Capture nodes in the range
+            List<Node> nodesInRange = new List<Node>();
+            for (int i = rangeStart; i <= rangeEnd; i++)
+            {
+                NodeViewModel vm = flatNodes[i];
+                if (vm.Node != null && vm.Node.IsValid)
+                {
+                    nodesInRange.Add(vm.Node);
+                }
+            }
+
+            // Push the range selection to the engine on the sim thread
+            _ = EngineManager.PostToSimThread(() =>
+            {
+                try
+                {
+                    _editorSubsystem.SetFocusedNode(clickedNodeRef, false);
+
+                    _editorSubsystem.ClearSelection();
+                    foreach (Node node in nodesInRange)
+                    {
+                        _editorSubsystem.AddToSelection(node);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Warning, $"Failed to handle shift-click range selection: {ex.Message}");
+                }
+            });
+
+            // Update the inspector for the new focused node
+            bool isRootNode = SceneHierarchy.IsRootNode(clickedNodeRef);
+            Inspector.SetSelectedNode(clickedNodeRef, SceneHierarchy.Scene, isRootNode);
         }
 
         private void OnSceneAdded(World world, Scene scene)

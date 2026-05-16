@@ -172,6 +172,25 @@ namespace Hyperion.Editor.ViewModels
             SelectionChanged?.Invoke();
         }
 
+        public List<NodeViewModel> GetFlattenedNodes()
+        {
+            List<NodeViewModel> result = new List<NodeViewModel>();
+            foreach (NodeViewModel root in RootNodes)
+            {
+                FlattenRecursive(root, result);
+            }
+            return result;
+        }
+
+        private static void FlattenRecursive(NodeViewModel node, List<NodeViewModel> result)
+        {
+            result.Add(node);
+            foreach (NodeViewModel child in node.Children)
+            {
+                FlattenRecursive(child, result);
+            }
+        }
+
         public bool IsRootNode(Node? node)
         {
             if (node == null || _scene == null)

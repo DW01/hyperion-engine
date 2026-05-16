@@ -2029,13 +2029,16 @@ void EditorSubsystem::Update(float delta)
 
     m_editorDelegates->Update();
 
-    if (m_focusedNode.IsValid())
+    if (!m_selectedNodes.Empty())
     {
-        if (Handle<Node> focusedNode = m_focusedNode.Lock(); focusedNode.IsValid())
-        {
-            DebugDrawCommandList& dbg = DebugDrawer::GetInstance().CreateCommandList();
+        DebugDrawCommandList& dbg = DebugDrawer::GetInstance().CreateCommandList();
 
-            dbg.box(focusedNode->GetWorldBounds().GetCenter(), focusedNode->GetWorldBounds().GetExtent() * 0.5f + Vec3f(FLT_EPSILON), Color::Cyan());
+        for (const Handle<Node>& node : m_selectedNodes)
+        {
+            if (node.IsValid())
+            {
+                dbg.box(node->GetWorldBounds().GetCenter(), node->GetWorldBounds().GetExtent() * 0.5f + Vec3f(FLT_EPSILON), Color::Cyan());
+            }
         }
     }
 
@@ -2363,7 +2366,36 @@ void EditorSubsystem::InitViewport()
                     {
                         if (hit.node != nullptr)
                         {
-                            SetFocusedNode(MakeStrongRef(hit.node), true);
+
+                            Handle<Node> nodeStrong = MakeStrongRef(hit.node);
+                            SetFocusedNode(nodeStrong, true);
+
+                            bool shouldAddToSelection = false;
+                            
+                            InputManager* inputManager = g_appContext->GetMainWindow()->GetInputManager();
+                            if (inputManager->IsKeyDown(KeyCode::KEY_LSHIFT) || inputManager->IsKeyDown(KeyCode::KEY_RSHIFT))
+                            {
+                                shouldAddToSelection = true;
+                            }
+
+                            if (shouldAddToSelection)
+                            {
+                                // If already in selection, remove, otherwise add
+                                if (m_selectedNodes.Contains(nodeStrong))
+                                {
+                                    m_selectedNodes.Erase(nodeStrong);
+                                }
+                                else
+                                {
+                                    m_selectedNodes.Add(nodeStrong);
+                                }
+                            }
+                            else
+                            {
+                                m_selectedNodes = { nodeStrong };
+                            }
+
+                            OnSelectionChanged();
 
                             break;
                         }
@@ -2649,41 +2681,8 @@ void EditorSubsystem::StartWatchingNode(const Handle<Node>& node)
     UISubsystem* uiSubsystem = GetWorld()->GetSubsystem<UISubsystem>();
     AssertDebug(uiSubsystem != nullptr);
 
-    Handle<UIListView> listView = DynamicCast<UIListView>(uiSubsystem->GetUIStage()->FindChildUIObject(NAME("Outline_ListView")));
-    AssertDebug(listView.IsValid());
-
-    //    m_editorDelegates->AddNodeWatcher(
-    //        NAME("SceneView"),
-    //        node.Get(),
-    //        { Node::StaticClass()->GetProperty(NAME("Name")), 1 },
-    //        [this, listViewWeak = listView.ToWeak()](Node* node, const Property* property)
-    //        {
-    //            // Update name in list view
-    //            if (node->GetNodeFlags() & NodeFlags::HideInSceneOutline)
-    //            {
-    //                return;
-    //            }
-    //
-    //            HYP_LOG(Editor, Verbose, "Node {} property changed : {}", *node->GetName(), *property->GetName());
-    //
-    //            Handle<UIListView> listView = listViewWeak.Lock();
-    //
-    //            if (!listView)
-    //            {
-    //                return;
-    //            }
-    //
-    //            if (UIDataSourceBase* dataSource = listView->GetDataSource())
-    //            {
-    //                const UIDataSourceElement* dataSourceElement = dataSource->Get(node->GetUUID());
-    //                Assert(dataSourceElement != nullptr);
-    //
-    //                dataSource->ForceUpdate(node->GetUUID());
-    //            }
-    //        });
-
     m_delegateHandlers.Remove(&node->OnChildAdded);
-    m_delegateHandlers.Add(node->OnChildAdded.Bind([this, listViewWeak = listView.ToWeak()](Node* node, bool isDirect)
+    m_delegateHandlers.Add(node->OnChildAdded.Bind([this](Node* node, bool isDirect)
         {
             Assert(node != nullptr);
 
@@ -2691,12 +2690,10 @@ void EditorSubsystem::StartWatchingNode(const Handle<Node>& node)
             {
                 return;
             }
-
-            Handle<UIListView> listView = listViewWeak.Lock();
         }));
 
     m_delegateHandlers.Remove(&node->OnChildRemoved);
-    m_delegateHandlers.Add(node->OnChildRemoved.Bind([this, listViewWeak = listView.ToWeak()](Node* node, bool)
+    m_delegateHandlers.Add(node->OnChildRemoved.Bind([this](Node* node, bool)
         {
             // If the node being removed is the focused node, clear the focused node
             if (node == m_focusedNode.GetUnsafe())
@@ -2713,13 +2710,6 @@ void EditorSubsystem::StartWatchingNode(const Handle<Node>& node)
             }
 
             if (!node)
-            {
-                return;
-            }
-
-            Handle<UIListView> listView = listViewWeak.Lock();
-
-            if (!listView)
             {
                 return;
             }

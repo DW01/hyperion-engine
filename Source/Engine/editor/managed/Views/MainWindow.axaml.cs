@@ -151,6 +151,22 @@ namespace Hyperion.Editor
 
             if (point.Properties.IsLeftButtonPressed)
             {
+                var keyModifiers = e.KeyModifiers;
+
+                if ((keyModifiers & KeyModifiers.Shift) != 0)
+                {
+                    // Shift+click: range selection
+                    var nodeVm = FindNodeViewModelInEventSource(e.Source);
+                    if (nodeVm != null)
+                    {
+                        var vm = DataContext as MainWindowViewModel;
+                        vm?.HandleShiftClick(nodeVm);
+                    }
+
+                    e.Handled = true;
+                    return;
+                }
+
                 _dragCandidate = FindNodeViewModelInEventSource(e.Source);
                 _dragStartPoint = e.GetPosition(sender as Visual);
                 _isDragging = false;

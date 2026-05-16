@@ -39,7 +39,7 @@ DECLARE_SRV(DebugDrawerDescriptorSet, EnvProbesBuffer) StructuredBuffer<EnvProbe
 
 struct ImmediateDraw
 {
-    float4x4 model_matrix;
+    float4x4 transform;
 
     uint color_packed;
     uint env_probe_type;
@@ -49,8 +49,8 @@ struct ImmediateDraw
 
 DECLARE_SRV_DYNAMIC(DebugDrawerDescriptorSet, ImmediateDrawsBuffer) StructuredBuffer<ImmediateDraw> immediateDraws;
 
-#define MODEL_MATRIX (immediateDraw.model_matrix)
-#define PREV_MODEL_MATRIX (immediateDraw.model_matrix)
+#define MODEL_MATRIX (immediateDraw.transform)
+#define PREV_MODEL_MATRIX (immediateDraw.transform)
 
 #else // !IMMEDIATE_MODE
 
@@ -96,6 +96,8 @@ VSOutput VSMain(VSInput input, uint instanceId : SV_InstanceID)
     output.env_probe_type = immediateDraw.env_probe_type;
     output.env_probe_index = immediateDraw.env_probe_index;
 
+    // Temporarily disabled.
+#if 0
     if (immediateDraw.env_probe_index != ~0u)
     {
         SH9 sh9;
@@ -107,6 +109,7 @@ VSOutput VSMain(VSInput input, uint instanceId : SV_InstanceID)
 
         output.color = float4(SphericalHarmonicsSample(sh9, input.a_normal), 1.0);
     }
+#endif
 #elif defined(INSTANCING)
     output.object_index = OBJECT_INDEX;
 #else
@@ -235,6 +238,8 @@ PSOutput PSMain(PSInput input)
 
     materialParams.mask = OBJECT_MASK_TRANSLUCENT | OBJECT_MASK_DEBUG;
 
+    // Temporarily disabled.
+#if 0
     if (input.env_probe_index != ~0u)
     {
         const float3 N = normal;
@@ -256,6 +261,7 @@ PSOutput PSMain(PSInput input)
 
         output.gbuffer_albedo.rgb = ibl.rgb;
     }
+#endif
 #else
     materialParams.mask = GET_OBJECT_BUCKET_MASK(entity);
 #endif

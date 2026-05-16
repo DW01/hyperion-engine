@@ -24,6 +24,7 @@
 #include <rendering/Mesh.hpp>
 #include <rendering/Texture.hpp>
 #include <rendering/Buffers.hpp>
+#include <rendering/RawBufferAllocator.hpp>
 
 #include <rendering/passes/DeferredPass.hpp>
 
@@ -64,7 +65,7 @@ static RenderableAttributeSet GetRenderableAttributes()
             .bucket = RenderBucket::Debug,
             .fillMode = FM_FILL,
             .blendFunction = BlendFunction::None(),
-            .flags = MAF_DEPTH_TEST
+            .flags = MAF_NONE
         });
 }
 
@@ -559,8 +560,6 @@ void DebugDrawer::Shutdown()
             .buffer = std::move(m_buffers[i])
         };
     }
-
-    EnqueueDeletion(std::move(m_instanceBuffers));
 }
 
 void DebugDrawer::Update()
@@ -672,21 +671,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
 
     const uint32 frameIndex = frame->GetFrameIndex();
 
-    GpuBufferRef& instanceBuffer = m_instanceBuffers[frameIndex];
-
-    if (!instanceBuffer || m_headers[idx].Size() * sizeof(ImmediateDrawShaderData) > instanceBuffer->Size())
-    {
-        if (instanceBuffer)
-        {
-            EnqueueDeletion(std::move(instanceBuffer));
-        }
-
-        instanceBuffer = RI.MakeGpuBuffer(GpuBufferType::StructuredBuffer, sizeof(ImmediateDrawShaderData) * m_headers[idx].Size());
-        instanceBuffer->SetIsCpuAccessible(true);
-        CheckResult(instanceBuffer->Create());
-
-        instanceBuffer->Memset(sizeof(ImmediateDrawShaderData) * m_headers[idx].Size(), 0);
-    }
+    StructuredBuffer& instanceBuffer = RI.bufferAllocator->AcquireStructuredBuffer(m_headers[idx].Size(), sizeof(ImmediateDrawShaderData));
 
     auto& partitionedShaderData = m_cachedPartitionedShaderData;
 
@@ -734,7 +719,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
 
     RenderableAttributeSet attributes;
 
-    uint32 shaderDataOffset = 0;
+    uint32 elemOffset = 0;
     uint32 totalDrawCalls = 0;
     uint32 totalInstancedDraws = 0;
 
@@ -779,8 +764,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
             continue;
         }
 
-        Assert(instanceBuffer->Size() >= (shaderData.Size() + shaderDataOffset) * sizeof(ImmediateDrawShaderData));
-        instanceBuffer->Copy(shaderDataOffset * sizeof(ImmediateDrawShaderData), shaderData.Size() * sizeof(ImmediateDrawShaderData), shaderData.Data());
+        instanceBuffer.Write(elemOffset * sizeof(ImmediateDrawShaderData), shaderData.Size() * sizeof(ImmediateDrawShaderData), shaderData.Data());
 
         uint32 numToDraw = 0;
 
@@ -808,7 +792,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
                     cr << SetStencilTest(bool(attributes.GetMaterialAttributes().flags & MAF_STENCIL_TEST));
                     cr << SetStencilFunction(attributes.GetMaterialAttributes().stencilFunction);
 
-                    cr << SetShaderUniform(8, "ImmediateDrawsBuffer"_sh, instanceBuffer, TShaderDataOffset<ImmediateDrawShaderData>(shaderDataOffset));
+                    cr << SetShaderUniform(8, "ImmediateDrawsBuffer"_sh, instanceBuffer, elemOffset);
 
                     cr << CommitDrawState();
 
@@ -830,7 +814,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
                     HYP_UNREACHABLE();
                 }
 
-                shaderDataOffset += numToDraw;
+                elemOffset += numToDraw;
                 numToDraw = 0;
             }
         };
@@ -865,6 +849,8 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
             CommitCurrentDraws();
         }
     }
+
+    instanceBuffer.FlushBatched();
 
     ClearCommands(idx);
 }
