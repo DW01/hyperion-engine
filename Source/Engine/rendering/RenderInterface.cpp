@@ -105,8 +105,6 @@
 #include <semaphore>
 #include <new>
 
-#include <RenderInterface.generated.inl>
-
 namespace Hyperion {
 
 using namespace Resources;

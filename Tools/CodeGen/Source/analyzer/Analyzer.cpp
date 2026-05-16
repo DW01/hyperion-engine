@@ -55,7 +55,7 @@ static const TMap<String, String> s_pathConditionalDefines = {
     // platforms
     { "platform/win32", "HYP_WINDOWS" },
     { "platform/linux", "HYP_LINUX" },
-    { "platform/mac", "HYP_MAC" },
+    { "platform/mac", "HYP_MACOS" },
     { "platform/ios", "HYP_IOS" },
     { "platform/android", "HYP_ANDROID" },
     // rendering backends

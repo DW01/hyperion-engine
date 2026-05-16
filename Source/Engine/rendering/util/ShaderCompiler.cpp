@@ -423,15 +423,15 @@ static void MergeGlobalShaderProperties(bool isPrecompilingShaders, ShaderProper
 
     // Current platform + Graphics API
 
-#ifdef HYP_DX12
+#if defined(HYP_DX12)
     out.Add(s_propDX12);
 #elif defined(HYP_VULKAN)
     out.Add(s_propVulkan);
 #endif // HYP_DX12 || HYP_VULKAN
 
-#ifdef HYP_WINDOWS
+#if defined(HYP_WINDOWS)
     out.Add(s_propTargetWindows);
-#elif defined(HYP_MAC)
+#elif defined(HYP_MACOS)
     out.Add(s_propTargetMac);
 #elif defined(HYP_LINUX)
     out.Add(s_propTargetLinux);
@@ -439,7 +439,7 @@ static void MergeGlobalShaderProperties(bool isPrecompilingShaders, ShaderProper
     out.Add(s_propTargetAndroid);
 #elif defined(HYP_IOS)
     out.Add(s_propTargetIOS);
-#endif // HYP_WINDOWS || HYP_MAC || HYP_LINUX || HYP_ANDROID || HYP_IOS
+#endif // HYP_WINDOWS || HYP_MACOS || HYP_LINUX || HYP_ANDROID || HYP_IOS
 
     if (RI.GetRenderConfig().bindlessTextures)
     {
@@ -2811,7 +2811,6 @@ bool ShaderCompiler::CompileBundle(
         // Only compile for the active platform/backend when not precompiling.
 
         Name activePlatform;
-
 #if HYP_WINDOWS
         activePlatform = NAME("WINDOWS");
 #elif HYP_MACOS
@@ -3047,7 +3046,9 @@ bool ShaderCompiler::CompileBundle(
 
             if (!targetBackend.HasValue() || !targetPlatform.HasValue())
             {
-                HYP_LOG(ShaderCompiler, Warning, "No target backend or platform for shader {}", decl.name);
+                HYP_LOG(ShaderCompiler, Warning, "No target backend or platform for shader {}. Target backend: {}, target platform: {}", decl.name,
+                    targetBackend.HasValue() ? *EnumToString(*targetBackend) : "<none>",
+                    targetPlatform.HasValue() ? *EnumToString(*targetPlatform) : "<none>");
                 return;
             }
 

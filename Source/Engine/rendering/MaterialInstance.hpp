@@ -89,7 +89,7 @@ public:
     const Handle<Texture>& GetTextureAtIndex(uint32 index) const;
 
     /*! \brief Get the render bucket, delegated from the definition. */
-    HYP_FORCE_INLINE RenderBucket GetBucket() const;
+    RenderBucket GetBucket() const;
 
     /*! \brief Returns true if the instance is static (not expected to change frequently)
      *  and may be shared across many objects. */
