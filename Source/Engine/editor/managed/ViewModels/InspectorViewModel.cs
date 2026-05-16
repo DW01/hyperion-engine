@@ -71,6 +71,8 @@ namespace Hyperion.Editor.ViewModels
             private set => SetProperty(ref _selectedNode, value);
         }
 
+        private DelegateHandler? _transformUpdatedHandler;
+
         private Scene? _currentScene;
         public Scene? CurrentScene
         {
@@ -83,13 +85,35 @@ namespace Hyperion.Editor.ViewModels
             AddComponentCommand = new AsyncRelayCommand(AddComponentAsync, CanAddComponent);
         }
 
+        ~InspectorViewModel()
+        {
+            _transformUpdatedHandler?.Remove();
+        }
+
         public void SetSelectedNode(Node? node, Scene? scene = null, bool isRootNode = false)
         {
             Dispatcher.UIThread.VerifyAccess();
 
+            // Unbind from previous node's TransformUpdated delegate
+            _transformUpdatedHandler?.Remove();
+            _transformUpdatedHandler = null;
+
             SelectedNode = node;
             CurrentScene = scene;
             IsRootNode = isRootNode;
+
+            // Bind to the new node's TransformUpdated delegate
+            if (SelectedNode != null)
+            {
+                _transformUpdatedHandler = SelectedNode.GetTransformUpdatedDelegate().Bind((Node updatedNode) =>
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        RefreshTransformProperties();
+                    });
+                });
+            }
+
             RefreshProperties();
         }
 
@@ -342,6 +366,20 @@ namespace Hyperion.Editor.ViewModels
             }
 
             HasActions = Actions.Count > 0;
+        }
+
+        private void RefreshTransformProperties()
+        {
+            Dispatcher.UIThread.VerifyAccess();
+
+            foreach (InspectorPropertyViewModelBase propertyVm in Properties)
+            {
+                // Refresh transform-related properties
+                if (propertyVm is TransformViewModel transformVm)
+                {
+                    transformVm.RefreshValue();
+                }
+            }
         }
 
         private void RefreshSceneProperties()

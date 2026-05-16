@@ -545,7 +545,6 @@ Handle<Mesh> MeshBuilder::Merge(const Mesh* a, const Mesh* b, const Transform& a
 
     Handle<Mesh> newMesh = MakeHandle<Mesh>();
 
-
     VertexArrayView vertexArrayView {};
     vertexArrayView.floatData = reinterpret_cast<const float*>(allVertices.Data());
     vertexArrayView.vertexCount = allVertices.Size();

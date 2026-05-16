@@ -231,7 +231,7 @@ World* Node::GetWorld() const
 
 void Node::OnTransformUpdated()
 {
-    // Do nothing
+    TransformUpdated(this);
 }
 
 void Node::OnMobilityChanged(bool isStatic)

@@ -239,9 +239,9 @@ static void BuildScaleGizmo(Handle<AssetRegistry>& assetRegistry)
     };
 
     static const Quat4f s_axisRotations[3] = {
-        Quat4f::AxisAngles(Vec3f::UnitZ(), -MathUtil::pi<float> * 0.5f),
+        Quat4f::AxisAngles(Vec3f::UnitZ(), MathUtil::pi<float> * 0.5f),
         Quat4f::Identity(),
-        Quat4f::AxisAngles(Vec3f::UnitX(), MathUtil::pi<float> * 0.5f)
+        Quat4f::AxisAngles(Vec3f::UnitX(), -MathUtil::pi<float> * 0.5f)
     };
 
     static const char* s_axisNames[3] = { "ScaleGizmo_AxisX", "ScaleGizmo_AxisY", "ScaleGizmo_AxisZ" };

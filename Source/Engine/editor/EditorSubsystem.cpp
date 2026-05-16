@@ -1052,11 +1052,6 @@ void ScaleEditorGizmo::OnDragStart(const Handle<Camera>& camera, const MouseEven
         }
     });
 
-    if (axis < 0)
-    {
-        return;
-    }
-
     Handle<Node> focusedNode = m_focusedNode.Lock();
 
     if (!focusedNode.IsValid())
@@ -1064,25 +1059,42 @@ void ScaleEditorGizmo::OnDragStart(const Handle<Camera>& camera, const MouseEven
         return;
     }
 
-    const Vec3f focusedWorldPos = focusedNode->GetWorldTranslation();
+    const Vec3f nodeOrigin = focusedNode->GetWorldTranslation();
+    const Vec3f initialScale = focusedNode->GetWorldScale();
     const Vec3f cameraDirection = camera->GetDirection();
-    const Vec3f cameraSide = camera->GetSideVector();
 
     const Vec3f axisDirections[3] = { Vec3f(1.0f, 0.0f, 0.0f), Vec3f(0.0f, 1.0f, 0.0f), Vec3f(0.0f, 0.0f, 1.0f) };
-    const Vec3f& axisDirection = axisDirections[axis];
 
-    Vec3f planeNormal = axisDirection.Cross(cameraDirection);
-    if (planeNormal.LengthSquared() < MathUtil::epsilonF)
+    Vec3f axisDirection;
+    Vec3f planeNormal;
+
+    if (axis >= 0)
     {
-        planeNormal = -cameraSide;
+        axisDirection = axisDirections[axis];
+
+        if (axis == 1)
+        {
+            planeNormal = axisDirection.Cross(camera->GetSideVector()).Normalize();
+        }
+        else
+        {
+            planeNormal = axisDirection.Cross(camera->GetUpVector()).Normalize();
+        }
     }
-    planeNormal.Normalize();
+    else
+    {
+        axisDirection = Vec3f::Zero();
+        planeNormal = -cameraDirection;
+    }
 
     DragData dragData {};
     dragData.axisDirection = axisDirection;
     dragData.planeNormal = planeNormal;
-    dragData.planePoint = hitpoint;
+    dragData.planePoint = nodeOrigin;
     dragData.hitpointOrigin = hitpoint;
+    dragData.nodeOrigin = nodeOrigin;
+    dragData.initialScale = initialScale;
+    dragData.axis = axis;
 
     m_dragData = dragData;
 }
@@ -1090,6 +1102,34 @@ void ScaleEditorGizmo::OnDragStart(const Handle<Camera>& camera, const MouseEven
 void ScaleEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEvent& mouseEvent)
 {
     EditorGizmoBase::OnDragEnd(camera, mouseEvent);
+
+    if (Handle<EditorProject> project = GetCurrentProject(); project.IsValid())
+    {
+        if (Handle<Node> focusedNode = m_focusedNode.Lock(); focusedNode.IsValid())
+        {
+            project->GetActionStack()->PushAction(MakeHandle<FunctionalEditorAction>(
+                HYP_FORMAT("Scale {}", focusedNode->GetName()),
+                [focusedNode, finalScale = focusedNode->GetWorldScale(), originScale = m_dragData->initialScale]() -> EditorActionFunctions
+                {
+                    return {
+                        [&](EditorSubsystem* editorSubsystem, EditorProject*)
+                        {
+                            NodeUnlockTransformScope unlockTransformScope(*focusedNode);
+                            focusedNode->SetWorldScale(finalScale);
+
+                            editorSubsystem->SetFocusedNode(focusedNode, true);
+                        },
+                        [&](EditorSubsystem* editorSubsystem, EditorProject*)
+                        {
+                            NodeUnlockTransformScope unlockTransformScope(*focusedNode);
+                            focusedNode->SetWorldScale(originScale);
+
+                            editorSubsystem->SetFocusedNode(focusedNode, true);
+                        }
+                    };
+                }));
+        }
+    }
 
     m_dragData.Unset();
 }
@@ -1168,13 +1208,6 @@ bool ScaleEditorGizmo::OnMouseMove(const Handle<Camera>& camera, const MouseEven
         return false;
     }
 
-    const NodeTag& axisTag = node->GetTag("TransformWidgetAxis"_sh);
-
-    if (!axisTag)
-    {
-        return false;
-    }
-
     Handle<Node> focusedNode = m_focusedNode.Lock();
 
     if (!focusedNode.IsValid())
@@ -1192,7 +1225,7 @@ bool ScaleEditorGizmo::OnMouseMove(const Handle<Camera>& camera, const MouseEven
 
     RayHit planeRayHit;
 
-    if (Optional<RayHit> planeRayHitOpt = ray.TestPlane(m_dragData->planePoint, m_dragData->planeNormal))
+    if (Optional<RayHit> planeRayHitOpt = ray.TestPlane(m_dragData->nodeOrigin, m_dragData->planeNormal))
     {
         planeRayHit = *planeRayHitOpt;
     }
@@ -1201,16 +1234,38 @@ bool ScaleEditorGizmo::OnMouseMove(const Handle<Camera>& camera, const MouseEven
         return true;
     }
 
-    Vec3f scaleDelta = planeRayHit.hitpoint - m_dragData->hitpointOrigin;
-    scaleDelta = m_dragData->axisDirection * scaleDelta.Dot(m_dragData->axisDirection);
+    Vec3f newScale;
 
-    Vec3f newScale = focusedNode->GetWorldScale() + scaleDelta;
-    newScale = Vec3f::Max(Vec3f(0.01f), newScale);
+    if (m_dragData->axis >= 0)
+    {
+        const Vec3f axisDirections[3] = { Vec3f(1.0f, 0.0f, 0.0f), Vec3f(0.0f, 1.0f, 0.0f), Vec3f(0.0f, 0.0f, 1.0f) };
+        const Vec3f& axisDir = axisDirections[m_dragData->axis];
 
-    focusedNode->UnlockTransform();
+        const float initialProj = (m_dragData->hitpointOrigin - m_dragData->nodeOrigin).Dot(axisDir);
+        const float currentProj = (planeRayHit.hitpoint - m_dragData->nodeOrigin).Dot(axisDir);
+
+        const float reference = MathUtil::Max(MathUtil::Abs(initialProj), 0.05f);
+        const float factor = MathUtil::Max(1.0f + (currentProj - initialProj) / reference, 0.0001f);
+
+        newScale = m_dragData->initialScale;
+        newScale[m_dragData->axis] *= factor;
+    }
+    else
+    {
+        const Vec3f cameraUp = camera->GetUpVector();
+
+        const float delta = (planeRayHit.hitpoint - m_dragData->hitpointOrigin).Dot(cameraUp);
+        const float cameraDistance = (camera->GetWorldTranslation() - m_dragData->nodeOrigin).Length();
+        const float reference = MathUtil::Max(cameraDistance * 0.5f, 0.001f);
+        const float factor = MathUtil::Max(1.0f + delta / reference, 0.0001f);
+
+        newScale = m_dragData->initialScale * factor;
+    }
+
+    newScale = Vec3f::Max(Vec3f(0.0001f), newScale);
+
+    NodeUnlockTransformScope unlockTransformScope(*focusedNode);
     focusedNode->SetWorldScale(newScale);
-
-    m_dragData->hitpointOrigin = planeRayHit.hitpoint;
 
     return true;
 }

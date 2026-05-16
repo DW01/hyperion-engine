@@ -1996,6 +1996,7 @@ extern class Node : AssetObject
     MarkDirty() -> void
     OnChildAdded : any
     OnChildRemoved : any
+    TransformUpdated : any
     NodeFlags : NodeFlags
     ParentNode : Node
     ChildNodes : any

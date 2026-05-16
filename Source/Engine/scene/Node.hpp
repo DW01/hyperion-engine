@@ -879,6 +879,9 @@ public:
     HYP_FIELD()
     ScriptableDelegate<void, Node*, bool /* direct */> OnChildRemoved;
 
+    HYP_FIELD()
+    ScriptableDelegate<void, Node*> TransformUpdated;
+
 protected:
     virtual void Init() override;
 

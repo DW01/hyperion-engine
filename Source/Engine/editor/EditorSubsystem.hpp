@@ -365,6 +365,9 @@ protected:
         Vec3f planeNormal;
         Vec3f planePoint;
         Vec3f hitpointOrigin;
+        Vec3f nodeOrigin;
+        Vec3f initialScale;
+        int axis = -1;
     };
 
     virtual Handle<Node> Load_Internal() const override;
