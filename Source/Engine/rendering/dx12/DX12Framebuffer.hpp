@@ -14,7 +14,7 @@
 #undef INCLUDE_FROM_RHI
 #undef INCLUDE_FROM_RHI_BASE
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/dx12/DX12Attachment.hpp>
 #include <rendering/dx12/DX12DescriptorHeaps.hpp>
 
@@ -167,7 +167,7 @@ public:
     {
         return int(m_attachmentMap.Size());
     }
-    
+
     bool IsCreated() const override
     {
         return m_isCreated;

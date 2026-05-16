@@ -12,6 +12,8 @@
 #include <rendering/vulkan/VulkanFrame.hpp>
 #include <rendering/vulkan/VulkanResult.hpp>
 
+#include <rendering/CrashHandler.hpp>
+
 #include <rendering/Device.hpp>
 
 #define DEFAULT_FENCE_TIMEOUT 100000000000
@@ -80,6 +82,10 @@ void VulkanFence::Create(bool createSignaled)
 
     VkResult result = vkCreateFence(RI.GetDevice()->GetDevice(), &fenceCreateInfo, nullptr, &handle);
     Assert(result == VK_SUCCESS, "Failed to create Vulkan fence, VkResult: {}", result);
+
+#if HYP_DEBUG_MODE
+    SetDebugName(debugName);
+#endif
 }
 
 bool VulkanFence::CheckStatus()
@@ -123,7 +129,16 @@ void VulkanFence::Wait(bool timeoutLoop)
     lastFrameResult = result;
     isSubmitted = false;
 
-    Assert(result == VK_SUCCESS, "Failed to wait for Vulkan fence, VkResult: {}", result);
+    if (HYP_UNLIKELY(result != VK_SUCCESS))
+    {
+        if (RI.crashHandler)
+        {
+            RI.crashHandler->Dump();
+            return;
+        }
+
+        HYP_FAIL("Failed to wait for Vulkan fence, VkResult: {}", result);
+    }
 }
 
 void VulkanFence::Reset()
@@ -133,5 +148,29 @@ void VulkanFence::Reset()
 
     isSubmitted = false;
 }
+
+#if HYP_DEBUG_MODE
+
+void VulkanFence::SetDebugName(Name name)
+{
+    debugName = name;
+
+    if (handle == VK_NULL_HANDLE)
+    {
+        return;
+    }
+
+    if (RI.dynamicFunctions.vkSetDebugUtilsObjectNameEXT)
+    {
+        VkDebugUtilsObjectNameInfoEXT objectNameInfo { VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
+        objectNameInfo.objectType = VK_OBJECT_TYPE_FENCE;
+        objectNameInfo.objectHandle = (uint64)handle;
+        objectNameInfo.pObjectName = name.LookupString();
+
+        RI.dynamicFunctions.vkSetDebugUtilsObjectNameEXT(RI.GetDevice()->GetDevice(), &objectNameInfo);
+    }
+}
+
+#endif
 
 } // namespace Hyperion

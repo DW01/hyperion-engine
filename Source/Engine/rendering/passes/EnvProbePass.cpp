@@ -18,7 +18,7 @@
 #include <rendering/GpuBuffer.hpp>
 #include <rendering/DescriptorSet.hpp>
 #include <rendering/ComputePipeline.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderProxyList.hpp>
 #include <rendering/RenderProxy.hpp>
 #include <rendering/AsyncCompute.hpp>
@@ -27,6 +27,7 @@
 #include <rendering/ShaderInstance.hpp>
 #include <rendering/RendererMain.hpp>
 #include <rendering/RenderHelpers.hpp>
+#include <rendering/ScratchImageAllocator.hpp>
 
 #include <rendering/shadows/ShadowMapCache.hpp>
 
@@ -39,6 +40,8 @@
 #include <Core/math/MathUtil.hpp>
 
 #include <Core/utilities/DeferredScope.hpp>
+
+#include <util/img/Bitmap.hpp>
 
 #include <HyperionEngine.hpp>
 
@@ -95,12 +98,10 @@ void ConvolveEnvProbeCubemap(
     Handle<Texture> srcTexture;
     bool needsMipMapGeneration = false;
 
-    TextureDesc dstTextureDesc = prefilteredEnvMap->GetTextureDesc();
-    dstTextureDesc.imageUsage = IU_STORAGE | IU_SAMPLED;
-
-    Handle<Texture> dstTexture = MakeHandle<Texture>(dstTextureDesc);
-    dstTexture->SetName(NAME("EnvProbeRenderer_DstColorTexture"));
-    CheckResult(dstTexture->Create());
+    Handle<Texture> dstTexture = RI.scratchImageAllocator->AcquireScratchImage(
+        TextureType::Cubemap,
+        prefilteredEnvMap->GetFormat(),
+        prefilteredEnvMap->GetExtent());
 
     if (inTexture->HasMipMaps())
     {
@@ -111,18 +112,10 @@ void ConvolveEnvProbeCubemap(
         needsMipMapGeneration = true;
 
         // copy into new texture, we need to generate mips on it before convolving
-        srcTexture = MakeHandle<Texture>(
-            TextureDesc {
-                TextureType::Cubemap,
-                prefilteredEnvMap->GetFormat(),
-                inTexture->GetExtent(),
-                TFM_LINEAR_MIPMAP,
-                TFM_LINEAR,
-                TWM_CLAMP_TO_EDGE
-            });
-
-        srcTexture->SetName(NAME("EnvProbeRenderer_SrcColorTexture"));
-        CheckResult(srcTexture->Create());
+        srcTexture = RI.scratchImageAllocator->AcquireScratchImage(
+            TextureType::Cubemap,
+            prefilteredEnvMap->GetFormat(),
+            inTexture->GetExtent());
     }
 
     ConvolveProbeUniforms uniforms {};
@@ -212,9 +205,6 @@ void ConvolveEnvProbeCubemap(
 
         cr << InsertBarrier(dstTexture->GetGpuImage(), RS_UNORDERED_ACCESS, subResource);
 
-        const Frame* currFrame = RI.GetCurrentFrame();
-        const uint32 frameIndex = currFrame ? currFrame->GetFrameIndex() : 0;
-
         // @TODO Just write the env probe to constant buffer?
         cr << SetShaderUniform(0, "CurrentEnvProbe"_sh, RI.namedBuffers[NamedBuffer::EnvProbes], Resources::GetBinding(&envProbe));
         cr << SetShaderUniform(1, "SphereSamplesBuffer"_sh, RI.sphereSamplesBuffer);
@@ -254,9 +244,10 @@ void ConvolveEnvProbeCubemap(
 
             HYP_LOG(Rendering, Info, "Readback of convolved EnvProbe {} completed, size {} bytes", envProbeStrong->GetName(), buffer.Size());
 
-            auto resGuard = prefilteredEnvMap->GetWriteScope();
+            auto textureResGuard = prefilteredEnvMap->GetWriteScope();
 
             TextureDesc desc = prefilteredEnvMap->GetTextureDesc();
+            AssertDebug(desc.extent.Volume() != 0 && desc.extent.Volume() <= 2048*2048);
 
             // sanity check
             Assert(buffer.Size() == desc.GetByteSize(/* allMips */ true));
@@ -266,7 +257,7 @@ void ConvolveEnvProbeCubemap(
             view.last = view.first + buffer.Size();
 
             // set all mip offsets.
-            Memory::Zero(desc.mipOffsets.Data(), desc.mipOffsets.ByteSize());
+            desc.mipOffsets = {};
 
             const uint8 numMips = desc.NumMips();
 
@@ -283,18 +274,19 @@ void ConvolveEnvProbeCubemap(
                 mipOffset += mipByteSize;
             }
 
+            // Update image data and desc
             prefilteredEnvMap->SetTextureDesc(desc);
-
-            // Copy to cpu side data
             prefilteredEnvMap->SetImageData(view);
 
-            // mark dirty so it gets saved on project save.
-            envProbeStrong->MarkDirty();
+            textureResGuard.Reset();
+
+            auto envProbeResGuard = envProbeStrong->GetWriteScope();
+            envProbeStrong->SetBakedTexture(prefilteredEnvMap);
         }, /* allMips */ true);
     }
 
     // Update in env probes texture array if bound
-    if (envProbe.IsA(SkyProbe::StaticClass()) || envProbe.IsA(ReflectionProbe::StaticClass()))
+    if (envProbe.IsA<SkyProbe>() || envProbe.IsA<ReflectionProbe>())
     {
         const uint32 boundIndex = Resources::GetBinding(&envProbe);
 
@@ -354,11 +346,6 @@ void ConvolveEnvProbeCubemap(
 
     // keep some resources around until we know we're done with them from this pass
     EnqueueDeletion(std::move(buffers));
-
-    if (needsMipMapGeneration)
-    {
-        EnqueueDeletion(std::move(srcTexture));
-    }
 }
 
 } // namespace ConvolveProbe

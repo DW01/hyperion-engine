@@ -19,7 +19,7 @@
 #include <Core/containers/ArrayMap.hpp>
 #include <Core/Defines.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <rendering/dx12/DX12DescriptorHeaps.hpp>
 

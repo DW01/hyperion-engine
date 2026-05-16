@@ -12,7 +12,7 @@
 #include <Core/memory/Pimpl.hpp>
 
 #include <rendering/RenderMemory.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 namespace Hyperion {
 
@@ -28,7 +28,7 @@ public:
     void OnFrameStart();
     void OnFrameEnd();
 
-    Handle<Texture> AcquireScratchImage(TextureFormat format, Vec3u extent);
+    Handle<Texture> AcquireScratchImage(TextureType type, TextureFormat format, Vec3u extent);
 
     void Shutdown();
 

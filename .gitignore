@@ -77,7 +77,9 @@ Data/Models/SponzaGltf/**/*
 
 Packages/**/Cache/**/*
 
-Packages/**/*
+Packages/Engine/**/*
+Packages/DefaultGame/**/*
+Packages/HyperionEditorGame/**/*
 
 Binaries/**/*
 

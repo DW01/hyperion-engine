@@ -101,8 +101,6 @@ Entity::~Entity()
 
 void Entity::Init()
 {
-    HYP_SCOPE;
-
     AssertDebug(m_scene != nullptr);
     SetEntityManager(m_scene->GetEntityManager());
 
@@ -393,8 +391,6 @@ void Entity::SetLocalBounds(const BoundingBox& aabb)
 
 void Entity::OnTransformUpdated()
 {
-    HYP_SCOPE;
-
     Node::OnTransformUpdated();
 
     if (!IsInitCalled())
@@ -424,8 +420,6 @@ void Entity::OnTransformUpdated()
 
 void Entity::OnMobilityChanged(bool isStatic)
 {
-    HYP_SCOPE;
-
     Node::OnMobilityChanged(isStatic);
 
     if (!IsInitCalled())
@@ -453,8 +447,6 @@ void Entity::OnMobilityChanged(bool isStatic)
 
 void Entity::SetEntityManager(const Handle<EntityManager>& entityManager)
 {
-    HYP_SCOPE;
-
     AssertDebug(entityManager != nullptr);
 
     EntityManager* previousEntityManager = GetEntityManager();
@@ -483,8 +475,6 @@ static bool ShouldSkipEntityTagForSerialization(EntityTag tag)
 
 Array<EntityTag> Entity::SerializeTags() const
 {
-    HYP_SCOPE;
-
     EntityManager* entityManager = GetEntityManager();
 
     if (!entityManager)
@@ -544,8 +534,6 @@ Array<EntityTag> Entity::SerializeTags() const
 
 void Entity::DeserializeTags(const Array<EntityTag>& tags)
 {
-    HYP_SCOPE;
-
     AssertDebug(m_scene != nullptr);
 
     if (!m_entityManager)
@@ -568,8 +556,6 @@ void Entity::DeserializeTags(const Array<EntityTag>& tags)
 
 Array<BoxedValue, DynamicAllocator> Entity::SerializeComponents() const
 {
-    HYP_SCOPE;
-
     EntityManager* entityManager = GetEntityManager();
 
     if (!entityManager)
@@ -649,8 +635,6 @@ Array<BoxedValue, DynamicAllocator> Entity::SerializeComponents() const
 
 void Entity::DeserializeComponents(const Array<BoxedValue, DynamicAllocator>& components)
 {
-    HYP_SCOPE;
-
     AssertDebug(m_scene != nullptr);
 
     if (!m_entityManager)

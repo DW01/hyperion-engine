@@ -417,6 +417,13 @@ RendererResult VulkanDevice::Create(VkSurfaceKHR surface)
 
     HYP_LOG(RenderingBackend, Verbose, "-----");
 
+#if HYP_DEBUG_MODE
+    if (HasExtensionSupport(VK_EXT_DEBUG_MARKER_EXTENSION_NAME))
+    {
+        extensionNames.PushBack(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
+    }
+#endif
+
     VkDeviceCreateInfo createInfo { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
     createInfo.pQueueCreateInfos = queueCreateInfos.Data();
     createInfo.queueCreateInfoCount = uint32(queueCreateInfos.Size());
@@ -424,15 +431,12 @@ RendererResult VulkanDevice::Create(VkSurfaceKHR surface)
 #if defined(HYP_AFTERMATH) && HYP_AFTERMATH
     VkDeviceDiagnosticsConfigCreateInfoNV aftermathInfo { VK_STRUCTURE_TYPE_DEVICE_DIAGNOSTICS_CONFIG_CREATE_INFO_NV };
 
-    if (HasExtensionSupport(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME)
-        && HasExtensionSupport(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME))
+    if (HasExtensionSupport(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME))
     {
-        extensionNames.PushBack(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME);
         extensionNames.PushBack(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME);
 
         /// https://docs.nvidia.com/nsight-aftermath/SDK/index.html
         VkDeviceDiagnosticsConfigFlagsNV aftermathFlags =
-            VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_AUTOMATIC_CHECKPOINTS_BIT_NV | // Enable automatic call stack checkpoints.
             VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_RESOURCE_TRACKING_BIT_NV |     // Enable tracking of resources.
             VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_DEBUG_INFO_BIT_NV |     // Generate debug information for shaders.
             VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_ERROR_REPORTING_BIT_NV; // Enable additional runtime shader error reporting.
@@ -440,6 +444,8 @@ RendererResult VulkanDevice::Create(VkSurfaceKHR surface)
         aftermathInfo.flags = aftermathFlags;
 
         VulkanHelpers::ChainNext(createInfo, &aftermathInfo);
+
+        HYP_LOG(RenderingBackend, Info, "Enabling Nvidia diagnostics extension for Vulkan");
     }
 #endif
 

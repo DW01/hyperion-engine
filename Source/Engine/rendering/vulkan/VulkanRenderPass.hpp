@@ -10,7 +10,7 @@
 #include <rendering/vulkan/VulkanSampler.hpp>
 #include <rendering/vulkan/VulkanAttachment.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/Shared.hpp>
 
 #include <Core/math/Vector4.hpp>
@@ -73,8 +73,16 @@ public:
 
     RendererResult Create();
 
+#if HYP_DEBUG_MODE
+    void SetDebugName(Name name);
+#endif
+
     void Begin(VulkanCommandBuffer* cmd, VulkanFramebuffer* framebuffer);
     void End(VulkanCommandBuffer* cmd);
+
+#if HYP_DEBUG_MODE
+    Name debugName;
+#endif
 
 private:
     void CreateDependencies();
@@ -83,9 +91,9 @@ private:
     {
         m_dependencies.PushBack(dependency);
     }
-    
+
     FramebufferDesc m_framebufferDesc;
-    
+
     Array<VkSubpassDependency, VulkanAllocator> m_dependencies;
     Array<VkClearValue, VulkanAllocator> m_vkClearValues;
 

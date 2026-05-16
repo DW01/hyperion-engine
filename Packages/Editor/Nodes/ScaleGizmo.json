@@ -1,0 +1,44 @@
+{
+  "$Class": "Node",
+  "NodeFlags": 12288,
+  "LocalBounds": {
+    "Min": [-9223372036854775808, -9223372036854775808, -9223372036854775808],
+    "Max": [-9223372036854775808, -9223372036854775808, -9223372036854775808]
+  },
+  "LocalTransform": {
+    "Translation": [0, 0, 0],
+    "Scale": [2.500000, 2.500000, 2.500000],
+    "Rotation": {
+      "X": 0,
+      "Y": 0,
+      "Z": 0,
+      "W": 1
+    }
+  },
+  "Children": [{
+      "$Class": "AssetReference",
+      "AssetPath": {
+        "Value": "Editor://Entities/ScaleGizmo_AxisX"
+      }
+    }, {
+      "$Class": "AssetReference",
+      "AssetPath": {
+        "Value": "Editor://Entities/ScaleGizmo_AxisY"
+      }
+    }, {
+      "$Class": "AssetReference",
+      "AssetPath": {
+        "Value": "Editor://Entities/ScaleGizmo_AxisZ"
+      }
+    }, {
+      "$Class": "AssetReference",
+      "AssetPath": {
+        "Value": "Editor://Entities/ScaleGizmo_Centroid"
+      }
+    }],
+  "NodeTags": {
+    "Values": []
+  },
+  "Name": "ScaleGizmo",
+  "FriendlyName": "ScaleGizmo"
+}

@@ -26,6 +26,7 @@
 #include <rendering/util/DeletionQueue.hpp>
 
 #include <engine/CVarManager.hpp>
+#include <engine/EngineStats.hpp>
 
 #include <scene/View.hpp>
 #include <scene/EnvProbe.hpp>
@@ -37,9 +38,12 @@
 namespace Hyperion {
 
 static constexpr bool UseTemporalBlending = true;
-static constexpr TextureFormat SSRColorFormat = TextureFormat::R10G10B10A2;
+static constexpr TextureFormat SSRColorFormat = TextureFormat::RGBA16F;
 static constexpr TextureFormat SSRTraceFormat = TextureFormat::RGBA16F; // store hit UVs in RG, and mask / alpha in B
 static constexpr double TraceResolutionScale = 0.65;
+
+static EngineStatGpuTimer s_statSSRTracePass("Rendering/GPU/SSRTrace");
+static EngineStatGpuTimer s_statSSRColorPass("Rendering/GPU/SSRColor");
 
 CVar<bool> cvSSRConeTracing { "Rendering.SSR.ConeTracing", true };
 CVar<bool> cvSSRRoughnessScattering { "Rendering.SSR.RoughnessScattering", false };
@@ -49,20 +53,20 @@ CVar<float> cvSSRResolutionScale { "Rendering.SSR.ResolutionScale", 1.0f };
 CVar<float> cvSSRRayStep { "Rendering.SSR.RayStep", 2.0f };
 CVar<float> cvSSRDistanceBias { "Rendering.SSR.DistanceBias", 0.01f };
 CVar<float> cvSSRMaxDistance { "Rendering.SSR.MaxDistance", 1000.0f };
-CVar<uint32> cvSSRMaxIterations { "Rendering.SSR.MaxIterations", 256 };
+CVar<uint32> cvSSRMaxIterations { "Rendering.SSR.MaxIterations", 128 };
 
 struct SSRConstants
 {
     Vec4u dimensions;
-    float rayStep,
-        numIterations,
-        maxRayDistance,
-        distanceBias,
-        offset,
-        eyeFadeStart,
-        eyeFadeEnd,
-        screenEdgeFadeStart,
-        screenEdgeFadeEnd;
+    float rayStep;
+    float numIterations;
+    float maxRayDistance;
+    float distanceBias;
+    float offset;
+    float eyeFadeStart;
+    float eyeFadeEnd;
+    float screenEdgeFadeStart;
+    float screenEdgeFadeEnd;
 };
 
 #pragma region SSRPass
@@ -271,13 +275,10 @@ void SSRPass::UpdatePipelineState(Frame* frame, const RenderSetup& renderSetup)
 
 void SSRPass::Render(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_NAMED_SCOPE("Screen Space Reflections");
-
     AssertDebug(renderSetup.world && renderSetup.view);
 
     UpdatePipelineState(frame, renderSetup);
 
-    const uint32 frameIndex = frame->GetFrameIndex();
     CommandRecorder& cr = frame->cr;
 
     GpuBuffer* cbuffer = nullptr;
@@ -302,6 +303,8 @@ void SSRPass::Render(Frame* frame, const RenderSetup& renderSetup)
     }
 
     { // PASS 1 -- write UVs
+        ENGINE_STAT_GPU_SCOPE(&s_statSSRTracePass);
+
         m_writeUvs->Begin(frame, renderSetup);
 
         uint32 uniformIndex = 0;
@@ -326,6 +329,8 @@ void SSRPass::Render(Frame* frame, const RenderSetup& renderSetup)
     }
 
     { // PASS 2 -- fill color buffer using mip chain to sample based on roughness
+        ENGINE_STAT_GPU_SCOPE(&s_statSSRColorPass);
+
         m_sampleGbuffer->Begin(frame, renderSetup);
 
         uint32 uniformIndex = 0;

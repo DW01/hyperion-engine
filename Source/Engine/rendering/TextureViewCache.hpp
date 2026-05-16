@@ -8,7 +8,7 @@
 
 #include <Core/reflection/Handle.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 namespace Hyperion {
 

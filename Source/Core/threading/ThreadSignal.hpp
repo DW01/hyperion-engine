@@ -9,7 +9,7 @@ namespace threading {
 class ThreadSignal
 {
 public:
-    explicit ThreadSignal(bool value = 1)
+    explicit ThreadSignal(int32 value = 1)
         : m_value(int32(value))
     {
     }
@@ -22,45 +22,51 @@ public:
 
     ~ThreadSignal() = default;
 
-    bool IsSignalled() const
+    bool IsSignalled(int32 minValue = 1) const
     {
-        return AtomicAdd(&m_value, 0) != 0;
+        return AtomicAdd(&m_value, 0) >= minValue;
     }
 
-    void Signal()
+    void Signal(int32 count = 1)
     {
         Mutex::Guard guard(m_mutex);
 
-        AtomicExchange(&m_value, 1);
+        AtomicAdd(&m_value, count);
 
         m_conditionVariable.NotifyAll();
     }
 
-    void Wait()
+    void Wait(int32 waitForValue = 1)
     {
-        while (!IsSignalled())
-        {   
-            Mutex::Guard guard(m_mutex);
-            m_conditionVariable.Wait(m_mutex);
-        }
-    }
-
-    void WaitAndReset()
-    {
-        int32 expected = 1;
-        while (!AtomicCompareExchange(&m_value, expected, 0))
+        while (AtomicAdd(&m_value, 0) < waitForValue)
         {
-            expected = 1;
+            Mutex::Guard guard(m_mutex);
+            m_conditionVariable.Wait(m_mutex);
+        }
+    }
+
+    void WaitAndReset(int32 minValue = 1)
+    {
+        while (true)
+        {
+            int32 currentValue = AtomicAdd(&m_value, 0);
+            if (currentValue >= minValue)
+            {
+                if (AtomicCompareExchange(&m_value, currentValue, 0))
+                {
+                    return;
+                }
+            }
 
             Mutex::Guard guard(m_mutex);
             m_conditionVariable.Wait(m_mutex);
         }
     }
 
-    void Reset()
+    void Reset(int32 newValue = 0)
     {
         Mutex::Guard guard(m_mutex);
-        AtomicExchange(&m_value, 0);
+        AtomicExchange(&m_value, newValue);
     }
 
 private:

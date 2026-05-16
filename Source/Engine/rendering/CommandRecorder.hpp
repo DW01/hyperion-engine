@@ -12,7 +12,7 @@
 
 #include <rendering/Framebuffer.hpp>
 #include <rendering/CommandBuffer.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderMemory.hpp>
 #include <rendering/RenderableAttributes.hpp>
 #include <rendering/Vertex.hpp>
@@ -35,6 +35,8 @@ class View;
 class StructuredBuffer;
 class RWStructuredBuffer;
 class ByteAddressBuffer;
+class EngineStatGpuTimer;
+class GpuTimerBackendBase;
 
 class alignas(void*) CmdBase
 {
@@ -907,6 +909,22 @@ public:
     ShaderUniforms shaderUniforms;
 };
 
+class RecordGpuTimestamp final : public CmdBase
+{
+public:
+    RecordGpuTimestamp(EngineStatGpuTimer* timer, bool isStart)
+        : m_timer(timer),
+          m_isStart(isStart)
+    {
+    }
+
+    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+
+private:
+    EngineStatGpuTimer* m_timer;
+    bool m_isStart;
+};
+
 class CommitDrawState final : public CmdBase
 {
 public:
@@ -1007,7 +1025,7 @@ public:
 
     void Done()
     {
-        if (!(--writeCount))
+        if (!--writeCount)
         {
             m_writableState.Release();
         }
@@ -1136,6 +1154,8 @@ public:
 
     void Prepare(Frame* frame);
     void Execute(CommandBuffer* commandBuffer);
+
+    void Submit();
 
 private:
     void ResizeBuffer(size_t newSize) override

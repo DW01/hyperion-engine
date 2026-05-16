@@ -8,7 +8,7 @@
 
 #include <rendering/TemporalBlending.hpp>
 #include <rendering/FullScreenPass.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 namespace Hyperion {
 

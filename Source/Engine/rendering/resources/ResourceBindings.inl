@@ -95,8 +95,6 @@ static ResourceBinderBase* s_resourceBinders[] = {
     &s_meshEntityBinder,
     &s_meshBinder,
     &s_cameraBinder,
-    &s_envProbeBinder,
-    &s_reflectionProbeTextureBinder,
     &s_envGridBinder,
     &s_lightBinder,
     &s_lightmapVolumeBinder,
@@ -104,6 +102,8 @@ static ResourceBinderBase* s_resourceBinders[] = {
     &s_fogVolumeBinder,
     &s_materialBinder,
     &s_textureBinder,
+    &s_envProbeBinder,
+    &s_reflectionProbeTextureBinder,
     &s_skeletonBinder,
     &s_spriteBinder
 };

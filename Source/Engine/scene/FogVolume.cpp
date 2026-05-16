@@ -157,8 +157,6 @@ void FogVolume::UpdateRenderProxy(RenderProxyFogVolume* proxy)
 
 void FogVolume::Rebake()
 {
-    HYP_SCOPE;
-
     World* world = GetWorld();
     AssertDebug(world != nullptr);
 

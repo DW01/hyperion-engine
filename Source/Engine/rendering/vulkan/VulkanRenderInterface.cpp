@@ -23,6 +23,7 @@
 #include <rendering/vulkan/VulkanAsyncCompute.hpp>
 #include <rendering/vulkan/VulkanRayTracingPipeline.hpp>
 #include <rendering/vulkan/VulkanAccelerationStructure.hpp>
+#include <rendering/vulkan/VulkanGpuTimerBackend.hpp>
 
 #include <rendering/util/DeletionQueue.hpp>
 
@@ -63,6 +64,7 @@ static constexpr bool UseResetDescriptorPool = false;
 static constexpr uint32 MaxDescriptorPools = 32;
 
 static EngineStatTimer s_statVulkanFrameSync("Rendering/Vulkan/FrameSync");
+static EngineStatGpuTimer s_statGpuFrameTime("Rendering/GPU/FrameTime");
 
 enum VulkanDescriptorPoolRequirements : uint8
 {
@@ -217,11 +219,12 @@ void VulkanDynamicFunctions::Load(VulkanDevice* device)
     HYP_LOAD_FN(vkGetSemaphoreCounterValue);
 
 #if HYP_DEBUG_MODE
-    // HYP_LOAD_FN(vkCmdDebugMarkerBeginEXT);
-    // HYP_LOAD_FN(vkCmdDebugMarkerEndEXT);
-    // HYP_LOAD_FN(vkCmdDebugMarkerInsertEXT);
-    // HYP_LOAD_FN(vkDebugMarkerSetNameEXT);
+    HYP_LOAD_FN(vkCmdDebugMarkerBeginEXT);
+    HYP_LOAD_FN(vkCmdDebugMarkerEndEXT);
+    HYP_LOAD_FN(vkCmdDebugMarkerInsertEXT);
+    HYP_LOAD_FN(vkDebugMarkerSetObjectNameEXT);
     HYP_LOAD_FN(vkSetDebugUtilsObjectNameEXT);
+    HYP_LOAD_FN(vkSetDebugUtilsObjectTagEXT);
 #endif
 
 #if defined(HYP_MOLTENVK) && HYP_MOLTENVK && HYP_MOLTENVK_LINKED
@@ -628,6 +631,10 @@ RendererResult VulkanRenderInterface::Initialize()
     m_renderConfig = MakePimpl<VulkanRenderConfig>();
     m_descriptorSetManager = MakePimpl<VulkanDescriptorSetManager>();
 
+    // CrashHandler must be initialized before we create the Vulkan instance
+    crashHandler = PoolNew<CrashHandler>(*g_renderPool);
+    crashHandler->Initialize();
+
     m_frames.Resize(NumFramesInFlight);
     m_commandBuffers.Resize(NumFramesInFlight);
 
@@ -680,6 +687,12 @@ RendererResult VulkanRenderInterface::Initialize()
 
         CheckResultOrReturn(commandBuffer->Create(pool));
         CheckResultOrReturn(frame->Create());
+    }
+
+    m_gpuTimerBackend = MakePimpl<VulkanGpuTimerBackend>();
+    if (!m_gpuTimerBackend->Initialize(m_instance->GetDevice()))
+    {
+        HYP_LOG(RenderingBackend, Info, "GPU timestamp queries not supported on this device");
     }
 
     dynamicFunctions.Load(m_instance->GetDevice());
@@ -744,13 +757,18 @@ void VulkanRenderInterface::Shutdown()
     m_asyncComputePool.Clear();
     m_submittedAsyncComputes.Clear();
 
+    m_gpuTimerBackend->Shutdown();
+    m_gpuTimerBackend.Reset();
+
     RenderInterface::Shutdown();
 
     m_recycledTransientCommandBufferFences.Clear();
+    m_recycledTransientCommandBufferSemaphores.Clear();
 
     for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
     {
         m_transientCommandBufferFences[frameIndex].Clear();
+        m_transientCommandBufferSemaphores[frameIndex].Clear();
 
         for (uint32 threadIndex = 0; threadIndex < NumRendererWorkerThreads + 1; threadIndex++)
         {
@@ -765,6 +783,20 @@ void VulkanRenderInterface::Shutdown()
 
     PoolDelete(*g_vulkanPool, m_instance);
     m_instance = nullptr;
+}
+
+void VulkanRenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
+{
+    RenderInterface::BeginFrame(pCancelFlag);
+
+    m_gpuTimerBackend->OnFrameStart();
+
+    RecordStartTimestamp(GetCurrentCommandBuffer(), &s_statGpuFrameTime);
+}
+
+void VulkanRenderInterface::EndFrame()
+{
+    RenderInterface::EndFrame();
 }
 
 VulkanFrame* VulkanRenderInterface::GetCurrentFrame() const
@@ -802,6 +834,9 @@ void VulkanRenderInterface::PrepareFrame(VulkanFrame* frame)
             frame->GetFence()->Wait(true);
         }
     }
+
+    // Read back GPU timestamps from the completed frame
+    ResolveGpuFrameResults(frameCounter % NumFramesInFlight);
 
     // call frame callbacks after GPU sync is complete
     if (frame->OnFrameEnd.AnyBound())
@@ -876,6 +911,16 @@ void VulkanRenderInterface::PrepareFrame(VulkanFrame* frame)
         it = fences.Erase(it);
     }
 
+    auto& semaphores = m_transientCommandBufferSemaphores[frameCounter % NumFramesInFlight];
+    for (auto it = semaphores.Begin(); it != semaphores.End();)
+    {
+        VulkanSemaphore& semaphore = *it;
+
+        m_recycledTransientCommandBufferSemaphores.PushBack(std::move(semaphore));
+
+        it = semaphores.Erase(it);
+    }
+
     for (uint32 threadIndex = 0; threadIndex < NumRendererWorkerThreads + 1; threadIndex++)
     {
         // reset our transient command buffers
@@ -947,6 +992,9 @@ void VulkanRenderInterface::PresentToSwapchain(VulkanSwapchain* swapchain)
 
     VulkanFrame* frame = GetCurrentFrame();
     frame->WriteCommandBuffer(commandBuffer);
+
+    m_gpuTimerBackend->WriteStopTimestamp(commandBuffer, &s_statGpuFrameTime);
+    m_gpuTimerBackend->OnFrameEnd();
 
     commandBuffer->End();
 
@@ -1045,6 +1093,7 @@ VulkanCommandBuffer& VulkanRenderInterface::GetTransientCommandBuffer()
 void VulkanRenderInterface::SubmitTransientCommandBuffer(VulkanCommandBuffer& commandBuffer)
 {
     const uint32 frameCounter = GetFrameCounter();
+    const uint32 frameIndex = frameCounter % NumFramesInFlight;
     const uint32 renderThreadIndex = CurrentRenderThreadIndex();
 
     if (commandBuffer.IsRecording())
@@ -1057,10 +1106,33 @@ void VulkanRenderInterface::SubmitTransientCommandBuffer(VulkanCommandBuffer& co
 
     VulkanFence* pFence = nullptr;
 
+    // Previous transient command buffer semaphore, if applicable.
+    VulkanSemaphore* pWaitSemaphore = nullptr;
+    VulkanSemaphore* pSignalSemaphore = nullptr;
+
     {
         Mutex::Guard guard(m_transientCommandBuffersMutex);
 
-        VulkanFence& fence = m_transientCommandBufferFences[frameCounter % NumFramesInFlight].EmplaceBack();
+        if (m_transientCommandBufferSemaphores[frameIndex].Any())
+        {
+            pWaitSemaphore = &m_transientCommandBufferSemaphores[frameIndex].Back();
+        }
+
+        // Add signal semaphore
+        VulkanSemaphore& signalSemaphore = m_transientCommandBufferSemaphores[frameIndex].EmplaceBack();
+        pSignalSemaphore = &signalSemaphore;
+
+        if (m_recycledTransientCommandBufferSemaphores.Any())
+        {
+            signalSemaphore = std::move(m_recycledTransientCommandBufferSemaphores.PopFront());
+        }
+        else
+        {
+            CheckResult(signalSemaphore.Create());
+        }
+
+        VulkanFence& fence = m_transientCommandBufferFences[frameIndex].EmplaceBack();
+        pFence = &fence;
 
         if (m_recycledTransientCommandBufferFences.Any())
         {
@@ -1071,12 +1143,20 @@ void VulkanRenderInterface::SubmitTransientCommandBuffer(VulkanCommandBuffer& co
             fence.Create();
         }
 
-        pFence = &fence;
+        // HYP_LOG_TEMP("Submitting transient command buffer on thread {} for frame {}", renderThreadIndex, frameCounter % NumFramesInFlight);
+
+        Span<VulkanSemaphore*> waitSemaphoreSpan {};
+        if (pWaitSemaphore != nullptr)
+        {
+            waitSemaphoreSpan = { &pWaitSemaphore, 1 };
+        }
+
+        commandBuffer.Submit(
+            graphicsQueue,
+            pFence,
+            waitSemaphoreSpan,
+            Span<VulkanSemaphore*> { &pSignalSemaphore, 1 });
     }
-
-    // HYP_LOG_TEMP("Submitting transient command buffer on thread {} for frame {}", renderThreadIndex, frameCounter % NumFramesInFlight);
-
-    commandBuffer.Submit(graphicsQueue, pFence, {}, {});
 }
 
 VulkanDescriptorSetRef VulkanRenderInterface::MakeDescriptorSet(const DescriptorSetLayout& layout)
@@ -1344,6 +1424,30 @@ void VulkanRenderInterface::SubmitAsyncCompute(VulkanAsyncCompute* asyncCompute)
     asyncCompute->Submit();
 
     m_submittedAsyncComputes.PushBack(asyncCompute);
+}
+
+void VulkanRenderInterface::RecordStartTimestamp(VulkanCommandBuffer* cmd, EngineStatGpuTimer* timer)
+{
+    if (m_gpuTimerBackend)
+    {
+        m_gpuTimerBackend->WriteStartTimestamp(cmd, timer);
+    }
+}
+
+void VulkanRenderInterface::RecordStopTimestamp(VulkanCommandBuffer* cmd, EngineStatGpuTimer* timer)
+{
+    if (m_gpuTimerBackend)
+    {
+        m_gpuTimerBackend->WriteStopTimestamp(cmd, timer);
+    }
+}
+
+void VulkanRenderInterface::ResolveGpuFrameResults(uint32 completedFrameIndex)
+{
+    if (m_gpuTimerBackend)
+    {
+        m_gpuTimerBackend->ResolveFrameResults(completedFrameIndex);
+    }
 }
 
 void VulkanRenderInterface::ReleaseTransientMemory()

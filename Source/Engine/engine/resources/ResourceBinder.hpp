@@ -27,12 +27,6 @@ namespace Resources {
 template <class T>
 void OnBindingChanged_Default(T* resource, uint32 prev, uint32 next)
 {
-#if HYP_DEBUG_MODE
-    AssertOnThread(g_renderThread);
-#endif
-
-    AssertDebug(resource != nullptr);
-
     SetBinding(resource, next);
 }
 

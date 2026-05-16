@@ -7,7 +7,7 @@
 #pragma once
 
 #include <rendering/vulkan/VulkanDescriptorSet.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <vulkan/vulkan.h>
 
@@ -38,6 +38,7 @@ public:
 
 #if HYP_DEBUG_MODE
     void SetDebugName(Name name);
+    void SetDebugNameLayout(Name name);
 #endif
 
 protected:

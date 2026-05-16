@@ -112,8 +112,6 @@ void BVHNode::QuantizeTriangleData(
     ByteBuffer& outQuantizedVertexData,
     ByteBuffer& outQuantizedIndexData)
 {
-    HYP_SCOPE;
-
     const size_t numVertices = vertices.vertexCount;
     const size_t quantizedVertexSize = numVertices * sizeof(Vec3f);
 

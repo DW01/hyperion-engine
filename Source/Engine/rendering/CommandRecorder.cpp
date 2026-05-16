@@ -29,6 +29,8 @@
 
 #include <rendering/util/ShaderCompiler.hpp>
 
+#include <rendering/GpuTimerBackend.hpp>
+
 #include <Core/reflection/Enum.hpp>
 
 #include <scene/View.hpp>
@@ -37,7 +39,12 @@
 
 namespace Hyperion {
 
-#pragma region CommandRecorder
+#pragma region CommandRecorderBase
+
+
+#pragma endregion CommandRecorderBase
+
+#pragma region TCommandRecorder
 
 template <>
 void TCommandRecorder<RenderAllocator>::Prepare(Frame* frame)
@@ -79,7 +86,26 @@ void TCommandRecorder<RenderAllocator>::Execute(CommandBuffer* commandBuffer)
     m_writableState.Release();
 }
 
-#pragma endregion CommandRecorder
+template <>
+void TCommandRecorder<RenderAllocator>::Submit()
+{
+    Done();
+
+    Assert(writeCount == 0);
+
+    { // Submit to transient command buffer
+        CommandBuffer& commandBuffer = RI.GetTransientCommandBuffer();
+
+        Execute(&commandBuffer);
+
+        RI.SubmitTransientCommandBuffer(commandBuffer);
+    }
+
+    // Reset offset and header count
+    Reset(/* freeMemory */ false);
+}
+
+#pragma endregion TCommandRecorder
 
 #pragma region BindVertexBuffer
 
@@ -500,6 +526,9 @@ void GenerateMipmaps::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
 
     Texture* inTexture = cmdCasted->inTexture;
 
+#ifdef HYP_VULKAN
+    inTexture->GetGpuImage()->GenerateMipmaps(commandBuffer);
+#else
     const TextureDesc& desc = inTexture->GetTextureDesc();
 
     const uint8 numMips = uint8(desc.NumMips());
@@ -534,12 +563,12 @@ void GenerateMipmaps::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
     }
 
     /* Allocate per-mip views and cbuffers for the temp image */
-    Array<GpuImageView*, RenderTempAllocator> inputViews;
-    Array<GpuImageView*, RenderTempAllocator> outputViews;
+    Array<GpuImageView*, RenderAllocator> inputViews;
+    Array<GpuImageView*, RenderAllocator> outputViews;
 
-    Array<GpuBuffer*, RenderTempAllocator> cbuffers;
-    Array<size_t, RenderTempAllocator> cbufferOffsets;
-    Array<size_t, RenderTempAllocator> cbufferSizes;
+    Array<GpuBuffer*, RenderAllocator> cbuffers;
+    Array<size_t, RenderAllocator> cbufferOffsets;
+    Array<size_t, RenderAllocator> cbufferSizes;
 
     inputViews.Reserve(numMips - 1);
     outputViews.Reserve(numMips - 1);
@@ -726,6 +755,7 @@ void GenerateMipmaps::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
                 ShaderModuleType::None);
         }
     }
+#endif // !HYP_VULKAN
 
     inTexture->GetGpuImage()->InsertBarrier(
         commandBuffer,
@@ -1665,5 +1695,25 @@ void FillImage::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
 }
 
 #pragma endregion FillImage
+
+#pragma region RecordGpuTimestamp
+
+void RecordGpuTimestamp::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
+{
+    RecordGpuTimestamp* cmdCasted = static_cast<RecordGpuTimestamp*>(cmd);
+
+    if (cmdCasted->m_isStart)
+    {
+        RI.RecordStartTimestamp(commandBuffer, cmdCasted->m_timer);
+    }
+    else
+    {
+        RI.RecordStopTimestamp(commandBuffer, cmdCasted->m_timer);
+    }
+
+    static_assert(std::is_trivially_destructible_v<RecordGpuTimestamp>);
+}
+
+#pragma endregion RecordGpuTimestamp
 
 } // namespace Hyperion

@@ -27,7 +27,7 @@
 #include <rendering/MaterialInstance.hpp>
 #include <rendering/Texture.hpp>
 #include <rendering/PlaceholderData.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/GpuBuffer.hpp>
 #include <rendering/Device.hpp>
 #include <rendering/DescriptorSet.hpp>
@@ -135,7 +135,16 @@ static constexpr StringHash GBufferTextureNames[GTN_MAX] = {
     "GBufferDepthTexture"_sh
 };
 
-static EngineStatTimer s_statDeferredPass("Rendering/Deferred/DeferredPass");
+static EngineStatTimer s_statClusterLights("Rendering/ClusterLights");
+static EngineStatTimer s_statClusterEnvProbes("Rendering/ClusterEnvProbes");
+
+static EngineStatGpuTimer s_statDeferredPass("Rendering/GPU/DeferredPass");
+static EngineStatGpuTimer s_statDepthPrepass("Rendering/GPU/DepthPrepass");
+static EngineStatGpuTimer s_statBuildHiZ("Rendering/GPU/BuildHiZ");
+static EngineStatGpuTimer s_statFillOpaque("Rendering/GPU/FillOpaque");
+static EngineStatGpuTimer s_statFillTranslucent("Rendering/GPU/FillTranslucent");
+static EngineStatGpuTimer s_statFillDebug("Rendering/GPU/FillDebug");
+static EngineStatGpuTimer s_statOcclusionCulling("Rendering/GPU/OcclusionCulling");
 
 // Global stat counter instances
 EngineStatCounter<uint32> g_statDrawCalls("Rendering/DrawCalls");
@@ -789,7 +798,6 @@ void TonemapPass::Render(Frame* frame, const RenderSetup& rs)
     DeferredPassData* dpd = DynamicCast<DeferredPassData>(rs.passData);
     AssertDebug(dpd != nullptr);
 
-    const uint32 frameIndex = frame->GetFrameIndex();
     const FramebufferRef& inputsFramebuffer = dpd->view.GetUnsafe()->GetOutputTarget().GetFramebuffer(RenderBucket::Opaque);
 
     uint32 numShaderUniforms = 0;
@@ -902,8 +910,6 @@ void LightmapPass::Resize_Internal(Vec2u newSize)
 void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup& renderSetup, Framebuffer* framebuffer)
 {
     AssertDebug(renderSetup.world && renderSetup.volume && renderSetup.view);
-
-    const uint32 frameIndex = frame->GetFrameIndex();
 
     LightmapVolume* volume = DynamicCast<LightmapVolume>(renderSetup.volume);
     AssertDebug(volume != nullptr);
@@ -1067,10 +1073,7 @@ void FogVolumePass::Create()
     m_volumeMesh->SetName(NAME("FogVolumeMesh"));
     InitObject(m_volumeMesh);
 
-    ShaderPropertySet shaderProperties;
-    shaderProperties.Add(InternShaderProperty(ShaderProperty(NAME("MAX_LIGHTS"), int(MaxBoundLightsPerFogVolume))));
-
-    m_shaderDesc = ShaderDesc(NAME("ApplyFogVolume"), shaderProperties);
+    m_shaderDesc = ShaderDesc(NAME("ApplyFogVolume"));
 
     FullScreenPass::Create();
 }
@@ -1297,8 +1300,6 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
 {
     AssertDebug(rs.world && rs.view);
     AssertDebug(rs.passData != nullptr);
-
-    const uint32 frameIndex = frame->GetFrameIndex();
 
     RenderProxyList& rpl = GetConsumerProxyList(rs.view);
     rpl.BeginRead();
@@ -1652,6 +1653,8 @@ public:
 
         // @TODO VP offset
 
+        // Would be nice to make this a compute shader at some point
+
         RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(view->GetCamera()));
         Assert(cameraProxy != nullptr);
 
@@ -1738,12 +1741,22 @@ public:
             const float pixMinY = (1.0f - (ndcCenterY + ndcRadiusY)) * halfH;
             const float pixMaxY = (1.0f - (ndcCenterY - ndcRadiusY)) * halfH;
 
-            outMinX = uint32(MathUtil::Max(int32(pixMinX) / int32(TileSize), 0));
-            outMinY = uint32(MathUtil::Max(int32(pixMinY) / int32(TileSize), 0));
-            outMaxX = uint32(MathUtil::Min(int32(pixMaxX) / int32(TileSize), int32(numTilesX - 1)));
-            outMaxY = uint32(MathUtil::Min(int32(pixMaxY) / int32(TileSize), int32(numTilesY - 1)));
+            const int32 minX = MathUtil::Max(int32(pixMinX) / int32(TileSize), 0);
+            const int32 minY = MathUtil::Max(int32(pixMinY) / int32(TileSize), 0);
+            const int32 maxX = MathUtil::Min(int32(pixMaxX) / int32(TileSize), int32(numTilesX - 1));
+            const int32 maxY = MathUtil::Min(int32(pixMaxY) / int32(TileSize), int32(numTilesY - 1));
 
-            return outMinX <= outMaxX && outMinY <= outMaxY;
+            if (minX > maxX || minY > maxY)
+            {
+                return false;
+            }
+
+            outMinX = uint32(minX);
+            outMinY = uint32(minY);
+            outMaxX = uint32(maxX);
+            outMaxY = uint32(maxY);
+
+            return true;
         };
 
         auto ProjectAABBToScreenTiles = [&viewMatrix, &projMatrix, &extent, cameraNear, numTilesX, numTilesY](
@@ -1823,69 +1836,88 @@ public:
             const float pixMinY = (1.0f - ndcMaxY) * halfH;
             const float pixMaxY = (1.0f - ndcMinY) * halfH;
 
-            outMinX = uint32(MathUtil::Max(int32(pixMinX) / int32(TileSize), 0));
-            outMinY = uint32(MathUtil::Max(int32(pixMinY) / int32(TileSize), 0));
-            outMaxX = uint32(MathUtil::Min(int32(pixMaxX) / int32(TileSize), int32(numTilesX - 1)));
-            outMaxY = uint32(MathUtil::Min(int32(pixMaxY) / int32(TileSize), int32(numTilesY - 1)));
+            const int32 minX = MathUtil::Max(int32(pixMinX) / int32(TileSize), 0);
+            const int32 minY = MathUtil::Max(int32(pixMinY) / int32(TileSize), 0);
+            const int32 maxX = MathUtil::Min(int32(pixMaxX) / int32(TileSize), int32(numTilesX - 1));
+            const int32 maxY = MathUtil::Min(int32(pixMaxY) / int32(TileSize), int32(numTilesY - 1));
 
-            return outMinX <= outMaxX && outMinY <= outMaxY;
+            if (minX > maxX || minY > maxY)
+            {
+                return false;
+            }
+
+            outMinX = uint32(minX);
+            outMinY = uint32(minY);
+            outMaxX = uint32(maxX);
+            outMaxY = uint32(maxY);
+
+            return true;
         };
 
-        for (Light* light : rpl.GetLights())
         {
-            const LightType lightType = light->GetLightType();
-
-            if (!DeferredRendererHelpers::CanClusterLight(lightType))
+            ENGINE_STAT_SCOPE(&s_statClusterLights);
+            for (Light* light : rpl.GetLights())
             {
-                continue;
-            }
+                const LightType lightType = light->GetLightType();
 
-            const uint32 lightBindingIndex = Resources::GetBinding(light);
-
-            if (lightBindingIndex == ~0u)
-            {
-                continue;
-            }
-
-            RenderProxyLight* lightProxy = static_cast<RenderProxyLight*>(GetRenderProxy(light));
-            AssertDebug(lightProxy != nullptr);
-
-            const Vec3f lightPosWS = lightProxy->bufferData.positionIntensity.GetXYZ();
-            const Vec3f lightPosVS = viewMatrix * lightPosWS;
-            const float lightRadius = float(Float16::FromRaw(uint16(lightProxy->bufferData.radiusFalloffPacked & 0xFFFFu)));
-
-            uint32 tileMinX;
-            uint32 tileMinY;
-            uint32 tileMaxX;
-            uint32 tileMaxY;
-
-            if (!ProjectSphereToScreenAABB(lightPosVS, lightRadius, tileMinX, tileMinY, tileMaxX, tileMaxY))
-            {
-                continue;
-            }
-
-            const float lightDistVS = lightPosVS.z;
-            const int32 zBinMin = CalculateZBin(MathUtil::Max(lightDistVS - lightRadius, cameraNear));
-            const int32 zBinMax = CalculateZBin(MathUtil::Min(lightDistVS + lightRadius, cameraFar));
-
-            for (int32 z = zBinMin; z <= zBinMax; z++)
-            {
-                for (uint32 y = tileMinY; y <= tileMaxY; y++)
+                if (!DeferredRendererHelpers::CanClusterLight(lightType))
                 {
-                    for (uint32 x = tileMinX; x <= tileMaxX; x++)
+                    continue;
+                }
+
+                const uint32 lightBindingIndex = Resources::GetBinding(light);
+
+                if (lightBindingIndex == ~0u)
+                {
+                    continue;
+                }
+
+                RenderProxyLight* lightProxy = static_cast<RenderProxyLight*>(GetRenderProxy(light));
+                AssertDebug(lightProxy != nullptr);
+
+                const Vec3f lightPosWS = lightProxy->bufferData.positionIntensity.GetXYZ();
+                const Vec3f lightPosVS = viewMatrix * lightPosWS;
+                const float lightRadius = float(Float16::FromRaw(uint16(lightProxy->bufferData.radiusFalloffPacked & 0xFFFFu)));
+
+                uint32 tileMinX;
+                uint32 tileMinY;
+                uint32 tileMaxX;
+                uint32 tileMaxY;
+
+                if (!ProjectSphereToScreenAABB(lightPosVS, lightRadius, tileMinX, tileMinY, tileMaxX, tileMaxY))
+                {
+                    continue;
+                }
+
+                const float lightDistVS = lightPosVS.z;
+                const int32 zBinMin = CalculateZBin(MathUtil::Max(lightDistVS - lightRadius, cameraNear));
+                const int32 zBinMax = CalculateZBin(MathUtil::Min(lightDistVS + lightRadius, cameraFar));
+
+                for (int32 z = zBinMin; z <= zBinMax; z++)
+                {
+                    for (uint32 y = tileMinY; y <= tileMaxY; y++)
                     {
-                        const uint32 clusterIndex = (uint32(z) * numTilesY + y) * numTilesX + x;
-
-                        Tile& tile = tempTiles[clusterIndex];
-
-                        if (tile.numLights < MaxLightsPerTile)
+                        for (uint32 x = tileMinX; x <= tileMaxX; x++)
                         {
-                            tile.lightIndices[tile.numLights++] = uint16(lightBindingIndex);
+                            const uint32 clusterIndex = (uint32(z) * numTilesY + y) * numTilesX + x;
+
+                            // yikes.. What?
+                            AssertDebug(tempTiles.Size() >= clusterIndex);
+
+                            Tile& tile = tempTiles[clusterIndex];
+
+                            if (tile.numLights < MaxLightsPerTile)
+                            {
+                                tile.lightIndices[tile.numLights++] = uint16(lightBindingIndex);
+                            }
                         }
                     }
                 }
             }
         }
+
+        // Start env probes
+        ENGINE_STAT_SCOPE(&s_statClusterEnvProbes);
 
         Array<Tuple<EnvProbe*, EnvProbeShaderData*, uint32>, RenderAllocator> envProbes;
         envProbes.Reserve(rpl.GetEnvProbes().NumCurrent());
@@ -1905,9 +1937,9 @@ public:
             envProbes.EmplaceBack(envProbe, &envProbeProxy->bufferData, envProbeBindingIndex);
         }
 
-        // Sort env probes, we want sky first
         Vec3f cameraPosition = cameraProxy->bufferData.cameraPosition.GetXYZ();
 
+        // Sort env probes, we want sky LAST so other env probes fall back to it.
         std::sort(envProbes.Begin(), envProbes.End(),
             [&cameraPosition](const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& a, const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& b)
             {
@@ -1916,12 +1948,12 @@ public:
 
                 if (aIsSky && !bIsSky)
                 {
-                    return true;
+                    return false;
                 }
 
                 if (!aIsSky && bIsSky)
                 {
-                    return false;
+                    return true;
                 }
 
                 if (aIsSky && bIsSky)
@@ -1939,8 +1971,10 @@ public:
                 return aDistSq < bDistSq;
             });
 
-        for (const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& tup : envProbes)
+        for (size_t envProbeIndex = 0; envProbeIndex < envProbes.Size(); envProbeIndex++)
         {
+            const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& tup = envProbes[envProbeIndex];
+
             const EnvProbe& envProbe = *tup.GetElement<0>();
             const EnvProbeShaderData& envProbeData = *tup.GetElement<1>();
             const uint32 envProbeBindingIndex = tup.GetElement<2>();
@@ -1959,43 +1993,48 @@ public:
                         tile.envProbeIndices[tile.numEnvProbes++] = uint16(envProbeBindingIndex);
                     }
                 }
+
+                continue;
             }
-            else
+
+            uint32 tileMinX;
+            uint32 tileMinY;
+            uint32 tileMaxX;
+            uint32 tileMaxY;
+            float probeVSZMin;
+            float probeVSZMax;
+
+            if (!ProjectAABBToScreenTiles(aabbMinWS, aabbMaxWS, tileMinX, tileMinY, tileMaxX, tileMaxY, probeVSZMin, probeVSZMax))
             {
-                uint32 tileMinX;
-                uint32 tileMinY;
-                uint32 tileMaxX;
-                uint32 tileMaxY;
-                float probeVSZMin;
-                float probeVSZMax;
+                continue;
+            }
 
-                if (!ProjectAABBToScreenTiles(aabbMinWS, aabbMaxWS, tileMinX, tileMinY, tileMaxX, tileMaxY, probeVSZMin, probeVSZMax))
+            const int32 zBinMin = CalculateZBin(MathUtil::Max(probeVSZMin, cameraNear));
+            const int32 zBinMax = CalculateZBin(MathUtil::Min(probeVSZMax, cameraFar));
+
+            for (int32 z = zBinMin; z <= zBinMax; z++)
+            {
+                for (uint32 y = tileMinY; y <= tileMaxY; y++)
                 {
-                    continue;
-                }
-
-                const int32 zBinMin = CalculateZBin(MathUtil::Max(probeVSZMin, cameraNear));
-                const int32 zBinMax = CalculateZBin(MathUtil::Min(probeVSZMax, cameraFar));
-
-                for (int32 z = zBinMin; z <= zBinMax; z++)
-                {
-                    for (uint32 y = tileMinY; y <= tileMaxY; y++)
+                    for (uint32 x = tileMinX; x <= tileMaxX; x++)
                     {
-                        for (uint32 x = tileMinX; x <= tileMaxX; x++)
+                        const uint32 clusterIndex = (uint32(z) * numTilesY + y) * numTilesX + x;
+
+                        AssertDebug(tempTiles.Size() >= clusterIndex);
+
+                        Tile& tile = tempTiles[clusterIndex];
+
+                        if (tile.numEnvProbes < MaxEnvProbesPerTile)
                         {
-                            const uint32 clusterIndex = (uint32(z) * numTilesY + y) * numTilesX + x;
-
-                            Tile& tile = tempTiles[clusterIndex];
-
-                            if (tile.numEnvProbes < MaxEnvProbesPerTile)
-                            {
-                                tile.envProbeIndices[tile.numEnvProbes++] = uint16(envProbeBindingIndex);
-                            }
+                            tile.envProbeIndices[tile.numEnvProbes++] = uint16(envProbeBindingIndex);
                         }
                     }
                 }
             }
         }
+
+        // Continue timing lights (env probes already going)
+        ENGINE_STAT_SCOPE(&s_statClusterLights);
 
         Array<TileGridData, RenderAllocator>& gridData = allocation.gridData;
         gridData.Resize(totalTiles);
@@ -2326,6 +2365,7 @@ void DeferredPass::ResizeView(Viewport viewport, View* view, DeferredPassData& p
     passData.punctualLightingPass->Resize(newSize);
     passData.ambientLightingPass->Resize(newSize);
 
+    passData.depthPyramidRenderer.Reset();
     passData.depthPyramidRenderer = MakeUnique<DepthPyramidRenderer>(gbuffer);
     passData.depthPyramidRenderer->Create();
 
@@ -2717,7 +2757,11 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     }
     else
     {
-        renderCollector.PerformOcclusionCulling(frame, rs, AllRenderBucketsMask);
+        {
+            ENGINE_STAT_GPU_SCOPE(&s_statOcclusionCulling);
+
+            renderCollector.PerformOcclusionCulling(frame, rs, AllRenderBucketsMask);
+        }
 
         renderCollector.BeginRecordDrawCalls(frame, rs, AllRenderBucketsMask);
     }
@@ -2749,22 +2793,34 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
     if (performDepthPrepass)
     {
-        if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Any() || renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any())
-        {
-            renderCollector.ExecuteDrawCalls(frame, rs, depthPrepassFramebuffer, PrepassRenderBucketsMask, true);
-        }
-        else
-        {
-            frame->cr << SetCurrentFramebuffer(depthPrepassFramebuffer);
-            frame->cr << ClearFramebuffer(depthPrepassFramebuffer);
-            frame->cr << SetCurrentFramebuffer(nullptr);
+        { // Render prepass
+            ENGINE_STAT_GPU_SCOPE(&s_statDepthPrepass);
+
+            if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Any() || renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any())
+            {
+                renderCollector.ExecuteDrawCalls(frame, rs, depthPrepassFramebuffer, PrepassRenderBucketsMask, true);
+            }
+            else
+            {
+                frame->cr << SetCurrentFramebuffer(depthPrepassFramebuffer);
+                frame->cr << ClearFramebuffer(depthPrepassFramebuffer);
+                frame->cr << SetCurrentFramebuffer(nullptr);
+            }
         }
 
-        passData.depthPyramidRenderer->Render(frame);
-        passData.cullData.depthPyramidImageView = passData.depthPyramidRenderer->GetResultImageView();
-        passData.cullData.depthPyramidDimensions = passData.depthPyramidRenderer->GetExtent();
+        { // Build hi-z
+            ENGINE_STAT_GPU_SCOPE(&s_statBuildHiZ);
 
-        renderCollector.PerformOcclusionCulling(frame, rs, AllRenderBucketsMask);
+            passData.depthPyramidRenderer->Render(frame);
+            passData.cullData.depthPyramidImageView = passData.depthPyramidRenderer->GetResultImageView();
+            passData.cullData.depthPyramidDimensions = passData.depthPyramidRenderer->GetExtent();
+        }
+
+        {
+            ENGINE_STAT_GPU_SCOPE(&s_statOcclusionCulling);
+
+            renderCollector.PerformOcclusionCulling(frame, rs, AllRenderBucketsMask);
+        }
 
         renderCollector.BeginRecordDrawCalls(frame, rs, AllRenderBucketsMask);
     }
@@ -2796,6 +2852,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Any()
         || (!cvEnableLightmapVolumes.Get() && renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any()))
     {
+        ENGINE_STAT_GPU_SCOPE(&s_statFillOpaque);
+
         renderCollector.ExecuteDrawCalls(frame, rs, RenderBucketMask<RenderBucket::Opaque>);
 
         if (!cvEnableLightmapVolumes.Get())
@@ -2821,6 +2879,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         // The lightmap bucket's framebuffer has a color attachment that will write into the opaque framebuffer's color attachment.
         if (renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any())
         {
+            ENGINE_STAT_GPU_SCOPE(&s_statFillOpaque);
+
             frame->cr << SetCurrentFramebuffer(lightmapPassFramebuffer);
 
             if (performDepthPrepass)
@@ -2921,7 +2981,7 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     passData.postProcessing->RenderPre(frame, rs);
 
     { // deferred lighting on opaque objects
-        ENGINE_STAT_SCOPE(&s_statDeferredPass);
+        ENGINE_STAT_GPU_SCOPE(&s_statDeferredPass);
 
         // Pre-transition resources to avoid breaking the render pass for barriers
         frame->cr << InsertBarrier(
@@ -2965,6 +3025,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
     if (!performDepthPrepass)
     { // render Hi-Z
+        ENGINE_STAT_GPU_SCOPE(&s_statBuildHiZ);
+
         passData.depthPyramidRenderer->Render(frame);
 
         passData.cullData.depthPyramidImageView = passData.depthPyramidRenderer->GetResultImageView();
@@ -2972,6 +3034,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     }
 
     { // combined + translucent (forward pass)
+        ENGINE_STAT_GPU_SCOPE(&s_statFillTranslucent);
+
         frame->cr << SetCurrentFramebuffer(translucentPassFramebuffer);
 
         { // Render the deferred lighting into the translucent pass framebuffer with a full screen quad.
@@ -3057,6 +3121,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     if (renderCollector.mappingsByBucket[uint32(RenderBucket::Debug)].Any()
         || DebugDrawer::GetInstance().NumEnqueuedDrawCommands() > 0)
     {
+        ENGINE_STAT_GPU_SCOPE(&s_statFillDebug);
+
         frame->cr << SetCurrentFramebuffer(debugPassFramebuffer);
 
         ExecuteDrawCalls(frame, rs, renderCollector, RenderBucketMask<RenderBucket::Debug>);

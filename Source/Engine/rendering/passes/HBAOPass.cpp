@@ -11,7 +11,7 @@
 #include <rendering/PlaceholderData.hpp>
 #include <rendering/GraphicsPipelineCache.hpp>
 #include <rendering/RenderInterface.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/Frame.hpp>
 #include <rendering/RenderProxy.hpp>
 #include <rendering/GraphicsPipeline.hpp>
@@ -33,6 +33,7 @@
 
 #include <engine/EngineDriver.hpp>
 #include <engine/CVarManager.hpp>
+#include <engine/EngineStats.hpp>
 
 namespace Hyperion {
 
@@ -46,6 +47,8 @@ struct HBAOUniforms
 };
 
 static const ShaderPropertyId s_propHalfRes = InternShaderProperty(ShaderProperty(NAME("HALFRES")));
+
+static EngineStatGpuTimer s_statHBAOPass("Rendering/GPU/HBAO");
 
 CVar<float> cvHBAORadius { "Rendering.HBAORadius", 1.5f, "Rendering.HBAO.Radius" };
 CVar<float> cvHBAOPower { "Rendering.HBAOPower", 2.5f, "Rendering.HBAO.Power" };
@@ -74,8 +77,9 @@ void HBAO::Resize_Internal(Vec2u newSize)
 
 void HBAO::Render(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
+
+    ENGINE_STAT_GPU_SCOPE(&s_statHBAOPass);
 
     AssertDebug(renderSetup.world && renderSetup.view);
     AssertDebug(renderSetup.passData != nullptr);

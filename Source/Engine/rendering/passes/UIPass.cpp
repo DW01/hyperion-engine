@@ -38,12 +38,15 @@
 
 #include <engine/EngineDriver.hpp>
 #include <engine/CVarManager.hpp>
+#include <engine/EngineStats.hpp>
 
 #include <UIPass.generated.inl>
 
 namespace Hyperion {
 
 HYP_DECLARE_LOG_CHANNEL(UI);
+
+static EngineStatGpuTimer s_statFillUI("Rendering/GPU/FillUI");
 
 HYP_API extern const char* LookupTypeName(const TypeId& typeId);
 
@@ -147,7 +150,6 @@ static void BuildRenderGroupsOrdered(
 
 void UIRenderCollector::ExecuteDrawCalls(Frame* frame, const RenderSetup& renderSetup, Framebuffer* framebuffer, uint32 bucketBits)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     AssertDebug(renderSetup.HasWorld() && renderSetup.HasView());
@@ -254,8 +256,9 @@ void UIPass::Shutdown()
 
 void UIPass::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
+
+    ENGINE_STAT_GPU_SCOPE(&s_statFillUI);
 
     Assert(renderSetup.view != nullptr);
 

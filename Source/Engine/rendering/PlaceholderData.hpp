@@ -16,7 +16,7 @@
 #include <rendering/Sampler.hpp>
 #include <rendering/GpuBuffer.hpp>
 #include <rendering/Device.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <Core/math/MathUtil.hpp>
 

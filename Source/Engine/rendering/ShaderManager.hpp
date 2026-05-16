@@ -10,7 +10,7 @@
 
 #include <Core/memory/Pimpl.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <rendering/util/ShaderCompiler.hpp>
 
@@ -23,7 +23,7 @@ class ShaderManager
 {
 public:
     ShaderManager();
-    
+
     ShaderInstanceRef GetOrCreate(
         Name name,
         const ShaderPropertySet& properties,

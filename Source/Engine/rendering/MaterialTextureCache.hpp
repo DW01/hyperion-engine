@@ -8,7 +8,7 @@
 
 #include <Core/containers/SparsePagedArray.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 namespace Hyperion {
 

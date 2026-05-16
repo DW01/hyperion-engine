@@ -10,7 +10,7 @@
 #include <rendering/vulkan/VulkanStructs.hpp>
 
 #include <rendering/RenderHelpers.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/Shared.hpp>
 
 #include <vulkan/vulkan.h>

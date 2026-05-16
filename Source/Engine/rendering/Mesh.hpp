@@ -12,7 +12,7 @@
 #include <Core/containers/Array.hpp>
 
 #include <Core/threading/DataRaceDetector.hpp>
-#include <Core/threading/Semaphore.hpp>
+#include <Core/threading/AtomicFlag.hpp>
 
 #include <Core/math/BoundingBox.hpp>
 
@@ -24,7 +24,7 @@
 #include <rendering/RenderableAttributes.hpp>
 #include <rendering/Shared.hpp>
 #include <rendering/Vertex.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <asset/AssetObject.hpp>
 #include <asset/AssetReference.hpp>
@@ -43,41 +43,7 @@ enum class MeshFlags : uint32
     ViewIndependent = 0x1 //!< keep GPU data around even if mesh is not used by any View
 };
 
-HYP_MAKE_ENUM_FLAGS(MeshFlags)
-
-class MeshGpuUploadSemaphore
-{
-public:
-    MeshGpuUploadSemaphore() = default;
-    MeshGpuUploadSemaphore(const MeshGpuUploadSemaphore&) = delete;
-    MeshGpuUploadSemaphore& operator=(const MeshGpuUploadSemaphore&) = delete;
-    MeshGpuUploadSemaphore(MeshGpuUploadSemaphore&& other) noexcept = delete;
-    MeshGpuUploadSemaphore& operator=(MeshGpuUploadSemaphore&& other) noexcept = delete;
-    ~MeshGpuUploadSemaphore() = default;
-
-    HYP_FORCE_INLINE void Wait() const
-    {
-        m_semaphore.Acquire();
-    }
-
-    HYP_FORCE_INLINE void Signal()
-    {
-        m_semaphore.Produce();
-    }
-
-    HYP_FORCE_INLINE void Reset()
-    {
-        m_semaphore.SetValue(0);
-    }
-
-    HYP_FORCE_INLINE bool IsSignaled() const
-    {
-        return m_semaphore.IsInSignalState();
-    }
-
-private:
-    Semaphore<int32, SemaphoreDirection::WAIT_FOR_POSITIVE> m_semaphore;
-};
+HYP_MAKE_ENUM_FLAGS(MeshFlags);
 
 HYP_STRUCT()
 struct MeshDesc
@@ -178,7 +144,7 @@ public:
 
     void UploadGpuData();
     void ReleaseGpuData();
-    
+
     HYP_FORCE_INLINE const MeshDesc& GetMeshDesc() const
     {
         return m_meshDesc;
@@ -208,7 +174,7 @@ public:
 
     bool BuildBVH(BVHNode& bvhNode, int maxDepth = 3) const;
 
-    MeshGpuUploadSemaphore gpuUploadSemaphore;
+    AtomicFlag isUploaded;
 
 protected:
     void PageBlobData() override;
@@ -233,7 +199,7 @@ private:
 
     HYP_FIELD(Serialize)
     BlobDataReference m_vertexData;
-    
+
     HYP_FIELD(Serialize)
     BlobDataReference m_indexData;
 
@@ -248,7 +214,7 @@ private:
 
     HYP_FIELD()
     EnumFlags<MeshFlags> m_flags;
-    
+
     GpuBufferRef m_vertexBuffer;
     GpuBufferRef m_indexBuffer;
 

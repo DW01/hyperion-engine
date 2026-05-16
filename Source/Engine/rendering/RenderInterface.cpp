@@ -27,7 +27,7 @@
 #include <rendering/MaterialInstance.hpp>
 #include <rendering/Mesh.hpp>
 #include <rendering/RendererMain.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/ShaderInstance.hpp>
 #include <rendering/RenderMemory.hpp>
 #include <rendering/DescriptorSet.hpp>
@@ -124,7 +124,7 @@ static_assert(MaxFramesBeforeDiscard >= MinSafeDeleteCycles,
 // iterations per frame for cleaning up unused resources for passes
 static constexpr int FrameCleanupBudget = 16;
 
-EngineStatTimer g_statRenderThreadSync("Render/Sync");
+EngineStatTimer g_statRenderThreadSync("CPU/SemWait");
 static EngineStatTimer s_statViewDataAllocTime { "Rendering/ViewData/AllocTime", /* resetPerFrame */ false };
 
 namespace Framework {
@@ -606,7 +606,6 @@ RendererResult RenderInterface::Initialize()
     stagingBufferPool = PoolNew<StagingBufferPool>(*g_renderPool);
     blasCache = PoolNew<BLASCache>(*g_renderPool);
     shadowMapCache = PoolNew<ShadowMapCache>(*g_renderPool);
-    crashHandler = PoolNew<CrashHandler>(*g_renderPool);
 
     InitDeviceDetails(deviceDetails);
 
@@ -640,8 +639,6 @@ RendererResult RenderInterface::Initialize()
 #endif // HYP_DEBUG_MODE
         }
     }
-
-    crashHandler->Initialize();
 
     resources = PoolNew<ResourceContainer>(*g_renderPool);
 
@@ -801,6 +798,7 @@ void RenderInterface::Shutdown()
         }
 
         namedPasses[i].Clear();
+        namedPasses[i].Refit();
     }
 
     DebugDrawer::GetInstance().Shutdown();
@@ -1493,7 +1491,7 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
     static_assert(0b1111 >= uint8(ShaderRegister::MAX));
 
     uint8 dsStates[MaxDescriptorSetsBound] {};
-    uint8 dsIndices = 0;
+    [[maybe_unused]] uint8 dsIndices = 0;
 
     // set up uniform index to sets mapping
     TBitset<FixedAllocator<2>> bits { state.dirtyUniforms | state.dirtyBufferOffsets | state.validUniforms };
@@ -1820,7 +1818,6 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
         for (auto currBit = bits.Begin(); bits.AnyBitsSet(); currBit = bits.Begin())
         {
             const uint8 uniformIndex = (uint8)*currBit;
-            const ShaderUniform& uniform = state.shaderUniforms[uniformIndex];
 
             uint8 setIndex = uniformMappings[uniformIndex].setIndex;
 
@@ -2044,7 +2041,7 @@ void RenderInterface::CreateSphereSamplesBuffer()
 void RenderInterface::CreateEnvProbesTexture()
 {
     TextureDesc textureDesc;
-    textureDesc.format = TextureFormat::RGBA16F;
+    textureDesc.format = TextureFormat::RGBA8;
     textureDesc.extent = Vec3u { 128, 128, 1 };
     textureDesc.imageUsage = IU_SAMPLED;
     textureDesc.type = TextureType::CubemapArray;

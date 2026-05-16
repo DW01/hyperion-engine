@@ -218,15 +218,18 @@ if(HYP_MSVC)
   add_definitions("/D_HAS_EXCEPTIONS=0")
   add_definitions("/DNOMINMAX")
 
-  set(CMAKE_CXX_FLAGS "/Zc:preprocessor /Zc:__cplusplus /O2 /MD /Z7 /constexpr:depth1024 /bigobj /MP /arch:AVX2")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG /NATVIS:${CMAKE_SOURCE_DIR}/Engine/Hyperion.natvis")
-  # if(HYP_DEBUG_MODE)
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DEBUG")
-  # endif()
+  if(HYP_DEBUG_MODE)
+    set(CMAKE_CXX_FLAGS "/Zc:preprocessor /Zc:__cplusplus /O2 /Oi /MD /Z7 /constexpr:depth1024 /bigobj /arch:AVX2 /fp:fast")
+
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG /NATVIS:${CMAKE_SOURCE_DIR}/Engine/Hyperion.natvis")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DEBUG /INCREMENTAL /OPT:REF /OPT:ICF")
+  else()
+    set(CMAKE_CXX_FLAGS "/Zc:preprocessor /Zc:__cplusplus /O2 /Oi /MD /Zi /GL /GF /Zc:inline /constexpr:depth1024 /bigobj /MP4 /arch:AVX2 /fp:fast")
+  endif()
 
   # if(HYP_DEBUG_MODE)
   # else()
-  #     set(CMAKE_CXX_FLAGS "/Zc:preprocessor /Zc:__cplusplus /O2 /Oy /MD /constexpr:depth1024 /bigobj /MP")
+  #     set(CMAKE_CXX_FLAGS "/Zc:preprocessor /Zc:__cplusplus /O2 /Oy /MD /constexpr:depth1024 /bigobj /MP4")
   # endif()
 
   # address sanitizer
@@ -241,7 +244,7 @@ else()
   if(HYP_DEBUG_MODE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -g -Werror=return-type -Werror=address") #-Werror=non-virtual-dtor
   else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
   endif()
 
   # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")

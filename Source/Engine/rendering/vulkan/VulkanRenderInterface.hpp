@@ -24,9 +24,9 @@
 
 #include <vulkan/vulkan.h>
 
-namespace Hyperion {
+#include <rendering/vulkan/VulkanGpuTimerBackend.hpp>
 
-class ApplicationWindow;
+namespace Hyperion {
 
 class VulkanInstance;
 class VulkanAsyncCompute;
@@ -68,6 +68,7 @@ struct VulkanDynamicFunctions
     HYP_DECL_FN(vkCmdDebugMarkerInsertEXT);
     HYP_DECL_FN(vkDebugMarkerSetObjectNameEXT);
     HYP_DECL_FN(vkSetDebugUtilsObjectNameEXT);
+    HYP_DECL_FN(vkSetDebugUtilsObjectTagEXT);
 #endif
 
 #if defined(HYP_MOLTENVK) && HYP_MOLTENVK && HYP_MOLTENVK_LINKED
@@ -115,6 +116,9 @@ public:
 
     void PrepareSwapchain(VulkanSwapchain* swapchain) override;
     void PresentToSwapchain(VulkanSwapchain* swapchain) override;
+
+    void BeginFrame(AtomicFlag* pCancelFlag) override;
+    void EndFrame() override;
 
     VulkanCommandBuffer* GetCurrentCommandBuffer() const override;
 
@@ -173,6 +177,10 @@ public:
     HYP_NODISCARD VulkanAsyncCompute* CreateAsyncCompute() override;
     void SubmitAsyncCompute(VulkanAsyncCompute* asyncCompute) override;
 
+    void RecordStartTimestamp(VulkanCommandBuffer* cmd, EngineStatGpuTimer* timer) override;
+    void RecordStopTimestamp(VulkanCommandBuffer* cmd, EngineStatGpuTimer* timer) override;
+    void ResolveGpuFrameResults(uint32 completedFrameIndex) override;
+
     HYP_API RendererResult CreateDescriptorSet(
         VkDescriptorSetLayout vkDescriptorSetLayout,
         bool isBindlessTextures, bool isBindlessBuffers, bool isRayTracing,
@@ -210,6 +218,8 @@ private:
 
     Pimpl<VulkanTextureCache> m_textureCache;
 
+    Pimpl<VulkanGpuTimerBackend> m_gpuTimerBackend;
+
     Array<VulkanFrameRef, VulkanAllocator> m_frames;
     uint32 m_currentFrameIndex;
 
@@ -217,6 +227,9 @@ private:
 
     LinkedList<VulkanCommandBuffer, VulkanAllocator> m_transientCommandBuffers[NumRendererWorkerThreads + 1][NumFramesInFlight];
     LinkedList<VulkanCommandBuffer, VulkanAllocator> m_pendingTransientCommandBuffers[NumRendererWorkerThreads + 1][NumFramesInFlight];
+
+    LinkedList<VulkanSemaphore, VulkanAllocator> m_transientCommandBufferSemaphores[NumFramesInFlight];
+    LinkedList<VulkanSemaphore, VulkanAllocator> m_recycledTransientCommandBufferSemaphores;
 
     LinkedList<VulkanFence, VulkanAllocator> m_transientCommandBufferFences[NumFramesInFlight];
     LinkedList<VulkanFence, VulkanAllocator> m_recycledTransientCommandBufferFences;

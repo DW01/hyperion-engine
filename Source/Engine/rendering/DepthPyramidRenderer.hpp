@@ -10,7 +10,7 @@
 
 #include <Core/functional/Delegate.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <Core/math/Extent.hpp>
 

@@ -17,7 +17,7 @@
 
 #include <Core/threading/SharedMutex.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderMemory.hpp>
 
 namespace Hyperion {

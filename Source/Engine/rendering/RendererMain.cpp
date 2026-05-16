@@ -4,8 +4,6 @@
  *  @licence MIT
 */
 
-#include "RenderBucket.hpp"
-#include "RenderableAttributes.hpp"
 #include <RenderingPch.hpp>
 
 #include <rendering/RendererMain.hpp>
@@ -364,27 +362,47 @@ static bool ShouldIncludeInPrepass(
     const MaterialAttributes& mas = meshProxy.attributes.GetMaterialAttributes();
     const RenderBucket bucket = mas.bucket;
 
-    // Only include in depth prepass if depth write is enabled
     if (!(mas.flags & MAF_DEPTH_WRITE))
         return false;
 
-    // Only considering opaque, lightmapped objects
     if (bucket != RenderBucket::Opaque && bucket != RenderBucket::Lightmapped)
         return false;
 
-    // Only include large enough objects based on pixel size relative to the current view.
     BoundingBox worldBounds;
     worldBounds.min = meshProxy.bufferData.worldAabbMin;
     worldBounds.max = meshProxy.bufferData.worldAabbMax;
 
-    const BoundingBox clipSpaceBounds = viewProjMat * worldBounds;
+    FixedArray<Vec3f, 8> corners = worldBounds.GetCorners();
 
-    const Vec3f clipSpaceExtent = clipSpaceBounds.GetExtent();
-    const Vec2f uvSpaceExtent = clipSpaceExtent.GetXY() * 0.5f;
-    const Vec2f screenSpaceExtent = uvSpaceExtent * Vec2f(viewport.extent);
+    float minNdcX = MathUtil::MaxSafeValue<float>();
+    float maxNdcX = MathUtil::MinSafeValue<float>();
+    float minNdcY = MathUtil::MaxSafeValue<float>();
+    float maxNdcY = MathUtil::MinSafeValue<float>();
 
-    return screenSpaceExtent.x >= 100.0f
-        && screenSpaceExtent.y >= 100.0f;
+    for (uint32 i = 0; i < 8; i++)
+    {
+        Vec4f clipSpacePos = viewProjMat * Vec4f(corners[i], 1.0f);
+        if (clipSpacePos.w <= 0.01f)
+            return true;
+
+        Vec3f ndc = clipSpacePos.GetXYZ() / clipSpacePos.w;
+
+        minNdcX = MathUtil::Min(minNdcX, ndc.x);
+        maxNdcX = MathUtil::Max(maxNdcX, ndc.x);
+        minNdcY = MathUtil::Min(minNdcY, ndc.y);
+        maxNdcY = MathUtil::Max(maxNdcY, ndc.y);
+    }
+
+    float ndcWidth = maxNdcX - minNdcX;
+    float ndcHeight = maxNdcY - minNdcY;
+
+    float screenSpaceWidth = (ndcWidth * 0.5f) * viewport.extent.x;
+    float screenSpaceHeight = (ndcHeight * 0.5f) * viewport.extent.y;
+
+    constexpr float PrepassPixelThreshold = 1.0f; 
+
+    return screenSpaceWidth >= PrepassPixelThreshold 
+        && screenSpaceHeight >= PrepassPixelThreshold;
 }
 
 } // namespace DepthPrepass
@@ -1025,7 +1043,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
 
         prevMesh = meshProxy.mesh;
 
-        if (!drawCallCollection.suppressStats)
+        if (!drawCallCollection.suppressStats && prepassStage != DepthPrepass::DPP_InPrepass)
         {
             g_statDrawCalls++;
             g_statTriangles += meshProxy.numIndices / 3;
@@ -1116,7 +1134,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
         prevMesh = meshProxy.mesh;
 
         // @NOTE For indirect rendering we would need to read back the number of drawn instances from the GPU to get correct stats.
-        if (!drawCallCollection.suppressStats)
+        if (!drawCallCollection.suppressStats && prepassStage != DepthPrepass::DPP_InPrepass)
         {
             g_statInstancedDrawCalls += entityInstanceBatch->numEntities;
             g_statTriangles += meshProxy.numIndices / 3;

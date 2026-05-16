@@ -1534,6 +1534,8 @@ extern class TranslateEditorGizmo : EditorGizmoBase
 end
 extern class RotateEditorGizmo : EditorGizmoBase
 end
+extern class ScaleEditorGizmo : EditorGizmoBase
+end
 extern class VolumeEditorGizmo : EditorGizmoBase
 end
 extern class GenerateLightmapsEditorTask : TickableEditorTask
@@ -1994,6 +1996,7 @@ extern class Node : AssetObject
     MarkDirty() -> void
     OnChildAdded : any
     OnChildRemoved : any
+    TransformUpdated : any
     NodeFlags : NodeFlags
     ParentNode : Node
     ChildNodes : any

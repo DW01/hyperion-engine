@@ -12,7 +12,7 @@
 #include <rendering/IndirectDraw.hpp>
 #include <rendering/TAAPass.hpp>
 #include <rendering/GraphicsPipelineCache.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <Core/reflection/ObjectBase.hpp>
 #include <Core/reflection/Handle.hpp>

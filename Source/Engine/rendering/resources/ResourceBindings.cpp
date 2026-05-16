@@ -47,14 +47,14 @@ void OnBindingChanged_Mesh(Mesh* mesh, uint32 prev, uint32 next)
 
     if (next != ~0u)
     {
-        if ((mesh->GetFlags() & MeshFlags::ViewIndependent) || !mesh->gpuUploadSemaphore.IsSignaled())
+        if ((mesh->GetFlags() & MeshFlags::ViewIndependent) || !mesh->isUploaded.Load())
         {
             mesh->UploadGpuData();
         }
     }
     else if (prev != ~0u)
     {
-        if (mesh->gpuUploadSemaphore.IsSignaled() && !(mesh->GetFlags() & MeshFlags::ViewIndependent))
+        if (mesh->isUploaded.Load() && !(mesh->GetFlags() & MeshFlags::ViewIndependent))
         {
             mesh->ReleaseGpuData();
         }
@@ -89,16 +89,18 @@ void OnBindingChanged_ReflectionProbe(EnvProbe* envProbe, uint32 prev, uint32 ne
         }
 
         // blit to the array texture
-        const GpuImageRef& srcImage = proxyCasted->texture->GetGpuImage();
-        AssertDebug(srcImage.IsValid());
+        GpuImage* srcImage = proxyCasted->texture->GetGpuImage();
+        AssertDebug(srcImage != nullptr);
 
-        const GpuImageRef& dstImage = RI.envProbesTexture->GetGpuImage();
-        Assert(dstImage.IsValid());
+        GpuImage* dstImage = RI.envProbesTexture->GetGpuImage();
+        AssertDebug(dstImage != nullptr);
 
-        Frame* currentFrame = RI.GetCurrentFrame();
-        Assert(currentFrame != nullptr);
+        if (HYP_UNLIKELY(!srcImage || !dstImage))
+        {
+            return;
+        }
 
-        CommandRecorder& cr = currentFrame->preRenderCommands;
+        CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder();
 
         cr << InsertBarrier(srcImage, RS_COPY_SRC);
         cr << InsertBarrier(dstImage, RS_COPY_DST);
@@ -112,34 +114,39 @@ void OnBindingChanged_ReflectionProbe(EnvProbe* envProbe, uint32 prev, uint32 ne
 
             ImageSubResource srcSubResource {};
             srcSubResource.baseMipLevel = mipIndex;
+            srcSubResource.numLevels = 1;
             srcSubResource.baseArrayLayer = 0;
             srcSubResource.numLayers = 6;
 
             ImageSubResource dstSubResource {};
             dstSubResource.baseMipLevel = mipIndex;
+            dstSubResource.numLevels = 1;
             dstSubResource.baseArrayLayer = uint16(6 * next);
             dstSubResource.numLayers = 6;
 
             const Vec3u srcMipExtent = srcImage->GetTextureDesc().GetMipExtent(mipIndex);
             const Vec3u dstMipExtent = dstImage->GetTextureDesc().GetMipExtent(mipIndex);
 
-            cr << Blit(
-                srcImage,
-                dstImage,
-                Rect<uint32> {
-                    0, 0,
-                    srcMipExtent.x, srcMipExtent.y
-                },
-                Rect<uint32> {
-                    0, 0,
-                    dstMipExtent.x, dstMipExtent.y
-                },
-                srcSubResource,
-                dstSubResource);
+            if (srcMipExtent == dstMipExtent && srcImage->GetTextureDesc().format == dstImage->GetTextureDesc().format)
+            {
+                cr << CopyImage(srcImage, dstImage, srcMipExtent, srcSubResource, dstSubResource);
+            }
+            else
+            {
+                cr << Blit(
+                    srcImage,
+                    dstImage,
+                    Rect<uint32> { 0, 0, srcMipExtent.x, srcMipExtent.y },
+                    Rect<uint32> { 0, 0, dstMipExtent.x, dstMipExtent.y },
+                    srcSubResource,
+                    dstSubResource);
+            }
         }
 
         cr << InsertBarrier(srcImage, RS_SHADER_RESOURCE);
         cr << InsertBarrier(dstImage, RS_SHADER_RESOURCE);
+
+        cr.Done();
     }
 }
 

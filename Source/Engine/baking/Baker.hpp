@@ -12,6 +12,7 @@
 #include <Core/threading/AtomicVar.hpp>
 #include <Core/threading/Task.hpp>
 #include <Core/threading/Semaphore.hpp>
+#include <Core/threading/ThreadSignal.hpp>
 
 #include <Core/reflection/ObjectBase.hpp>
 #include <Core/reflection/Handle.hpp>
@@ -119,7 +120,7 @@ class ILightmapRenderer
 {
 protected:
     ILightmapRenderer(BakerBase* lightmapper)
-        : m_lightmapper(lightmapper)
+        : m_baker(lightmapper)
     {
         AssertDebug(lightmapper != nullptr);
     }
@@ -145,11 +146,12 @@ public:
     virtual void CleanJobData(BakeJobBase* job)
     {
     }
-    virtual void ReadHitsBuffer(Frame* frame, BakeJobBase* job, Span<LightmapHit> outHits) = 0;
+
+    virtual void ReadHitsBuffer(Frame* frame, BakeJobBase* job, size_t count, Proc<void(Span<LightmapHit> hits)>&& callback) = 0;
     virtual void Render(Frame* frame, const RenderSetup& renderSetup, BakeJobBase* job, Span<const LightmapRay> rays, uint32 rayOffset) = 0;
 
 protected:
-    BakerBase* m_lightmapper;
+    BakerBase* m_baker;
 };
 
 HYP_CLASS(Abstract)

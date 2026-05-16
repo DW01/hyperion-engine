@@ -12,7 +12,7 @@
 
 #include <rendering/Shared.hpp>
 #include <rendering/RenderResult.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderConfig.hpp>
 #include <rendering/RenderMemory.hpp>
 

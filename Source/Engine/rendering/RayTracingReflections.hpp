@@ -10,7 +10,7 @@
 
 #include <rendering/TemporalBlending.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/Shared.hpp>
 
 #include <Core/config/Config.hpp>

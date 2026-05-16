@@ -10,7 +10,7 @@
 
 #include <rendering/Pass.hpp>
 #include <rendering/RendererMain.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <scene/Scene.hpp>
 #include <scene/Subsystem.hpp>

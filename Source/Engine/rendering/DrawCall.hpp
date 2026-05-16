@@ -17,7 +17,7 @@
 
 #include <rendering/RawBuffer.hpp>
 #include <rendering/RenderMemory.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderGroup.hpp>
 
 #include <Core/Types.hpp>

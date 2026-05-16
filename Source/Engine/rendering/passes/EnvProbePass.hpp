@@ -11,7 +11,7 @@
 #include <Core/math/Mat4f.hpp>
 
 #include <rendering/Pass.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <Core/Types.hpp>
 

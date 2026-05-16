@@ -211,6 +211,8 @@ void CalculateEnvProbesContribution(
         weight *= currentReflections.a; // so we can blend probes that have alpha zero with another (e.g blending with skybox)
         accumWeightReflections += weight * (1.0 - accumWeightReflections);
     }
+
+    reflections = any(isnan(reflections)) ? (float4)0 : reflections;
 #endif // HYP_ENV_PROBES_NO_REFLECTIONS
 
 #ifndef HYP_ENV_PROBES_NO_IRRADIANCE

@@ -31,6 +31,7 @@ class DX12RenderConfig;
 class DX12DescriptorHeapManager;
 class DX12AsyncCompute;
 class DX12Fence;
+class DX12GpuTimerBackend;
 
 struct DX12QueueData
 {
@@ -146,11 +147,17 @@ public:
     HYP_NODISCARD DX12AsyncCompute* CreateAsyncCompute() override;
     void SubmitAsyncCompute(DX12AsyncCompute* asyncCompute) override;
 
+    void RecordStartTimestamp(DX12CommandBuffer* cmd, EngineStatGpuTimer* timer) override;
+    void RecordStopTimestamp(DX12CommandBuffer* cmd, EngineStatGpuTimer* timer) override;
+    void ResolveGpuFrameResults(uint32 completedFrameIndex) override;
+
     UniquePtr<SingleTimeCommands> GetSingleTimeCommands() override;
 
     void ReleaseTransientMemory() override;
 
     void BeginFrame(AtomicFlag* pCancelFlag) override;
+
+    void InsertTransientSyncBarrier();
 
     ComPtr<IDXGIFactory4> dxgiFactory;
 
@@ -164,6 +171,7 @@ private:
     void PrepareFrame(DX12Frame* frame) override;
 
     Pimpl<DX12RenderConfig> m_renderConfig;
+    Pimpl<DX12GpuTimerBackend> m_gpuTimerBackend;
 
     FixedArray<DX12FrameRef, NumFramesInFlight> m_frames;
 
@@ -175,6 +183,9 @@ private:
     LinkedList<DX12Fence, RenderAllocator> m_transientCommandBufferFences[NumFramesInFlight];
     LinkedList<DX12Fence, RenderAllocator> m_recycledTransientCommandBufferFences;
     Mutex m_transientCommandBuffersMutex;
+
+    ComPtr<ID3D12Fence> m_transientSyncFence;
+    FixedArray<uint64, NumFramesInFlight> m_transientSyncValues;
 
     ComPtr<IDXGIAdapter1> m_hardwareAdapter;
 

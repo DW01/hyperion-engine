@@ -321,9 +321,6 @@ void SpritePass::Shutdown()
 
 void SpritePass::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
-    AssertOnThread(g_renderThread);
-
     Assert(renderSetup.view != nullptr);
 
     SpritePassData* pd = DynamicCast<SpritePassData>(FetchViewPassData(renderSetup.view));

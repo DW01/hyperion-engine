@@ -153,6 +153,10 @@ public:
     void DebugMarkerBegin(const char* markerName) const;
     void DebugMarkerEnd() const;
 
+#if HYP_DEBUG_MODE
+    void SetDebugName(Name name);
+#endif
+
     void ResetBoundDescriptorSets()
     {
         m_boundDescriptorSets.Clear();

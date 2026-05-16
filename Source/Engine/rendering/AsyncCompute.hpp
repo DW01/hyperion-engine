@@ -15,7 +15,7 @@
 
 #include <rendering/CommandRecorder.hpp>
 #include <rendering/RenderMemory.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderResult.hpp>
 #include <rendering/GpuBuffer.hpp>
 

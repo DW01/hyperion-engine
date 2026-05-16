@@ -136,14 +136,13 @@ void CBufferAllocator::Write(const void* src, size_t count, size_t alignment)
     const uint32 idx = CurrentRenderThreadIndex();
 
     auto& scratch = m_scratch[idx];
-    size_t& scratchAlignment = m_scratchAlignment[idx];
 
     const size_t alignedCount = alignment > 0 ? ByteUtil::AlignAs(count, alignment) : count;
     const size_t scratchOffset = ByteUtil::AlignAs(scratch.Size(), alignment);
 
     scratch.SetSize(scratchOffset + alignedCount);
 
-    scratchAlignment = MathUtil::Max(scratchAlignment, alignment);
+    m_scratchAlignment[idx] = MathUtil::Max(m_scratchAlignment[idx], alignment);
 
     Memory::Copy(scratch.Data() + scratchOffset, reinterpret_cast<const ubyte*>(src), count);
 }
@@ -182,10 +181,6 @@ void* CBufferAllocator::Allocate(size_t count, size_t alignment, GpuBuffer*& out
         alignment = m_minAllocationAlignment;
     
     const uint32 idx = CurrentRenderThreadIndex();
-
-    auto& scratch = m_scratch[idx];
-    size_t& scratchAlignment = m_scratchAlignment[idx];
-
     const uint32 currentFrameCounter = GetFrameCounter();
     
     outBuffer = nullptr;

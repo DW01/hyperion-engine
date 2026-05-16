@@ -15,9 +15,11 @@
 #include <rendering/vulkan/VulkanFeatures.hpp>
 
 #include <rendering/Device.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <rendering/util/DeletionQueue.hpp>
+
+#include <engine/EngineStats.hpp>
 
 #include <VulkanFrame.generated.inl>
 
@@ -112,7 +114,7 @@ void VulkanFrame::WriteCommandBuffer(VulkanCommandBuffer* commandBuffer)
 
     commandRecorders.PushBack(&preRenderCommands);
     commandRecorders.PushBack(&cr);
-    commandRecorders.PushBack(&RI.commandRecorderAllocator.GetCommandRecorder());
+    commandRecorders.PushBack(&RI.commandRecorderAllocator.root);
     commandRecorders.PushBack(&postRenderCommands);
 
     for (CommandRecorder* commandRecorder : commandRecorders)
@@ -126,12 +128,10 @@ void VulkanFrame::WriteCommandBuffer(VulkanCommandBuffer* commandBuffer)
         OnPresent.RemoveAllDetached();
     }
 
+    for (CommandRecorder* commandRecorder : commandRecorders)
     {
-        for (CommandRecorder* commandRecorder : commandRecorders)
-        {
-            commandRecorder->Execute(commandBuffer);
-            commandRecorder->Reset(/* freeMemory */ false);
-        }
+        commandRecorder->Execute(commandBuffer);
+        commandRecorder->Reset(/* freeMemory */ false);
     }
 }
 

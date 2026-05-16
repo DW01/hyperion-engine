@@ -29,6 +29,26 @@ VulkanSemaphore::VulkanSemaphore()
 {
 }
 
+VulkanSemaphore& VulkanSemaphore::operator=(VulkanSemaphore&& other) noexcept
+{
+    if (this != &other)
+    {
+        if (m_handle != VK_NULL_HANDLE)
+        {
+            EnqueueDeletion(FunctionWrapper<Proc<void()>>([handle = m_handle]()
+                {
+                    vkDestroySemaphore(RI.GetDevice()->GetDevice(), handle, nullptr);
+                }));
+        }
+
+        m_handle = other.m_handle;
+        m_type = other.m_type;
+        other.m_handle = VK_NULL_HANDLE;
+    }
+
+    return *this;
+}
+
 VulkanSemaphore::~VulkanSemaphore()
 {
     if (m_handle != VK_NULL_HANDLE)
@@ -64,8 +84,34 @@ RendererResult VulkanSemaphore::Create()
         vkCreateSemaphore(RI.GetDevice()->GetDevice(), &semaphoreInfo, nullptr, &m_handle),
         "Failed to create semaphore");
 
+#if HYP_DEBUG_MODE
+    SetDebugName(debugName);
+#endif
+
     return {};
 }
+
+#if HYP_DEBUG_MODE
+
+void VulkanSemaphore::SetDebugName(Name name)
+{
+    if (!IsCreated())
+    {
+        return;
+    }
+
+    if (RI.dynamicFunctions.vkSetDebugUtilsObjectNameEXT)
+    {
+        VkDebugUtilsObjectNameInfoEXT objectNameInfo { VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
+        objectNameInfo.objectType = VK_OBJECT_TYPE_SEMAPHORE;
+        objectNameInfo.objectHandle = (uint64)m_handle;
+        objectNameInfo.pObjectName = name.LookupString();
+
+        RI.dynamicFunctions.vkSetDebugUtilsObjectNameEXT(RI.GetDevice()->GetDevice(), &objectNameInfo);
+    }
+}
+
+#endif
 
 void VulkanSemaphore::Signal(uint64 value)
 {

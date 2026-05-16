@@ -9,7 +9,7 @@
 #include <Core/memory/resource/Resource.hpp>
 
 #include <rendering/Pass.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <scene/Subsystem.hpp>
 

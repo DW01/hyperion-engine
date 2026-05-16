@@ -14,7 +14,7 @@
 #include <rendering/RenderInterface.hpp>
 #include <rendering/RenderHelpers.hpp>
 #include <rendering/RendererMain.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderConfig.hpp>
 #include <rendering/Device.hpp>
 #include <rendering/Frame.hpp>
@@ -47,31 +47,49 @@ namespace Baking {
 
 #pragma region Render command
 
-struct LightmapRender : RenderCommand
+struct TraceLightmapRaysPayload
 {
     BakeJobBase* job;
     Handle<World> world;
     Handle<View> view;
     Array<LightmapRay> rays;
     uint32 rayOffset;
+};
 
-    LightmapRender(BakeJobBase* job, const Handle<World>& world, const Handle<View>& view, Array<LightmapRay>&& rays, uint32 rayOffset)
-        : job(job),
-          world(world),
-          view(view),
-          rays(std::move(rays)),
-          rayOffset(rayOffset)
+class TraceLightmapRaysCmd : public CmdBase
+{
+public:
+    TraceLightmapRaysPayload* payload;
+
+    explicit TraceLightmapRaysCmd(TraceLightmapRaysPayload* payload)
+        : payload(payload)
     {
-        job->tracingComplete.Set(false, MemoryOrder::RELEASE);
+        payload->job->tracingCompleteSignal.Reset();
     }
 
-    virtual ~LightmapRender() override
+    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
     {
-        job->tracingComplete.Set(true, MemoryOrder::RELEASE);
-    }
+        TraceLightmapRaysCmd* cmdCasted = static_cast<TraceLightmapRaysCmd*>(cmd);
 
-    virtual RendererResult operator()() override
-    {
+        TraceLightmapRaysPayload& payload = *cmdCasted->payload;
+
+        BakeJobBase* job = payload.job;
+        Handle<World>& world = payload.world;
+        Handle<View>& view = payload.view;
+        Array<LightmapRay>& rays = payload.rays;
+        uint32 rayOffset = payload.rayOffset;
+
+        bool needsSignal = true;
+
+        HYP_DEFER({ delete &payload; });
+
+        HYP_DEFER({
+            if (needsSignal)
+            {
+                job->tracingCompleteSignal.Signal(uint32(job->GetParams().renderers->Size()));
+            }
+        });
+
         Frame* frame = RI.GetCurrentFrame();
 
         RenderSetup renderSetup { world, view };
@@ -98,41 +116,36 @@ struct LightmapRender : RenderCommand
             }
         }
 
-        {
-            // Read ray hits from last time this frame was rendered
-            Array<LightmapRay> previousRays;
-            job->GetPreviousFrameRays(previousRays);
-
-            // Read previous frame hits into CPU buffer
-            if (previousRays.Size() != 0)
-            {
-                Array<LightmapHit> hitsBuffer;
-                hitsBuffer.Resize(previousRays.Size());
-
-                for (const UniquePtr<ILightmapRenderer>& lightmapRenderer : *job->GetParams().renderers)
-                {
-                    AssertDebug(lightmapRenderer != nullptr);
-
-                    lightmapRenderer->ReadHitsBuffer(frame, job, hitsBuffer);
-
-                    job->IntegrateRayHits(previousRays, hitsBuffer, lightmapRenderer->GetShadingType());
-                }
-            }
-
-            job->SetPreviousFrameRays(rays);
-        }
-
         if (rays.Any())
         {
+            const size_t numRays = rays.Size();
+            job->readbackData.SetSize(numRays * sizeof(LightmapHit) * job->GetParams().renderers->Size());
+
+            size_t readbackDataOffset = 0;
+
+            RC<Array<LightmapRay>> raysRc = MakeRefCountedPtr<Array<LightmapRay>>(std::move(rays));
+
             for (const UniquePtr<ILightmapRenderer>& lightmapRenderer : *job->GetParams().renderers)
             {
                 AssertDebug(lightmapRenderer != nullptr);
 
-                lightmapRenderer->Render(frame, renderSetup, job, rays, rayOffset);
+                lightmapRenderer->Render(frame, renderSetup, job, *raysRc, rayOffset);
+
+                Proc<void(Span<LightmapHit>)> cb = [job, raysRc, readbackDataOffset, shadingType = lightmapRenderer->GetShadingType()](Span<LightmapHit> hits)
+                {
+                    Memory::Copy(job->readbackData.Data() + readbackDataOffset, hits.Data(), hits.Size() * sizeof(LightmapHit));
+
+                    job->IntegrateRayHits(*raysRc, hits, shadingType);
+
+                    job->tracingCompleteSignal.Signal();
+                };
+
+                lightmapRenderer->ReadHitsBuffer(frame, job, numRays, std::move(cb));
+                needsSignal = false;
+
+                readbackDataOffset += numRays * sizeof(LightmapHit);
             }
         }
-
-        return {};
     }
 };
 
@@ -141,8 +154,8 @@ struct LightmapRender : RenderCommand
 #pragma region BakeJobBase
 
 BakeJobBase::BakeJobBase(BakeJobParams&& params)
-    : tracingComplete(true),
-      m_lightmapper(nullptr),
+    : tracingCompleteSignal(0),
+      m_baker(nullptr),
       m_params(std::move(params)),
       m_texelIndex(0),
       m_lastLoggedPercentage(0),
@@ -152,6 +165,11 @@ BakeJobBase::BakeJobBase(BakeJobParams&& params)
 
 BakeJobBase::~BakeJobBase()
 {
+    if (m_wasStarted)
+    {
+        tracingCompleteSignal.Wait(int32(m_params.renderers->Size()));
+    }
+
     for (TaskBatch* taskBatch : m_currentTasks)
     {
         taskBatch->AwaitCompletion();
@@ -166,6 +184,8 @@ void BakeJobBase::Start()
     m_runningSemaphore.Produce(1, [this](bool)
         {
             Start_Internal();
+
+            tracingCompleteSignal.Reset(int32(m_params.renderers->Size()));
         });
 }
 
@@ -197,12 +217,12 @@ void BakeJobBase::AddTask(TaskBatch* taskBatch)
 
 bool BakeJobBase::HasRemainingTexels() const
 {
-    return m_texelIndex < m_texelIndices.Size() * m_lightmapper->NumTexelSamples();
+    return m_texelIndex < m_texelIndices.Size() * m_baker->NumTexelSamples();
 }
 
 void BakeJobBase::GatherTexels(uint32 maxTexels, Array<LightmapTexel*>& outTexels)
 {
-    const bool hasRays = m_lightmapper->PerformsRayTracing();
+    const bool hasRays = m_baker->PerformsRayTracing();
 
     BakeDataBase& bakeData = GetBakeData();
 
@@ -223,7 +243,7 @@ void BakeJobBase::GatherTexels(uint32 maxTexels, Array<LightmapTexel*>& outTexel
 
 uint32 BakeJobBase::ProcessTexels(Span<LightmapTexel*> texels, uint32 texelOffset)
 {
-    if (!m_lightmapper->PerformsRayTracing())
+    if (!m_baker->PerformsRayTracing())
     {
         return 0;
     }
@@ -246,7 +266,18 @@ uint32 BakeJobBase::ProcessTexels(Span<LightmapTexel*> texels, uint32 texelOffse
     World* world = GetScene()->GetWorld();
     Assert(world != nullptr);
 
-    PUSH_RENDER_COMMAND(LightmapRender, this, MakeStrongRef(world), m_params.view, std::move(rays), texelOffset);
+    CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder();
+
+    TraceLightmapRaysPayload* payload = new TraceLightmapRaysPayload;
+    payload->job = this;
+    payload->world = MakeStrongRef(world);
+    payload->view = m_params.view;
+    payload->rays = std::move(rays);
+    payload->rayOffset = texelOffset;
+
+    cr << TraceLightmapRaysCmd(payload);
+
+    cr.Done();
 
     return numTexels;
 }
@@ -289,7 +320,9 @@ uint32 BakeJobBase::Process(uint32 maxTexels)
         return 0;
     }
 
-    if (!tracingComplete.Get(MemoryOrder::ACQUIRE))
+    const int32 expectedSignalValue = int32(m_params.renderers->Size());
+
+    if (!tracingCompleteSignal.IsSignalled(expectedSignalValue))
     {
         // Wait for current rendering tasks to complete before enqueueing new ones.
 
@@ -330,30 +363,15 @@ uint32 BakeJobBase::Process(uint32 maxTexels)
         }
     }
 
-    bool isProcessingRemainingTexels = false;
-
+    if (m_texelIndex >= m_texelIndices.Size() * m_baker->NumTexelSamples()
+        && tracingCompleteSignal.IsSignalled(expectedSignalValue))
     {
-        TSharedLock lock(m_previousFrameRaysMutex);
-
-        if (m_previousFrameRays.Any())
-        {
-            isProcessingRemainingTexels = true;
-        }
-    }
-
-    if (!isProcessingRemainingTexels
-        && m_texelIndex >= m_texelIndices.Size() * m_lightmapper->NumTexelSamples()
-        && tracingComplete.Get(MemoryOrder::ACQUIRE))
-    {
-        HYP_LOG(Lightmap, Verbose, "Lightmap job {}: All texels processed ({} / {}), stopping", m_uuid, m_texelIndex, m_texelIndices.Size() * m_lightmapper->NumTexelSamples());
+        HYP_LOG(Lightmap, Verbose, "Lightmap job {}: All texels processed ({} / {}), stopping", m_uuid, m_texelIndex, m_texelIndices.Size() * m_baker->NumTexelSamples());
 
         Stop();
 
         return 0;
     }
-
-    /// \todo : Radiance map won't need as many samples as irradiance due to having less variance in directions,
-    // we should separate BakeJob to be per- shading type, so the radiance one can finish earlier.
 
     for (UniquePtr<ILightmapRenderer>& lightmapRenderer : *m_params.renderers)
     {
@@ -372,13 +390,13 @@ uint32 BakeJobBase::Process(uint32 maxTexels)
         }
     }
 
-    const uint32 totalNumTexels = uint32(m_texelIndices.Size()) * m_lightmapper->NumTexelSamples();
+    const uint32 totalNumTexels = uint32(m_texelIndices.Size()) * m_baker->NumTexelSamples();
     AssertDebug(totalNumTexels > 0);
 
     maxTexels = MathUtil::Min(maxTexels, totalNumTexels);
-    maxTexels = MathUtil::Min(maxTexels, m_lightmapper->MaxTexelsPerFrame());
+    maxTexels = MathUtil::Min(maxTexels, m_baker->MaxTexelsPerFrame());
 
-    if (m_lightmapper->PerformsRayTracing())
+    if (m_baker->PerformsRayTracing())
     {
         if (m_params.renderers->Empty())
         {
@@ -401,7 +419,7 @@ uint32 BakeJobBase::Process(uint32 maxTexels)
     GatherTexels(maxTexels, texels);
     AssertDebug(texels.Size() <= maxTexels);
 
-    return ProcessTexels(Span<LightmapTexel*>(texels.Data(), texels.Size()), texelOffset);
+    return ProcessTexels(texels, texelOffset);
 }
 
 #pragma endregion BakeJobBase

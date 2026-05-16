@@ -10,6 +10,7 @@
 #include <Core/threading/AtomicVar.hpp>
 #include <Core/threading/Task.hpp>
 #include <Core/threading/Semaphore.hpp>
+#include <Core/threading/ThreadSignal.hpp>
 
 #include <Core/utilities/Span.hpp>
 #include <Core/utilities/Uuid.hpp>
@@ -152,7 +153,9 @@ public:
         return m_runningSemaphore.IsInSignalState();
     }
 
-    AtomicVar<bool> tracingComplete;
+    // Lightmap tracing only
+    ThreadSignal tracingCompleteSignal;
+    ByteBuffer readbackData;
 
 protected:
     virtual void Start_Internal() = 0;
@@ -181,7 +184,7 @@ protected:
     void Stop();
     void Stop(const Error& error);
 
-    BakerBase* m_lightmapper;
+    BakerBase* m_baker;
 
     BakeJobParams m_params;
 

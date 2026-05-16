@@ -13,7 +13,7 @@
 #include <Core/containers/Map.hpp>
 #include <Core/containers/FlatMap.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderMemory.hpp>
 
 #include <rendering/DescriptorSet.hpp>

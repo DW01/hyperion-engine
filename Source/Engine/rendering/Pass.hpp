@@ -19,7 +19,7 @@
 
 #include <rendering/CullData.hpp>
 #include <rendering/GraphicsPipelineCache.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 namespace Hyperion {
 

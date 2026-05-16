@@ -13,7 +13,7 @@
 #include <rendering/RenderProxyList.hpp>
 #include <rendering/RenderProxy.hpp>
 #include <rendering/RenderCommand.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderConfig.hpp>
 #include <rendering/Device.hpp>
 #include <rendering/Frame.hpp>
@@ -26,7 +26,6 @@
 #include <rendering/ShaderInstance.hpp>
 #include <rendering/PlaceholderData.hpp>
 #include <rendering/TextureViewCache.hpp>
-#include <rendering/CBufferAllocator.hpp>
 #include <rendering/Buffers.hpp>
 
 #include <rendering/util/DeletionQueue.hpp>
@@ -79,27 +78,7 @@ static constexpr uint32 LightmapVolumeMaxBoundEnvProbes = 4;
 static const ShaderPropertyId s_propMaxLights = InternShaderProperty(ShaderProperty(NAME("MAX_LIGHTS"), int(LightmapVolumeMaxBoundLights)));
 static const ShaderPropertyId s_propMaxEnvProbes = InternShaderProperty(ShaderProperty(NAME("MAX_ENV_PROBES"), int(LightmapVolumeMaxBoundEnvProbes)));
 
-#pragma region Render commands
-
-struct SetGpuLightmapperReady : RenderCommand
-{
-    RC<GpuLightmapperReadyNotification> notification;
-
-    SetGpuLightmapperReady(const RC<GpuLightmapperReadyNotification>& notification)
-        : notification(notification)
-    {
-        Assert(notification != nullptr);
-    }
-
-    virtual RendererResult operator()() override
-    {
-        notification->Signal();
-
-        return {};
-    }
-};
-
-#pragma endregion Render commands
+HYP_DISABLE_OPTIMIZATION;
 
 namespace Baking {
 
@@ -139,32 +118,30 @@ LightmapRenderer_GpuPathTracing::~LightmapRenderer_GpuPathTracing()
 {
     EnqueueDeletion(std::move(m_tlas));
 
-    for (KeyValuePair<BakeJobBase*, JobData>& it : m_jobData)
-    {
-        EnqueueDeletion(std::move(it.second.raysBuffer));
-    }
+    m_jobData.Clear();
 }
 
 void LightmapRenderer_GpuPathTracing::CreateBuffers(BakeJobBase* job)
 {
     JobData& jd = m_jobData[job];
+    Assert(!jd.isCreated);
 
     AssertDebug(jd.raysBuffer == nullptr);
 
     jd.raysBuffer = RI.MakeGpuBuffer(GpuBufferType::StructuredBuffer, sizeof(Vec4f) * 2 * m_maxTexelsPerFrame, alignof(Vec4f));
     jd.raysBuffer->SetIsCpuAccessible(true);
+    CheckResult(jd.raysBuffer->Create());
 
     jd.hitsBufferGpu = RWStructuredBuffer(m_maxTexelsPerFrame, sizeof(LightmapHit));
     jd.hitsBufferGpu.Initialize();
 
-    // @TODO Maybe need EnqueueDeletion for hits buffer gpu? we will see
-
-    CheckResult(jd.raysBuffer->Create());
+    jd.cbuffer = RI.MakeGpuBuffer(GpuBufferType::ConstantBuffer, 8192, 256);
+    CheckResult(jd.cbuffer->Create());
 }
 
 void LightmapRenderer_GpuPathTracing::Create()
 {
-    PUSH_RENDER_COMMAND(SetGpuLightmapperReady, m_readyNotification);
+    m_readyNotification->Signal();
 }
 
 void LightmapRenderer_GpuPathTracing::CleanJobData(BakeJobBase* job)
@@ -182,7 +159,7 @@ void LightmapRenderer_GpuPathTracing::CleanJobData(BakeJobBase* job)
         return;
     }
 
-    m_jobData.Erase(jobDataIt);
+    //m_jobData.Erase(jobDataIt);
 }
 
 bool LightmapRenderer_GpuPathTracing::CanRender() const
@@ -205,7 +182,7 @@ void LightmapRenderer_GpuPathTracing::CreateAccelerationStructures()
 
     bool hasBlas = false;
 
-    const Handle<View>& view = m_lightmapper->GetView();
+    const Handle<View>& view = m_baker->GetView();
     Assert(view != nullptr);
 
     RenderProxyList& rpl = GetConsumerProxyList(view);
@@ -255,6 +232,7 @@ void LightmapRenderer_GpuPathTracing::CreateAccelerationStructures()
 
     if (!hasBlas)
     {
+        HYP_LOG(Lightmap, Warning, "No blas; cannot create tlas");
         return;
     }
 
@@ -263,9 +241,7 @@ void LightmapRenderer_GpuPathTracing::CreateAccelerationStructures()
 
 void LightmapRenderer_GpuPathTracing::UpdatePipelineState(Frame* frame, BakeJobBase* job)
 {
-    HYP_SCOPE;
-
-    Assert(m_lightmapper != nullptr);
+    Assert(m_baker != nullptr);
 
     JobData& jd = m_jobData[job];
 
@@ -279,48 +255,96 @@ void LightmapRenderer_GpuPathTracing::UpdatePipelineState(Frame* frame, BakeJobB
     jd.isCreated = true;
 }
 
-void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(Frame* frame, BakeJobBase* job, Span<LightmapHit> outHits)
+void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(
+    Frame* frame,
+    BakeJobBase* job,
+    size_t count,
+    Proc<void(Span<LightmapHit> hits)>&& callback)
 {
-    Assert(m_tlas != nullptr);
+    if (count == 0)
+    {
+        callback({});
+        return;
+    }
+
+    Assert(m_jobData.Contains(job));
 
     JobData& jd = m_jobData[job];
+    Assert(jd.isCreated);
 
     RWStructuredBuffer& hitsBuffer = jd.hitsBufferGpu;
 
     if (!hitsBuffer.cpuBuffer.Size())
     {
-        return; // no hit data
+        callback({});
+        return;
     }
 
-    Assert(hitsBuffer.cpuBuffer.Size() >= outHits.Size() * sizeof(LightmapHit));
+    GpuBufferRef readbackBuffer = RI.MakeGpuBuffer(GpuBufferType::ReadbackBuffer, count * sizeof(LightmapHit));
+    readbackBuffer->SetIsCpuAccessible(true);
+    CheckResult(readbackBuffer->Create());
 
-    GpuBufferRef stagingBuffer = RI.MakeGpuBuffer(GpuBufferType::StagingBuffer, outHits.Size() * sizeof(LightmapHit));
-    Assert(stagingBuffer->Create());
+    struct ReadbackHitsDataPayload
+    {
+        GpuBuffer* buffer;
+        Proc<void(Span<LightmapHit> hits)> callback;
+    };
 
-    UniquePtr<SingleTimeCommands> singleTimeCommands = RI.GetSingleTimeCommands();
+    class ReadbackHitsDataCmd : public CmdBase
+    {
+    public:
+        ReadbackHitsDataPayload* payload;
 
-    singleTimeCommands->Push([&](CommandRecorder& cr)
+        explicit ReadbackHitsDataCmd(ReadbackHitsDataPayload* payload)
+            : payload(payload)
         {
-            const ResourceState previousResourceState = hitsBuffer.gpuBuffer->GetResourceState();
+        }
 
-            cr << InsertBarrier(hitsBuffer.gpuBuffer, RS_COPY_SRC);
-            cr << InsertBarrier(stagingBuffer, RS_COPY_DST);
+        static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
+        {
+            ReadbackHitsDataCmd* cmdCasted = static_cast<ReadbackHitsDataCmd*>(cmd);
 
-            cr << CopyBuffer(hitsBuffer.gpuBuffer, stagingBuffer, uint32(outHits.Size() * sizeof(LightmapHit)));
+            ReadbackHitsDataPayload& payload = *cmdCasted->payload;
 
-            cr << InsertBarrier(stagingBuffer, RS_COPY_SRC);
-            cr << InsertBarrier(hitsBuffer.gpuBuffer, previousResourceState);
-        });
+            GpuBuffer* buffer = payload.buffer;
+            auto& callback = payload.callback;
 
-    Assert(singleTimeCommands->Execute());
+            RI.GetCurrentFrame()->OnFrameEnd.Bind([&payload, buffer, cb = std::move(callback)](Frame*)
+                {
+                    Span<LightmapHit> hits;
+                    hits.first = reinterpret_cast<LightmapHit*>(buffer->Map());
+                    hits.last = hits.first + (buffer->Size() / sizeof(LightmapHit));
 
-    stagingBuffer->Read(sizeof(LightmapHit) * outHits.Size(), outHits.Data());
-    stagingBuffer.Reset();
+                    cb(hits);
+
+                    buffer->Release();
+
+                    delete &payload;
+                })
+                .Detach();
+        }
+    };
+
+    CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder();
+
+    cr << InsertBarrier(hitsBuffer.gpuBuffer, RS_COPY_SRC);
+    cr << InsertBarrier(readbackBuffer, RS_COPY_DST);
+
+    cr << CopyBuffer(hitsBuffer.gpuBuffer, readbackBuffer, uint32(count * sizeof(LightmapHit)));
+
+    ReadbackHitsDataPayload* payload = new ReadbackHitsDataPayload;
+    payload->buffer = readbackBuffer.Get();
+    payload->buffer->AddRef();
+
+    payload->callback = std::move(callback);
+
+    cr << ReadbackHitsDataCmd(payload);
+
+    cr.Done();
 }
 
 void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& renderSetup, BakeJobBase* job, Span<const LightmapRay> rays, uint32 rayOffset)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     if (rays.Size() == 0)
@@ -337,17 +361,19 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
 
     CreateAccelerationStructures();
 
-    if (!m_tlas->IsCreated())
+    if (!m_tlas || !m_tlas->IsCreated())
     {
         // no GpuBlas to process if TLAS not created
+        HYP_LOG(Lightmap, Error, "No top level acceleration structure created, cannot bake lightmap");
         return;
     }
 
     UpdatePipelineState(frame, job);
 
-    GpuBuffer* cbuffer = nullptr;
-    size_t cbufferOffset = 0;
-    size_t cbufferSize = 0;
+    JobData& jd = m_jobData[job];
+
+    GpuBuffer* cbuffer = jd.cbuffer;
+    Assert(cbuffer != nullptr);
 
     { // Fill constants buffer
         RenderProxyList& rpl = GetConsumerProxyList(renderSetup.view);
@@ -388,7 +414,7 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
         for (EnvProbe* envProbe : rpl.GetEnvProbes())
         {
             if ((envProbe->IsA(SkyProbe::StaticClass()) /* || envProbe->IsA(ReflectionProbe::StaticClass()) */)
-                && envProbe != m_lightmapper->GetSource()) // we don't want to bind a probe if it is being baked!
+                && envProbe != m_baker->GetSource()) // we don't want to bind a probe if it is being baked!
             {
                 if (numBoundEnvProbes >= LightmapVolumeMaxBoundEnvProbes)
                 {
@@ -405,7 +431,7 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
         }
 
         if (renderSetup.envProbe != nullptr
-            && renderSetup.envProbe != m_lightmapper->GetSource()
+            && renderSetup.envProbe != m_baker->GetSource()
             && numBoundEnvProbes < LightmapVolumeMaxBoundEnvProbes)
         {
             auto it = tempEnvProbes.FindIf([envProbe = renderSetup.envProbe](const auto& pair)
@@ -429,18 +455,33 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
             }
         }
 
-        RI.cbufferAllocator->Write(&constants);
+        ubyte* cbufferPtr = reinterpret_cast<ubyte*>(cbuffer->Map());
+        size_t cbufferWriteOffset = 0;
+        const size_t cbufferSize = cbuffer->Size();
+
+        AssertDebug(cbufferWriteOffset + sizeof(RayTracingConstants) <= cbufferSize);
+
+        Memory::Copy(cbufferPtr, &constants, sizeof(RayTracingConstants));
+        cbufferWriteOffset += sizeof(RayTracingConstants);
 
         for (uint32 i = 0; i < LightmapVolumeMaxBoundLights; i++)
         {
             if (i < uint32(tempLights.Size()))
             {
-                RI.cbufferAllocator->Write(tempLights[i].second);
+                AssertDebug(cbufferWriteOffset + sizeof(LightShaderData) <= cbufferSize);
+
+                Memory::Copy(cbufferPtr + cbufferWriteOffset, tempLights[i].second, sizeof(LightShaderData));
+                cbufferWriteOffset += sizeof(LightShaderData);
+
                 continue;
             }
 
             LightShaderData dummy {};
-            RI.cbufferAllocator->Write(&dummy);
+
+            AssertDebug(cbufferWriteOffset + sizeof(LightShaderData) <= cbufferSize);
+
+            Memory::Copy(cbufferPtr + cbufferWriteOffset, &dummy, sizeof(LightShaderData));
+            cbufferWriteOffset += sizeof(LightShaderData);
         }
 
         // sort so sky is last
@@ -482,21 +523,18 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
                 pEnvProbeShaderData = &s_dummyEnvProbeShaderData;
             }
 
-            RI.cbufferAllocator->Write(pEnvProbeShaderData);
+            AssertDebug(cbufferWriteOffset + sizeof(EnvProbeShaderData) <= cbufferSize);
+
+            Memory::Copy(cbufferPtr + cbufferWriteOffset, pEnvProbeShaderData, sizeof(EnvProbeShaderData));
+            cbufferWriteOffset += sizeof(EnvProbeShaderData);
         }
 
-        RI.cbufferAllocator->Commit(cbuffer, cbufferOffset, cbufferSize);
+        cbuffer->Flush(0, cbufferWriteOffset);
     }
-
-    JobData& jd = m_jobData[job];
 
     Assert(m_tlas && m_tlas->IsCreated());
 
     { // rays buffer
-        // PrepareFrame() (called at the start of BeginFrame) already waited the fence for
-        // this frame slot, so the GPU is done reading from raysBuffer. Write the current frame's
-        // ray data directly rather than deferring to OnFrameEnd: deferring fires 3 frames later
-        // (one full NumFramesInFlight cycle), which means the GPU would read stale data.
         GpuBufferRef& raysBuffer = jd.raysBuffer;
         Assert(raysBuffer != nullptr && raysBuffer->IsCreated());
 
@@ -505,7 +543,7 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
 
         for (size_t i = 0; i < rays.Size(); i++)
         {
-            rayData[i * 2]     = Vec4f(rays[i].ray.position, 1.0f);
+            rayData[i * 2] = Vec4f(rays[i].ray.position, 1.0f);
             rayData[i * 2 + 1] = Vec4f(rays[i].ray.direction, 0.0f);
         }
 
@@ -514,7 +552,7 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
         raysBuffer->Flush(0, rayData.ByteSize());
     }
 
-    CommandRecorder& cr = frame->cr;
+    CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder();
 
     cr << SetCurrentShader(GetShaderDesc(m_shadingType));
 
@@ -523,7 +561,7 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
     cr << SetShaderUniform(2, "HitsBuffer"_sh, jd.hitsBufferGpu.gpuBuffer, ShaderDataOffset(0, sizeof(Vec4f)));
     cr << SetShaderUniform(3, "RaysBuffer"_sh, jd.raysBuffer, ShaderDataOffset(0, sizeof(Vec4f)));
     cr << SetShaderUniform(5, "MaterialsBuffer"_sh, RI.namedBuffers[NamedBuffer::Materials]);
-    cr << SetShaderUniform(6, "CBuffer"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
+    cr << SetShaderUniform(6, "CBuffer"_sh, cbuffer);
 
     cr << SetShaderUniform(7, "SamplerNearest"_sh, RI.placeholderData->GetSamplerNearest());
     cr << SetShaderUniform(8, "SamplerLinear"_sh, RI.placeholderData->GetSamplerLinear());
@@ -535,9 +573,13 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
 
     cr << SetShaderUniform(12, "EnvProbesTexture"_sh, RI.textureViewCache->GetOrCreate(RI.envProbesTexture));
 
-    frame->cr << InsertBarrier(jd.hitsBufferGpu.gpuBuffer, RS_UNORDERED_ACCESS);
-    frame->cr << TraceRays(Vec3u { uint32(rays.Size()), 1, 1 });
-    frame->cr << InsertBarrier(jd.hitsBufferGpu.gpuBuffer, RS_UNORDERED_ACCESS);
+    Assert(jd.hitsBufferGpu.gpuBuffer->Size() >= rays.Size() * sizeof(LightmapHit));
+    Assert(jd.raysBuffer->Size() >= rays.Size() * 2 * sizeof(Vec4f));
+
+    cr << InsertBarrier(jd.hitsBufferGpu.gpuBuffer, RS_UNORDERED_ACCESS);
+    cr << TraceRays(Vec3u { uint32(rays.Size()), 1, 1 });
+
+    cr.Done();
 }
 
 #pragma endregion LightmapRenderer_GpuPathTracing

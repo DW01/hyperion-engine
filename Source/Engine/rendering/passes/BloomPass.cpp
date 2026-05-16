@@ -12,7 +12,7 @@
 #include <rendering/GraphicsPipelineCache.hpp>
 #include <rendering/SamplerCache.hpp>
 #include <rendering/RenderInterface.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/Frame.hpp>
 #include <rendering/RenderProxy.hpp>
 #include <rendering/GraphicsPipeline.hpp>
@@ -36,6 +36,7 @@
 
 #include <engine/EngineDriver.hpp>
 #include <engine/CVarManager.hpp>
+#include <engine/EngineStats.hpp>
 
 #include <asset/AssetRegistry.hpp>
 
@@ -44,6 +45,8 @@ namespace Hyperion {
 class DeferredPassData;
 
 HYP_DECLARE_LOG_CHANNEL(Rendering);
+
+static EngineStatGpuTimer s_statBloom("Rendering/GPU/Bloom");
 
 struct BloomUniforms
 {
@@ -201,13 +204,12 @@ void BloomPass::Create()
 
 void BloomPass::Render(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
+
+    ENGINE_STAT_GPU_SCOPE(&s_statBloom);
 
     AssertDebug(renderSetup.world && renderSetup.view);
     AssertDebug(renderSetup.passData != nullptr);
-
-    const uint32 frameIndex = frame->GetFrameIndex();
 
     DeferredPassData* dpd = DynamicCast<DeferredPassData>(renderSetup.passData);
     AssertDebug(dpd != nullptr);
@@ -229,8 +231,6 @@ ShaderPropertySet BloomPass::GetShaderProperties() const
 
 void BloomPass::ExtractBrightAreas(Frame* frame, const RenderSetup& renderSetup, const FramebufferRef& inputsFramebuffer, DeferredPassData* dpd)
 {
-    HYP_SCOPE;
-
     CommandRecorder& cr = frame->cr;
 
     const Vec2u extent = ShouldRenderHalfRes() ? m_extent / 2 : m_extent;
@@ -273,8 +273,6 @@ void BloomPass::ExtractBrightAreas(Frame* frame, const RenderSetup& renderSetup,
 
 void BloomPass::Downsample(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
-
     CommandRecorder& cr = frame->cr;
 
     for (uint32 i = 0; i < NumMipLevels - 1; i++)
@@ -317,8 +315,6 @@ void BloomPass::Downsample(Frame* frame, const RenderSetup& renderSetup)
 
 void BloomPass::Upsample(Frame* frame, const RenderSetup& renderSetup)
 {
-    HYP_SCOPE;
-
     CommandRecorder& cr = frame->cr;
 
     for (uint32 i = 0; i < NumMipLevels - 1; i++)

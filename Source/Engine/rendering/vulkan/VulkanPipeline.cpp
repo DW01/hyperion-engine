@@ -73,6 +73,26 @@ void VulkanPipelineBase::SetDebugName(Name name)
     }
 }
 
+void VulkanPipelineBase::SetDebugNameLayout(Name name)
+{
+    if (m_layout == VK_NULL_HANDLE)
+    {
+        return;
+    }
+
+    const char* strName = name.LookupString();
+
+    if (RI.dynamicFunctions.vkSetDebugUtilsObjectNameEXT)
+    {
+        VkDebugUtilsObjectNameInfoEXT objectNameInfo { VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
+        objectNameInfo.objectType = VK_OBJECT_TYPE_PIPELINE_LAYOUT;
+        objectNameInfo.objectHandle = (uint64)m_layout;
+        objectNameInfo.pObjectName = strName;
+
+        RI.dynamicFunctions.vkSetDebugUtilsObjectNameEXT(RI.GetDevice()->GetDevice(), &objectNameInfo);
+    }
+}
+
 #endif
 
 #pragma endregion VulkanPipelineBase

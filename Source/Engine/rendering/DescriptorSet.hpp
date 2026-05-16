@@ -23,7 +23,7 @@
 #include <Core/Defines.hpp>
 
 #include <rendering/RenderResult.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/Shared.hpp>
 
 #include <rendering/util/DeletionQueue.hpp>

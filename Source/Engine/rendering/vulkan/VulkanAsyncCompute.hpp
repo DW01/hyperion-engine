@@ -15,7 +15,7 @@
 #undef INCLUDE_FROM_RHI_BASE
 
 #include <rendering/vulkan/VulkanFence.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <vulkan/vulkan.h>
 
@@ -39,7 +39,7 @@ public:
     }
 
     bool CheckStatus() override;
-    
+
     void Create() override;
 
     HYP_FORCE_INLINE VulkanCommandBuffer* GetCommandBuffer() const

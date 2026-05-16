@@ -16,7 +16,7 @@
 
 #include <Core/Defines.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <rendering/dx12/DX12DescriptorHeaps.hpp>
 #include <rendering/dx12/DX12Shared.hpp>
@@ -70,7 +70,7 @@ private:
     HWND m_hwnd;
     ComPtr<IDXGISwapChain4> m_swapChain;
     Array<ID3D12Resource*> m_backBuffers;
-    
+
     DX12DescriptorHandle m_rtvDescriptorHandle;
     Array<D3D12_CPU_DESCRIPTOR_HANDLE> m_rtvHandles;
 

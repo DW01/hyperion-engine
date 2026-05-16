@@ -13,7 +13,7 @@
 
 #include <Core/containers/Map.hpp>
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <engine/EngineMemory.hpp>
 

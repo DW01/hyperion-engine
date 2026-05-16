@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <vulkan/vulkan.h>
 
@@ -37,6 +37,18 @@ public:
     {
     }
 
+    VulkanSemaphore(const VulkanSemaphore&) = delete;
+    VulkanSemaphore& operator=(const VulkanSemaphore&) = delete;
+
+    VulkanSemaphore(VulkanSemaphore&& other) noexcept
+        : m_handle(other.m_handle),
+          m_type(other.m_type)
+    {
+        other.m_handle = VK_NULL_HANDLE;
+    }
+
+    VulkanSemaphore& operator=(VulkanSemaphore&& other) noexcept;
+
     ~VulkanSemaphore() override;
 
     HYP_FORCE_INLINE VkSemaphore GetVulkanHandle() const
@@ -64,6 +76,12 @@ public:
     void Signal(uint64 value);
     void WaitForValue(uint64 value, uint64 timeoutNs = UINT64_MAX);
     uint64 GetCounterValue() const;
+
+#if HYP_DEBUG_MODE
+    void SetDebugName(Name name);
+
+    Name debugName;
+#endif
 
 private:
     VkSemaphore m_handle;

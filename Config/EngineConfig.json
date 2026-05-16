@@ -18,8 +18,8 @@
     "RayTracedReflections": false,
     "RayTracedGI": false,
     "RayTracingEnabled": true,
-    "IndirectRendering": false,
-    "DepthPrepass": false,
+    "IndirectRendering": true,
+    "DepthPrepass": true,
     "ParallelCollection": true,
     "SSR": {
       "Enabled": true,
@@ -51,7 +51,8 @@
     },
     "Vulkan": {
       "DebugLayers": false,
-      "TimelineSemaphores": false
+      "TimelineSemaphores": true,
+      "FIFO": false
     },
     "RayTracing": {
       "Enabled": false,
@@ -77,7 +78,7 @@
   },
   "System": {
     "SelectedGpu": {
-      "Index": 0
+      "Index": 1
     }
   },
   "Baker": {

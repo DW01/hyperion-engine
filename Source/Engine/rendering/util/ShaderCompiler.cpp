@@ -67,7 +67,7 @@ namespace Hyperion {
 HYP_DEFINE_LOG_SUBCHANNEL(ShaderCompiler, Core);
 
 // #define HYP_SHADER_COMPILER_LOGGING
-// #define HYP_ENABLE_SHADER_DEBUGGING
+#define HYP_ENABLE_SHADER_DEBUGGING
 
 /// Should missing shader variants be compiled when requested, or should we just fail?
 /// Enabling this will cause shader compilation to happen during gameplay / editor.
@@ -805,6 +805,16 @@ static ByteBuffer CompileHLSL(
 
 #pragma endregion SPRIV Compilation
 
+static constexpr const char* ShaderLanguageToBinaryExtension(ShaderCompileTargetBackend backend)
+{
+    switch (backend)
+    {
+    case ShaderCompileTargetBackend::DX12: return ".dxil";
+    case ShaderCompileTargetBackend::Vulkan: return ".spv";
+    default: return "";
+    }
+}
+
 struct LoadedSourceFile
 {
     ShaderModuleType type;
@@ -813,13 +823,14 @@ struct LoadedSourceFile
     Time lastModifiedTimestamp;
     String source;
 
-    FilePath GetOutputFilepath(const Shader& shader) const
+    FilePath GetOutputFilepath(
+        const Shader& shader,
+        ShaderCompileTargetBackend backend,
+        ShaderCompileTargetPlatform platform) const
     {
-        HashCode hc;
-        hc.Add(file);
-        hc.Add(shader.properties.GetHashCode());
+        const FilePath path = FilePath(file);
 
-        return GetTempDirectory() / FilePath(file).Basename() + "_" + (String::ToString(hc.Value()) + ".bin");
+        return GetTempDirectory() / (FilePath(path.StripExtension()).Basename() + "_" + String::ToString(shader.properties.GetHashCode().Value()) + ShaderLanguageToBinaryExtension(backend));
     }
 
     HashCode GetHashCode() const
@@ -3034,12 +3045,18 @@ bool ShaderCompiler::CompileBundle(
             const Optional<ShaderCompileTargetBackend> targetBackend = GetTargetBackendFromPerm(perm);
             const Optional<ShaderCompileTargetPlatform> targetPlatform = GetTargetPlatformFromPerm(perm);
 
+            if (!targetBackend.HasValue() || !targetPlatform.HasValue())
+            {
+                HYP_LOG(ShaderCompiler, Warning, "No target backend or platform for shader {}", decl.name);
+                return;
+            }
+
             // Determine if we're compiling for Vulkan or DX12 for this specific variant
-            const bool isVulkan = targetBackend.HasValue() && targetBackend.Get() == ShaderCompileTargetBackend::Vulkan;
-            const bool isDX12 = targetBackend.HasValue() && targetBackend.Get() == ShaderCompileTargetBackend::DX12;
+            const bool isVulkan = targetBackend.Get() == ShaderCompileTargetBackend::Vulkan;
+            const bool isDX12 = targetBackend.Get() == ShaderCompileTargetBackend::DX12;
 
             // DX12 is exclusive to Windows; skip invalid platform+backend combinations
-            if (targetPlatform.HasValue() && isDX12 && targetPlatform.Get() != ShaderCompileTargetPlatform::Windows)
+            if (isDX12 && targetPlatform.Get() != ShaderCompileTargetPlatform::Windows)
             {
                 HYP_LOG(ShaderCompiler, Verbose, "Skipping DX12 shader variant for non-Windows platform: {}", perm.ToString());
                 return;
@@ -3074,7 +3091,7 @@ bool ShaderCompiler::CompileBundle(
                 const LoadedSourceFile& item = loadedSourceFiles[index];
 
                 // check if a file exists w/ same hash
-                const FilePath outputFilepath = item.GetOutputFilepath(*shader);
+                const FilePath outputFilepath = item.GetOutputFilepath(*shader, *targetBackend, *targetPlatform);
 
                 filepaths[index] = { outputFilepath, false };
 
@@ -3188,7 +3205,6 @@ bool ShaderCompiler::CompileBundle(
                     Mutex::Guard guard(errorMessagesMutex);
                     outBundle->errorMessages.EmplaceBack("Cannot determine HLSL output type - no target backend specified for this variant");
 
-                    HYP_BREAKPOINT;
                     ++numErrored;
 
                     continue;

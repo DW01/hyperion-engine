@@ -6,9 +6,9 @@
 
 #pragma once
 
-#include <Core/memory/Pimpl.hpp>
-#include <Core/memory/pool/Pool.hpp>
+#include <Core/Constants.hpp>
 
+#include <Core/threading/AtomicVar.hpp>
 #include <Core/threading/util/ThreadId.hpp>
 
 #include <Core/profiling/PerformanceClock.hpp>
@@ -22,10 +22,12 @@ namespace Hyperion {
 class EngineStatsRecorder;
 struct EngineStatsSnapshot;
 class EngineStatGroup;
+class GpuTimerBackendBase;
+class CommandRecorderBase;
 
 static constexpr uint32 EngineStatsNumSamples = 1000;
 static constexpr uint32 EngineStatsMinSamples = 10;
-static constexpr uint32 EngineStatsMaxStats = 32;
+static constexpr uint32 EngineStatsMaxStats = 128;
 
 static constexpr int StatIdMsPerFrame = 0;
 static constexpr int StatIdFps = 1;
@@ -59,8 +61,9 @@ public:
         return 0.0;
     }
 
-    virtual void Reset()
+    virtual double Reset()
     {
+        return 0.0;
     }
 };
 
@@ -152,9 +155,9 @@ public:
         return static_cast<double>(static_cast<T>(AtomicAdd(const_cast<volatile InternalType*>(&m_value), InternalType(0))));
     }
 
-    virtual void Reset() override
+    virtual double Reset() override
     {
-        AtomicExchange(&m_value, InternalType(0));
+        return static_cast<double>(AtomicExchange(&m_value, InternalType(0)));
     }
 
 private:
@@ -168,51 +171,54 @@ class HYP_API EngineStatTimer : public EngineStatBase
 public:
     explicit EngineStatTimer(UTF8StringView path, bool resetPerFrame = true)
         : EngineStatBase(EST_TIMER, path),
-          m_clock(),
-          m_totalMs(0.0)
+          m_totalMicroseconds { 0 }
     {
         EngineStatBase::resetPerFrame = resetPerFrame;
     }
 
-    /// @TODO Make thread safe with atomics.
-    /// Just record the duration, use EngineStatScope to handle the actual timing and recording of the value.
-    /// Then use uint64 for the value and convert to double in GetValue() to avoid issues with atomics and floating point types.
-
-    void StartTiming()
+    /*! \brief Atomically record elapsed time in milliseconds.
+     *  Called by EngineStatScope on its destructor. Thread-safe - can be called from any thread. */
+    void RecordElapsedMs(double ms)
     {
-        m_clock.Start();
-    }
-
-    void StopTiming()
-    {
-        m_clock.Stop();
-        m_totalMs += m_clock.ElapsedMs();
+        m_totalMicroseconds.Increment(static_cast<uint64>(ms * 1000.0), MemoryOrder::RELAXED);
     }
 
     virtual double GetValue() const override
     {
-        return m_totalMs;
+        return static_cast<double>(const_cast<EngineStatTimer *>(this)->m_totalMicroseconds.Get(MemoryOrder::RELAXED)) / 1000.0;
     }
 
-    virtual void Reset() override
+    virtual double Reset() override
     {
-        m_clock = PerformanceClock();
-        m_totalMs = 0.0;
+        const uint64 oldValue = m_totalMicroseconds.Exchange(0, MemoryOrder::RELAXED);
+        return static_cast<double>(oldValue) / 1000.0;
     }
 
 private:
-    PerformanceClock m_clock;
-    double m_totalMs;
+    threading::AtomicVar<uint64> m_totalMicroseconds;
+};
+
+class HYP_API EngineStatGpuTimer : public EngineStatTimer
+{
+public:
+    explicit EngineStatGpuTimer(UTF8StringView path, bool resetPerFrame = true)
+        : EngineStatTimer(path, resetPerFrame),
+          querySlotIndex(UINT32_MAX)
+    {
+    }
+
+    uint32 querySlotIndex;
 };
 
 struct EngineStatScope
 {
     EngineStatScope(EngineStatTimer* timer)
-        : stat(timer)
+        : stat(timer),
+          clock()
     {
         if (timer)
         {
-            timer->StartTiming();
+            clock.Start();
         }
     }
 
@@ -226,18 +232,28 @@ struct EngineStatScope
     {
         if (stat)
         {
-            switch (stat->type)
-            {
-            case EST_TIMER:
-                static_cast<EngineStatTimer*>(stat)->StopTiming();
-                break;
-            default:
-                break;
-            }
+            clock.Stop();
+            stat->RecordElapsedMs(clock.ElapsedMs());
         }
     }
 
-    EngineStatBase* stat;
+    EngineStatTimer* stat;
+    PerformanceClock clock;
+};
+
+struct EngineStatGpuScope
+{
+    EngineStatGpuScope(EngineStatGpuTimer* inTimer, CommandRecorderBase* inCommandRecorder = nullptr);
+    ~EngineStatGpuScope();
+
+    EngineStatGpuScope(const EngineStatGpuScope&) = delete;
+    EngineStatGpuScope& operator=(const EngineStatGpuScope&) = delete;
+
+    EngineStatGpuScope(EngineStatGpuScope&&) noexcept = delete;
+    EngineStatGpuScope& operator=(EngineStatGpuScope&&) noexcept = delete;
+
+    EngineStatGpuTimer* timer;
+    CommandRecorderBase* commandRecorder;
 };
 
 struct EngineStatsSnapshotValue
@@ -368,9 +384,10 @@ private:
 
     void RecordStat(int statId, EngineStatType type, double value);
 
-    Pimpl<struct EngineStatsRecorderImpl> m_impl;
+    struct EngineStatsRecorderImpl* m_impl;
 };
 
 #define ENGINE_STAT_SCOPE(timer) EngineStatScope HYP_CONCAT(engineStatScope, __LINE__)(timer)
+#define ENGINE_STAT_GPU_SCOPE(timer, ...) EngineStatGpuScope HYP_CONCAT(engineStatGpuScope, __LINE__)(timer, ##__VA_ARGS__)
 
 } // namespace Hyperion

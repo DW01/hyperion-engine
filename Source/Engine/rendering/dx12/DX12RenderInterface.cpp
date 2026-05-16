@@ -13,6 +13,7 @@
 #include <rendering/dx12/DX12Frame.hpp>
 #include <rendering/dx12/DX12Swapchain.hpp>
 #include <rendering/dx12/DX12AsyncCompute.hpp>
+#include <rendering/dx12/DX12GpuTimerBackend.hpp>
 #include <rendering/dx12/DX12Fence.hpp>
 #include <rendering/dx12/DX12AccelerationStructure.hpp>
 #include <rendering/dx12/DX12DescriptorSet.hpp>
@@ -48,6 +49,8 @@ namespace Hyperion {
 
 HYP_DECLARE_LOG_CHANNEL(RenderingBackend);
 
+static EngineStatGpuTimer s_statGpuFrameTime("Rendering/GPU/FrameTime");
+
 // #define HYP_DX12_ENABLE_DEBUG_LAYER
 // #define HYP_DX12_ENABLE_DRED
 
@@ -58,7 +61,7 @@ class DX12RenderConfig final : public IRenderConfig
 public:
     DX12RenderConfig()
     {
-        EngineConfig& cfg = GetEngineConfig();
+        EngineConfig cfg;
         cfg.Load();
 
         bindlessTextures = false;
@@ -130,6 +133,7 @@ RendererResult DX12RenderInterface::Initialize()
 
     descriptorHeapManager = PoolNew<DX12DescriptorHeapManager>(*g_renderPool);
     m_renderConfig = MakePimpl<DX12RenderConfig>();
+    m_gpuTimerBackend = MakePimpl<DX12GpuTimerBackend>();
 
     uint32 createFactoryFlags = 0;
 
@@ -141,7 +145,7 @@ RendererResult DX12RenderInterface::Initialize()
     if (!SUCCEEDED(res))
         return HYP_MAKE_ERROR(RendererError, "Failed to create DXGI Factory", res);
 
-    EngineConfig& cfg = GetEngineConfig();
+    EngineConfig cfg;
     cfg.Load();
 
     const ConfigValue& cfgSelectedGpuIndex = cfg.Get("System.SelectedGpu.Index");
@@ -358,6 +362,21 @@ RendererResult DX12RenderInterface::Initialize()
         return HYP_MAKE_ERROR(RendererError, "Failed to create frame fence event");
     }
 
+    // Create transient sync fence for GPU-side synchronization between
+    // transient command buffer submissions and the main frame submission.
+    // Each transient submission signals this fence with an incremented value,
+    // and the main frame GPU-waits on it before executing its command buffer.
+    hr = m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_transientSyncFence));
+    if (FAILED(hr))
+    {
+        return HYP_MAKE_ERROR(RendererError, "Failed to create transient sync fence", hr);
+    }
+
+    for (auto& value : m_transientSyncValues)
+    {
+        value = 0;
+    }
+
     for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
     {
         m_commandBuffers[frameIndex] = MakeHandle<DX12CommandBuffer>(D3D12_COMMAND_LIST_TYPE_DIRECT);
@@ -430,8 +449,12 @@ void DX12RenderInterface::Shutdown()
         m_frameFenceEvent = nullptr;
     }
     m_frameFence.Reset();
+    m_transientSyncFence.Reset();
 
     m_queueData = {};
+
+    m_gpuTimerBackend->Shutdown();
+    m_gpuTimerBackend.Reset();
 
     RenderInterface::Shutdown();
 
@@ -584,6 +607,11 @@ void DX12RenderInterface::PrepareFrame(DX12Frame* frame)
     }
 
     frame->OnFrameStart();
+
+    // Reset transient sync value for this frame index — the old frame's
+    // transient submissions have been CPU-waited on above, so the sync value
+    // from NumFramesInFlight ago is no longer needed.
+    m_transientSyncValues[frameIndex] = 0;
 }
 
 DX12SwapchainRef DX12RenderInterface::CreateSwapchain(ApplicationWindow* window, const Vec2u& extent)
@@ -620,17 +648,8 @@ void DX12RenderInterface::PresentToSwapchain(DX12Swapchain* swapchain)
 
     frame->WriteCommandBuffer(commandBuffer);
 
-    const DX12QueueData* queueData = GetQueueData(D3D12_COMMAND_LIST_TYPE_DIRECT);
-    AssertDebug(queueData != nullptr);
-
-    const uint64 signalValue = uint64(frameCounter) + 1;
-
-    HRESULT hr = queueData->commandQueue->Signal(m_frameFence.Get(), signalValue);
-    if (FAILED(hr))
-    {
-        HYP_LOG(RenderingBackend, Error, "Failed to signal frame fence! Error: {}", hr);
-        CheckDeviceRemovedReason(m_device.Get());
-    }
+    m_gpuTimerBackend->WriteStopTimestamp(commandBuffer, &s_statGpuFrameTime);
+    m_gpuTimerBackend->OnFrameEnd();
 
     // HYP_LOG_TEMP("Signalling {} on frame {}", signalValue, frameIndex);
 
@@ -682,6 +701,12 @@ DX12CommandBuffer& DX12RenderInterface::GetTransientCommandBuffer()
 
 void DX12RenderInterface::SubmitTransientCommandBuffer(DX12CommandBuffer& commandBuffer)
 {
+    // Transient command buffers are submitted to the DIRECT queue alongside
+    // the main command buffer. A dedicated sync fence (m_transientSyncFence)
+    // is signaled after each transient submission, and the main frame
+    // GPU-waits on it via InsertTransientSyncBarrier() before executing.
+    // This ensures the main rendering sees all transient work.
+
     const uint32 frameCounter = GetFrameCounter();
     const uint32 frameIndex = frameCounter % NumFramesInFlight;
 
@@ -730,6 +755,20 @@ void DX12RenderInterface::SubmitTransientCommandBuffer(DX12CommandBuffer& comman
     {
         HYP_LOG(RenderingBackend, Error, "Failed to signal fence after executing command lists! Error: {}", hr);
         CheckDeviceRemovedReason(m_device.Get());
+    }
+
+    // Signal the transient sync fence so that the main frame submission
+    // (WriteCommandBuffer) can GPU-wait on this value and guarantee ordering.
+    {
+        uint64& syncValue = m_transientSyncValues[frameIndex];
+        ++syncValue;
+
+        hr = queueData->commandQueue->Signal(m_transientSyncFence.Get(), syncValue);
+        if (FAILED(hr))
+        {
+            HYP_LOG(RenderingBackend, Error, "Failed to signal transient sync fence! Error: {}", hr);
+            CheckDeviceRemovedReason(m_device.Get());
+        }
     }
 }
 
@@ -1007,6 +1046,31 @@ void DX12RenderInterface::SubmitAsyncCompute(DX12AsyncCompute* asyncCompute)
     m_submittedAsyncComputes.PushBack(asyncCompute);
 }
 
+void DX12RenderInterface::RecordStartTimestamp(DX12CommandBuffer* cmd, EngineStatGpuTimer* timer)
+{
+    DX12Frame* frame = GetCurrentFrame();
+
+    if (frame && m_gpuTimerBackend)
+    {
+        frame->cr << RecordGpuTimestamp(timer, m_gpuTimerBackend.Get(), /* isStart */ true);
+    }
+}
+
+void DX12RenderInterface::RecordStopTimestamp(DX12CommandBuffer* cmd, EngineStatGpuTimer* timer)
+{
+    DX12Frame* frame = GetCurrentFrame();
+
+    if (frame && m_gpuTimerBackend)
+    {
+        frame->cr << RecordGpuTimestamp(timer, m_gpuTimerBackend.Get(), /* isStart */ false);
+    }
+}
+
+void DX12RenderInterface::ResolveGpuFrameResults(uint32 completedFrameIndex)
+{
+    // @todo:
+}
+
 void DX12RenderInterface::ReleaseTransientMemory()
 {
     GetCurrentFrame()->ResetTransientStates();
@@ -1016,8 +1080,26 @@ void DX12RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
 {
     RenderInterface::BeginFrame(pCancelFlag);
 
+    m_gpuTimerBackend->BeginFrame();
+
+    RecordStartTimestamp(GetCurrentCommandBuffer(), &s_statGpuFrameTime);
+
     // Rebind descriptor heaps after command buffer reset in BeginFrame()
     BindDescriptorHeaps(*GetCurrentCommandBuffer());
+}
+
+void DX12RenderInterface::InsertTransientSyncBarrier()
+{
+    const uint32 frameIndex = GetFrameCounter() % NumFramesInFlight;
+    const uint64 syncValue = m_transientSyncValues[frameIndex];
+
+    if (syncValue > 0 && m_transientSyncFence != nullptr)
+    {
+        const DX12QueueData* queueData = GetQueueData(D3D12_COMMAND_LIST_TYPE_DIRECT);
+        Assert(queueData != nullptr);
+
+        queueData->commandQueue->Wait(m_transientSyncFence.Get(), syncValue);
+    }
 }
 
 #pragma endregion DX12RenderInterface

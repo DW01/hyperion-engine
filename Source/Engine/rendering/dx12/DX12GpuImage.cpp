@@ -891,6 +891,7 @@ void DX12GpuImage::CopyToBuffer(
     const uint8 numLevels = (subResource.numLevels == UINT8_MAX)
         ? uint8(NumMips() - subResource.baseMipLevel)
         : subResource.numLevels;
+
     const uint16 numLayers = (subResource.numLayers == UINT16_MAX)
         ? uint16(NumArrayLayers() - subResource.baseArrayLayer)
         : subResource.numLayers;

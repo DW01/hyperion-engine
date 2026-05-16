@@ -7,7 +7,7 @@
 #pragma once
 
 #include <rendering/FullScreenPass.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <Core/reflection/Handle.hpp>
 

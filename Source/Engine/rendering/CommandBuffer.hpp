@@ -23,7 +23,7 @@ class CommandBufferBase : public ObjectBase
 
 public:
     virtual ~CommandBufferBase() override = default;
-    
+
     static Pool* GetAllocator() { return g_rhiPool; }
 
     virtual bool IsCreated() const = 0;
@@ -46,6 +46,23 @@ public:
     virtual void DrawIndexedIndirect(
         const GpuBuffer* buffer,
         uint32 bufferOffset) const = 0;
+
+#if HYP_DEBUG_MODE
+    HYP_FORCE_INLINE Name GetDebugName() const
+    {
+        return m_debugName;
+    }
+
+    virtual void SetDebugName(const Name& name)
+    {
+        m_debugName = name;
+    }
+#endif
+
+protected:
+#if HYP_DEBUG_MODE
+    Name m_debugName;
+#endif
 };
 
 } // namespace Hyperion

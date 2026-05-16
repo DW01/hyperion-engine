@@ -26,6 +26,8 @@
 #include <rendering/RendererMain.hpp>
 #include <rendering/TextureViewCache.hpp>
 
+#include <engine/EngineStats.hpp>
+
 #include <scene/Light.hpp>
 #include <scene/View.hpp>
 
@@ -39,7 +41,8 @@ namespace Hyperion {
 
 HYP_DECLARE_LOG_CHANNEL(Rendering);
 
-// Draw the actual shadowmap
+static EngineStatGpuTimer s_statShadowMaps("Rendering/GPU/ShadowMaps");
+
 static constexpr uint32 BucketMask = RenderBucketMask<RenderBucket::Opaque, RenderBucket::Translucent, RenderBucket::Lightmapped>;
 
 #pragma region ShadowsPassData
@@ -123,6 +126,8 @@ void ShadowsPassBase::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
     AssertOnThread(g_renderThread);
 
     AssertDebug(renderSetup.view && renderSetup.world && renderSetup.light);
+
+    ENGINE_STAT_GPU_SCOPE(&s_statShadowMaps);
 
     Light* light = renderSetup.light;
 

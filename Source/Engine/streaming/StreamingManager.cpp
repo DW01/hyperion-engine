@@ -846,6 +846,9 @@ void StreamingManager::Stop()
     if (m_thread != nullptr && m_thread->IsRunning())
     {
         m_thread->Stop();
+
+        m_thread->GetNotifier().Signal();
+
         m_thread->Join();
 
         m_thread.Reset();

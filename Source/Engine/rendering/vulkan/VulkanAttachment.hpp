@@ -14,7 +14,7 @@
 #undef INCLUDE_FROM_RHI
 #undef INCLUDE_FROM_RHI_BASE
 
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 
 #include <Core/math/MathUtil.hpp>
 
@@ -41,7 +41,7 @@ public:
         const VulkanFramebufferWeakRef& framebuffer,
         RenderPassMode renderPassMode,
         const AttachmentDesc& attachmentDesc);
-    
+
     VulkanAttachment(
         const TextureDesc& textureDesc,
         const VulkanFramebufferWeakRef& framebuffer,

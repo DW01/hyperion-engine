@@ -11,7 +11,7 @@
 #include <rendering/RenderInterface.hpp>
 #include <rendering/Frame.hpp>
 #include <rendering/CommandRecorder.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/DescriptorSet.hpp>
 #include <rendering/GraphicsPipeline.hpp>
 #include <rendering/ComputePipeline.hpp>
@@ -29,6 +29,8 @@
 
 #include <rendering/util/DeletionQueue.hpp>
 #include <rendering/util/ShaderPropertyDictionary.hpp>
+
+#include <engine/EngineStats.hpp>
 
 #include <scene/ParticleVolume.hpp>
 #include <scene/View.hpp>
@@ -53,6 +55,9 @@ namespace Hyperion {
 static constexpr uint32 DiscardFrames = 60;
 
 static const ShaderPropertyId s_propHasPhysics = InternShaderProperty(ShaderProperty(NAME("HAS_PHYSICS")));
+
+static EngineStatGpuTimer s_statComputeParticles("Rendering/GPU/ComputeParticles");
+static EngineStatGpuTimer s_statDrawParticles("Rendering/GPU/DrawParticles");
 
 ParticlesPass::VolumeState::~VolumeState()
 {
@@ -263,6 +268,8 @@ void ParticlesPass::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
     { // update gpu particles pass (compute, done before frame is rendered)
         CommandRecorder& cr = frame->preRenderCommands;
 
+        ENGINE_STAT_GPU_SCOPE(&s_statComputeParticles, &cr);
+
         ShaderPropertySet properties;
         properties.Add(InternShaderProperty(ShaderProperty(NAME("MAX_PARTICLES"), int(state.maxParticles))));
         properties.Set(s_propHasPhysics, state.hasPhysics);
@@ -295,6 +302,8 @@ void ParticlesPass::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
     state.fc = GetFrameCounter();
 
     { // draw particles pass
+        ENGINE_STAT_GPU_SCOPE(&s_statDrawParticles);
+
         CommandRecorder& cr = frame->cr;
 
         cr << SetInputLayout(state.renderableAttributes.GetMeshAttributes().inputLayout);

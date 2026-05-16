@@ -410,6 +410,13 @@ RendererResult VulkanGraphicsPipeline::Rebuild()
         vkCreatePipelineLayout(RI.GetDevice()->GetDevice(), &layoutInfo, nullptr, &m_layout),
         "Failed to create graphics pipeline layout");
 
+#if HYP_DEBUG_MODE
+    if (Name debugName = GetDebugName())
+    {
+        SetDebugNameLayout(debugName);
+    }
+#endif
+
     /* Depth / stencil */
     VkPipelineDepthStencilStateCreateInfo depthStencil { VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
     depthStencil.depthTestEnable = m_depthTest;
@@ -459,17 +466,6 @@ RendererResult VulkanGraphicsPipeline::Rebuild()
     pipelineInfo.subpass = 0; /* Index of the subpass */
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     pipelineInfo.basePipelineIndex = -1;
-
-    float specializationInfoData = 0.0f;
-
-    VkSpecializationMapEntry specializationMapEntry { 0, 0, sizeof(float) };
-
-    VkSpecializationInfo specializationInfo {
-        .mapEntryCount = 1,
-        .pMapEntries = &specializationMapEntry,
-        .dataSize = sizeof(float),
-        .pData = &specializationInfoData
-    };
 
     VULKAN_CHECK_MSG(
         vkCreateGraphicsPipelines(RI.GetDevice()->GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_handle),
@@ -609,6 +605,7 @@ void VulkanGraphicsPipeline::SetDebugName(Name name)
     }
 
     VulkanPipelineBase::SetDebugName(name);
+    VulkanPipelineBase::SetDebugNameLayout(name);
 }
 
 #endif

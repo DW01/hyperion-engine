@@ -16,9 +16,7 @@
 namespace Hyperion {
 
 BindlessStorage::BindlessStorage() = default;
-BindlessStorage::~BindlessStorage()
-{
-}
+BindlessStorage::~BindlessStorage() = default;
 
 void BindlessStorage::UnsetAllResources(BindlessStorageSlot slot)
 {

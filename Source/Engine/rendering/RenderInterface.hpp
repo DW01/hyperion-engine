@@ -11,10 +11,11 @@
 #include <Core/reflection/Handle.hpp>
 
 #include <rendering/RenderableAttributes.hpp>
-#include <rendering/RenderObject.hpp>
+#include <rendering/RenderTypes.hpp>
 #include <rendering/RenderConfig.hpp>
 #include <rendering/CommandRecorderAllocator.hpp>
 #include <rendering/RawBuffer.hpp>
+#include <rendering/GpuTimerBackend.hpp>
 
 #include <engine/DeviceDetails.hpp>
 
@@ -65,6 +66,7 @@ class EngineConfig;
 class SamplerCache;
 struct SamplerDesc;
 class RenderGroupCache;
+class EngineStatGpuTimer;
 
 class CBufferAllocator;
 class BufferAllocator;
@@ -323,6 +325,10 @@ public:
 
     virtual void BeginFrame(AtomicFlag* pCancelFlag);
     virtual void EndFrame();
+
+    virtual void RecordStartTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer) = 0;
+    virtual void RecordStopTimestamp(CommandBuffer* cmd, EngineStatGpuTimer* timer) = 0;
+    virtual void ResolveGpuFrameResults(uint32 completedFrameIndex) = 0;
 
     virtual SwapchainRef CreateSwapchain(ApplicationWindow* window, const Vec2u& extent) = 0;
 

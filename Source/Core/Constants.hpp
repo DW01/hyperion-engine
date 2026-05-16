@@ -76,6 +76,9 @@ constexpr uint32 NumGBufferTargets = 5;
 constexpr uint32 MaxEntitiesPerBatch = 16;
 constexpr uint32 MaxEntityInstanceBatches = 4096;
 
+constexpr uint32 MaxGpuTimers = 64;
+constexpr uint32 MaxGpuTimestampQueriesPerFrame = MaxGpuTimers * 2;
+
 #if HYP_ANDROID
 constexpr const char AndroidAssetPathPrefix[] = "$Android";
 #endif

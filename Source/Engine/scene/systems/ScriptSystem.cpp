@@ -39,7 +39,7 @@
 
 namespace Hyperion {
 
-EngineStatTimer g_statScriptUpdate("Script/Update");
+EngineStatTimer g_statScriptUpdate("CPU/Script/Update");
 
 #if HYP_EDITOR
 constexpr bool EnableScriptReloading = true;
