@@ -606,14 +606,9 @@ Node::NodeList::Iterator Node::FindChild(const char* name)
 {
     const StringHash stringHash { name };
 
-    return m_childNodes.FindIf([stringHash](const auto& it)
+    return m_childNodes.FindIf([stringHash](const Handle<Node>& node)
         {
-            if (!it.IsValid())
-            {
-                return false;
-            }
-
-            return it->GetName() == stringHash;
+            return node->GetName() == stringHash;
         });
 }
 
@@ -621,14 +616,9 @@ Node::NodeList::ConstIterator Node::FindChild(const char* name) const
 {
     const StringHash stringHash { name };
 
-    return m_childNodes.FindIf([stringHash](const auto& it)
+    return m_childNodes.FindIf([stringHash](const Handle<Node>& node)
         {
-            if (!it.IsValid())
-            {
-                return false;
-            }
-
-            return it->GetName() == stringHash;
+            return node->GetName() == stringHash;
         });
 }
 
@@ -639,7 +629,7 @@ Array<Node*> Node::GetDescendantsArray() const
 
     typedef void (*CollectFunc)(Array<Node*>& descendants, const Node& target, void* collectFunc);
 
-    CollectFunc collectFunc = [](Array<Node*>& descendants, const Node& target, void* collectFunc)
+    CollectFunc Collect = [](Array<Node*>& descendants, const Node& target, void* collectFunc)
     {
         descendants.Reserve(descendants.Size() + target.GetChildren().Size());
 
@@ -649,11 +639,11 @@ Array<Node*> Node::GetDescendantsArray() const
 
             descendants.PushBack(child.Get());
 
-            reinterpret_cast<CollectFunc>(collectFunc)(descendants, *child, collectFunc);
+            (*static_cast<CollectFunc*>(collectFunc))(descendants, *child, collectFunc);
         }
     };
 
-    collectFunc(descendants, *this, reinterpret_cast<void*>(collectFunc));
+    Collect(descendants, *this, &Collect);
 
     return descendants;
 }

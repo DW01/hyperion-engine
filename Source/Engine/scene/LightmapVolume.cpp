@@ -142,13 +142,16 @@ void LightmapVolume::RemoveAllElements()
         atlas.Clear();
     }
 
+    Handle<AssetRegistry> assetRegistry = GetCurrentAssetRegistry();
+    Assert(assetRegistry.IsValid());
+
     // Remove textures from their respective packages
     for (Handle<Texture>& texture : m_radianceAtlasTextures)
     {
         if (!texture.IsValid())
             continue;
             
-        GetCurrentAssetRegistry()->RemoveAsset(texture);
+        assetRegistry->RemoveAsset(texture);
 
         EnqueueDeletion(std::move(texture));
     }
@@ -158,7 +161,7 @@ void LightmapVolume::RemoveAllElements()
         if (!texture.IsValid())
             continue;
 
-        GetCurrentAssetRegistry()->RemoveAsset(texture);
+        assetRegistry->RemoveAsset(texture);
 
         EnqueueDeletion(std::move(texture));
     }
@@ -334,8 +337,6 @@ void LightmapVolume::UpdateRenderProxy(RenderProxyLightmapVolume* proxy)
 
 void LightmapVolume::Rebake()
 {
-    HYP_SCOPE;
-
     World* world = GetWorld();
     AssertDebug(world != nullptr);
 

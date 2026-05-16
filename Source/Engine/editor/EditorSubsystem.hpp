@@ -328,6 +328,50 @@ protected:
     Optional<DragData> m_dragData;
 };
 
+HYP_CLASS()
+class ScaleEditorGizmo : public EditorGizmoBase
+{
+    HYP_OBJECT_BODY(ScaleEditorGizmo);
+
+public:
+    virtual ~ScaleEditorGizmo() override = default;
+
+    virtual EditorManipulationMode GetManipulationMode() const override
+    {
+        return EditorManipulationMode::SCALE;
+    }
+
+    virtual String GetMenuText() const override
+    {
+        return "Scale";
+    }
+
+    virtual int GetPriority() const override
+    {
+        return 0;
+    }
+
+    virtual void OnDragStart(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node, const Vec3f& hitpoint) override;
+    virtual void OnDragEnd(const Handle<Camera>& camera, const MouseEvent& mouseEvent) override;
+
+    virtual bool OnMouseHover(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node) override;
+    virtual bool OnMouseLeave(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node) override;
+    virtual bool OnMouseMove(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node) override;
+
+protected:
+    struct DragData
+    {
+        Vec3f axisDirection;
+        Vec3f planeNormal;
+        Vec3f planePoint;
+        Vec3f hitpointOrigin;
+    };
+
+    virtual Handle<Node> Load_Internal() const override;
+
+    Optional<DragData> m_dragData;
+};
+
 /*! \brief A gizmo for editing axis-aligned bounding boxes by dragging individual faces.
  *  Used for resizing volumes such as LightmapVolume, FogVolume, etc.
  *  Each face of the AABB is represented as a draggable quad handle.

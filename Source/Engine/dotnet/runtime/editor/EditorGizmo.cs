@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Hyperion
 {
-    [ClassBinding(Name="EditorManipulationMode")]
+    [ClassBinding(Name = "EditorManipulationMode")]
     public enum EditorManipulationMode
     {
         None = 0,
@@ -12,7 +12,7 @@ namespace Hyperion
         Scale = 3
     }
 
-    [ClassBinding(Name="EditorGizmoBase")]
+    [ClassBinding(Name = "EditorGizmoBase")]
     public abstract class EditorGizmoBase : ObjectBase
     {
         public EditorGizmoBase()
@@ -26,15 +26,15 @@ namespace Hyperion
         public int Priority => this.GetPriority();
     }
 
-    [ClassBinding(Name="NullEditorGizmo")]
+    [ClassBinding(Name = "NullEditorGizmo")]
     public class NullEditorGizmo : EditorGizmoBase
     {
         public NullEditorGizmo()
-        {   
+        {
         }
     }
 
-    [ClassBinding(Name="TranslateEditorGizmo")]
+    [ClassBinding(Name = "TranslateEditorGizmo")]
     public class TranslateEditorGizmo : EditorGizmoBase
     {
         public TranslateEditorGizmo()
@@ -42,7 +42,7 @@ namespace Hyperion
         }
     }
 
-    [ClassBinding(Name="RotateEditorGizmo")]
+    [ClassBinding(Name = "RotateEditorGizmo")]
     public class RotateEditorGizmo : EditorGizmoBase
     {
         public RotateEditorGizmo()
@@ -50,7 +50,15 @@ namespace Hyperion
         }
     }
 
-    [ClassBinding(Name="VolumeEditorGizmo")]
+    [ClassBinding(Name = "ScaleEditorGizmo")]
+    public class ScaleEditorGizmo : EditorGizmoBase
+    {
+        public ScaleEditorGizmo()
+        {
+        }
+    }
+
+    [ClassBinding(Name = "VolumeEditorGizmo")]
     public class VolumeEditorGizmo : EditorGizmoBase
     {
         public VolumeEditorGizmo()

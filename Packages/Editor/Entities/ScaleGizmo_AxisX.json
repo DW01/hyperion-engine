@@ -1,0 +1,55 @@
+{
+  "$Class": "Entity",
+  "Tags": [],
+  "Components": [{
+      "$Class": "MeshComponent",
+      "Mesh": {
+        "$Class": "AssetReference",
+        "AssetPath": {
+          "Value": "Editor://Meshes/ScaleGizmo_AxisMesh"
+        }
+      },
+      "Material": {
+        "$Class": "AssetReference",
+        "AssetPath": {
+          "Value": "Editor://MaterialInstances/ScaleGizmo_AxisX_Material"
+        }
+      },
+      "Skeleton": null,
+      "EnableAutoInstancing": false,
+      "InstanceData": {
+        "AssetPath": {
+          "Value": ""
+        }
+      }
+    }],
+  "NodeFlags": 49152,
+  "LocalBounds": {
+    "Min": [-0.120000, 0, -0.120000],
+    "Max": [0.120000, 0.940000, 0.120000]
+  },
+  "LocalTransform": {
+    "Translation": [0, 0, 0],
+    "Scale": [1, 1, 1],
+    "Rotation": {
+      "X": 0,
+      "Y": 0,
+      "Z": -0.707107,
+      "W": 0.707107
+    }
+  },
+  "Children": [],
+  "NodeTags": {
+    "Values": [{
+        "$Class": "NodeTag",
+        "Name": "TransformWidgetElementColor",
+        "Data": [1, 0.020000, 0.020000, 1]
+      }, {
+        "$Class": "NodeTag",
+        "Name": "TransformWidgetAxis",
+        "Data": 0
+      }]
+  },
+  "Name": "ScaleGizmo_AxisX",
+  "FriendlyName": "ScaleGizmo_AxisX"
+}

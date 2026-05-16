@@ -138,44 +138,32 @@ void Light::Init()
 
 void Light::OnAttachedToNode(Node* node)
 {
-    HYP_SCOPE;
-
     Entity::OnAttachedToNode(node);
 }
 
 void Light::OnDetachedFromNode(Node* node)
 {
-    HYP_SCOPE;
-
     Entity::OnDetachedFromNode(node);
 }
 
 void Light::OnAddedToScene(Scene* scene)
 {
-    HYP_SCOPE;
-
     Entity::OnAddedToScene(scene);
 }
 
 void Light::OnRemovedFromScene(Scene* scene)
 {
-    HYP_SCOPE;
-
     Entity::OnRemovedFromScene(scene);
 }
 
 void Light::OnTransformUpdated()
 {
-    HYP_SCOPE;
-
     Entity::OnTransformUpdated();
     Entity::SetLocalBounds(CalculateLightBounds());
 }
 
 void Light::Update(float delta)
 {
-    HYP_SCOPE;
-
     if (m_lightFlags & LightFlags::ShadowCaster)
     {
         SetNeedsRenderProxyUpdate();
@@ -320,8 +308,6 @@ void Light::SetMaterial(Handle<MaterialInstance> material)
 
 Pair<Vec3f, Vec3f> Light::CalculateAreaLightRect() const
 {
-    HYP_SCOPE;
-
     Vec3f tangent;
     Vec3f bitangent;
     MathUtil::ComputeOrthonormalBasis(m_normal, tangent, bitangent);
@@ -481,8 +467,6 @@ void Light::SetLocalBounds(const BoundingBox& localBounds)
 // Local space
 BoundingBox Light::CalculateLightBounds() const
 {
-    HYP_SCOPE;
-
     if (m_type == LightType::Directional)
     {
         return BoundingBox::Infinity();
@@ -508,8 +492,6 @@ BoundingBox Light::CalculateLightBounds() const
 
 BoundingSphere Light::GetBoundingSphere(bool worldSpace) const
 {
-    HYP_SCOPE;
-
     if (m_type == LightType::Directional)
     {
         return BoundingSphere::infinity;
@@ -520,9 +502,7 @@ BoundingSphere Light::GetBoundingSphere(bool worldSpace) const
 
 void Light::UpdateRenderProxy(RenderProxyLight* proxy)
 {
-    HYP_SCOPE;
-
-    proxy->light = WeakHandleFromThis();
+    proxy->light = MakeWeakRef(this);
     proxy->lightMaterial = m_material.Get();
     proxy->bakedShadowMap = m_shadowMap.Get();
     proxy->numCascades = m_numShadowMapCascades;
@@ -561,8 +541,6 @@ bool Light::CanBakeStaticShadows() const
 
 void Light::BakeStaticShadows()
 {
-    HYP_SCOPE;
-
     if (!CanBakeStaticShadows())
     {
         HYP_LOG(Editor, Warning, "Light {} cannot have static shadow maps baked", GetName());

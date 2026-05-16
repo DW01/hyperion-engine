@@ -355,10 +355,23 @@ const Class* AppContextBase::FindCommandletClass(ANSIStringView commandletName)
 
     const Class* commandletClass = ClassRegistry::GetInstance().GetClass(commandletName, /* ignoreCase */ true);
 
-    if (!commandletClass
-        || !commandletClass->IsDerivedFrom(CommandletBase::StaticClass())
-        || commandletClass->IsAbstract())
+    const auto DoCheck = [&]() -> bool
     {
+        return commandletClass
+            && commandletClass->IsDerivedFrom(CommandletBase::StaticClass())
+            && !commandletClass->IsAbstract();
+    };
+
+    if (!DoCheck())
+    {
+        ANSIString str = commandletName;
+        if (!str.EndsWith("Commandlet"))
+        {
+            // Try again with "Commandlet" appended to the name.
+            commandletClass = ClassRegistry::GetInstance().GetClass(str + "Commandlet", /* ignoreCase */ true);
+            return DoCheck() ? commandletClass : nullptr;
+        }
+
         return nullptr;
     }
 

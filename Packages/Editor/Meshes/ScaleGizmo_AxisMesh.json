@@ -1,0 +1,33 @@
+{
+  "$Class": "Mesh",
+  "AABB": {
+    "Min": [-0.120000, 0, -0.120000],
+    "Max": [0.120000, 0.940000, 0.120000]
+  },
+  "MeshDesc": {
+    "MeshAttributes": {
+      "InputLayout": {
+        "Mask": 7
+      },
+      "Topology": 0,
+      "IndexBufferElemType": 4
+    },
+    "NumVertices": 124,
+    "NumIndices": 228
+  },
+  "VertexData": {
+    "Key": "Editor://Meshes/ScaleGizmo_AxisMesh.VB",
+    "Size": 3968
+  },
+  "IndexData": {
+    "Key": "Editor://Meshes/ScaleGizmo_AxisMesh.IB",
+    "Size": 912
+  },
+  "BvhData": {
+    "Key": "Editor://Meshes/ScaleGizmo_AxisMesh.BVH",
+    "Size": 8717
+  },
+  "Flags": 0,
+  "Name": "ScaleGizmo_AxisMesh",
+  "FriendlyName": "ScaleGizmoAxisMesh"
+}

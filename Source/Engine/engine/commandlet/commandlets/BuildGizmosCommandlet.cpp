@@ -17,7 +17,6 @@
 #include <scene/EntityManager.hpp>
 
 #include <scene/components/MeshComponent.hpp>
-#include <scene/components/VisibilityStateComponent.hpp>
 
 #include <util/MeshBuilder.hpp>
 
@@ -25,6 +24,8 @@
 #include <Core/math/Transform.hpp>
 
 namespace Hyperion {
+
+#if HYP_EDITOR
 
 static Handle<Entity> CreateAxisEntity(
     const char* entityName,
@@ -55,8 +56,8 @@ static Handle<Entity> CreateAxisEntity(
 
     Handle<Entity> axisEntity = MakeHandle<Entity>(NAME_FMT("{}", entityName));
     axisEntity->SetIsDynamic(true);
-    axisEntity->UnlockTransform();
     axisEntity->SetLocalRotation(axisRotation);
+    InitObject(axisEntity);
 
     AssertDebug(axisEntity->GetScene() != nullptr);
 
@@ -65,9 +66,6 @@ static Handle<Entity> CreateAxisEntity(
 
     axisEntity->AddComponent<MeshComponent>(MeshComponent { axisMesh, materialInstance });
     axisEntity->SetLocalBounds(axisMesh->GetAABB());
-
-    axisEntity->AddComponent<VisibilityStateComponent>(VisibilityStateComponent { VisibilityStateFlags::ALWAYS_VISIBLE });
-
 
     return axisEntity;
 }
@@ -99,14 +97,13 @@ static Handle<Entity> CreateCentroidEntity(
 
     Handle<Entity> centroidEntity = MakeHandle<Entity>(NAME_FMT("{}", entityName));
     centroidEntity->SetIsDynamic(true);
+    InitObject(centroidEntity);
 
     centroidEntity->Node::AddTag(NodeTag(NAME("TransformWidgetAxis"), -1));
     centroidEntity->Node::AddTag(NodeTag(NAME("TransformWidgetElementColor"), centroidColor));
 
     centroidEntity->AddComponent<MeshComponent>(MeshComponent { centroidMesh, materialInstance });
     centroidEntity->SetLocalBounds(centroidMesh->GetAABB());
-
-    centroidEntity->AddComponent<VisibilityStateComponent>(VisibilityStateComponent { VisibilityStateFlags::ALWAYS_VISIBLE });
 
     return centroidEntity;
 }
@@ -115,46 +112,43 @@ static void BuildTranslateGizmo(Handle<AssetRegistry>& assetRegistry)
 {
     GlobalContextScope assetRegistryScope { AssetRegistryContext { assetRegistry } };
 
-    if (Handle<Node> existingNode = GetCurrentAssetRegistry()->GetAsset<Node>(AssetBuckets::Nodes, "TranslateGizmo"_sh); existingNode.IsValid())
-    {
-        HYP_LOG(Engine, Info, "TranslateGizmo already exists in editor asset registry, skipping build.");
-        return;
-    }
-
     Handle<Mesh> cylinderMesh = MeshBuilder::Cylinder(0.03f, 0.7f, 16);
     InitObject(cylinderMesh);
 
     Handle<Mesh> coneMesh = MeshBuilder::Cone(0.08f, 0.25f, 16);
     InitObject(coneMesh);
 
-    Transform coneTransform;
-    coneTransform.translation = Vec3f(0.0f, 0.475f, 0.0f);
+    Transform cylinderTransform;
+    cylinderTransform.translation = Vec3f(0.0f, 0.35f, 0.0f);
 
-    Handle<Mesh> axisMesh = MeshBuilder::Merge(cylinderMesh.Get(), coneMesh.Get(), Transform::identity, coneTransform);
+    Transform coneTransform;
+    coneTransform.translation = Vec3f(0.0f, 0.825f, 0.0f);
+
+    Handle<Mesh> axisMesh = MeshBuilder::Merge(cylinderMesh.Get(), coneMesh.Get(), cylinderTransform, coneTransform);
     axisMesh->SetName(NAME("TranslateGizmo_AxisMesh"));
     InitObject(axisMesh);
 
     Handle<Mesh> centroidMesh = MeshBuilder::Cube();
+    centroidMesh = MeshBuilder::ApplyTransform(centroidMesh, Transform(Vec3f::Zero(), Vec3f(0.1f)));
     centroidMesh->SetName(NAME("TranslateGizmo_CentroidMesh"));
     InitObject(centroidMesh);
 
     static const Vec4f s_axisColors[3] = {
-        Vec4f(1.0f, 0.2f, 0.2f, 1.0f),
-        Vec4f(0.2f, 1.0f, 0.2f, 1.0f),
-        Vec4f(0.2f, 0.2f, 1.0f, 1.0f)
+        Vec4f(1.0f, 0.02f, 0.02f, 1.0f),
+        Vec4f(0.02f, 1.0f, 0.02f, 1.0f),
+        Vec4f(0.02f, 0.02f, 1.0f, 1.0f)
     };
 
     static const Quat4f s_axisRotations[3] = {
-        Quat4f::AxisAngles(Vec3f::UnitZ(), -MathUtil::pi<float> * 0.5f),
+        Quat4f::AxisAngles(Vec3f::UnitZ(), MathUtil::pi<float> * 0.5f),
         Quat4f::Identity(),
-        Quat4f::AxisAngles(Vec3f::UnitX(), MathUtil::pi<float> * 0.5f)
+        Quat4f::AxisAngles(Vec3f::UnitX(), -MathUtil::pi<float> * 0.5f)
     };
 
     static const char* s_axisNames[3] = { "TranslateGizmo_AxisX", "TranslateGizmo_AxisY", "TranslateGizmo_AxisZ" };
 
     Handle<Node> rootNode = MakeHandle<Node>();
     rootNode->SetName(NAME("TranslateGizmo"));
-    rootNode->UnlockTransform();
     rootNode->SetWorldScale(2.5f);
     rootNode->SetNodeFlags(rootNode->GetNodeFlags() | NodeFlags::HideInSceneOutline);
     rootNode->SetIsTransient(false);
@@ -176,20 +170,14 @@ static void BuildRotateGizmo(Handle<AssetRegistry>& assetRegistry)
 {
     GlobalContextScope assetRegistryScope { AssetRegistryContext { assetRegistry } };
 
-    if (Handle<Node> existingNode = GetCurrentAssetRegistry()->GetAsset<Node>(AssetBuckets::Nodes, "RotateGizmo"_sh); existingNode.IsValid())
-    {
-        HYP_LOG(Engine, Info, "RotateGizmo already exists in editor asset registry, skipping build.");
-        return;
-    }
-
     Handle<Mesh> torusMesh = MeshBuilder::Torus(0.8f, 0.03f, 48, 16);
     torusMesh->SetName(NAME("RotateGizmo_TorusMesh"));
     InitObject(torusMesh);
 
     static const Vec4f s_axisColors[3] = {
-        Vec4f(1.0f, 0.2f, 0.2f, 1.0f),
-        Vec4f(0.2f, 1.0f, 0.2f, 1.0f),
-        Vec4f(0.2f, 0.2f, 1.0f, 1.0f)
+        Vec4f(1.0f, 0.02f, 0.02f, 1.0f),
+        Vec4f(0.02f, 1.0f, 0.02f, 1.0f),
+        Vec4f(0.02f, 0.02f, 1.0f, 1.0f)
     };
 
     static const Quat4f s_axisRotations[3] = {
@@ -202,7 +190,6 @@ static void BuildRotateGizmo(Handle<AssetRegistry>& assetRegistry)
 
     Handle<Node> rootNode = MakeHandle<Node>();
     rootNode->SetName(NAME("RotateGizmo"));
-    rootNode->UnlockTransform();
     rootNode->SetWorldScale(2.5f);
     rootNode->SetNodeFlags(rootNode->GetNodeFlags() | NodeFlags::HideInSceneOutline);
     rootNode->SetIsTransient(false);
@@ -221,12 +208,6 @@ static void BuildScaleGizmo(Handle<AssetRegistry>& assetRegistry)
 {
     GlobalContextScope assetRegistryScope { AssetRegistryContext { assetRegistry } };
 
-    if (Handle<Node> existingNode = GetCurrentAssetRegistry()->GetAsset<Node>(AssetBuckets::Nodes, "ScaleGizmo"_sh); existingNode.IsValid())
-    {
-        HYP_LOG(Engine, Info, "ScaleGizmo already exists in editor asset registry, skipping build.");
-        return;
-    }
-
     Handle<Mesh> shaftMesh = MeshBuilder::Cylinder(0.03f, 0.7f, 16);
     shaftMesh->SetName(NAME("ScaleGizmo_ShaftMesh"));
     InitObject(shaftMesh);
@@ -235,22 +216,26 @@ static void BuildScaleGizmo(Handle<AssetRegistry>& assetRegistry)
     handleCubeMesh->SetName(NAME("ScaleGizmo_HandleCubeMesh"));
     InitObject(handleCubeMesh);
 
+    Transform shaftTransform;
+    shaftTransform.translation = Vec3f(0.0f, 0.35f, 0.0f);
+
     Transform handleTransform;
-    handleTransform.translation = Vec3f(0.0f, 0.35f + 0.06f, 0.0f);
+    handleTransform.translation = Vec3f(0.0f, 0.82f, 0.0f);
     handleTransform.scale = Vec3f(0.12f);
 
-    Handle<Mesh> axisMesh = MeshBuilder::Merge(shaftMesh.Get(), handleCubeMesh.Get(), Transform::identity, handleTransform);
+    Handle<Mesh> axisMesh = MeshBuilder::Merge(shaftMesh.Get(), handleCubeMesh.Get(), shaftTransform, handleTransform);
     axisMesh->SetName(NAME("ScaleGizmo_AxisMesh"));
     InitObject(axisMesh);
 
     Handle<Mesh> centroidMesh = MeshBuilder::Cube();
+    centroidMesh = MeshBuilder::ApplyTransform(centroidMesh, Transform(Vec3f::Zero(), Vec3f(0.1f)));
     centroidMesh->SetName(NAME("ScaleGizmo_CentroidMesh"));
     InitObject(centroidMesh);
 
     static const Vec4f s_axisColors[3] = {
-        Vec4f(1.0f, 0.2f, 0.2f, 1.0f),
-        Vec4f(0.2f, 1.0f, 0.2f, 1.0f),
-        Vec4f(0.2f, 0.2f, 1.0f, 1.0f)
+        Vec4f(1.0f, 0.02f, 0.02f, 1.0f),
+        Vec4f(0.02f, 1.0f, 0.02f, 1.0f),
+        Vec4f(0.02f, 0.02f, 1.0f, 1.0f)
     };
 
     static const Quat4f s_axisRotations[3] = {
@@ -263,7 +248,6 @@ static void BuildScaleGizmo(Handle<AssetRegistry>& assetRegistry)
 
     Handle<Node> rootNode = MakeHandle<Node>();
     rootNode->SetName(NAME("ScaleGizmo"));
-    rootNode->UnlockTransform();
     rootNode->SetWorldScale(2.5f);
     rootNode->SetNodeFlags(rootNode->GetNodeFlags() | NodeFlags::HideInSceneOutline);
     rootNode->SetIsTransient(false);
@@ -291,12 +275,22 @@ public:
 protected:
     virtual Result Run_Impl(const CommandLineArguments& args) override
     {
-        Handle<AssetRegistry> editorRegistry = GetEditorAssetRegistry();
-
-        if (!editorRegistry.IsValid())
+        if (IsOnThread(g_simThread))
         {
-            return HYP_MAKE_ERROR(Error, "Editor asset registry is not available");
+            RunStatic();
         }
+        else
+        {
+            GetThreadById(g_simThread)->GetScheduler().Enqueue(RunStatic, TaskEnqueueFlags::FIRE_AND_FORGET);
+        }
+
+        return {};
+    }
+
+    static void RunStatic()
+    {
+        Handle<AssetRegistry> editorRegistry = GetEditorAssetRegistry();
+        Assert(editorRegistry.IsValid());
 
         BuildTranslateGizmo(editorRegistry);
         BuildRotateGizmo(editorRegistry);
@@ -305,9 +299,7 @@ protected:
         GlobalContextScope assetRegistryScope { AssetRegistryContext { editorRegistry } };
         GetCurrentAssetRegistry()->SaveDirtyAssets();
 
-        HYP_LOG(Engine, Info, "All gizmos built and saved.");
-
-        return {};
+        HYP_LOG(Engine, Info, "Gizmo assets saved to editor registry");
     }
 };
 
@@ -317,5 +309,7 @@ HYP_BEGIN_CLASS(BuildGizmosCommandlet, -1, 0, NAME("CommandletBase"), ClassAttri
 HYP_END_CLASS
 
 HYP_REGISTER_STATIC_CLASS(BuildGizmosCommandlet);
+
+#endif // HYP_EDITOR
 
 } // namespace Hyperion

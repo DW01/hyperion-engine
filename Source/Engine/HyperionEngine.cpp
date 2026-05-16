@@ -889,7 +889,7 @@ extern "C"
 
         if (commandletClass != nullptr)
         {
-            CommandLineArguments args { commandName };
+            CommandLineArguments args { *commandletClass->GetName() };
 
             // check for static method GetArgumentDefinitions() on commandlet class to override.
             if (const Method* m = commandletClass->GetMethod("GetArgumentDefinitions"_sh))
@@ -909,7 +909,7 @@ extern "C"
             TResult<CommandLineArguments> parseResult = parser.Parse(commandLine);
 
             Result commandletResult = g_appContext->RunCommandlet(
-                commandName,
+                *commandletClass->GetName(),
                 parseResult.GetValue());
 
             if (commandletResult.HasError())
@@ -1038,7 +1038,19 @@ extern "C"
         {
             if (cls->IsDerivedFrom(commandletBaseClass))
             {
-                callbackFn(cls->GetName().LookupString(), userData);
+                String str = cls->GetName().ToString();
+
+                // Conditional: If the name of the class ends with "Commandlet", we strip off that part of the string before handing it over.
+                if (str.EndsWith("Commandlet"))
+                {
+                    str = str.Substr(0, str.Length() - (std::size("Commandlet") - 1));
+
+                    callbackFn(str.Data(), userData);
+                }
+                else
+                {
+                    callbackFn(cls->GetName().LookupString(), userData);
+                }
             }
 
             return IterationResult::CONTINUE;

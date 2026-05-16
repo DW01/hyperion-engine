@@ -79,6 +79,8 @@
 #include <rendering/MaterialDefinition.hpp>
 #include <rendering/MaterialInstance.hpp>
 
+#include <util/MeshBuilder.hpp>
+
 #include <engine/EngineGlobals.hpp>
 #include <rendering/Texture.hpp>
 #include <rendering/RendererMain.hpp>
@@ -99,8 +101,6 @@
 #include <Core/math/MathUtil.hpp>
 
 #include <scripting/ScriptingService.hpp>
-
-#include <util/MeshBuilder.hpp>
 
 #include <engine/Game.hpp>
 
@@ -728,103 +728,10 @@ Handle<Node> TranslateEditorGizmo::Load_Internal() const
 {
     GlobalContextScope assetRegistryScope { AssetRegistryContext { GetEditorAssetRegistry() } };
 
-    // Try to load from registry first:
     if (Handle<Node> node = GetCurrentAssetRegistry()->GetAsset<Node>(AssetBuckets::Nodes, "TranslateGizmo"_sh); node.IsValid())
     {
         return node;
     }
-
-    auto result = AssetManager::GetInstance()->Load<Node>("Editor/Models/translate_gizmo.obj");
-
-    if (result.HasValue())
-    {
-        if (Handle<Node> node = result->Result(); node.IsValid())
-        {
-            node->SetName(NAME("TranslateGizmo"));
-            node->SetWorldScale(2.5f);
-
-            Handle<Node> axisX = node->FindChildByName("Mat_Translate_X"_sh);
-            AssertDebug(axisX != nullptr);
-            axisX->AddTag(NodeTag(NAME("TransformWidgetAxis"), 0));
-
-            Handle<Node> axisY = node->FindChildByName("Mat_Translate_Y"_sh);
-            AssertDebug(axisY != nullptr);
-            axisY->AddTag(NodeTag(NAME("TransformWidgetAxis"), 1));
-
-            Handle<Node> axisZ = node->FindChildByName("Mat_Translate_Z"_sh);
-            AssertDebug(axisZ != nullptr);
-            axisZ->AddTag(NodeTag(NAME("TransformWidgetAxis"), 2));
-
-            Handle<Node> centroid = node->FindChildByName("Mat_Translate_Centroid"_sh);
-            AssertDebug(centroid != nullptr);
-            centroid->AddTag(NodeTag(NAME("TransformWidgetAxis"), -1));
-
-            for (Node* child : node->GetDescendants())
-            {
-                if (!child->IsA<Entity>())
-                {
-                    continue;
-                }
-
-                Entity* childEntity = static_cast<Entity*>(child);
-                childEntity->SetIsDynamic(true);
-
-                VisibilityStateComponent* visibilityState = childEntity->TryGetComponent<VisibilityStateComponent>();
-
-                if (visibilityState)
-                {
-                    visibilityState->flags |= VisibilityStateFlags::ALWAYS_VISIBLE;
-                }
-                else
-                {
-                    childEntity->AddComponent<VisibilityStateComponent>(VisibilityStateComponent { VisibilityStateFlags::ALWAYS_VISIBLE });
-                }
-
-                MeshComponent* meshComponent = childEntity->TryGetComponent<MeshComponent>();
-
-                if (!meshComponent)
-                {
-                    continue;
-                }
-
-                MaterialAttributes materialAttributes;
-                MaterialParameters materialParameters;
-
-                if (meshComponent->material.IsValid())
-                {
-                    materialAttributes = meshComponent->material->GetAttributes();
-                    materialParameters = meshComponent->material->GetParameters();
-                }
-
-                materialAttributes.bucket = RenderBucket::Debug;
-
-                {
-                    Handle<MaterialDefinition> materialDefinition = MakeHandle<MaterialDefinition>(NAME_FMT("{}_Material", child->GetName()), materialAttributes, materialParameters, MaterialTextures {});
-                    InitObject(materialDefinition);
-
-                    GetCurrentAssetRegistry()->PutAssetsDeep(materialDefinition);
-
-                    Handle<MaterialInstance> materialInstance = materialDefinition->CreateInstance();
-                    materialInstance->SetIsDynamic(true);
-                    InitObject(materialInstance);
-
-                    GetCurrentAssetRegistry()->PutAssetsDeep(materialInstance);
-
-                    meshComponent->material = std::move(materialInstance);
-                }
-
-                childEntity->SetNeedsRenderProxyUpdate();
-                childEntity->Node::AddTag(NodeTag(NAME("TransformWidgetElementColor"), Vec4f(materialParameters.albedo)));
-            }
-
-            GetCurrentAssetRegistry()->PutAssetsDeep(node);
-            GetCurrentAssetRegistry()->SaveDirtyAssets();
-
-            return node;
-        }
-    }
-
-    HYP_LOG(Editor, Error, "Failed to load axis arrows: {}", result.GetError().GetMessage());
 
     return Handle<Node>::Null();
 }
@@ -837,96 +744,10 @@ Handle<Node> RotateEditorGizmo::Load_Internal() const
 {
     GlobalContextScope assetRegistryScope { AssetRegistryContext { GetEditorAssetRegistry() } };
 
-    // Try to load from registry first:
     if (Handle<Node> node = GetCurrentAssetRegistry()->GetAsset<Node>(AssetBuckets::Nodes, "RotateGizmo"_sh); node.IsValid())
     {
         return node;
     }
-
-    auto result = AssetManager::GetInstance()->Load<Node>("Editor/Models/rotate_gizmo.obj");
-
-    if (result.HasValue())
-    {
-        if (Handle<Node> node = result->Result(); node.IsValid())
-        {
-            node->SetName(NAME("RotateGizmo"));
-            node->SetWorldScale(2.5f);
-
-            Handle<Node> axisX = node->FindChildByName("Rotate_X"_sh);
-            AssertDebug(axisX != nullptr);
-            axisX->AddTag(NodeTag(NAME("TransformWidgetAxis"), 0));
-
-            Handle<Node> axisY = node->FindChildByName("Rotate_Y"_sh);
-            AssertDebug(axisY != nullptr);
-            axisY->AddTag(NodeTag(NAME("TransformWidgetAxis"), 1));
-
-            Handle<Node> axisZ = node->FindChildByName("Rotate_Z"_sh);
-            AssertDebug(axisZ != nullptr);
-            axisZ->AddTag(NodeTag(NAME("TransformWidgetAxis"), 2));
-
-            for (Node* child : node->GetDescendants())
-            {
-                if (!child->IsA<Entity>())
-                {
-                    continue;
-                }
-
-                Entity* childEntity = static_cast<Entity*>(child);
-                childEntity->SetIsDynamic(true);
-
-                VisibilityStateComponent* visibilityState = childEntity->TryGetComponent<VisibilityStateComponent>();
-
-                if (visibilityState)
-                {
-                    visibilityState->flags |= VisibilityStateFlags::ALWAYS_VISIBLE;
-                }
-                else
-                {
-                    childEntity->AddComponent<VisibilityStateComponent>(VisibilityStateComponent { VisibilityStateFlags::ALWAYS_VISIBLE });
-                }
-
-                MeshComponent* meshComponent = childEntity->TryGetComponent<MeshComponent>();
-
-                if (meshComponent)
-                {
-                    MaterialAttributes materialAttributes;
-                    MaterialParameters materialParameters;
-
-                    if (meshComponent->material.IsValid())
-                    {
-                        materialAttributes = meshComponent->material->GetAttributes();
-                        materialParameters = meshComponent->material->GetParameters();
-                    }
-
-                    materialAttributes.bucket = RenderBucket::Debug;
-
-                    {
-                        Handle<MaterialDefinition> materialDefinition = MakeHandle<MaterialDefinition>(NAME_FMT("{}_Material", child->GetName()), materialAttributes, materialParameters, MaterialTextures {});
-                        InitObject(materialDefinition);
-
-                        GetCurrentAssetRegistry()->PutAssetsDeep(materialDefinition);
-
-                        Handle<MaterialInstance> materialInstance = materialDefinition->CreateInstance();
-                        materialInstance->SetIsDynamic(true);
-
-                        GetCurrentAssetRegistry()->PutAssetsDeep(materialInstance);
-
-                        meshComponent->material = std::move(materialInstance);
-                    }
-
-                    childEntity->SetNeedsRenderProxyUpdate();
-                    childEntity->Node::AddTag(NodeTag(NAME("TransformWidgetElementColor"), Vec4f(materialParameters.albedo)));
-                }
-            }
-
-            GetCurrentAssetRegistry()->PutAssetsDeep(node);
-            GetCurrentAssetRegistry()->SaveDirtyAssets();
-
-            return node;
-        }
-    }
-
-    HYP_LOG(Editor, Error, "Failed to load rotate gizmo: {}", result.GetError().GetMessage());
 
     return Handle<Node>::Null();
 }
@@ -1182,6 +1003,220 @@ bool RotateEditorGizmo::OnKeyPress(const Handle<Camera>& camera, const KeyboardE
 
 #pragma endregion RotateEditorGizmo
 
+#pragma region ScaleEditorGizmo
+
+Handle<Node> ScaleEditorGizmo::Load_Internal() const
+{
+    GlobalContextScope assetRegistryScope { AssetRegistryContext { GetEditorAssetRegistry() } };
+
+    if (Handle<Node> node = GetCurrentAssetRegistry()->GetAsset<Node>(AssetBuckets::Nodes, "ScaleGizmo"_sh); node.IsValid())
+    {
+        return node;
+    }
+
+    return Handle<Node>::Null();
+}
+
+void ScaleEditorGizmo::OnDragStart(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node, const Vec3f& hitpoint)
+{
+    EditorGizmoBase::OnDragStart(camera, mouseEvent, node, hitpoint);
+
+    m_dragData.Unset();
+
+    Entity* entity = DynamicCast<Entity>(node);
+    if (!entity)
+    {
+        return;
+    }
+
+    MeshComponent* meshComponent = entity->TryGetComponent<MeshComponent>();
+
+    if (!meshComponent || !meshComponent->material)
+    {
+        return;
+    }
+
+    const NodeTag& axisTag = node->GetTag("TransformWidgetAxis"_sh);
+
+    if (!axisTag)
+    {
+        return;
+    }
+
+    int axis = -1;
+    axisTag.data.Visit([&axis](auto&& value)
+    {
+        if constexpr (std::is_integral_v<NormalizedType<decltype(value)>>)
+        {
+            axis = static_cast<int>(value);
+        }
+    });
+
+    if (axis < 0)
+    {
+        return;
+    }
+
+    Handle<Node> focusedNode = m_focusedNode.Lock();
+
+    if (!focusedNode.IsValid())
+    {
+        return;
+    }
+
+    const Vec3f focusedWorldPos = focusedNode->GetWorldTranslation();
+    const Vec3f cameraDirection = camera->GetDirection();
+    const Vec3f cameraSide = camera->GetSideVector();
+
+    const Vec3f axisDirections[3] = { Vec3f(1.0f, 0.0f, 0.0f), Vec3f(0.0f, 1.0f, 0.0f), Vec3f(0.0f, 0.0f, 1.0f) };
+    const Vec3f& axisDirection = axisDirections[axis];
+
+    Vec3f planeNormal = axisDirection.Cross(cameraDirection);
+    if (planeNormal.LengthSquared() < MathUtil::epsilonF)
+    {
+        planeNormal = -cameraSide;
+    }
+    planeNormal.Normalize();
+
+    DragData dragData {};
+    dragData.axisDirection = axisDirection;
+    dragData.planeNormal = planeNormal;
+    dragData.planePoint = hitpoint;
+    dragData.hitpointOrigin = hitpoint;
+
+    m_dragData = dragData;
+}
+
+void ScaleEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEvent& mouseEvent)
+{
+    EditorGizmoBase::OnDragEnd(camera, mouseEvent);
+
+    m_dragData.Unset();
+}
+
+bool ScaleEditorGizmo::OnMouseHover(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node)
+{
+    Entity* entity = DynamicCast<Entity>(node);
+    if (!entity)
+    {
+        return false;
+    }
+
+    MeshComponent* meshComponent = entity->TryGetComponent<MeshComponent>();
+
+    if (!meshComponent || !meshComponent->material)
+    {
+        return false;
+    }
+
+    MaterialParameters newParameters = meshComponent->material->GetParameters();
+    newParameters.albedo = Vec4f(1.0f, 1.0f, 0.0f, 1.0f);
+
+    meshComponent->material->SetParameters(newParameters);
+
+    return true;
+}
+
+bool ScaleEditorGizmo::OnMouseLeave(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node)
+{
+    Entity* entity = DynamicCast<Entity>(node);
+    if (!entity)
+    {
+        return false;
+    }
+
+    MeshComponent* meshComponent = entity->TryGetComponent<MeshComponent>();
+
+    if (!meshComponent || !meshComponent->material)
+    {
+        return false;
+    }
+
+    if (const NodeTag& tag = node->GetTag("TransformWidgetElementColor"_sh))
+    {
+        MaterialParameters newParameters = meshComponent->material->GetParameters();
+        newParameters.albedo = tag.data.TryGet<Vec4f>(Vec4f::Zero());
+
+        meshComponent->material->SetParameters(newParameters);
+    }
+
+    return true;
+}
+
+bool ScaleEditorGizmo::OnMouseMove(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node)
+{
+    if (!mouseEvent.mouseButtons[MouseButtonState::LEFT])
+    {
+        return false;
+    }
+
+    if (!m_dragData)
+    {
+        return false;
+    }
+
+    Entity* entity = DynamicCast<Entity>(node);
+    if (!entity)
+    {
+        return false;
+    }
+
+    MeshComponent* meshComponent = entity->TryGetComponent<MeshComponent>();
+
+    if (!meshComponent || !meshComponent->material)
+    {
+        return false;
+    }
+
+    const NodeTag& axisTag = node->GetTag("TransformWidgetAxis"_sh);
+
+    if (!axisTag)
+    {
+        return false;
+    }
+
+    Handle<Node> focusedNode = m_focusedNode.Lock();
+
+    if (!focusedNode.IsValid())
+    {
+        return false;
+    }
+
+    InputManager* inputMgr = mouseEvent.baseEvent->GetWindow()->GetInputManager();
+    AssertDebug(inputMgr != nullptr);
+
+    const Vec4f mouseWorld = camera->TransformScreenToWorld(Vec2f(inputMgr->GetVirtualMousePosition()) / Vec2f(camera->GetDimensions()));
+    const Vec4f rayDirection = mouseWorld.Normalized();
+
+    const Ray ray { camera->GetWorldTranslation(), rayDirection.GetXYZ() };
+
+    RayHit planeRayHit;
+
+    if (Optional<RayHit> planeRayHitOpt = ray.TestPlane(m_dragData->planePoint, m_dragData->planeNormal))
+    {
+        planeRayHit = *planeRayHitOpt;
+    }
+    else
+    {
+        return true;
+    }
+
+    Vec3f scaleDelta = planeRayHit.hitpoint - m_dragData->hitpointOrigin;
+    scaleDelta = m_dragData->axisDirection * scaleDelta.Dot(m_dragData->axisDirection);
+
+    Vec3f newScale = focusedNode->GetWorldScale() + scaleDelta;
+    newScale = Vec3f::Max(Vec3f(0.01f), newScale);
+
+    focusedNode->UnlockTransform();
+    focusedNode->SetWorldScale(newScale);
+
+    m_dragData->hitpointOrigin = planeRayHit.hitpoint;
+
+    return true;
+}
+
+#pragma endregion ScaleEditorGizmo
+
 #pragma region VolumeEditorGizmo
 
 enum VolumeEditorFace : int
@@ -1272,86 +1307,12 @@ Handle<Node> VolumeEditorGizmo::Load_Internal() const
 {
     GlobalContextScope assetRegistryScope { AssetRegistryContext { GetEditorAssetRegistry() } };
 
-    // Try to load from registry first:
     if (Handle<Node> node = GetCurrentAssetRegistry()->GetAsset<Node>(AssetBuckets::Nodes, "VolumeEditGizmo"_sh); node.IsValid())
     {
         return node;
     }
 
-    const Vec4f volumeColor = Vec4f(0.3f, 0.0f, 0.28f, 0.25f);
-
-    Handle<Node> rootNode = MakeHandle<Node>();
-    rootNode->SetName(NAME("VolumeEditGizmo"));
-
-    rootNode->UnlockTransform();
-    rootNode->SetNodeFlags(rootNode->GetNodeFlags() | NodeFlags::HideInSceneOutline);
-    rootNode->SetIsTransient(true);
-
-    // quad face rotations
-    static const Quat4f s_faceRotations[VEF_Max] = {
-        Quat4f::AxisAngles(Vec3f::UnitY(), -MathUtil::pi<float> * 0.5f),
-        Quat4f::AxisAngles(Vec3f::UnitY(), MathUtil::pi<float> * 0.5f),
-        Quat4f::AxisAngles(Vec3f::UnitX(), MathUtil::pi<float> * 0.5f),
-        Quat4f::AxisAngles(Vec3f::UnitX(), -MathUtil::pi<float> * 0.5f),
-        Quat4f::AxisAngles(Vec3f::UnitY(), MathUtil::pi<float>),
-        Quat4f::Identity()
-    };
-
-    Handle<Mesh> quadMesh = MeshBuilder::Quad();
-    InitObject(quadMesh);
-
-    MaterialAttributes materialAttributes;
-    materialAttributes.bucket = RenderBucket::Debug;
-    materialAttributes.blendFunction = BlendFunction::Additive();
-    materialAttributes.cullFaces = FCM_NONE;
-    materialAttributes.flags = MAF_NONE;
-
-    MaterialParameters materialParameters;
-    materialParameters.albedo = volumeColor;
-
-    Handle<MaterialDefinition> materialDefinition = MakeHandle<MaterialDefinition>(NAME("VolumeEditMaterial"), materialAttributes, materialParameters, MaterialTextures {});
-    InitObject(materialDefinition);
-    GetCurrentAssetRegistry()->PutAssetsDeep(materialDefinition);
-
-    Handle<MaterialInstance> materialInstance = materialDefinition->CreateInstance();
-    materialInstance->SetIsDynamic(true);
-    InitObject(materialInstance);
-    GetCurrentAssetRegistry()->PutAssetsDeep(materialInstance);
-
-    for (int i = 0; i < VEF_Max; i++)
-    {
-        Handle<Entity> faceEntity = MakeHandle<Entity>(NAME_FMT("VolumeFace_{}", i));
-        faceEntity->SetIsDynamic(true);
-        faceEntity->UnlockTransform();
-        faceEntity->SetLocalRotation(s_faceRotations[i]);
-
-        faceEntity->Node::AddTag(NodeTag(NAME("VolumeFaceIndex"), i));
-
-        rootNode->AddChild(faceEntity);
-
-        faceEntity->AddComponent<MeshComponent>(MeshComponent { quadMesh, materialInstance });
-        faceEntity->SetLocalBounds(quadMesh->GetAABB());
-
-        VisibilityStateComponent* visibilityState = faceEntity->TryGetComponent<VisibilityStateComponent>();
-
-        if (visibilityState)
-        {
-            visibilityState->flags |= VisibilityStateFlags::ALWAYS_VISIBLE;
-        }
-        else
-        {
-            faceEntity->AddComponent<VisibilityStateComponent>(VisibilityStateComponent { VisibilityStateFlags::ALWAYS_VISIBLE });
-        }
-
-        faceEntity->Node::AddTag(NodeTag(NAME("TransformWidgetElementColor"), volumeColor));
-    }
-
-    rootNode->SetLocalBounds(BoundingBox(Vec3f(-1.0), Vec3f(1.0f)));
-
-    GetCurrentAssetRegistry()->PutAssetsDeep(rootNode);
-    GetCurrentAssetRegistry()->SaveDirtyAssets();
-
-    return rootNode;
+    return Handle<Node>::Null();
 }
 
 void VolumeEditorGizmo::SetFocusedNode(const Handle<Node>& focusedNode)
@@ -1725,6 +1686,7 @@ EditorSubsystem::EditorSubsystem()
     m_gizmos.Insert(MakeHandle<NullEditorGizmo>());
     m_gizmos.Insert(MakeHandle<TranslateEditorGizmo>());
     m_gizmos.Insert(MakeHandle<RotateEditorGizmo>());
+    m_gizmos.Insert(MakeHandle<ScaleEditorGizmo>());
     m_gizmos.Insert(MakeHandle<VolumeEditorGizmo>());
 
     m_editorDelegates = new EditorDelegates();
@@ -2963,8 +2925,19 @@ bool EditorSubsystem::ExecuteCommandByName(Name name, const String& args)
     const Class* commandClass = ClassRegistry::GetInstance().GetClass(name);
     if (!commandClass || !commandClass->IsDerivedFrom(EditorCommandBase::StaticClass()))
     {
-        HYP_LOG(Editor, Error, "Invalid command class: {}", name);
-        return false;
+        String nameStr = name.ToString();
+        if (!nameStr.EndsWith("Commandlet"))
+        {
+            // try again with "Commandlet" appended to the name
+            String nameWithCommandlet = nameStr + "Commandlet";
+            commandClass = ClassRegistry::GetInstance().GetClass(nameWithCommandlet);
+        }
+
+        if (!commandClass || !commandClass->IsDerivedFrom(EditorCommandBase::StaticClass()))
+        {
+            HYP_LOG(Editor, Error, "Invalid command class: {}", name);
+            return false;
+        }
     }
 
     BoxedValue instanceData;
