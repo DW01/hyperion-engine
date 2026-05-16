@@ -148,6 +148,7 @@ namespace Hyperion.Editor.ViewModels
         private DelegateHandler? _gameInstanceLaunchedHandler;
         private DelegateHandler? _gameModeChangedHandler;
         private DelegateHandler? _focusedNodeChangedHandler;
+        private DelegateHandler? _selectionChangedHandler;
         private DelegateHandler? _currentProjectChangedHandler;
         private DelegateHandler? _clipboardChangedHandler;
         private DelegateHandler? _selectedGizmoChangedHandler;
@@ -155,6 +156,7 @@ namespace Hyperion.Editor.ViewModels
         private DelegateHandler? _actionStackStateChangedHandler;
 
         private int _isUpdatingSelectionFromEngine = 0; // atomic
+        private int _isUpdatingFocusedNodeFromEngine = 0; // atomic
         private bool _isReady = false;
 
         private EditorSubsystem _editorSubsystem;
@@ -279,11 +281,13 @@ namespace Hyperion.Editor.ViewModels
                 .Bind(HandleActiveSceneChanged);
 
             SceneHierarchy.SelectedNodeChanged += OnSceneHierarchyNodeSelected;
+            SceneHierarchy.SelectionChanged += OnSceneHierarchySelectionChanged;
 
             EngineManager.SceneAdded += OnSceneAdded;
             EngineManager.SceneRemoved += OnSceneRemoved;
 
             BindFocusedNodeChanged();
+            BindSelectionChanged();
 
             EngineManager.TaskStarted += OnTaskStarted;
             EngineManager.TaskEnded += OnTaskEnded;
@@ -311,12 +315,14 @@ namespace Hyperion.Editor.ViewModels
 
             _gameModeChangedHandler?.Remove();
             _focusedNodeChangedHandler?.Remove();
+            _selectionChangedHandler?.Remove();
             _currentProjectChangedHandler?.Remove();
             _clipboardChangedHandler?.Remove();
             _selectedGizmoChangedHandler?.Remove();
             _activeSceneChangedHandler?.Remove();
             _actionStackStateChangedHandler?.Remove();
             SceneHierarchy.SelectedNodeChanged -= OnSceneHierarchyNodeSelected;
+            SceneHierarchy.SelectionChanged -= OnSceneHierarchySelectionChanged;
             ContentBrowser.Dispose();
         }
 
@@ -567,7 +573,7 @@ namespace Hyperion.Editor.ViewModels
 
         private void OnSceneHierarchyNodeSelected(Node? node)
         {
-            if (!_isReady || _isUpdatingSelectionFromEngine != 0)
+            if (!_isReady || _isUpdatingSelectionFromEngine != 0 || _isUpdatingFocusedNodeFromEngine != 0)
             {
                 return;
             }
@@ -579,6 +585,10 @@ namespace Hyperion.Editor.ViewModels
                 try
                 {
                     _editorSubsystem.SetFocusedNode(node!, false);
+
+                    // Normal click replaces the entire selection with just this node
+                    _editorSubsystem.ClearSelection();
+                    _editorSubsystem.AddToSelection(node!);
                 }
                 catch (Exception ex)
                 {
@@ -668,7 +678,7 @@ namespace Hyperion.Editor.ViewModels
 
         private void HandleFocusedNodeUpdate(Node? node)
         {
-            if (Interlocked.CompareExchange(ref _isUpdatingSelectionFromEngine, 1, 0) != 0)
+            if (Interlocked.CompareExchange(ref _isUpdatingFocusedNodeFromEngine, 1, 0) != 0)
             {
                 return;
             }
@@ -677,7 +687,7 @@ namespace Hyperion.Editor.ViewModels
             {
                 if (!_isReady)
                 {
-                    Interlocked.Exchange(ref _isUpdatingSelectionFromEngine, 0);
+                    Interlocked.Exchange(ref _isUpdatingFocusedNodeFromEngine, 0);
                     return;
                 }
 
@@ -698,9 +708,109 @@ namespace Hyperion.Editor.ViewModels
                 }
                 finally
                 {
+                    Interlocked.Exchange(ref _isUpdatingFocusedNodeFromEngine, 0);
+                }
+            });
+        }
+
+        private void OnSceneHierarchySelectionChanged()
+        {
+            if (!_isReady)
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref _isUpdatingSelectionFromEngine, 1, 0) != 0)
+            {
+                return;
+            }
+
+            // Capture the selected nodes on the UI thread before dispatching to sim thread
+            List<Node> nodes = SceneHierarchy.SelectedNodes
+                .Select(vm => vm.Node)
+                .Where(n => n != null && n.IsValid)
+                .ToList();
+
+            _ = EngineManager.PostToSimThread(() =>
+            {
+                try
+                {
+                    _editorSubsystem.ClearSelection();
+
+                    foreach (Node node in nodes)
+                    {
+                        _editorSubsystem.AddToSelection(node);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Warning, $"Failed to update selection on engine: {ex.Message}");
+                }
+
+                // Refresh the UI from engine state to ensure consistency
+                try
+                {
+                    var selectedNodes = _editorSubsystem.GetSelectedNodes();
+
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        SceneHierarchy.UpdateSelectionFromEngine(selectedNodes.Cast<Node>());
+                        Interlocked.Exchange(ref _isUpdatingSelectionFromEngine, 0);
+                    });
+                }
+                catch
+                {
                     Interlocked.Exchange(ref _isUpdatingSelectionFromEngine, 0);
                 }
             });
+        }
+
+        private void BindSelectionChanged()
+        {
+            WeakReference<MainWindowViewModel> weakThis = new WeakReference<MainWindowViewModel>(this);
+
+            _selectionChangedHandler?.Remove();
+
+            _selectionChangedHandler = _editorSubsystem.GetOnSelectionChangedDelegate()
+                .Bind(() =>
+                {
+                    if (!weakThis.TryGetTarget(out MainWindowViewModel? target))
+                    {
+                        return;
+                    }
+
+                    target.HandleSelectionUpdate();
+                });
+        }
+
+        private void HandleSelectionUpdate()
+        {
+            if (Interlocked.CompareExchange(ref _isUpdatingSelectionFromEngine, 1, 0) != 0)
+            {
+                return;
+            }
+
+            try
+            {
+                var selectedNodes = _editorSubsystem.GetSelectedNodes();
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        SceneHierarchy.UpdateSelectionFromEngine(selectedNodes.Cast<Node>());
+                    }
+                    finally
+                    {
+                        Interlocked.Exchange(ref _isUpdatingSelectionFromEngine, 0);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Log(LogLevel.Warning, $"Failed to get selected nodes from engine: {ex.Message}");
+                Interlocked.Exchange(ref _isUpdatingSelectionFromEngine, 0);
+            }
         }
     }
 }

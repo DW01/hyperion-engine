@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using Hyperion;
@@ -27,6 +29,10 @@ namespace Hyperion.Editor.ViewModels
         }
 
         public event Action<Node?>? SelectedNodeChanged;
+
+        public ObservableCollection<NodeViewModel> SelectedNodes { get; } = new ObservableCollection<NodeViewModel>();
+
+        public event Action? SelectionChanged;
 
         private Scene? _scene;
         public Scene? Scene => _scene;
@@ -114,6 +120,56 @@ namespace Hyperion.Editor.ViewModels
             {
                 _suppressSelectionNotifications = false;
             }
+        }
+
+        public void UpdateSelectionFromEngine(IEnumerable<Node> nodes)
+        {
+            Dispatcher.UIThread.VerifyAccess();
+
+            SelectedNodes.Clear();
+
+            foreach (Node node in nodes)
+            {
+                if (node == null || !node.IsValid)
+                {
+                    continue;
+                }
+
+                NodeViewModel? viewModel = FindNodeViewModel(node.NativeAddress);
+
+                if (viewModel != null)
+                {
+                    SelectedNodes.Add(viewModel);
+                }
+            }
+
+            OnPropertyChanged(nameof(SelectedNodes));
+        }
+
+        public void ToggleNodeInSelection(NodeViewModel nodeViewModel)
+        {
+            Dispatcher.UIThread.VerifyAccess();
+
+            if (SelectedNodes.Contains(nodeViewModel))
+            {
+                SelectedNodes.Remove(nodeViewModel);
+            }
+            else
+            {
+                SelectedNodes.Add(nodeViewModel);
+            }
+
+            OnPropertyChanged(nameof(SelectedNodes));
+            SelectionChanged?.Invoke();
+        }
+
+        public void ClearSelectedNodes()
+        {
+            Dispatcher.UIThread.VerifyAccess();
+
+            SelectedNodes.Clear();
+            OnPropertyChanged(nameof(SelectedNodes));
+            SelectionChanged?.Invoke();
         }
 
         public bool IsRootNode(Node? node)

@@ -1869,6 +1869,7 @@ EditorSubsystem::EditorSubsystem()
                 ShutdownGizmos();
 
                 m_focusedNode.Reset();
+                m_selectedNodes.Clear();
 
                 if (m_highlightNode.IsValid())
                 {
@@ -2703,6 +2704,14 @@ void EditorSubsystem::StartWatchingNode(const Handle<Node>& node)
                 SetFocusedNode(Handle<Node>::Null(), true);
             }
 
+            // If the node being removed is in the selection, remove it
+            if (auto it = m_selectedNodes.FindAs(node->Id()); it != m_selectedNodes.End())
+            {
+                m_selectedNodes.Erase(it);
+
+                OnSelectionChanged();
+            }
+
             if (!node)
             {
                 return;
@@ -3218,6 +3227,82 @@ Handle<Node> EditorSubsystem::GetFocusedNode() const
 {
     AssertOnThread(g_simThread);
     return m_focusedNode.Lock();
+}
+
+void EditorSubsystem::AddToSelection(const Handle<Node>& node)
+{
+    AssertOnThread(g_simThread);
+
+    if (!node.IsValid())
+    {
+        return;
+    }
+
+    auto result = m_selectedNodes.Insert(node);
+
+    if (result.second)
+    {
+        OnSelectionChanged();
+    }
+}
+
+void EditorSubsystem::RemoveFromSelection(const Handle<Node>& node)
+{
+    AssertOnThread(g_simThread);
+
+    if (!node.IsValid())
+    {
+        return;
+    }
+
+    auto it = m_selectedNodes.Find(node);
+
+    if (it != m_selectedNodes.End())
+    {
+        m_selectedNodes.Erase(it);
+
+        OnSelectionChanged();
+    }
+}
+
+void EditorSubsystem::ClearSelection()
+{
+    AssertOnThread(g_simThread);
+
+    if (m_selectedNodes.Empty())
+    {
+        return;
+    }
+
+    m_selectedNodes.Clear();
+
+    OnSelectionChanged();
+}
+
+bool EditorSubsystem::IsNodeSelected(const Handle<Node>& node) const
+{
+    AssertOnThread(g_simThread);
+
+    if (!node.IsValid())
+    {
+        return false;
+    }
+
+    return m_selectedNodes.Find(node) != m_selectedNodes.End();
+}
+
+Array<Handle<Node>> EditorSubsystem::GetSelectedNodes() const
+{
+    AssertOnThread(g_simThread);
+
+    Array<Handle<Node>> result;
+
+    for (const Handle<Node>& node : m_selectedNodes)
+    {
+        result.PushBack(node);
+    }
+
+    return result;
 }
 
 Vec3f EditorSubsystem::CalculateSceneInsertionPoint(float desiredDistance, float offsetFromSurface) const

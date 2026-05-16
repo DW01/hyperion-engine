@@ -16,6 +16,7 @@
 #include <Core/math/BoundingBox.hpp>
 
 #include <Core/functional/Delegate.hpp>
+#include <Core/containers/FlatSet.hpp>
 
 namespace Hyperion {
 
@@ -503,6 +504,21 @@ public:
     Handle<Node> GetFocusedNode() const;
 
     HYP_METHOD()
+    void AddToSelection(const Handle<Node>& node);
+
+    HYP_METHOD()
+    void RemoveFromSelection(const Handle<Node>& node);
+
+    HYP_METHOD()
+    void ClearSelection();
+
+    HYP_METHOD()
+    bool IsNodeSelected(const Handle<Node>& node) const;
+
+    HYP_METHOD()
+    Array<Handle<Node>> GetSelectedNodes() const;
+
+    HYP_METHOD()
     Handle<Scene> GetActiveScene() const;
 
     HYP_METHOD()
@@ -563,6 +579,9 @@ public:
     HYP_FIELD()
     ScriptableDelegate<void, Handle<EditorViewport>> OnActiveViewportChanged;
 
+    HYP_FIELD()
+    ScriptableDelegate<void> OnSelectionChanged;
+
 private:
     void CreateHighlightNode();
 
@@ -619,6 +638,8 @@ private:
     WeakHandle<Node> m_focusedNode;
     // the actual node that displays the highlight for the focused item
     Handle<Node> m_highlightNode;
+
+    FlatSet<Handle<Node>> m_selectedNodes;
 
     bool m_editorCameraEnabled;
     bool m_shouldCancelNextClick;
