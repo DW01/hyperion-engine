@@ -80,6 +80,7 @@ public:
         return !(*this == other);
     }
 
+    HYP_METHOD(NoScriptBindings)
     bool IsValid() const
     {
         bool isValid = false;
@@ -92,16 +93,17 @@ public:
         return isValid;
     }
 
-    HYP_FORCE_INLINE bool IsLoaded() const
+    HYP_METHOD(NoScriptBindings)
+    bool IsLoaded() const
     {
         return m_data.Is<Handle<AssetObject>>();
     }
 
-    HYP_METHOD(Property = "AssetPath", Serialize)
+    HYP_METHOD(Property = "AssetPath", NoScriptBindings, Serialize)
     const AssetPath& GetAssetPath() const;
 
     /*! \internal Serialization only */
-    HYP_METHOD(Property = "AssetPath", Serialize)
+    HYP_METHOD(Property = "AssetPath", NoScriptBindings, Serialize)
     void SetAssetPath(const AssetPath& assetPath)
     {
         m_data = assetPath;
@@ -112,7 +114,10 @@ public:
         return GetAssetPath().GetName();
     }
 
+    HYP_METHOD(NoScriptBindings)
     const Handle<AssetObject>& Resolve() const;
+
+    HYP_METHOD(NoScriptBindings)
     void Reload();
 
     HYP_FORCE_INLINE HashCode GetHashCode() const

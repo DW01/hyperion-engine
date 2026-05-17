@@ -13,7 +13,7 @@
 namespace Hyperion {
 
 HYP_CLASS(AssetBucket = "Scripts")
-class ScriptAsset : public AssetObject
+class HYP_API ScriptAsset : public AssetObject
 {
     HYP_OBJECT_BODY(ScriptAsset);
 
@@ -63,14 +63,15 @@ protected:
 
     void CollectBlobDataReferences(Array<Tuple<const char*, uint16, BlobDataReference*>>& outReferences) override
     {
-        outReferences.EmplaceBack("SCR", 1, &m_sourceData);
+        outReferences.EmplaceBack("SCR", 1, &m_data);
     }
 
 private:
+    HYP_FIELD(Property = "ScriptDesc", Serialize)
     ScriptDesc m_scriptDesc;
 
-    HYP_FIELD(Serialize)
-    BlobDataReference m_sourceData;
+    HYP_FIELD(Property = "Data", Serialize)
+    BlobDataReference m_data;
 };
 
 } // namespace Hyperion

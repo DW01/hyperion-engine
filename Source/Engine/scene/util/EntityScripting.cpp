@@ -186,8 +186,7 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
     }
     else // external script object (C# or HypScript)
     {
-        const Handle<ScriptAsset>& scriptAsset = scriptComponent.assetReference.Resolve();
-        AssertDebug(scriptAsset != nullptr);
+        const Handle<ScriptAsset>& scriptAsset = scriptComponent.script;
 
         if (!scriptAsset)
         {

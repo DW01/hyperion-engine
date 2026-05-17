@@ -142,7 +142,7 @@ ScriptSystem::ScriptSystem()
                     {
                         for (auto [entity, scriptComponent] : scene->GetEntityManager()->GetEntitySet<ScriptComponent>().GetScopedView(GetComponentInfos()))
                         {
-                            const Handle<ScriptAsset>& scriptAsset = scriptComponent.assetReference.Resolve();
+                            const Handle<ScriptAsset>& scriptAsset = scriptComponent.script;
                             Assert(scriptAsset != nullptr);
 
                             auto resGuard = scriptAsset->GetReadScope();

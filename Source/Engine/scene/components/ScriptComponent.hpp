@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -10,10 +10,9 @@
 
 #include <scripting/Script.hpp>
 #include <scripting/ScriptObjectResource.hpp>
+#include <scripting/asset/ScriptAsset.hpp>
 
 #include <Core/HashCode.hpp>
-
-#include <asset/AssetReference.hpp>
 
 namespace Hyperion {
 
@@ -21,8 +20,6 @@ namespace dotnet {
 class ManagedObject;
 class Assembly;
 } // namespace dotnet
-
-class ScriptAsset;
 
 HYP_ENUM()
 enum class ScriptComponentFlags : uint32
@@ -42,8 +39,8 @@ struct ScriptComponent
 {
     HYP_STRUCT_BODY(ScriptComponent);
 
-    HYP_FIELD(NoScriptBindings, Transient)
-    TAssetReference<ScriptAsset> assetReference;
+    HYP_FIELD(Property = "Script")
+    Handle<ScriptAsset> script;
 
     HYP_FIELD(NoScriptBindings, Transient)
     RC<dotnet::Assembly> assembly;
@@ -56,18 +53,6 @@ struct ScriptComponent
 
     HYP_FIELD(Transient)
     EnumFlags<ScriptComponentFlags> flags = ScriptComponentFlags::NONE;
-
-    HYP_METHOD(Property = "AssetReference")
-    const AssetReference& GetAssetReference() const
-    {
-        return assetReference;
-    }
-
-    HYP_METHOD(Property = "AssetReference")
-    void SetAssetReference(const AssetReference& value)
-    {
-        assetReference = TAssetReference<ScriptAsset>(value);
-    }
 };
 
 } // namespace Hyperion

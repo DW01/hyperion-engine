@@ -7,13 +7,13 @@
 
 #include <Core/logging/Logger.hpp>
 
-namespace Hyperion {
+#include <ScriptAsset.generated.inl>
 
-HYP_DECLARE_LOG_CHANNEL(Assets);
+namespace Hyperion {
 
 ScriptAsset::~ScriptAsset()
 {
-    FreeBlobData(m_sourceData);
+    FreeBlobData(m_data);
 }
 
 void ScriptAsset::Init()
@@ -23,20 +23,22 @@ void ScriptAsset::Init()
 
 void ScriptAsset::SetSourceCode(const String& sourceCode)
 {
-    FreeBlobData(m_sourceData);
-    AllocateBlobData(m_sourceData, sourceCode.Data(), sourceCode.Length(), 1);
+    FreeBlobData(m_data);
+    AllocateBlobData(m_data, sourceCode.Data(), sourceCode.Length(), 1);
 
     MarkDirty();
 }
 
 String ScriptAsset::GetSourceCode() const
 {
-    if (m_sourceData.raw == nullptr || m_sourceData.size == 0)
+    // @TODO data will hold HypScript bytecode or .NET assembly binary instead of source text,
+    // we'll need to load source from file in editor builds
+    if (m_data.raw == nullptr || m_data.size == 0)
     {
         return String();
     }
 
-    return String(reinterpret_cast<const char*>(m_sourceData.raw));
+    return String(reinterpret_cast<const char*>(m_data.raw));
 }
 
 void ScriptAsset::PageBlobData()
@@ -56,11 +58,11 @@ void ScriptAsset::PageBlobData()
 
     BlobStorage* blobStorage = registry->HasBlobStorage() ? &registry->GetBlobStorage() : nullptr;
 
-    if (m_sourceData.raw == nullptr
-        && m_sourceData.key
-        && m_sourceData.size != 0)
+    if (m_data.raw == nullptr
+        && m_data.key
+        && m_data.size != 0)
     {
-        if (!blobStorage || !blobStorage->GetData(m_sourceData.key, m_sourceData.size, m_sourceData.raw))
+        if (!blobStorage || !blobStorage->GetData(m_data.key, m_data.size, m_data.raw))
         {
 #if HYP_EDITOR || HYP_ALLOW_INLINE_BLOBS
             FileByteReader stream { registry->GetRootPath() / AssetBuckets::Scripts.GetName() / (String(*GetName()) + ".SCR.raw.blob") };
@@ -69,7 +71,7 @@ void ScriptAsset::PageBlobData()
             {
                 ByteBuffer buffer = stream.Read(stream.Max());
 
-                AllocateBlobData(m_sourceData, buffer.Data(), buffer.Size(), 1);
+                AllocateBlobData(m_data, buffer.Data(), buffer.Size(), 1);
 
                 MarkDirty();
 
@@ -86,16 +88,16 @@ void ScriptAsset::PageBlobData()
         }
         else
         {
-            m_sourceData.readOnly = true;
+            m_data.readOnly = true;
         }
     }
 }
 
 void ScriptAsset::UnpageBlobData()
 {
-    if (m_sourceData.readOnly)
+    if (m_data.readOnly)
     {
-        m_sourceData.raw = nullptr;
+        m_data.raw = nullptr;
     }
 }
 

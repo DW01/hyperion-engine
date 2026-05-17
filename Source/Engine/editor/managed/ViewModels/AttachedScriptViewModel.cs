@@ -63,7 +63,7 @@ namespace Hyperion.Editor.ViewModels
             {
                 Class cls = s_scriptComponentClass.Value;
                 _scriptComponentTypeId = cls.TypeId;
-                _assetRefProperty = cls.GetProperty(new Name("AssetReference")) ?? Property.Invalid;
+                _assetRefProperty = cls.GetProperty(new Name("Script")) ?? Property.Invalid;
             }
             else
             {
@@ -278,8 +278,8 @@ namespace Hyperion.Editor.ViewModels
                         return;
                     }
 
-                    // Set the asset reference
-                    using BoxedValue newBoxed = new BoxedValue(new AssetReference { Path = scriptAsset.Path });
+                    // Set the script asset
+                    using BoxedValue newBoxed = new BoxedValue(scriptAsset);
                     _assetRefProperty.Set(s_scriptComponentClass!.Value.Address, componentPtr, newBoxed);
 
                     // Push undo action
@@ -319,7 +319,7 @@ namespace Hyperion.Editor.ViewModels
                             return;
                         }
 
-                        using BoxedValue bv = new BoxedValue(valueObj != null ? new AssetReference { Path = scriptAsset.Path } : null);
+                        using BoxedValue bv = new BoxedValue(valueObj);
                         capturedProperty.Set(capturedClass.Address, ptr, bv);
                     }
 

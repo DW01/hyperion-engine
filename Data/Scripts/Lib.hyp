@@ -1779,8 +1779,6 @@ extern class AssetRegistry
     SetRootPath(rootPath : string) -> void
 end
 extern struct AssetReference
-    GetAssetPath() -> AssetPath
-    SetAssetPath(assetPath : AssetPath) -> void
 end
 extern struct AssetPath
     IsValid() -> bool
@@ -1828,6 +1826,8 @@ extern class FontAtlas : AssetObject
     SymbolList : Array<uint32>
 end
 extern class ScriptAsset : AssetObject
+    ScriptDesc : ScriptDesc
+    Data : BlobDataReference
 end
 extern class Skeleton : AssetObject
     GetRootBone() -> Bone
