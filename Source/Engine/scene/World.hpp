@@ -117,6 +117,9 @@ public:
 
     ~World() override;
 
+    void Initialize();
+    void Shutdown();
+
     HYP_METHOD()
     HYP_FORCE_INLINE Game* GetGame() const
     {
@@ -357,8 +360,6 @@ public:
     ScriptableDelegate<void, World*, Scene* /* scene */> OnSceneRemoved;
 
 private:
-    void Init() override;
-
     void UpdateCSMState();
 
     void SyncPhysicsToEntities();
@@ -432,6 +433,8 @@ private:
     Array<View*, SceneAllocator> m_processViews;
 
     DelegateHandlerSet m_delegateHandlers;
+
+    bool m_isInitialized;
 };
 
 } // namespace Hyperion

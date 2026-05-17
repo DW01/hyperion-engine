@@ -149,11 +149,11 @@ bool EditorProject::IsSaved() const
     return uint64(m_lastSavedTime) != ~0ull;
 }
 
-void EditorProject::Close()
+void EditorProject::Close(bool shutdownWorld)
 {
     if (m_gameInstance)
     {
-        m_gameInstance->Shutdown();
+        m_gameInstance->Shutdown(/* shutdownWorld */ shutdownWorld);
     }
 }
 

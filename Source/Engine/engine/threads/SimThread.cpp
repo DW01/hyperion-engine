@@ -77,7 +77,10 @@ struct LaunchGameAsync
             gameInstance->OnLaunch();
             gameInstance->m_isLaunched.Set(true, MemoryOrder::RELEASE);
 
-            g_engineDriver->AddWorld(gameInstance->GetWorld());
+            const Handle<World>& world = gameInstance->GetWorld();
+            Assert(world.IsValid());
+
+            g_engineDriver->AddWorld(world);
 
             gameInstance->OnLaunched();
         }

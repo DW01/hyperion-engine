@@ -2384,7 +2384,8 @@ void EditorSubsystem::StartSimulation()
     m_preSimulationProject = m_currentProject;
     m_simulationSnapshotPath = m_preSimulationProject->GetFilePath();
 
-    CloseProject();
+    // Keep the world alive, we need it to persist otherwise we'd need to load it again and undo/redo history would be lost.
+    CloseProject(/* shutdownWorld */ false);
 
     FilePath snapshotPath = std::move(m_simulationSnapshotPath);
 
@@ -3256,7 +3257,7 @@ void EditorSubsystem::NewProject()
     OpenProject(project);
 }
 
-void EditorSubsystem::CloseProject()
+void EditorSubsystem::CloseProject(bool shutdownWorld)
 {
     AssertOnThread(g_simThread);
 
@@ -3265,7 +3266,7 @@ void EditorSubsystem::CloseProject()
         OnProjectClosing(m_currentProject);
 
         m_currentProject->SetEditorSubsystem(WeakHandle<EditorSubsystem>::Null());
-        m_currentProject->Close();
+        m_currentProject->Close(/* shutdownWorld */ shutdownWorld);
 
         m_currentProject.Reset();
     }
@@ -3280,7 +3281,7 @@ void EditorSubsystem::OpenProject(const Handle<EditorProject>& project)
         return;
     }
 
-    CloseProject();
+    CloseProject(/* shutdownWorld*/ true);
 
     if (!project.IsValid())
     {

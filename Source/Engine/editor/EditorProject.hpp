@@ -113,7 +113,7 @@ public:
     static Handle<EditorProject> CreateNew();
 
     HYP_METHOD()
-    void Close();
+    void Close(bool shutdownWorld = true);
 
     HYP_FIELD()
     ScriptableDelegate<void, const Handle<EditorProject>&> OnProjectSaved;

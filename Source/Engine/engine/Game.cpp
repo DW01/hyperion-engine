@@ -93,7 +93,8 @@ void Game::Initialize()
 
     AssertDebug(m_world->m_gameInstance == nullptr || m_world->m_gameInstance == this);
     m_world->m_gameInstance = this;
-    InitObject(m_world);
+
+    m_world->Initialize();
 
     m_assetRegistry->PutAssetsDeep(m_world);
 
@@ -105,7 +106,7 @@ void Game::Initialize()
     m_isInitialized = true;
 }
 
-void Game::Shutdown()
+void Game::Shutdown(bool shutdownWorld)
 {
     if (!m_isInitialized)
     {
@@ -116,7 +117,14 @@ void Game::Shutdown()
     {
         m_world->m_gameInstance = nullptr;
 
+        // @TODO Purge all streamed scenes from world upon world shutdown.
+
         g_engineDriver->RemoveWorld(m_world);
+
+        if (shutdownWorld)
+        {
+            m_world->Shutdown();
+        }
     }
 
     if (m_assetRegistry && m_assetRegistryActive)
@@ -173,20 +181,33 @@ void Game::SetWorld(const Handle<World>& world)
     {
         m_world->m_gameInstance = nullptr;
 
-        if (isLaunched)
+        if (m_isInitialized)
         {
-            g_engineDriver->RemoveWorld(m_world);
+            if (isLaunched)
+            {
+                g_engineDriver->RemoveWorld(m_world);
+            }
+
+            m_world->Shutdown();
         }
     }
 
     m_world = world;
 
-    if (m_world && isLaunched)
+    if (m_world)
     {
         AssertDebug(m_world->m_gameInstance == nullptr || m_world->m_gameInstance == this);
         m_world->m_gameInstance = this;
+        
+        if (m_isInitialized)
+        {
+            m_world->Initialize();
 
-        g_engineDriver->AddWorld(m_world);
+            if (isLaunched)
+            {
+                g_engineDriver->AddWorld(m_world);
+            }
+        }
     }
 }
 

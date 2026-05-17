@@ -72,7 +72,7 @@ public:
     void Initialize();
 
     HYP_METHOD()
-    void Shutdown();
+    void Shutdown(bool shutdownWorld = true);
 
 #if HYP_EDITOR
     HYP_METHOD(EditorOnly)

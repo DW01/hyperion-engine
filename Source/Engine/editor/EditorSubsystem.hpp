@@ -495,7 +495,7 @@ public:
     void OpenProject(const Handle<EditorProject>& project);
 
     HYP_METHOD()
-    void CloseProject();
+    void CloseProject(bool shutdownWorld = true);
 
     HYP_METHOD()
     void ShowImportContentDialog();

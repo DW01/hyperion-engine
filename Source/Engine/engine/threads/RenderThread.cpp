@@ -173,7 +173,7 @@ void RenderThread::Update()
 
         for (World* world : worldsToRender)
         {
-            AssertDebug(world != nullptr && world->IsReady());
+            AssertDebug(world != nullptr);
 
             renderSetup.world = world;
 
