@@ -39,6 +39,13 @@ namespace Hyperion.Editor.ViewModels
             set => SetProperty(ref _undoHeader, value);
         }
 
+        private bool _canUndo;
+        public bool CanUndo
+        {
+            get => _canUndo;
+            set => SetProperty(ref _canUndo, value);
+        }
+
         private string _redoHeader = "_Redo";
         public string RedoHeader
         {
@@ -46,11 +53,46 @@ namespace Hyperion.Editor.ViewModels
             set => SetProperty(ref _redoHeader, value);
         }
 
+        private bool _canRedo;
+        public bool CanRedo
+        {
+            get => _canRedo;
+            set => SetProperty(ref _canRedo, value);
+        }
+
         private string _pasteHeader = "_Paste";
         public string PasteHeader
         {
             get => _pasteHeader;
             set => SetProperty(ref _pasteHeader, value);
+        }
+
+        private bool _canPaste;
+        public bool CanPaste
+        {
+            get => _canPaste;
+            set => SetProperty(ref _canPaste, value);
+        }
+
+        private string _copyHeader = "_Copy";
+        public string CopyHeader
+        {
+            get => _copyHeader;
+            set => SetProperty(ref _copyHeader, value);
+        }
+
+        private bool _canCopy;
+        public bool CanCopy
+        {
+            get => _canCopy;
+            set => SetProperty(ref _canCopy, value);
+        }
+
+        private string _deleteHeader = "_Delete";
+        public string DeleteHeader
+        {
+            get => _deleteHeader;
+            set => SetProperty(ref _deleteHeader, value);
         }
 
         public EditorCommand AddEmptyNode => new EditorCommand("AddEmptyNode");
@@ -427,6 +469,8 @@ namespace Hyperion.Editor.ViewModels
             {
                 UndoHeader = "_Undo";
                 RedoHeader = "_Redo";
+                CanUndo = false;
+                CanRedo = false;
                 return;
             }
 
@@ -441,11 +485,15 @@ namespace Hyperion.Editor.ViewModels
                 EditorActionBase? redoAction = p.ActionStack.GetRedoAction();
                 string? undoName = undoAction?.GetText();
                 string? redoName = redoAction?.GetText();
+                bool hasUndo = undoAction != null;
+                bool hasRedo = redoAction != null;
 
                 Dispatcher.UIThread.Post(() =>
                 {
                     UndoHeader = string.IsNullOrEmpty(undoName) ? "_Undo" : $"_Undo {undoName}";
                     RedoHeader = string.IsNullOrEmpty(redoName) ? "_Redo" : $"_Redo {redoName}";
+                    CanUndo = hasUndo;
+                    CanRedo = hasRedo;
                 });
             });
         }
@@ -454,23 +502,15 @@ namespace Hyperion.Editor.ViewModels
         {
             _ = EngineManager.PostToSimThread(() =>
             {
-                Node[] clipboardNodes;
-
+                Node[]? clipboardNodes = null;
                 try
                 {
                     clipboardNodes = EditorState.Instance.ClipboardNodes;
                 }
-                catch (Exception ex)
-                {
-                    clipboardNodes = Array.Empty<Node>();
+                catch { }
 
-                    Logger.Log(LogLevel.Warning, "Exception occurred while getting clipboard nodes: {}", ex.Message);
-                }
-
-                int count = clipboardNodes.Length;
-
+                int count = clipboardNodes?.Length ?? 0;
                 string header;
-
                 if (count == 0)
                 {
                     header = "_Paste";
@@ -488,8 +528,19 @@ namespace Hyperion.Editor.ViewModels
                 Dispatcher.UIThread.Post(() =>
                 {
                     PasteHeader = header;
+                    CanPaste = count > 0;
                 });
             });
+        }
+
+        private void UpdateCopyDeleteHeaders()
+        {
+            Dispatcher.UIThread.VerifyAccess();
+
+            int count = SceneHierarchy.SelectedNodes.Count;
+            CopyHeader = count > 1 ? $"_Copy {count} Nodes" : "_Copy";
+            DeleteHeader = count > 1 ? $"_Delete {count} Nodes" : "_Delete";
+            CanCopy = count > 0;
         }
 
         private void OnClipboardChanged()
@@ -811,6 +862,7 @@ namespace Hyperion.Editor.ViewModels
                     bool isRootNode = SceneHierarchy.IsRootNode(validNode);
                     Inspector.SetSelectedNode(validNode, SceneHierarchy.Scene, isRootNode);
                     SceneHierarchy.SelectNodeFromEngine(validNode);
+                    UpdateCopyDeleteHeaders();
 
                     // can ONLY add Instanced Mesh Proxy child objects instances to entities that have a MeshComponent.
                     // Note that for now the most derived class MUST be EQUAL to Entity (not just derived from it)
@@ -868,6 +920,7 @@ namespace Hyperion.Editor.ViewModels
                     Dispatcher.UIThread.Post(() =>
                     {
                         SceneHierarchy.UpdateSelectionFromEngine(selectedNodes.Cast<Node>());
+                        UpdateCopyDeleteHeaders();
                         Interlocked.Exchange(ref _isUpdatingSelectionFromEngine, 0);
                     });
                 }
@@ -912,6 +965,7 @@ namespace Hyperion.Editor.ViewModels
                     try
                     {
                         SceneHierarchy.UpdateSelectionFromEngine(selectedNodes.Cast<Node>());
+                        UpdateCopyDeleteHeaders();
                     }
                     finally
                     {
@@ -950,6 +1004,7 @@ namespace Hyperion.Editor.ViewModels
                 SceneHierarchy.SelectedNodes.Clear();
                 SceneHierarchy.SelectedNodes.Add(clicked);
                 SceneHierarchy.NotifySelectedNodesChanged();
+                UpdateCopyDeleteHeaders();
 
                 if (clickedNode != null)
                 {
@@ -982,6 +1037,7 @@ namespace Hyperion.Editor.ViewModels
                 {
                     SceneHierarchy.SelectedNodes.Add(toggled);
                     SceneHierarchy.NotifySelectedNodesChanged();
+                    UpdateCopyDeleteHeaders();
 
                     if (toggledNode != null)
                     {
@@ -1024,6 +1080,7 @@ namespace Hyperion.Editor.ViewModels
                 }
 
                 SceneHierarchy.NotifySelectedNodesChanged();
+                UpdateCopyDeleteHeaders();
             }
             else
             {
@@ -1034,6 +1091,7 @@ namespace Hyperion.Editor.ViewModels
                     SceneHierarchy.SelectedNodes.Add(vm);
                 }
                 SceneHierarchy.NotifySelectedNodesChanged();
+                UpdateCopyDeleteHeaders();
 
                 // Sync to engine
                 List<Node> nodes = added
