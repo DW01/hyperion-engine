@@ -5,7 +5,6 @@
 #include <engine/Game.hpp>
 
 #include <Core/reflection/Handle.hpp>
-#include <scene/util/VoxelOctree.hpp>
 
 namespace Hyperion {
 
@@ -41,7 +40,6 @@ protected:
 
     Handle<Scene> m_defaultScene;
     Handle<Camera> m_camera;
-    UniquePtr<VoxelOctree> m_voxelOctree;
 };
 } // namespace game
 

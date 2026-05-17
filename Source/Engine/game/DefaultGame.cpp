@@ -66,35 +66,6 @@ HYP_DEFINE_LOG_CHANNEL(Game);
 
 namespace game {
 
-static void DebugDrawVoxelOctreeNode(DebugDrawCommandList& dbg, const VoxelOctree* node)
-{
-    if (node == nullptr)
-        return;
-
-    const BoundingBox& aabb = node->GetAABB();
-
-    if (node->GetPayload().occupiedBit)
-    {
-        dbg.box(aabb.GetCenter(), aabb.GetExtent() * 0.5f, Color::Red());
-    }
-    else if (node->IsDivided())
-    {
-        //dbg.box(aabb.GetCenter(), aabb.GetExtent() * 0.5f, Color(0.0f, 1.0f, 0.0f, 0.3f));
-    }
-
-    if (node->IsDivided())
-    {
-        for (uint8 i = 0; i < 8; i++)
-        {
-            const auto& octant = node->GetOctants()[i];
-            if (octant.octree != nullptr)
-            {
-                DebugDrawVoxelOctreeNode(dbg, octant.octree);
-            }
-        }
-    }
-}
-
 DefaultGame::DefaultGame()
     : Game()
 {
@@ -158,17 +129,6 @@ void DefaultGame::OnLaunch_Impl()
             GetWorld()->AddView(view);
 
             GetWorld()->AddScene(mainScene);
-
-            // test voxel octree build
-            {
-                VoxelOctreeParams params;
-                params.aabb = BoundingBox(Vec3f(-70.0f), Vec3f(70.0f));
-                params.allowResize = false;
-                params.maxDepth = 7;
-
-                m_voxelOctree.Reset(new VoxelOctree());
-                m_voxelOctree->Build(params, *mainScene->GetEntityManager());
-            }
         }
 
         StartSimulating();
@@ -322,13 +282,6 @@ void DefaultGame::OnUpdate_Impl(float delta)
                 controller->GetInputHandler()->SetTouchMovementDelta(tcs->GetMovementDelta());
             }
         }
-    }
-
-    // test voxel octree visualization
-    if (m_voxelOctree != nullptr)
-    {
-        DebugDrawCommandList& dbg = DebugDrawer::GetInstance().CreateCommandList();
-        DebugDrawVoxelOctreeNode(dbg, m_voxelOctree.Get());
     }
 }
 
