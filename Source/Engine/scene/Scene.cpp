@@ -33,7 +33,10 @@ static const Name s_nameSceneRoot = NAME("<ROOT>");
 
 void Scene_OnPostLoad(Scene& scene)
 {
-    scene.SetOwnerThreadId(g_simThread);
+    if (!g_engineDriver->IsShuttingDown())
+    {
+        scene.SetOwnerThreadId(g_simThread);
+    }
 }
 
 #pragma region Scene

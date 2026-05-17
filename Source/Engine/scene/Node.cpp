@@ -49,7 +49,10 @@ extern Handle<EditorState> g_editorState;
 
 void Node_OnPostLoad(Node& node)
 {
-    node.SetScene(GetDetachedSceneForThread(g_simThread));
+    if (!g_engineDriver->IsShuttingDown())
+    {
+        node.SetScene(GetDetachedSceneForThread(g_simThread));
+    }
 }
 
 #pragma region NodeTag
@@ -74,11 +77,6 @@ String NodeTag::ToString() const
 #pragma endregion NodeTag
 
 #pragma region Node
-
-// @NOTE: In some places we have a m_scene->GetEntityManager() != nullptr check,
-// this only happens in the case that the scene in question is destructing and
-// this Node is held on a component that the EntityManager has.
-// In practice it only really shows up on UI objects where UIObject holds a reference to a Node.
 
 Node::Node(Name name, const Transform& localTransform, Scene* scene)
     : AssetObject(name),

@@ -27,7 +27,15 @@ namespace Hyperion.Editor.ViewModels
         public EditorCommand OpenProject => new EditorCommand("OpenProject");
         public EditorCommand SaveProject => new EditorCommand("SaveProject");
         public EditorCommand SaveProjectAs => new EditorCommand("SaveProjectAs");
-        public EditorCommand Exit => new EditorCommand("Exit");
+        public ICommand Exit { get; } = new RelayCommand(() =>
+        {
+            try
+            {
+                EngineManager.Shutdown();
+            }
+            catch { }
+            Environment.Exit(0);
+        });
         public EditorCommand Undo => new EditorCommand("Undo");
         public EditorCommand Redo => new EditorCommand("Redo");
         public EditorCommand SelectAll => new EditorCommand("SelectAll");
