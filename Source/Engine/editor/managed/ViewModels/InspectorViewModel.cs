@@ -64,6 +64,20 @@ namespace Hyperion.Editor.ViewModels
 
         public ObservableCollection<InspectorPropertyViewModelBase> SceneProperties { get; } = new ObservableCollection<InspectorPropertyViewModelBase>();
 
+        private AttachedScriptViewModel? _attachedScript;
+        public AttachedScriptViewModel? AttachedScript
+        {
+            get => _attachedScript;
+            private set => SetProperty(ref _attachedScript, value);
+        }
+
+        private bool _hasAttachedScript;
+        public bool HasAttachedScript
+        {
+            get => _hasAttachedScript;
+            private set => SetProperty(ref _hasAttachedScript, value);
+        }
+
         private Node? _selectedNode;
         public Node? SelectedNode
         {
@@ -126,6 +140,9 @@ namespace Hyperion.Editor.ViewModels
             Components.Clear();
             AddableComponents.Clear();
             SceneProperties.Clear();
+
+            AttachedScript = null;
+            HasAttachedScript = false;
 
             HasActions = false;
             HasComponents = false;
@@ -267,6 +284,9 @@ namespace Hyperion.Editor.ViewModels
             {
                 IsEntity = true;
 
+                AttachedScript = new AttachedScriptViewModel(entity);
+                HasAttachedScript = true;
+
                 _ = EngineManager.PostToSimThread(() =>
                 {
                     EntityManager? mgr = entity.EntityManager;
@@ -311,6 +331,8 @@ namespace Hyperion.Editor.ViewModels
             else
             {
                 IsEntity = false;
+                AttachedScript = null;
+                HasAttachedScript = false;
                 AddableComponents.Clear();
                 HasAddableComponents = false;
             }
