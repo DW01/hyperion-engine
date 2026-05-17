@@ -1543,8 +1543,8 @@ extern class EditorState
     GetCurrentProject() -> EditorProject
     SetCurrentProject(project : EditorProject) -> void
     AddTask(task : EditorTaskBase) -> void
-    GetClipboardNode() -> Node
-    SetClipboardNode(node : Node) -> void
+    GetClipboardNodes() -> Array<Node>
+    SetClipboardNodes(nodes : Array<Node>) -> void
     OnCurrentProjectChanged : any
     OnTaskStarted : any
     OnTaskEnded : any

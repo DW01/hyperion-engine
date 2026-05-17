@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace Hyperion
@@ -47,7 +48,12 @@ namespace Hyperion
 
         public Node? ClipboardNode
         {
-            get => this.GetClipboardNode();
+            get => this.GetClipboardNodes().Cast<Node>().FirstOrDefault();
+        }
+
+        public Node[] ClipboardNodes
+        {
+            get => this.GetClipboardNodes().Cast<Node>().ToArray();
         }
     }
 }

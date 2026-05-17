@@ -436,7 +436,6 @@ void TranslateEditorGizmo::OnDragStart(const Handle<Camera>& camera, const Mouse
 
     m_dragData = dragData;
 
-    // Capture selected nodes for multi-object manipulation
     m_selectedNodes.Clear();
 
     if (EditorSubsystem* subsystem = GetEditorSubsystem())
@@ -463,16 +462,23 @@ void TranslateEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEv
     {
         if (Handle<Node> focusedNode = m_focusedNode.Lock(); focusedNode.IsValid())
         {
-            // Capture final positions and origins for all nodes (focused + selected)
             const Vec3f focusedFinalPosition = focusedNode->GetWorldTranslation();
             const Vec3f focusedOrigin = m_dragData->nodeOrigin;
 
-            auto nodeData = m_selectedNodes; // copy for lambda capture
+            // Sort nodes by depth (ancestors first) so SetWorldTranslation on a parent
+            // happens before its descendants, preventing the parent's accumulated transform
+            // from corrupting the descendant's computed local transform during undo/redo.
+            auto nodeData = m_selectedNodes;
+            std::sort(nodeData.Begin(), nodeData.End(),
+                [](const Pair<Handle<Node>, Vec3f>& a, const Pair<Handle<Node>, Vec3f>& b)
+                {
+                    return a.first->CalculateDepth() < b.first->CalculateDepth();
+                });
 
             project->GetActionStack()->PushAction(MakeHandle<FunctionalEditorAction>(
-                m_selectedNodes.Size() == 1
-                    ? HYP_FORMAT("Translate {}", m_selectedNodes[0].first->GetName())
-                    : HYP_FORMAT("Translate {} nodes", m_selectedNodes.Size()),
+                nodeData.Size() == 1
+                    ? HYP_FORMAT("Translate {}", nodeData[0].first->GetName())
+                    : HYP_FORMAT("Translate {} nodes", nodeData.Size()),
                 [focusedNode, node = m_node, focusedFinalPosition, focusedOrigin, nodeData]() -> EditorActionFunctions
                 {
                     return {
@@ -891,7 +897,6 @@ void RotateEditorGizmo::OnDragStart(const Handle<Camera>& camera, const MouseEve
 
     m_dragData = dragData;
 
-    // Capture selected nodes for multi-object manipulation
     m_selectedNodes.Clear();
 
     if (EditorSubsystem* subsystem = GetEditorSubsystem())
@@ -922,17 +927,26 @@ void RotateEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEvent
             const Quat4f originRotation = m_dragData->startRotation;
             const Quat4f deltaRotation = finalRotation * originRotation.Inverse();
 
-            auto nodeData = m_selectedNodes; // copy for lambda capture
+            // Sort nodes by depth (ancestors first) so SetWorldRotation on a parent
+            // happens before its descendants, preventing accumulated parent rotation
+            // from corrupting the descendant's computed local rotation.
+            auto nodeData = m_selectedNodes;
+            std::sort(nodeData.Begin(), nodeData.End(),
+                [](const Pair<Handle<Node>, Quat4f>& a, const Pair<Handle<Node>, Quat4f>& b)
+                {
+                    return a.first->CalculateDepth() < b.first->CalculateDepth();
+                });
 
             project->GetActionStack()->PushAction(MakeHandle<FunctionalEditorAction>(
-                m_selectedNodes.Size() == 1
-                    ? HYP_FORMAT("Rotate {}", m_selectedNodes[0].first->GetName())
-                    : HYP_FORMAT("Rotate {} nodes", m_selectedNodes.Size()),
+                nodeData.Size() == 1
+                    ? HYP_FORMAT("Rotate {}", nodeData[0].first->GetName())
+                    : HYP_FORMAT("Rotate {} nodes", nodeData.Size()),
                 [focusedNode, finalRotation, originRotation, deltaRotation, nodeData]() -> EditorActionFunctions
                 {
                     return {
                         [&](EditorSubsystem* editorSubsystem, EditorProject*)
                         {
+                            // Execute: ancestors first so parent rotation is up-to-date
                             for (const auto& pair : nodeData)
                             {
                                 const Handle<Node>& selectedNode = pair.first;
@@ -949,6 +963,7 @@ void RotateEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEvent
                         },
                         [&](EditorSubsystem* editorSubsystem, EditorProject*)
                         {
+                            // Revert: ancestors first so parent rotation is up-to-date
                             for (const auto& pair : nodeData)
                             {
                                 const Handle<Node>& selectedNode = pair.first;
@@ -1217,7 +1232,6 @@ void ScaleEditorGizmo::OnDragStart(const Handle<Camera>& camera, const MouseEven
 
     m_dragData = dragData;
 
-    // Capture selected nodes for multi-object manipulation
     m_selectedNodes.Clear();
 
     if (EditorSubsystem* subsystem = GetEditorSubsystem())
@@ -1248,12 +1262,20 @@ void ScaleEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEvent&
             const Vec3f originScale = m_dragData->initialScale;
             const Vec3f scaleFactor = finalScale / originScale;
 
-            auto nodeData = m_selectedNodes; // copy for lambda capture
+            // Sort nodes by depth (ancestors first) so SetWorldScale on a parent
+            // happens before its descendants, preventing the parent's accumulated transform
+            // from corrupting the descendant's computed local transform during undo/redo.
+            auto nodeData = m_selectedNodes;
+            std::sort(nodeData.Begin(), nodeData.End(),
+                [](const Pair<Handle<Node>, Pair<Vec3f, Vec3f>>& a, const Pair<Handle<Node>, Pair<Vec3f, Vec3f>>& b)
+                {
+                    return a.first->CalculateDepth() < b.first->CalculateDepth();
+                });
 
             project->GetActionStack()->PushAction(MakeHandle<FunctionalEditorAction>(
-                m_selectedNodes.Size() == 1
-                    ? HYP_FORMAT("Scale {}", m_selectedNodes[0].first->GetName())
-                    : HYP_FORMAT("Scale {} nodes", m_selectedNodes.Size()),
+                nodeData.Size() == 1
+                    ? HYP_FORMAT("Scale {}", nodeData[0].first->GetName())
+                    : HYP_FORMAT("Scale {} nodes", nodeData.Size()),
                 [focusedNode, finalScale, originScale, scaleFactor, nodeData]() -> EditorActionFunctions
                 {
                     return {

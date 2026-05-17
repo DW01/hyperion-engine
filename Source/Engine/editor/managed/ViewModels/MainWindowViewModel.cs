@@ -86,7 +86,7 @@ namespace Hyperion.Editor.ViewModels
 
         public EditorCommand DeleteNode => new EditorCommand("DeleteNode", GetSelectedNodeName);
         public EditorCommand TeleportToNode => new EditorCommand("TeleportTo", GetSelectedNodeName);
-        public EditorCommand Copy => new EditorCommand("Copy", GetSelectedNodeName);
+        public EditorCommand Copy => new EditorCommand("Copy");
         public EditorCommand Paste => new EditorCommand("Paste");
 
         public ICommand SelectTransformModeTranslate { get; private set; }
@@ -275,7 +275,7 @@ namespace Hyperion.Editor.ViewModels
 
             _clipboardChangedHandler?.Remove();
             _clipboardChangedHandler = editorState.GetOnClipboardChangedDelegate()
-                .Bind(OnClipboardChanged);
+                .Bind(() => OnClipboardChanged());
 
             // handle active scene changes
             _activeSceneChangedHandler?.Remove();
@@ -453,24 +453,47 @@ namespace Hyperion.Editor.ViewModels
         {
             _ = EngineManager.PostToSimThread(() =>
             {
-                Node? clipboardNode = EditorState.Instance.ClipboardNode;
-                string? nodeName = clipboardNode?.Name.ToString();
+                Node[] clipboardNodes;
+
+                try
+                {
+                    clipboardNodes = EditorState.Instance.ClipboardNodes;
+                }
+                catch (Exception ex)
+                {
+                    clipboardNodes = Array.Empty<Node>();
+
+                    Logger.Log(LogLevel.Warning, "Exception occurred while getting clipboard nodes: {}", ex.Message);
+                }
+
+                int count = clipboardNodes.Length;
+
+                string header;
+
+                if (count == 0)
+                {
+                    header = "_Paste";
+                }
+                else if (count == 1)
+                {
+                    string? nodeName = clipboardNodes?[0]?.Name.ToString();
+                    header = string.IsNullOrEmpty(nodeName) ? "_Paste" : $"_Paste {nodeName}";
+                }
+                else
+                {
+                    header = $"_Paste {count} Nodes";
+                }
 
                 Dispatcher.UIThread.Post(() =>
                 {
-                    PasteHeader = string.IsNullOrEmpty(nodeName) ? "_Paste" : $"_Paste {nodeName}";
+                    PasteHeader = header;
                 });
             });
         }
 
-        private void OnClipboardChanged(Node? node)
+        private void OnClipboardChanged()
         {
-            string? nodeName = node?.Name.ToString();
-
-            Dispatcher.UIThread.Post(() =>
-            {
-                PasteHeader = string.IsNullOrEmpty(nodeName) ? "_Paste" : $"_Paste {nodeName}";
-            });
+            UpdatePasteHeader();
         }
 
         private void HandleCurrentProjectChanged(EditorProject? project)

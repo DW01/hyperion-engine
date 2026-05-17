@@ -129,20 +129,20 @@ void EditorState::Update(float delta)
     m_taskManager.Tick();
 }
 
-Handle<Node> EditorState::GetClipboardNode() const
+Array<Handle<Node>> EditorState::GetClipboardNodes() const
 {
     Mutex::Guard guard(m_mutex);
-    return m_clipboardNode.Lock();
+    return m_clipboardNodes;
 }
 
-void EditorState::SetClipboardNode(const Handle<Node>& node)
+void EditorState::SetClipboardNodes(const Array<Handle<Node>>& nodes)
 {
     {
         Mutex::Guard guard(m_mutex);
-        m_clipboardNode = node;
+        m_clipboardNodes = nodes;
     }
 
-    OnClipboardChanged(node);
+    OnClipboardChanged();
 }
 
 #endif
