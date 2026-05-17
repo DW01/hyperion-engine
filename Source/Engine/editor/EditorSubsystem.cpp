@@ -2569,15 +2569,17 @@ void EditorSubsystem::InitViewport()
                         {
                             Handle<Node> nodeStrong = MakeStrongRef(hit.node);
 
-                            bool shouldAddToSelection = false;
+                            bool shouldMutateSelection = false;
                             
                             InputManager* inputManager = g_appContext->GetMainWindow()->GetInputManager();
-                            if (inputManager->IsKeyDown(KeyCode::KEY_LSHIFT) || inputManager->IsKeyDown(KeyCode::KEY_RSHIFT))
+
+                            // If 'ctrl' key is down, add/remove from current selection.
+                            if (inputManager->IsKeyDown(KeyCode::KEY_LCTRL) || inputManager->IsKeyDown(KeyCode::KEY_RCTRL))
                             {
-                                shouldAddToSelection = true;
+                                shouldMutateSelection = true;
                             }
 
-                            if (shouldAddToSelection)
+                            if (shouldMutateSelection)
                             {
                                 // If already in selection, remove, otherwise add
                                 if (m_selectedNodes.Contains(nodeStrong))

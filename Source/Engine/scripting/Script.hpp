@@ -41,28 +41,14 @@ struct ScriptDesc
     HYP_FIELD(Serialize)
     FixedArray<char, ScriptMaxClassNameLength> className;
 
-    HYP_FIELD(Serialize)
+    HYP_FIELD(Transient)
     uint32 compileStatus;
 
-    HYP_FIELD(Serialize)
+    HYP_FIELD(Transient)
     int32 hotReloadVersion;
 
-    HYP_FIELD(Serialize)
+    HYP_FIELD(Transient)
     uint64 lastModifiedTimestamp;
-
-    HYP_FORCE_INLINE HashCode GetHashCode() const
-    {
-        HashCode hashCode;
-
-        hashCode.Add(uuid);
-        hashCode.Add(language);
-        hashCode.Add(HashCode::GetHashCode(&path[0], &path[0] + path.Size()));
-        hashCode.Add(HashCode::GetHashCode(&assemblyPath[0], &assemblyPath[0] + assemblyPath.Size()));
-        hashCode.Add(HashCode::GetHashCode(&className[0], &className[0] + className.Size()));
-        hashCode.Add(compileStatus);
-
-        return hashCode;
-    }
 };
 
 static_assert(std::is_standard_layout_v<ScriptDesc>, "ScriptDesc struct must be standard layout");
