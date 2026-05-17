@@ -517,6 +517,8 @@ void EngineDriver::FinalizeStop()
 
     m_worlds.Clear();
 
+    m_debugDrawer.Reset();
+
     if (m_scriptingService)
     {
         m_scriptingService->Stop();

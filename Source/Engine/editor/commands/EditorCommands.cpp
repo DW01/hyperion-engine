@@ -1417,13 +1417,17 @@ public:
     {
         AssertOnThread(g_simThread);
 
-        Handle<Node> node;
+        Array<Handle<Node>> nodes;
 
         if (NumArguments() >= 1 && !GetArgument(0).Empty())
         {
-            node = subsystem->GetActiveScene()->FindNodeByName(StringHash(GetArgument(0)));
+            Handle<Node> node = subsystem->GetActiveScene()->FindNodeByName(StringHash(GetArgument(0)));
 
-            if (!node.IsValid())
+            if (node.IsValid())
+            {
+                nodes.PushBack(node);
+            }
+            else
             {
                 HYP_LOG(Editor, Warning, "could not find node '{}'", GetArgument(0));
                 return;
@@ -1431,18 +1435,29 @@ public:
         }
         else
         {
-            node = subsystem->GetFocusedNode();
+            // Copy all selected nodes; fall back to the focused node if nothing is selected
+            nodes = subsystem->GetSelectedNodes();
+
+            if (nodes.Empty())
+            {
+                Handle<Node> focusedNode = subsystem->GetFocusedNode();
+
+                if (focusedNode.IsValid())
+                {
+                    nodes.PushBack(focusedNode);
+                }
+            }
         }
 
-        if (!node.IsValid())
+        if (nodes.Empty())
         {
-            HYP_LOG(Editor, Warning, "No node specified or focused");
+            HYP_LOG(Editor, Warning, "No nodes to copy");
             return;
         }
 
-        g_editorState->SetClipboardNode(node);
+        g_editorState->SetClipboardNodes(nodes);
 
-        HYP_LOG(Editor, Verbose, "Copied node '{}' to clipboard", node->GetName());
+        HYP_LOG(Editor, Verbose, "Copied {} node(s) to clipboard", nodes.Size());
     }
 };
 
@@ -1461,7 +1476,7 @@ public:
 
     virtual String GetText() const override
     {
-        return "Paste Node";
+        return "Paste Nodes";
     }
 
     virtual void Execute(EditorSubsystem* subsystem) override
@@ -1477,11 +1492,11 @@ public:
             return;
         }
 
-        Handle<Node> clipboardNode = g_editorState->GetClipboardNode();
+        Array<Handle<Node>> clipboardNodes = g_editorState->GetClipboardNodes();
 
-        if (!clipboardNode.IsValid())
+        if (clipboardNodes.Empty())
         {
-            HYP_LOG(Editor, Warning, "No node in clipboard");
+            HYP_LOG(Editor, Warning, "No nodes in clipboard");
 
             return;
         }
@@ -1495,67 +1510,105 @@ public:
             return;
         }
 
-        WeakHandle<Node> parentNode = MakeWeakRef(clipboardNode->GetParent());
-        if (!parentNode.IsValid())
-        {
-            parentNode = MakeWeakRef(activeScene->GetRoot());
-        }
-
-        if (!parentNode.IsValid())
-        {
-            HYP_LOG(Editor, Error, "No parent node to attach pasted node to");
-
-            return;
-        }
-
         WeakHandle<Node> previousFocusedNode = subsystem->GetFocusedNode();
+        const Handle<Node>& sceneRoot = activeScene->GetRoot();
 
-        Handle<Node> newNode = clipboardNode->Clone();
-
-        if (!newNode.IsValid())
+        // Clone each clipboard node, pairing with its individual parent
+        Array<Pair<Handle<Node>, WeakHandle<Node>>> newNodesWithParents;
+        for (const Handle<Node>& clipboardNode : clipboardNodes)
         {
-            HYP_LOG(Editor, Error, "Failed to clone clipboard node");
+            if (!clipboardNode.IsValid())
+            {
+                continue;
+            }
+
+            Handle<Node> newNode = clipboardNode->Clone();
+
+            if (!newNode.IsValid())
+            {
+                HYP_LOG(Editor, Error, "Failed to clone clipboard node '{}'", clipboardNode->GetName());
+
+                continue;
+            }
+
+            String newName = clipboardNode->GetName().ToString() + "Copy";
+            newNode->SetName(CreateNameFromDynamicString(newName));
+
+            // Attach to the original node's parent, falling back to the scene root
+            WeakHandle<Node> parentNode = MakeWeakRef(clipboardNode->GetParent());
+            if (!parentNode.IsValid())
+            {
+                parentNode = MakeWeakRef(sceneRoot);
+            }
+
+            newNodesWithParents.PushBack({ newNode, parentNode });
+        }
+
+        if (newNodesWithParents.Empty())
+        {
+            HYP_LOG(Editor, Error, "Failed to create any pasted nodes");
 
             return;
         }
-
-        String originalName = newNode->GetName().ToString();
-        String newName = originalName + "Copy";
-        newNode->SetName(CreateNameFromDynamicString(newName));
 
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
-            HYP_FORMAT("Paste {}", newName),
-            Proc<EditorActionFunctions()>([newNode, previousFocusedNode, parentNode, activeScene]() -> EditorActionFunctions
+            (newNodesWithParents.Size() == 1)
+                ? HYP_FORMAT("Paste {}", newNodesWithParents[0].first->GetName())
+                : HYP_FORMAT("Paste {} nodes", newNodesWithParents.Size()),
+            Proc<EditorActionFunctions()>([newNodesWithParents, previousFocusedNode, activeScene]() -> EditorActionFunctions
                 {
                     return EditorActionFunctions {
-                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([newNode, parentNode, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
+                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([newNodesWithParents, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
                             {
-                                Handle<Node> parentNodeStrong = parentNode.Lock();
-                                if (!parentNodeStrong.IsValid())
+                                const Handle<Node>& sceneRoot = activeScene->GetRoot();
+
+                                Array<Handle<Node>> addedNodes;
+
+                                for (const auto& pair : newNodesWithParents)
                                 {
-                                    parentNodeStrong = MakeStrongRef(activeScene->GetRoot());
+                                    const Handle<Node>& newNode = pair.first;
+                                    WeakHandle<Node> parentWeak = pair.second;
+
+                                    Handle<Node> parentStrong = parentWeak.Lock();
+                                    if (!parentStrong.IsValid())
+                                    {
+                                        parentStrong = MakeStrongRef(sceneRoot);
+                                    }
+
+                                    if (!parentStrong.IsValid())
+                                    {
+                                        HYP_LOG(Editor, Error, "Cannot paste node; no parent to attach to");
+
+                                        continue;
+                                    }
+
+                                    parentStrong->AddChild(newNode);
+                                    addedNodes.PushBack(newNode);
                                 }
 
-                                if (!parentNodeStrong.IsValid())
+                                // Focus the first pasted node and select all pasted nodes
+                                if (addedNodes.Any())
                                 {
-                                    HYP_LOG(Editor, Error, "Cannot paste node; no parent node to attach to");
-                                    return;
-                                }
+                                    editorSubsystem->ClearSelection();
 
-                                Handle<Node> addedNode = parentNodeStrong->AddChild(newNode);
-                                if (addedNode.IsValid())
-                                {
-                                    editorSubsystem->SetFocusedNode(addedNode, true);
+                                    for (const Handle<Node>& node : addedNodes)
+                                    {
+                                        editorSubsystem->AddToSelection(node);
+                                    }
+
+                                    editorSubsystem->SetFocusedNode(addedNodes[0], true);
                                 }
                             }),
-                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([newNode, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
+                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([newNodesWithParents, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
                             {
-                                newNode->Remove();
-
-                                if (editorSubsystem->GetFocusedNode() == newNode)
+                                for (const auto& pair : newNodesWithParents)
                                 {
-                                    editorSubsystem->SetFocusedNode(nullptr, true);
+                                    pair.first->Remove();
+                                }
 
+                                // Restore previous focused node if it was cleared
+                                if (editorSubsystem->GetFocusedNode() == Handle<Node>::Null())
+                                {
                                     Handle<Node> focusedNode = previousFocusedNode.Lock();
                                     if (focusedNode.IsValid())
                                     {
@@ -1570,13 +1623,61 @@ public:
 
         currentProject->GetActionStack()->PushAction(action);
 
-        HYP_LOG(Editor, Verbose, "Pasted node '{}' to scene", newNode->GetName());
+        HYP_LOG(Editor, Verbose, "Pasted {} node(s) to scene", newNodesWithParents.Size());
     }
 };
 
 DEFINE_EDITOR_COMMAND(Paste);
 
 #pragma endregion Paste
+
+#pragma region SelectAll
+
+class HYP_API EditorCommandSelectAll final : public EditorCommandBase
+{
+    HYP_OBJECT_BODY(EditorCommandSelectAll);
+
+public:
+    virtual ~EditorCommandSelectAll() override = default;
+
+    virtual String GetText() const override
+    {
+        return "Select All";
+    }
+
+    virtual void Execute(EditorSubsystem* subsystem) override
+    {
+        AssertOnThread(g_simThread);
+
+        const Handle<Scene> activeScene = subsystem->GetActiveScene();
+        if (!activeScene.IsValid())
+        {
+            HYP_LOG(Editor, Warning, "EditorCommandSelectAll: no active scene");
+            return;
+        }
+
+        const Handle<Node>& root = activeScene->GetRoot();
+        if (!root.IsValid())
+        {
+            HYP_LOG(Editor, Warning, "EditorCommandSelectAll: scene has no root node");
+            return;
+        }
+
+        Array<Node*> descendants = root->GetDescendantsArray();
+
+        subsystem->ClearSelection();
+        subsystem->AddToSelection(root);
+
+        for (Node* descendant : descendants)
+        {
+            subsystem->AddToSelection(MakeStrongRef(descendant));
+        }
+    }
+};
+
+DEFINE_EDITOR_COMMAND(SelectAll);
+
+#pragma endregion SelectAll
 
 #undef DEFINE_EDITOR_COMMAND
 

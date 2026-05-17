@@ -221,9 +221,9 @@ namespace Hyperion.Editor
             GameInstance = null;
             EditorGame = null;
 
-            GC.Collect(0, GCCollectionMode.Forced, true);
-
             NativeBindings.Hyp_Shutdown();
+
+            GC.Collect(0, GCCollectionMode.Forced, true);
 
             IsInitialized = false;
         }

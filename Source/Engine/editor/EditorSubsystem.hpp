@@ -16,6 +16,7 @@
 #include <Core/math/BoundingBox.hpp>
 
 #include <Core/functional/Delegate.hpp>
+#include <Core/containers/Set.hpp>
 
 namespace Hyperion {
 
@@ -279,6 +280,7 @@ protected:
     virtual Handle<Node> Load_Internal() const override;
 
     Optional<DragData> m_dragData;
+    Array<Pair<Handle<Node>, Vec3f>> m_selectedNodes;
 };
 
 HYP_CLASS()
@@ -326,6 +328,7 @@ protected:
     virtual Handle<Node> Load_Internal() const override;
 
     Optional<DragData> m_dragData;
+    Array<Pair<Handle<Node>, Quat4f>> m_selectedNodes;
 };
 
 HYP_CLASS()
@@ -373,6 +376,7 @@ protected:
     virtual Handle<Node> Load_Internal() const override;
 
     Optional<DragData> m_dragData;
+    Array<Pair<Handle<Node>, Pair<Vec3f, Vec3f>>> m_selectedNodes; // node + (origin scale, origin translation)
 };
 
 /*! \brief A gizmo for editing axis-aligned bounding boxes by dragging individual faces.
@@ -503,6 +507,21 @@ public:
     Handle<Node> GetFocusedNode() const;
 
     HYP_METHOD()
+    void AddToSelection(const Handle<Node>& node);
+
+    HYP_METHOD()
+    void RemoveFromSelection(const Handle<Node>& node);
+
+    HYP_METHOD()
+    void ClearSelection();
+
+    HYP_METHOD()
+    bool IsNodeSelected(const Handle<Node>& node) const;
+
+    HYP_METHOD()
+    Array<Handle<Node>> GetSelectedNodes() const;
+
+    HYP_METHOD()
     Handle<Scene> GetActiveScene() const;
 
     HYP_METHOD()
@@ -563,6 +582,9 @@ public:
     HYP_FIELD()
     ScriptableDelegate<void, Handle<EditorViewport>> OnActiveViewportChanged;
 
+    HYP_FIELD()
+    ScriptableDelegate<void> OnSelectionChanged;
+
 private:
     void CreateHighlightNode();
 
@@ -619,6 +641,8 @@ private:
     WeakHandle<Node> m_focusedNode;
     // the actual node that displays the highlight for the focused item
     Handle<Node> m_highlightNode;
+
+    TSet<Handle<Node>> m_selectedNodes;
 
     bool m_editorCameraEnabled;
     bool m_shouldCancelNextClick;

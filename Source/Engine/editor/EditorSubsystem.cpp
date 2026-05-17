@@ -435,6 +435,23 @@ void TranslateEditorGizmo::OnDragStart(const Handle<Camera>& camera, const Mouse
     }
 
     m_dragData = dragData;
+
+    m_selectedNodes.Clear();
+
+    if (EditorSubsystem* subsystem = GetEditorSubsystem())
+    {
+        Array<Handle<Node>> selectedNodes = subsystem->GetSelectedNodes();
+
+        for (const Handle<Node>& selectedNode : selectedNodes)
+        {
+            if (!selectedNode.IsValid())
+            {
+                continue;
+            }
+
+            m_selectedNodes.PushBack({ selectedNode, selectedNode->GetWorldTranslation() });
+        }
+    }
 }
 
 void TranslateEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEvent& mouseEvent)
@@ -445,31 +462,66 @@ void TranslateEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEv
     {
         if (Handle<Node> focusedNode = m_focusedNode.Lock(); focusedNode.IsValid())
         {
+            const Vec3f focusedFinalPosition = focusedNode->GetWorldTranslation();
+            const Vec3f focusedOrigin = m_dragData->nodeOrigin;
+
+            // Sort nodes by depth (ancestors first) so SetWorldTranslation on a parent
+            // happens before its descendants, preventing the parent's accumulated transform
+            // from corrupting the descendant's computed local transform during undo/redo.
+            auto nodeData = m_selectedNodes;
+            std::sort(nodeData.Begin(), nodeData.End(),
+                [](const Pair<Handle<Node>, Vec3f>& a, const Pair<Handle<Node>, Vec3f>& b)
+                {
+                    return a.first->CalculateDepth() < b.first->CalculateDepth();
+                });
+
             project->GetActionStack()->PushAction(MakeHandle<FunctionalEditorAction>(
-                HYP_FORMAT("Translate {}", focusedNode->GetName()),
-                [focusedNode, node = m_node, finalPosition = focusedNode->GetWorldTranslation(), origin = m_dragData->nodeOrigin]() -> EditorActionFunctions
+                nodeData.Size() == 1
+                    ? HYP_FORMAT("Translate {}", nodeData[0].first->GetName())
+                    : HYP_FORMAT("Translate {} nodes", nodeData.Size()),
+                [focusedNode, node = m_node, focusedFinalPosition, focusedOrigin, nodeData]() -> EditorActionFunctions
                 {
                     return {
                         [&](EditorSubsystem* editorSubsystem, EditorProject* editorProject)
                         {
-                            NodeUnlockTransformScope unlockTransformScope(*focusedNode);
-                            focusedNode->SetWorldTranslation(finalPosition);
+                            const Vec3f translationDelta = focusedFinalPosition - focusedOrigin;
+
+                            for (const auto& pair : nodeData)
+                            {
+                                const Handle<Node>& selectedNode = pair.first;
+
+                                if (!selectedNode.IsValid())
+                                {
+                                    continue;
+                                }
+
+                                selectedNode->SetWorldTranslation(pair.second + translationDelta);
+                            }
 
                             if (Node* parent = node->FindParentWithName("TranslateGizmo"))
                             {
-                                parent->SetWorldTranslation(finalPosition);
+                                parent->SetWorldTranslation(focusedFinalPosition);
                             }
 
                             editorSubsystem->SetFocusedNode(focusedNode, true);
                         },
                         [&](EditorSubsystem* editorSubsystem, EditorProject* editorProject)
                         {
-                            NodeUnlockTransformScope unlockTransformScope(*focusedNode);
-                            focusedNode->SetWorldTranslation(origin);
+                            for (const auto& pair : nodeData)
+                            {
+                                const Handle<Node>& selectedNode = pair.first;
+
+                                if (!selectedNode.IsValid())
+                                {
+                                    continue;
+                                }
+
+                                selectedNode->SetWorldTranslation(pair.second);
+                            }
 
                             if (Node* parent = node->FindParentWithName("TranslateGizmo"))
                             {
-                                parent->SetWorldTranslation(origin);
+                                parent->SetWorldTranslation(focusedOrigin);
                             }
 
                             editorSubsystem->SetFocusedNode(focusedNode, true);
@@ -480,6 +532,7 @@ void TranslateEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEv
     }
 
     m_dragData.Unset();
+    m_selectedNodes.Clear();
 }
 
 bool TranslateEditorGizmo::OnMouseHover(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node)
@@ -614,6 +667,21 @@ bool TranslateEditorGizmo::OnMouseMove(const Handle<Camera>& camera, const Mouse
     if (Node* parent = node->FindParentWithName("TranslateGizmo"))
     {
         parent->SetWorldTranslation(translation);
+    }
+
+    // Apply the same translation delta to all selected nodes
+    const Vec3f translationDelta = translation - m_dragData->nodeOrigin;
+
+    for (const auto& pair : m_selectedNodes)
+    {
+        const Handle<Node>& selectedNode = pair.first;
+
+        if (!selectedNode.IsValid())
+        {
+            continue;
+        }
+
+        selectedNode->SetWorldTranslation(pair.second + translationDelta);
     }
 
     return true;
@@ -828,6 +896,23 @@ void RotateEditorGizmo::OnDragStart(const Handle<Camera>& camera, const MouseEve
     dragData.startVector = startVector.Normalize();
 
     m_dragData = dragData;
+
+    m_selectedNodes.Clear();
+
+    if (EditorSubsystem* subsystem = GetEditorSubsystem())
+    {
+        Array<Handle<Node>> selectedNodes = subsystem->GetSelectedNodes();
+
+        for (const Handle<Node>& selectedNode : selectedNodes)
+        {
+            if (!selectedNode.IsValid())
+            {
+                continue;
+            }
+
+            m_selectedNodes.PushBack({ selectedNode, selectedNode->GetWorldRotation() });
+        }
+    }
 }
 
 void RotateEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEvent& mouseEvent)
@@ -840,23 +925,56 @@ void RotateEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEvent
         {
             const Quat4f finalRotation = m_dragData->currentRotation;
             const Quat4f originRotation = m_dragData->startRotation;
+            const Quat4f deltaRotation = finalRotation * originRotation.Inverse();
+
+            // Sort nodes by depth (ancestors first) so SetWorldRotation on a parent
+            // happens before its descendants, preventing accumulated parent rotation
+            // from corrupting the descendant's computed local rotation.
+            auto nodeData = m_selectedNodes;
+            std::sort(nodeData.Begin(), nodeData.End(),
+                [](const Pair<Handle<Node>, Quat4f>& a, const Pair<Handle<Node>, Quat4f>& b)
+                {
+                    return a.first->CalculateDepth() < b.first->CalculateDepth();
+                });
 
             project->GetActionStack()->PushAction(MakeHandle<FunctionalEditorAction>(
-                HYP_FORMAT("Rotate {}", focusedNode->GetName()),
-                [focusedNode, finalRotation, originRotation]() -> EditorActionFunctions
+                nodeData.Size() == 1
+                    ? HYP_FORMAT("Rotate {}", nodeData[0].first->GetName())
+                    : HYP_FORMAT("Rotate {} nodes", nodeData.Size()),
+                [focusedNode, finalRotation, originRotation, deltaRotation, nodeData]() -> EditorActionFunctions
                 {
                     return {
                         [&](EditorSubsystem* editorSubsystem, EditorProject*)
                         {
-                            NodeUnlockTransformScope unlockTransformScope(*focusedNode);
-                            focusedNode->SetWorldRotation(finalRotation);
+                            // Execute: ancestors first so parent rotation is up-to-date
+                            for (const auto& pair : nodeData)
+                            {
+                                const Handle<Node>& selectedNode = pair.first;
+
+                                if (!selectedNode.IsValid())
+                                {
+                                    continue;
+                                }
+
+                                selectedNode->SetWorldRotation(deltaRotation * pair.second);
+                            }
 
                             editorSubsystem->SetFocusedNode(focusedNode, true);
                         },
                         [&](EditorSubsystem* editorSubsystem, EditorProject*)
                         {
-                            NodeUnlockTransformScope unlockTransformScope(*focusedNode);
-                            focusedNode->SetWorldRotation(originRotation);
+                            // Revert: ancestors first so parent rotation is up-to-date
+                            for (const auto& pair : nodeData)
+                            {
+                                const Handle<Node>& selectedNode = pair.first;
+
+                                if (!selectedNode.IsValid())
+                                {
+                                    continue;
+                                }
+
+                                selectedNode->SetWorldRotation(pair.second);
+                            }
 
                             editorSubsystem->SetFocusedNode(focusedNode, true);
                         }
@@ -866,6 +984,7 @@ void RotateEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEvent
     }
 
     m_dragData.Unset();
+    m_selectedNodes.Clear();
 }
 
 bool RotateEditorGizmo::OnMouseHover(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node)
@@ -993,6 +1112,21 @@ bool RotateEditorGizmo::OnMouseMove(const Handle<Camera>& camera, const MouseEve
     NodeUnlockTransformScope unlockTransformScope(*focusedNode);
     focusedNode->SetWorldRotation(newRotation);
 
+    // Apply the same delta rotation to all selected nodes
+    deltaRotation = newRotation * m_dragData->startRotation.Inverse();
+
+    for (const auto& pair : m_selectedNodes)
+    {
+        const Handle<Node>& selectedNode = pair.first;
+
+        if (!selectedNode.IsValid())
+        {
+            continue;
+        }
+
+        selectedNode->SetWorldRotation(deltaRotation * pair.second);
+    }
+
     return true;
 }
 
@@ -1097,6 +1231,23 @@ void ScaleEditorGizmo::OnDragStart(const Handle<Camera>& camera, const MouseEven
     dragData.axis = axis;
 
     m_dragData = dragData;
+
+    m_selectedNodes.Clear();
+
+    if (EditorSubsystem* subsystem = GetEditorSubsystem())
+    {
+        Array<Handle<Node>> selectedNodes = subsystem->GetSelectedNodes();
+
+        for (const Handle<Node>& selectedNode : selectedNodes)
+        {
+            if (!selectedNode.IsValid())
+            {
+                continue;
+            }
+
+            m_selectedNodes.PushBack({ selectedNode, { selectedNode->GetWorldScale(), selectedNode->GetWorldTranslation() } });
+        }
+    }
 }
 
 void ScaleEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEvent& mouseEvent)
@@ -1107,22 +1258,56 @@ void ScaleEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEvent&
     {
         if (Handle<Node> focusedNode = m_focusedNode.Lock(); focusedNode.IsValid())
         {
+            const Vec3f finalScale = focusedNode->GetWorldScale();
+            const Vec3f originScale = m_dragData->initialScale;
+            const Vec3f scaleFactor = finalScale / originScale;
+
+            // Sort nodes by depth (ancestors first) so SetWorldScale on a parent
+            // happens before its descendants, preventing the parent's accumulated transform
+            // from corrupting the descendant's computed local transform during undo/redo.
+            auto nodeData = m_selectedNodes;
+            std::sort(nodeData.Begin(), nodeData.End(),
+                [](const Pair<Handle<Node>, Pair<Vec3f, Vec3f>>& a, const Pair<Handle<Node>, Pair<Vec3f, Vec3f>>& b)
+                {
+                    return a.first->CalculateDepth() < b.first->CalculateDepth();
+                });
+
             project->GetActionStack()->PushAction(MakeHandle<FunctionalEditorAction>(
-                HYP_FORMAT("Scale {}", focusedNode->GetName()),
-                [focusedNode, finalScale = focusedNode->GetWorldScale(), originScale = m_dragData->initialScale]() -> EditorActionFunctions
+                nodeData.Size() == 1
+                    ? HYP_FORMAT("Scale {}", nodeData[0].first->GetName())
+                    : HYP_FORMAT("Scale {} nodes", nodeData.Size()),
+                [focusedNode, finalScale, originScale, scaleFactor, nodeData]() -> EditorActionFunctions
                 {
                     return {
                         [&](EditorSubsystem* editorSubsystem, EditorProject*)
                         {
-                            NodeUnlockTransformScope unlockTransformScope(*focusedNode);
-                            focusedNode->SetWorldScale(finalScale);
+                            for (const auto& pair : nodeData)
+                            {
+                                const Handle<Node>& selectedNode = pair.first;
+
+                                if (!selectedNode.IsValid())
+                                {
+                                    continue;
+                                }
+
+                                selectedNode->SetWorldScale(pair.second.first * scaleFactor);
+                            }
 
                             editorSubsystem->SetFocusedNode(focusedNode, true);
                         },
                         [&](EditorSubsystem* editorSubsystem, EditorProject*)
                         {
-                            NodeUnlockTransformScope unlockTransformScope(*focusedNode);
-                            focusedNode->SetWorldScale(originScale);
+                            for (const auto& pair : nodeData)
+                            {
+                                const Handle<Node>& selectedNode = pair.first;
+
+                                if (!selectedNode.IsValid())
+                                {
+                                    continue;
+                                }
+
+                                selectedNode->SetWorldScale(pair.second.first);
+                            }
 
                             editorSubsystem->SetFocusedNode(focusedNode, true);
                         }
@@ -1132,6 +1317,7 @@ void ScaleEditorGizmo::OnDragEnd(const Handle<Camera>& camera, const MouseEvent&
     }
 
     m_dragData.Unset();
+    m_selectedNodes.Clear();
 }
 
 bool ScaleEditorGizmo::OnMouseHover(const Handle<Camera>& camera, const MouseEvent& mouseEvent, const Handle<Node>& node)
@@ -1266,6 +1452,21 @@ bool ScaleEditorGizmo::OnMouseMove(const Handle<Camera>& camera, const MouseEven
 
     NodeUnlockTransformScope unlockTransformScope(*focusedNode);
     focusedNode->SetWorldScale(newScale);
+
+    // Apply the same scale factor to all selected nodes
+    const Vec3f scaleFactor = newScale / m_dragData->initialScale;
+
+    for (const auto& pair : m_selectedNodes)
+    {
+        const Handle<Node>& selectedNode = pair.first;
+
+        if (!selectedNode.IsValid())
+        {
+            continue;
+        }
+
+        selectedNode->SetWorldScale(pair.second.first * scaleFactor);
+    }
 
     return true;
 }
@@ -1869,6 +2070,7 @@ EditorSubsystem::EditorSubsystem()
                 ShutdownGizmos();
 
                 m_focusedNode.Reset();
+                m_selectedNodes.Clear();
 
                 if (m_highlightNode.IsValid())
                 {
@@ -2028,13 +2230,16 @@ void EditorSubsystem::Update(float delta)
 
     m_editorDelegates->Update();
 
-    if (m_focusedNode.IsValid())
+    if (!m_selectedNodes.Empty())
     {
-        if (Handle<Node> focusedNode = m_focusedNode.Lock(); focusedNode.IsValid())
-        {
-            DebugDrawCommandList& dbg = DebugDrawer::GetInstance().CreateCommandList();
+        DebugDrawCommandList& dbg = DebugDrawer::GetInstance().CreateCommandList();
 
-            dbg.box(focusedNode->GetWorldBounds().GetCenter(), focusedNode->GetWorldBounds().GetExtent() * 0.5f + Vec3f(FLT_EPSILON), Color::Cyan());
+        for (const Handle<Node>& node : m_selectedNodes)
+        {
+            if (node.IsValid())
+            {
+                dbg.box(node->GetWorldBounds().GetCenter(), node->GetWorldBounds().GetExtent() * 0.5f + Vec3f(FLT_EPSILON), Color::Cyan());
+            }
         }
     }
 
@@ -2362,7 +2567,37 @@ void EditorSubsystem::InitViewport()
                     {
                         if (hit.node != nullptr)
                         {
-                            SetFocusedNode(MakeStrongRef(hit.node), true);
+                            Handle<Node> nodeStrong = MakeStrongRef(hit.node);
+
+                            bool shouldAddToSelection = false;
+                            
+                            InputManager* inputManager = g_appContext->GetMainWindow()->GetInputManager();
+                            if (inputManager->IsKeyDown(KeyCode::KEY_LSHIFT) || inputManager->IsKeyDown(KeyCode::KEY_RSHIFT))
+                            {
+                                shouldAddToSelection = true;
+                            }
+
+                            if (shouldAddToSelection)
+                            {
+                                // If already in selection, remove, otherwise add
+                                if (m_selectedNodes.Contains(nodeStrong))
+                                {
+                                    m_selectedNodes.Erase(nodeStrong);
+                                    // Don't set focused node if deselecting this node.
+                                }
+                                else
+                                {
+                                    m_selectedNodes.Add(nodeStrong);
+                                    SetFocusedNode(nodeStrong, true);
+                                }
+                            }
+                            else
+                            {
+                                m_selectedNodes = { nodeStrong };
+                                SetFocusedNode(nodeStrong, true);
+                            }
+
+                            OnSelectionChanged();
 
                             break;
                         }
@@ -2648,41 +2883,8 @@ void EditorSubsystem::StartWatchingNode(const Handle<Node>& node)
     UISubsystem* uiSubsystem = GetWorld()->GetSubsystem<UISubsystem>();
     AssertDebug(uiSubsystem != nullptr);
 
-    Handle<UIListView> listView = DynamicCast<UIListView>(uiSubsystem->GetUIStage()->FindChildUIObject(NAME("Outline_ListView")));
-    AssertDebug(listView.IsValid());
-
-    //    m_editorDelegates->AddNodeWatcher(
-    //        NAME("SceneView"),
-    //        node.Get(),
-    //        { Node::StaticClass()->GetProperty(NAME("Name")), 1 },
-    //        [this, listViewWeak = listView.ToWeak()](Node* node, const Property* property)
-    //        {
-    //            // Update name in list view
-    //            if (node->GetNodeFlags() & NodeFlags::HideInSceneOutline)
-    //            {
-    //                return;
-    //            }
-    //
-    //            HYP_LOG(Editor, Verbose, "Node {} property changed : {}", *node->GetName(), *property->GetName());
-    //
-    //            Handle<UIListView> listView = listViewWeak.Lock();
-    //
-    //            if (!listView)
-    //            {
-    //                return;
-    //            }
-    //
-    //            if (UIDataSourceBase* dataSource = listView->GetDataSource())
-    //            {
-    //                const UIDataSourceElement* dataSourceElement = dataSource->Get(node->GetUUID());
-    //                Assert(dataSourceElement != nullptr);
-    //
-    //                dataSource->ForceUpdate(node->GetUUID());
-    //            }
-    //        });
-
     m_delegateHandlers.Remove(&node->OnChildAdded);
-    m_delegateHandlers.Add(node->OnChildAdded.Bind([this, listViewWeak = listView.ToWeak()](Node* node, bool isDirect)
+    m_delegateHandlers.Add(node->OnChildAdded.Bind([this](Node* node, bool isDirect)
         {
             Assert(node != nullptr);
 
@@ -2690,12 +2892,10 @@ void EditorSubsystem::StartWatchingNode(const Handle<Node>& node)
             {
                 return;
             }
-
-            Handle<UIListView> listView = listViewWeak.Lock();
         }));
 
     m_delegateHandlers.Remove(&node->OnChildRemoved);
-    m_delegateHandlers.Add(node->OnChildRemoved.Bind([this, listViewWeak = listView.ToWeak()](Node* node, bool)
+    m_delegateHandlers.Add(node->OnChildRemoved.Bind([this](Node* node, bool)
         {
             // If the node being removed is the focused node, clear the focused node
             if (node == m_focusedNode.GetUnsafe())
@@ -2703,14 +2903,15 @@ void EditorSubsystem::StartWatchingNode(const Handle<Node>& node)
                 SetFocusedNode(Handle<Node>::Null(), true);
             }
 
-            if (!node)
+            // If the node being removed is in the selection, remove it
+            if (auto it = m_selectedNodes.FindAs(node->Id()); it != m_selectedNodes.End())
             {
-                return;
+                m_selectedNodes.Erase(it);
+
+                OnSelectionChanged();
             }
 
-            Handle<UIListView> listView = listViewWeak.Lock();
-
-            if (!listView)
+            if (!node)
             {
                 return;
             }
@@ -3218,6 +3419,82 @@ Handle<Node> EditorSubsystem::GetFocusedNode() const
 {
     AssertOnThread(g_simThread);
     return m_focusedNode.Lock();
+}
+
+void EditorSubsystem::AddToSelection(const Handle<Node>& node)
+{
+    AssertOnThread(g_simThread);
+
+    if (!node.IsValid())
+    {
+        return;
+    }
+
+    auto result = m_selectedNodes.Insert(node);
+
+    if (result.second)
+    {
+        OnSelectionChanged();
+    }
+}
+
+void EditorSubsystem::RemoveFromSelection(const Handle<Node>& node)
+{
+    AssertOnThread(g_simThread);
+
+    if (!node.IsValid())
+    {
+        return;
+    }
+
+    auto it = m_selectedNodes.Find(node);
+
+    if (it != m_selectedNodes.End())
+    {
+        m_selectedNodes.Erase(it);
+
+        OnSelectionChanged();
+    }
+}
+
+void EditorSubsystem::ClearSelection()
+{
+    AssertOnThread(g_simThread);
+
+    if (m_selectedNodes.Empty())
+    {
+        return;
+    }
+
+    m_selectedNodes.Clear();
+
+    OnSelectionChanged();
+}
+
+bool EditorSubsystem::IsNodeSelected(const Handle<Node>& node) const
+{
+    AssertOnThread(g_simThread);
+
+    if (!node.IsValid())
+    {
+        return false;
+    }
+
+    return m_selectedNodes.Find(node) != m_selectedNodes.End();
+}
+
+Array<Handle<Node>> EditorSubsystem::GetSelectedNodes() const
+{
+    AssertOnThread(g_simThread);
+
+    Array<Handle<Node>> result;
+
+    for (const Handle<Node>& node : m_selectedNodes)
+    {
+        result.PushBack(node);
+    }
+
+    return result;
 }
 
 Vec3f EditorSubsystem::CalculateSceneInsertionPoint(float desiredDistance, float offsetFromSurface) const

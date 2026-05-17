@@ -151,17 +151,10 @@ VoxelOctreeBuildResult VoxelOctree::Build(const VoxelOctreeParams& params, Entit
             continue;
         }
 
-        // Only process opaque and translucent materials
         if (meshComponent.material->GetBucket() != RenderBucket::Opaque
+            && meshComponent.material->GetBucket() != RenderBucket::Lightmapped
             && meshComponent.material->GetBucket() != RenderBucket::Translucent)
         {
-            continue;
-        }
-
-        if (!meshComponent.mesh->GetBVH().IsValid())
-        {
-            HYP_LOG_ONCE(Misc, Warning, "No valid BVH for mesh {} (ID: {}) on entity {}, skipping.", meshComponent.mesh->GetName(), meshComponent.mesh->Id(), entity->Id());
-
             continue;
         }
 

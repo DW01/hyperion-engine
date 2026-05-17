@@ -246,7 +246,8 @@ public:
         uint32 dirtyUniforms = 0;
 
         uint32 shaderUniformBufferOffsets[MaxShaderUniforms] {};
-        uint32 shaderUniformBufferOffsetStrides[MaxShaderUniforms] {};
+        uint32 shaderUniformBufferStrides[MaxShaderUniforms] {};
+
         uint32 dirtyBufferOffsets = 0;
 
         DescriptorSet* prevBoundDescriptorSets[MaxBoundDescriptorSets] {};

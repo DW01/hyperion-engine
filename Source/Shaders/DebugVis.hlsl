@@ -39,37 +39,47 @@ DECLARE_SRV(DebugDrawerDescriptorSet, EnvProbesBuffer) StructuredBuffer<EnvProbe
 
 struct ImmediateDraw
 {
-    float4x4 model_matrix;
+    float4x4 transform;
 
     uint color_packed;
     uint env_probe_type;
     uint env_probe_index;
-    uint _pad2;
+    uint idx;
 };
 
-DECLARE_SRV_DYNAMIC(DebugDrawerDescriptorSet, ImmediateDrawsBuffer) StructuredBuffer<ImmediateDraw> immediateDraws;
+DECLARE_SRV(DebugDrawerDescriptorSet, ImmediateDrawsBuffer) StructuredBuffer<ImmediateDraw> ImmediateDrawsBuffer;
 
-#define MODEL_MATRIX (immediateDraw.model_matrix)
-#define PREV_MODEL_MATRIX (immediateDraw.model_matrix)
+#define MODEL_MATRIX (immediateDraw.transform)
+#define PREV_MODEL_MATRIX (immediateDraw.transform)
 
 #else // !IMMEDIATE_MODE
 
-#include "./include/Entity.hlsli"
-
 #ifdef INSTANCING
 DECLARE_SRV(DebugDrawerDescriptorSet, EntitiesBuffer) StructuredBuffer<Entity> entities;
-#else // !INSTANCING
-DECLARE_BUFFER_DYNAMIC(DebugDrawerDescriptorSet, CBuffer) cbuffer CBuffer
-{
-    Entity entity;
-};
 #endif // INSTANCING
 
 #define MODEL_MATRIX (entity.model_matrix)
 #define PREV_MODEL_MATRIX (entity.previous_model_matrix)
 #endif // IMMEDIATE_MODE
 
+#include "./include/Entity.hlsli"
+
 #undef HYP_DO_NOT_DEFINE_DESCRIPTOR_SETS
+
+#if !defined(INSTANCING) || defined(IMMEDIATE_MODE)
+DECLARE_BUFFER_DYNAMIC(DebugDrawerDescriptorSet, CBuffer) cbuffer CBuffer
+{
+#ifndef INSTANCING
+    // To match CBuffer in RendererMain:
+    Entity entity;
+#endif // INSTANCING
+
+#ifdef IMMEDIATE_MODE
+    // DebugDrawer CBuffer (IMMEDIATE_MODE)
+    uint immediateDrawOffset;
+#endif // IMMEDIATE_MODE
+};
+#endif // INSTANCING || IMMEDIATE_MODE
 
 DECLARE_SRV_DYNAMIC(DebugDrawerDescriptorSet, CamerasBuffer) StructuredBuffer<Camera> _cameras_buffer;
 #define camera _cameras_buffer[0]
@@ -79,11 +89,14 @@ VSOutput VSMain(VSInput input, uint instanceId : SV_InstanceID)
     VSOutput output;
 
 #ifdef IMMEDIATE_MODE
-    ImmediateDraw immediateDraw = immediateDraws[instanceId];
+    ImmediateDraw immediateDraw = ImmediateDrawsBuffer[immediateDrawOffset + instanceId];
 #endif // IMMEDIATE_MODE
 
     float4 position = mul(MODEL_MATRIX, float4(input.a_position, 1.0));
+    position /= position.w;
+
     float4 previous_position = mul(PREV_MODEL_MATRIX, float4(input.a_position, 1.0));
+    previous_position /= previous_position.w;
 
     output.position = position.xyz;
     output.normal = input.a_normal;
@@ -96,6 +109,8 @@ VSOutput VSMain(VSInput input, uint instanceId : SV_InstanceID)
     output.env_probe_type = immediateDraw.env_probe_type;
     output.env_probe_index = immediateDraw.env_probe_index;
 
+    // Temporarily disabled.
+#if 0
     if (immediateDraw.env_probe_index != ~0u)
     {
         SH9 sh9;
@@ -107,6 +122,7 @@ VSOutput VSMain(VSInput input, uint instanceId : SV_InstanceID)
 
         output.color = float4(SphericalHarmonicsSample(sh9, input.a_normal), 1.0);
     }
+#endif
 #elif defined(INSTANCING)
     output.object_index = OBJECT_INDEX;
 #else
@@ -180,19 +196,15 @@ DECLARE_SRV(DebugDrawerDescriptorSet, WorldsBuffer) StructuredBuffer<WorldShader
 #include "include/BRDF.hlsli"
 
 #ifndef IMMEDIATE_MODE
-
 #ifdef INSTANCING
 DECLARE_SRV(DebugDrawerDescriptorSet, EntitiesBuffer) StructuredBuffer<Entity> entities;
-#endif // INSTANCING
-
+#else // !INSTANCING
 DECLARE_BUFFER_DYNAMIC(DebugDrawerDescriptorSet, CBuffer) cbuffer CBuffer
 {
-#ifndef INSTANCING
     Entity entity;
-#endif // !INSTANCING
     Material material;
 };
-
+#endif // INSTANCING
 #endif // !IMMEDIATE_MODE
 
 #include "include/EnvProbes.hlsli"
@@ -235,6 +247,8 @@ PSOutput PSMain(PSInput input)
 
     materialParams.mask = OBJECT_MASK_TRANSLUCENT | OBJECT_MASK_DEBUG;
 
+    // Temporarily disabled.
+#if 0
     if (input.env_probe_index != ~0u)
     {
         const float3 N = normal;
@@ -256,6 +270,7 @@ PSOutput PSMain(PSInput input)
 
         output.gbuffer_albedo.rgb = ibl.rgb;
     }
+#endif
 #else
     materialParams.mask = GET_OBJECT_BUCKET_MASK(entity);
 #endif

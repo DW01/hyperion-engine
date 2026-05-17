@@ -66,8 +66,6 @@ HYP_DEFINE_LOG_CHANNEL(Game);
 
 namespace game {
 
-static bool s_isSaving = false;
-
 DefaultGame::DefaultGame()
     : Game()
 {
@@ -132,11 +130,11 @@ void DefaultGame::OnLaunch_Impl()
 
             GetWorld()->AddScene(mainScene);
         }
+
+        StartSimulating();
+
+        return;
     }
-
-    StartSimulating();
-
-    return;
 #endif
 
 #if 1
@@ -222,24 +220,22 @@ void DefaultGame::OnLaunch_Impl()
     parameters.roughness = 0.3f;
     parameters.metalness = 0.02f;
 
-    Handle<MaterialDefinition> skyboxMaterialDefinition = MakeHandle<MaterialDefinition>(NAME("NewMat"), attributes, parameters, MaterialTextures {});
-    skyboxMaterialDefinition->SetIsTransient(true);
-    InitObject(skyboxMaterialDefinition);
+    Handle<MaterialDefinition> materialDefinition = MakeHandle<MaterialDefinition>(NAME("NewMat"), attributes, parameters, MaterialTextures {});
+    materialDefinition->SetIsTransient(true);
+    InitObject(materialDefinition);
+    GetCurrentAssetRegistry()->PutAssetUnique(materialDefinition);
 
-    GetCurrentAssetRegistry()->PutAssetUnique(skyboxMaterialDefinition);
-
-    Handle<MaterialInstance> skyboxMaterialInstance = MakeHandle<MaterialInstance>(NAME("NewMat"), skyboxMaterialDefinition);
-    skyboxMaterialInstance->SetIsTransient(true);
-    InitObject(skyboxMaterialInstance);
-
-    GetCurrentAssetRegistry()->PutAssetUnique(skyboxMaterialInstance);
+    Handle<MaterialInstance> materialInstance = MakeHandle<MaterialInstance>(NAME("NewMat"), materialDefinition);
+    materialInstance->SetIsTransient(true);
+    InitObject(materialInstance);
+    GetCurrentAssetRegistry()->PutAssetUnique(materialInstance);
 
     scene->GetRoot()->AddChild(cubeEnt);
 
     cubeEnt->Translate(Vec3f(-10.0f, 0.0f, 0.0f));
 
     // add MeshComponent to skybox entity
-    cubeEnt->AddComponent<MeshComponent>(MeshComponent { mesh, skyboxMaterialInstance });
+    cubeEnt->AddComponent<MeshComponent>(MeshComponent { mesh, materialInstance });
 
      AssetBatch* batch = g_assetManager->CreateBatch();
      batch->Add("testbed", "Models/testbed/testbed.obj");

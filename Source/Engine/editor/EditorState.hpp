@@ -60,10 +60,10 @@ public:
     void AddTask(const Handle<EditorTaskBase>& task);
 
     HYP_METHOD()
-    Handle<Node> GetClipboardNode() const;
+    Array<Handle<Node>> GetClipboardNodes() const;
 
     HYP_METHOD()
-    void SetClipboardNode(const Handle<Node>& node);
+    void SetClipboardNodes(const Array<Handle<Node>>& nodes);
 
     void Initialize();
 
@@ -82,7 +82,7 @@ public:
     ScriptableDelegate<void, Handle<EditorTaskBase>> OnTaskProgressUpdated;
 
     HYP_FIELD()
-    ScriptableDelegate<void, Handle<Node>> OnClipboardChanged;
+    ScriptableDelegate<void> OnClipboardChanged;
 
 private:
     Handle<EditorProject> m_currentProject;
@@ -91,7 +91,7 @@ private:
 
     EditorPickCache m_pickCache;
 
-    WeakHandle<Node> m_clipboardNode;
+    Array<Handle<Node>> m_clipboardNodes;
 
     mutable Mutex m_mutex;
 };

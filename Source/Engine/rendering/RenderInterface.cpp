@@ -1800,7 +1800,7 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
             switch (uniform.type)
             {
             case ShaderUniform::UT_Buffer:
-                ds->SetElement(uniform.name, uniform.buffer, state.shaderUniformBufferOffsetStrides[uniformIndex]);
+                ds->SetElement(uniform.name, uniform.buffer, state.shaderUniformBufferStrides[uniformIndex]);
 
                 state.dirtyBufferOffsets |= (1u << uniformIndex);
 

@@ -2,6 +2,7 @@ using Avalonia.Threading;
 using Hyperion;
 using Hyperion.Editor.Commands;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
@@ -29,6 +30,7 @@ namespace Hyperion.Editor.ViewModels
         public EditorCommand Exit => new EditorCommand("Exit");
         public EditorCommand Undo => new EditorCommand("Undo");
         public EditorCommand Redo => new EditorCommand("Redo");
+        public EditorCommand SelectAll => new EditorCommand("SelectAll");
 
         private string _undoHeader = "_Undo";
         public string UndoHeader
@@ -84,7 +86,7 @@ namespace Hyperion.Editor.ViewModels
 
         public EditorCommand DeleteNode => new EditorCommand("DeleteNode", GetSelectedNodeName);
         public EditorCommand TeleportToNode => new EditorCommand("TeleportTo", GetSelectedNodeName);
-        public EditorCommand Copy => new EditorCommand("Copy", GetSelectedNodeName);
+        public EditorCommand Copy => new EditorCommand("Copy");
         public EditorCommand Paste => new EditorCommand("Paste");
 
         public ICommand SelectTransformModeTranslate { get; private set; }
@@ -148,6 +150,7 @@ namespace Hyperion.Editor.ViewModels
         private DelegateHandler? _gameInstanceLaunchedHandler;
         private DelegateHandler? _gameModeChangedHandler;
         private DelegateHandler? _focusedNodeChangedHandler;
+        private DelegateHandler? _selectionChangedHandler;
         private DelegateHandler? _currentProjectChangedHandler;
         private DelegateHandler? _clipboardChangedHandler;
         private DelegateHandler? _selectedGizmoChangedHandler;
@@ -155,6 +158,7 @@ namespace Hyperion.Editor.ViewModels
         private DelegateHandler? _actionStackStateChangedHandler;
 
         private int _isUpdatingSelectionFromEngine = 0; // atomic
+        private int _isUpdatingFocusedNodeFromEngine = 0; // atomic
         private bool _isReady = false;
 
         private EditorSubsystem _editorSubsystem;
@@ -271,7 +275,7 @@ namespace Hyperion.Editor.ViewModels
 
             _clipboardChangedHandler?.Remove();
             _clipboardChangedHandler = editorState.GetOnClipboardChangedDelegate()
-                .Bind(OnClipboardChanged);
+                .Bind(() => OnClipboardChanged());
 
             // handle active scene changes
             _activeSceneChangedHandler?.Remove();
@@ -279,11 +283,13 @@ namespace Hyperion.Editor.ViewModels
                 .Bind(HandleActiveSceneChanged);
 
             SceneHierarchy.SelectedNodeChanged += OnSceneHierarchyNodeSelected;
+            SceneHierarchy.SelectionChanged += OnSceneHierarchySelectionChanged;
 
             EngineManager.SceneAdded += OnSceneAdded;
             EngineManager.SceneRemoved += OnSceneRemoved;
 
             BindFocusedNodeChanged();
+            BindSelectionChanged();
 
             EngineManager.TaskStarted += OnTaskStarted;
             EngineManager.TaskEnded += OnTaskEnded;
@@ -311,12 +317,14 @@ namespace Hyperion.Editor.ViewModels
 
             _gameModeChangedHandler?.Remove();
             _focusedNodeChangedHandler?.Remove();
+            _selectionChangedHandler?.Remove();
             _currentProjectChangedHandler?.Remove();
             _clipboardChangedHandler?.Remove();
             _selectedGizmoChangedHandler?.Remove();
             _activeSceneChangedHandler?.Remove();
             _actionStackStateChangedHandler?.Remove();
             SceneHierarchy.SelectedNodeChanged -= OnSceneHierarchyNodeSelected;
+            SceneHierarchy.SelectionChanged -= OnSceneHierarchySelectionChanged;
             ContentBrowser.Dispose();
         }
 
@@ -445,24 +453,47 @@ namespace Hyperion.Editor.ViewModels
         {
             _ = EngineManager.PostToSimThread(() =>
             {
-                Node? clipboardNode = EditorState.Instance.ClipboardNode;
-                string? nodeName = clipboardNode?.Name.ToString();
+                Node[] clipboardNodes;
+
+                try
+                {
+                    clipboardNodes = EditorState.Instance.ClipboardNodes;
+                }
+                catch (Exception ex)
+                {
+                    clipboardNodes = Array.Empty<Node>();
+
+                    Logger.Log(LogLevel.Warning, "Exception occurred while getting clipboard nodes: {}", ex.Message);
+                }
+
+                int count = clipboardNodes.Length;
+
+                string header;
+
+                if (count == 0)
+                {
+                    header = "_Paste";
+                }
+                else if (count == 1)
+                {
+                    string? nodeName = clipboardNodes?[0]?.Name.ToString();
+                    header = string.IsNullOrEmpty(nodeName) ? "_Paste" : $"_Paste {nodeName}";
+                }
+                else
+                {
+                    header = $"_Paste {count} Nodes";
+                }
 
                 Dispatcher.UIThread.Post(() =>
                 {
-                    PasteHeader = string.IsNullOrEmpty(nodeName) ? "_Paste" : $"_Paste {nodeName}";
+                    PasteHeader = header;
                 });
             });
         }
 
-        private void OnClipboardChanged(Node? node)
+        private void OnClipboardChanged()
         {
-            string? nodeName = node?.Name.ToString();
-
-            Dispatcher.UIThread.Post(() =>
-            {
-                PasteHeader = string.IsNullOrEmpty(nodeName) ? "_Paste" : $"_Paste {nodeName}";
-            });
+            UpdatePasteHeader();
         }
 
         private void HandleCurrentProjectChanged(EditorProject? project)
@@ -567,7 +598,7 @@ namespace Hyperion.Editor.ViewModels
 
         private void OnSceneHierarchyNodeSelected(Node? node)
         {
-            if (!_isReady || _isUpdatingSelectionFromEngine != 0)
+            if (!_isReady || _isUpdatingSelectionFromEngine != 0 || _isUpdatingFocusedNodeFromEngine != 0)
             {
                 return;
             }
@@ -579,6 +610,10 @@ namespace Hyperion.Editor.ViewModels
                 try
                 {
                     _editorSubsystem.SetFocusedNode(node!, false);
+
+                    // Normal click replaces the entire selection with just this node
+                    _editorSubsystem.ClearSelection();
+                    _editorSubsystem.AddToSelection(node!);
                 }
                 catch (Exception ex)
                 {
@@ -588,6 +623,93 @@ namespace Hyperion.Editor.ViewModels
 
             bool isRootNode = SceneHierarchy.IsRootNode(node);
             Inspector.SetSelectedNode(node, SceneHierarchy.Scene, isRootNode);
+        }
+
+        public void HandleShiftClick(NodeViewModel clickedNode)
+        {
+            Dispatcher.UIThread.VerifyAccess();
+
+            if (!_isReady)
+            {
+                return;
+            }
+
+            // Save the anchor (currently selected/focused node) before updating it
+            NodeViewModel? anchorNode = SceneHierarchy.SelectedNode;
+
+            // Get the clicked node's native reference
+            Node clickedNodeRef = clickedNode.Node;
+
+            // Set the clicked node as the new focused node (with notification suppressed)
+            SceneHierarchy.SelectNodeFromEngine(clickedNodeRef);
+
+            // Get flattened list of all visible nodes in tree order
+            List<NodeViewModel> flatNodes = SceneHierarchy.GetFlattenedNodes();
+
+            int anchorIndex = -1;
+            int clickedIndex = -1;
+
+            for (int i = 0; i < flatNodes.Count; i++)
+            {
+                if (anchorNode != null && flatNodes[i] == anchorNode)
+                {
+                    anchorIndex = i;
+                }
+
+                if (flatNodes[i] == clickedNode)
+                {
+                    clickedIndex = i;
+                }
+            }
+
+            if (clickedIndex == -1)
+            {
+                return;
+            }
+
+            // If no previous anchor, treat as normal single-click selection
+            if (anchorIndex == -1)
+            {
+                anchorIndex = clickedIndex;
+            }
+
+            // Determine range bounds
+            int rangeStart = Math.Min(anchorIndex, clickedIndex);
+            int rangeEnd = Math.Max(anchorIndex, clickedIndex);
+
+            // Capture nodes in the range
+            List<Node> nodesInRange = new List<Node>();
+            for (int i = rangeStart; i <= rangeEnd; i++)
+            {
+                NodeViewModel vm = flatNodes[i];
+                if (vm.Node != null && vm.Node.IsValid)
+                {
+                    nodesInRange.Add(vm.Node);
+                }
+            }
+
+            // Push the range selection to the engine on the sim thread
+            _ = EngineManager.PostToSimThread(() =>
+            {
+                try
+                {
+                    _editorSubsystem.SetFocusedNode(clickedNodeRef, false);
+
+                    _editorSubsystem.ClearSelection();
+                    foreach (Node node in nodesInRange)
+                    {
+                        _editorSubsystem.AddToSelection(node);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Warning, $"Failed to handle shift-click range selection: {ex.Message}");
+                }
+            });
+
+            // Update the inspector for the new focused node
+            bool isRootNode = SceneHierarchy.IsRootNode(clickedNodeRef);
+            Inspector.SetSelectedNode(clickedNodeRef, SceneHierarchy.Scene, isRootNode);
         }
 
         private void OnSceneAdded(World world, Scene scene)
@@ -668,7 +790,7 @@ namespace Hyperion.Editor.ViewModels
 
         private void HandleFocusedNodeUpdate(Node? node)
         {
-            if (Interlocked.CompareExchange(ref _isUpdatingSelectionFromEngine, 1, 0) != 0)
+            if (Interlocked.CompareExchange(ref _isUpdatingFocusedNodeFromEngine, 1, 0) != 0)
             {
                 return;
             }
@@ -677,7 +799,7 @@ namespace Hyperion.Editor.ViewModels
             {
                 if (!_isReady)
                 {
-                    Interlocked.Exchange(ref _isUpdatingSelectionFromEngine, 0);
+                    Interlocked.Exchange(ref _isUpdatingFocusedNodeFromEngine, 0);
                     return;
                 }
 
@@ -698,9 +820,109 @@ namespace Hyperion.Editor.ViewModels
                 }
                 finally
                 {
+                    Interlocked.Exchange(ref _isUpdatingFocusedNodeFromEngine, 0);
+                }
+            });
+        }
+
+        private void OnSceneHierarchySelectionChanged()
+        {
+            if (!_isReady)
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref _isUpdatingSelectionFromEngine, 1, 0) != 0)
+            {
+                return;
+            }
+
+            // Capture the selected nodes on the UI thread before dispatching to sim thread
+            List<Node> nodes = SceneHierarchy.SelectedNodes
+                .Select(vm => vm.Node)
+                .Where(n => n != null && n.IsValid)
+                .ToList();
+
+            _ = EngineManager.PostToSimThread(() =>
+            {
+                try
+                {
+                    _editorSubsystem.ClearSelection();
+
+                    foreach (Node node in nodes)
+                    {
+                        _editorSubsystem.AddToSelection(node);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Warning, $"Failed to update selection on engine: {ex.Message}");
+                }
+
+                // Refresh the UI from engine state to ensure consistency
+                try
+                {
+                    var selectedNodes = _editorSubsystem.GetSelectedNodes();
+
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        SceneHierarchy.UpdateSelectionFromEngine(selectedNodes.Cast<Node>());
+                        Interlocked.Exchange(ref _isUpdatingSelectionFromEngine, 0);
+                    });
+                }
+                catch
+                {
                     Interlocked.Exchange(ref _isUpdatingSelectionFromEngine, 0);
                 }
             });
+        }
+
+        private void BindSelectionChanged()
+        {
+            WeakReference<MainWindowViewModel> weakThis = new WeakReference<MainWindowViewModel>(this);
+
+            _selectionChangedHandler?.Remove();
+
+            _selectionChangedHandler = _editorSubsystem.GetOnSelectionChangedDelegate()
+                .Bind(() =>
+                {
+                    if (!weakThis.TryGetTarget(out MainWindowViewModel? target))
+                    {
+                        return;
+                    }
+
+                    target.HandleSelectionUpdate();
+                });
+        }
+
+        private void HandleSelectionUpdate()
+        {
+            if (Interlocked.CompareExchange(ref _isUpdatingSelectionFromEngine, 1, 0) != 0)
+            {
+                return;
+            }
+
+            try
+            {
+                var selectedNodes = _editorSubsystem.GetSelectedNodes();
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        SceneHierarchy.UpdateSelectionFromEngine(selectedNodes.Cast<Node>());
+                    }
+                    finally
+                    {
+                        Interlocked.Exchange(ref _isUpdatingSelectionFromEngine, 0);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Log(LogLevel.Warning, $"Failed to get selected nodes from engine: {ex.Message}");
+                Interlocked.Exchange(ref _isUpdatingSelectionFromEngine, 0);
+            }
         }
     }
 }
