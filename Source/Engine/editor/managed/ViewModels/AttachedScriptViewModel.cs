@@ -57,6 +57,8 @@ namespace Hyperion.Editor.ViewModels
             SelectCommand = new RelayCommand(OnSelect);
             ClearCommand = new RelayCommand(OnClear);
 
+            Debug.Assert(s_scriptComponentClass.HasValue);
+
             if (s_scriptComponentClass.HasValue)
             {
                 Class cls = s_scriptComponentClass.Value;
@@ -149,7 +151,7 @@ namespace Hyperion.Editor.ViewModels
                 return;
             }
 
-            if (_assetRefProperty != Property.Invalid || !s_scriptComponentClass.HasValue)
+            if (_assetRefProperty == Property.Invalid || !s_scriptComponentClass.HasValue)
             {
                 _isRefreshing = 0;
                 return;

@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -40,7 +40,7 @@ public:
     ScriptAsset(ScriptAsset&& other) noexcept = delete;
     ScriptAsset& operator=(ScriptAsset&& other) noexcept = delete;
 
-    ~ScriptAsset() = default;
+    ~ScriptAsset();
 
     HYP_FORCE_INLINE ScriptDesc& GetScriptDesc()
     {
@@ -52,8 +52,25 @@ public:
         return m_scriptDesc;
     }
 
+    void SetSourceCode(const String& sourceCode);
+    String GetSourceCode() const;
+
+protected:
+    void Init() override;
+
+    void PageBlobData() override;
+    void UnpageBlobData() override;
+
+    void CollectBlobDataReferences(Array<Tuple<const char*, uint16, BlobDataReference*>>& outReferences) override
+    {
+        outReferences.EmplaceBack("SCR", 1, &m_sourceData);
+    }
+
 private:
     ScriptDesc m_scriptDesc;
+
+    HYP_FIELD(Serialize)
+    BlobDataReference m_sourceData;
 };
 
 } // namespace Hyperion
