@@ -133,6 +133,7 @@ EntityManager::EntityManager(const ThreadId& ownerThreadId, Scene* scene, EnumFl
 
 EntityManager::~EntityManager()
 {
+    Shutdown();
 }
 
 void EntityManager::NotifySystemOfExistingEntities(SystemBase* system)
@@ -318,6 +319,7 @@ void EntityManager::Shutdown()
                 componentInfoPairIt = entityData.components.Erase(componentInfoPairIt);
             }
         }
+        subtypeData.data.Clear();
 
         if (m_world != nullptr)
         {

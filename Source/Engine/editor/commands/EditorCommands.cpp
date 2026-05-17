@@ -1784,7 +1784,7 @@ public:
         Handle<ScriptAsset> scriptAsset = MakeHandle<ScriptAsset>(Name::Unique("NewScript"), ScriptDesc());
         InitObject(scriptAsset);
 
-        scriptAsset->SetSourceCode(HYP_FORMAT("// {}\n\nexport func Update(DeltaTime : float)\nend\n", scriptAsset->GetName()));
+        //scriptAsset->SetSourceCode(HYP_FORMAT("// {}\n\nexport func Update(DeltaTime : float)\nend\n", scriptAsset->GetName()));
 
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
             GetText(),

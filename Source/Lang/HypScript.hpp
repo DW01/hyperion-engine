@@ -24,6 +24,11 @@ class InstructionStream;
 
 struct ScriptInstance;
 
+struct HypScriptCompileParams
+{
+    TSet<FilePath> scanPaths;
+};
+
 class HypScript
 {
 public:
@@ -43,10 +48,18 @@ public:
 
     void DestroyScript(ScriptInstance* instance);
 
-    ScriptInstance* Compile(SourceFile& sourceFile, ErrorList& outErrorList);
-    InstructionStream* Decompile(ScriptInstance* instance, std::ostream* os = nullptr) const;
+    HYP_NODISCARD ScriptInstance* Compile(
+        SourceFile& sourceFile,
+        ErrorList& outErrorList,
+        const HypScriptCompileParams& params = {});
+
+    HYP_NODISCARD ScriptInstance* CreateFromBytecode(ConstByteView view);
+
+    void WriteBytecodeToStream(ScriptInstance* instance, ByteWriter& stream);
 
     void Run(ScriptInstance* instance);
+
+    InstructionStream* Decompile(ScriptInstance* instance, std::ostream* os = nullptr) const;
 
     template <class T>
     static inline BoxedValue CreateArgument(T&& item)

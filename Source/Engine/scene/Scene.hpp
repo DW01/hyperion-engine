@@ -79,6 +79,8 @@ public:
 
     ~Scene();
 
+    void Shutdown();
+
     /*! \brief Get the thread Id that owns this Scene. */
     HYP_FORCE_INLINE ThreadId GetOwnerThreadId() const
     {

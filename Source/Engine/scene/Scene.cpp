@@ -71,6 +71,27 @@ Scene::Scene(Name name, ThreadId ownerThreadId, EnumFlags<SceneFlags> flags)
 
 Scene::~Scene()
 {
+    Shutdown();
+}
+
+void Scene::Init()
+{
+    AssetObject::Init();
+
+    m_entityManager->SetWorld(m_world);
+
+    // Scene must be ready before entity manager is initialized
+    // (OnEntityAdded() calls on Systems may require this)
+    SetReady(true);
+
+    InitObject(m_root);
+    InitObject(m_entityManager);
+
+    AssertDebug(m_entityManager->GetWorld() == m_world);
+}
+
+void Scene::Shutdown()
+{
     m_octree.SetEntityManager(nullptr);
     m_octree.Clear();
 
@@ -113,22 +134,6 @@ Scene::~Scene()
 
         entityManager.Reset();
     }
-}
-
-void Scene::Init()
-{
-    AssetObject::Init();
-
-    m_entityManager->SetWorld(m_world);
-
-    // Scene must be ready before entity manager is initialized
-    // (OnEntityAdded() calls on Systems may require this)
-    SetReady(true);
-
-    InitObject(m_root);
-    InitObject(m_entityManager);
-
-    AssertDebug(m_entityManager->GetWorld() == m_world);
 }
 
 void Scene::SetOwnerThreadId(ThreadId ownerThreadId)

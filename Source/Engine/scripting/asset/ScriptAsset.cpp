@@ -21,24 +21,32 @@ void ScriptAsset::Init()
     AssetObject::Init();
 }
 
-void ScriptAsset::SetSourceCode(const String& sourceCode)
+void ScriptAsset::SetBytecode(ConstByteView view)
 {
+    if (view.Size() == 0 && m_data.size == 0)
+    {
+        // no change
+        return;
+    }
+
     FreeBlobData(m_data);
-    AllocateBlobData(m_data, sourceCode.Data(), sourceCode.Length(), 1);
+
+    if (view.Size() != 0)
+    {
+        AllocateBlobData(m_data, view.Data(), view.Size(), 1);
+    }
 
     MarkDirty();
 }
 
-String ScriptAsset::GetSourceCode() const
+ConstByteView ScriptAsset::GetBytecode() const
 {
-    // @TODO data will hold HypScript bytecode or .NET assembly binary instead of source text,
-    // we'll need to load source from file in editor builds
     if (m_data.raw == nullptr || m_data.size == 0)
     {
-        return String();
+        return ConstByteView();
     }
 
-    return String(reinterpret_cast<const char*>(m_data.raw));
+    return ConstByteView(reinterpret_cast<const ubyte*>(m_data.raw), m_data.size);
 }
 
 void ScriptAsset::PageBlobData()
@@ -65,7 +73,7 @@ void ScriptAsset::PageBlobData()
         if (!blobStorage || !blobStorage->GetData(m_data.key, m_data.size, m_data.raw))
         {
 #if HYP_EDITOR || HYP_ALLOW_INLINE_BLOBS
-            FileByteReader stream { registry->GetRootPath() / AssetBuckets::Scripts.GetName() / (String(*GetName()) + ".SCR.raw.blob") };
+            FileByteReader stream { registry->GetRootPath() / AssetBuckets::Scripts.GetName() / (String(*GetName()) + ".BC.raw.blob") };
 
             if (!stream.Eof())
             {
