@@ -132,6 +132,8 @@ namespace Hyperion.Editor.ViewModels
         public EditorCommand AddParticleVolume => new EditorCommand("AddParticleVolume");
         public EditorCommand AddFogVolume => new EditorCommand("AddFogVolume");
 
+        public EditorCommand NewScript => new EditorCommand("NewScript");
+
         private string GetSelectedNodeName() => SceneHierarchy.SelectedNode?.Node?.Name.ToString() ?? string.Empty;
 
         public EditorCommand DeleteNode => new EditorCommand("DeleteNode");

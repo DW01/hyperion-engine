@@ -302,6 +302,16 @@
                                                     IsEnabled="False" />
                                                 <MenuItem Command="{Binding AddParticleVolume}" Header="Particle Volume" />
                                                 <MenuItem Command="{Binding AddFogVolume}" Header="Fog Volume" />
+                                                <Separator />
+                                                <MenuItem
+                                                    Margin="0,2"
+                                                    Padding="8,4"
+                                                    HorizontalAlignment="Center"
+                                                    FontSize="12"
+                                                    Foreground="#808080"
+                                                    Header="Scripts"
+                                                    IsEnabled="False" />
+                                                <MenuItem Command="{Binding NewScript}" Header="Script" />
                                             </MenuFlyout>
                                         </Button.Flyout>
                                     </Button>

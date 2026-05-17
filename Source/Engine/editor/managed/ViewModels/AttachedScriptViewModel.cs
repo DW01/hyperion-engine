@@ -254,13 +254,13 @@ namespace Hyperion.Editor.ViewModels
                     }
 
                     // Capture old value for undo
-                    object? oldValue = null;
+                    ScriptAsset? oldValue = null;
                     IntPtr componentPtr = mgr.GetComponentPtr(_entity, _scriptComponentTypeId);
 
                     if (componentPtr != IntPtr.Zero)
                     {
                         using BoxedValue oldBoxed = _assetRefProperty.Get(s_scriptComponentClass!.Value.Address, componentPtr);
-                        oldValue = oldBoxed.GetValue();
+                        oldValue = oldBoxed.GetValue() as ScriptAsset;
                     }
 
                     // Add component if it doesn't exist
@@ -277,12 +277,12 @@ namespace Hyperion.Editor.ViewModels
                     }
 
                     // Set the asset reference
-                    using BoxedValue newBoxed = new BoxedValue(scriptAsset);
+                    using BoxedValue newBoxed = new BoxedValue(new AssetReference { Path = scriptAsset.Path });
                     _assetRefProperty.Set(s_scriptComponentClass!.Value.Address, componentPtr, newBoxed);
 
                     // Push undo action
-                    object? capturedOldValue = oldValue;
-                    object? newValue = scriptAsset;
+                    ScriptAsset? capturedOldValue = oldValue;
+                    ScriptAsset newValue = scriptAsset;
 
                     Entity capturedEntity = _entity;
                     Property capturedProperty = _assetRefProperty;
@@ -290,7 +290,7 @@ namespace Hyperion.Editor.ViewModels
                     TypeId capturedTypeId = _scriptComponentTypeId;
                     AttachedScriptViewModel capturedSelf = this;
 
-                    void ApplyValue(object? valueObj)
+                    void ApplyValue(ScriptAsset? valueObj)
                     {
                         EntityManager? m = capturedEntity.EntityManager;
 
@@ -317,7 +317,7 @@ namespace Hyperion.Editor.ViewModels
                             return;
                         }
 
-                        using BoxedValue bv = new BoxedValue(valueObj);
+                        using BoxedValue bv = new BoxedValue(valueObj != null ? new AssetReference { Path = scriptAsset.Path } : null);
                         capturedProperty.Set(capturedClass.Address, ptr, bv);
                     }
 

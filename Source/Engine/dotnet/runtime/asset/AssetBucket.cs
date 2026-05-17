@@ -46,15 +46,19 @@ namespace Hyperion
         public static readonly AssetBucket Shaders              = new(17);
         public static readonly AssetBucket ShaderBundles        = new(18);
         public static readonly AssetBucket FontAtlases          = new(19);
+        public static readonly AssetBucket PhysicsShapes        = new(20);
+        public static readonly AssetBucket Scripts              = new(21);
+        public static readonly AssetBucket Sprites              = new(22);
 
-        public static readonly uint MaxAssetBuckets = 19;
+        public static readonly uint MaxAssetBuckets = 22;
 
         public static readonly AssetBucket[] AllBuckets =
         [
             Meshes, MaterialDefinitions, MaterialInstances, Textures, Lights,
             InstancedMeshData, Animations, AnimationTracks, Skeletons, Worlds,
             Scenes, Nodes, Entities, Bones, EnvProbes,
-            LightmapVolumes, Shaders, ShaderBundles, FontAtlases
+            LightmapVolumes, Shaders, ShaderBundles, FontAtlases,
+            PhysicsShapes, Scripts, Sprites
         ];
 
         public static string GetAssetBucketName(uint bucketIndex)
