@@ -858,7 +858,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
         }
     }
 
-    instanceBuffer.FlushBatched();
+    instanceBuffer.Flush();
 
     ClearCommands(idx);
 }

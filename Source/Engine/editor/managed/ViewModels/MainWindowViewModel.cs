@@ -39,6 +39,13 @@ namespace Hyperion.Editor.ViewModels
             set => SetProperty(ref _undoHeader, value);
         }
 
+        private bool _canUndo;
+        public bool CanUndo
+        {
+            get => _canUndo;
+            set => SetProperty(ref _canUndo, value);
+        }
+
         private string _redoHeader = "_Redo";
         public string RedoHeader
         {
@@ -46,11 +53,46 @@ namespace Hyperion.Editor.ViewModels
             set => SetProperty(ref _redoHeader, value);
         }
 
+        private bool _canRedo;
+        public bool CanRedo
+        {
+            get => _canRedo;
+            set => SetProperty(ref _canRedo, value);
+        }
+
         private string _pasteHeader = "_Paste";
         public string PasteHeader
         {
             get => _pasteHeader;
             set => SetProperty(ref _pasteHeader, value);
+        }
+
+        private bool _canPaste;
+        public bool CanPaste
+        {
+            get => _canPaste;
+            set => SetProperty(ref _canPaste, value);
+        }
+
+        private string _copyHeader = "_Copy";
+        public string CopyHeader
+        {
+            get => _copyHeader;
+            set => SetProperty(ref _copyHeader, value);
+        }
+
+        private bool _canCopy;
+        public bool CanCopy
+        {
+            get => _canCopy;
+            set => SetProperty(ref _canCopy, value);
+        }
+
+        private string _deleteHeader = "_Delete";
+        public string DeleteHeader
+        {
+            get => _deleteHeader;
+            set => SetProperty(ref _deleteHeader, value);
         }
 
         public EditorCommand AddEmptyNode => new EditorCommand("AddEmptyNode");
@@ -84,7 +126,8 @@ namespace Hyperion.Editor.ViewModels
 
         private string GetSelectedNodeName() => SceneHierarchy.SelectedNode?.Node?.Name.ToString() ?? string.Empty;
 
-        public EditorCommand DeleteNode => new EditorCommand("DeleteNode", GetSelectedNodeName);
+        public EditorCommand DeleteNode => new EditorCommand("DeleteNode");
+        public EditorCommand Delete => new EditorCommand("DeleteNode");
         public EditorCommand TeleportToNode => new EditorCommand("TeleportTo", GetSelectedNodeName);
         public EditorCommand Copy => new EditorCommand("Copy");
         public EditorCommand Paste => new EditorCommand("Paste");
@@ -426,6 +469,8 @@ namespace Hyperion.Editor.ViewModels
             {
                 UndoHeader = "_Undo";
                 RedoHeader = "_Redo";
+                CanUndo = false;
+                CanRedo = false;
                 return;
             }
 
@@ -440,11 +485,15 @@ namespace Hyperion.Editor.ViewModels
                 EditorActionBase? redoAction = p.ActionStack.GetRedoAction();
                 string? undoName = undoAction?.GetText();
                 string? redoName = redoAction?.GetText();
+                bool hasUndo = undoAction != null;
+                bool hasRedo = redoAction != null;
 
                 Dispatcher.UIThread.Post(() =>
                 {
                     UndoHeader = string.IsNullOrEmpty(undoName) ? "_Undo" : $"_Undo {undoName}";
                     RedoHeader = string.IsNullOrEmpty(redoName) ? "_Redo" : $"_Redo {redoName}";
+                    CanUndo = hasUndo;
+                    CanRedo = hasRedo;
                 });
             });
         }
@@ -453,23 +502,15 @@ namespace Hyperion.Editor.ViewModels
         {
             _ = EngineManager.PostToSimThread(() =>
             {
-                Node[] clipboardNodes;
-
+                Node[]? clipboardNodes = null;
                 try
                 {
                     clipboardNodes = EditorState.Instance.ClipboardNodes;
                 }
-                catch (Exception ex)
-                {
-                    clipboardNodes = Array.Empty<Node>();
+                catch { }
 
-                    Logger.Log(LogLevel.Warning, "Exception occurred while getting clipboard nodes: {}", ex.Message);
-                }
-
-                int count = clipboardNodes.Length;
-
+                int count = clipboardNodes?.Length ?? 0;
                 string header;
-
                 if (count == 0)
                 {
                     header = "_Paste";
@@ -487,8 +528,19 @@ namespace Hyperion.Editor.ViewModels
                 Dispatcher.UIThread.Post(() =>
                 {
                     PasteHeader = header;
+                    CanPaste = count > 0;
                 });
             });
+        }
+
+        private void UpdateCopyDeleteHeaders()
+        {
+            Dispatcher.UIThread.VerifyAccess();
+
+            int count = SceneHierarchy.SelectedNodes.Count;
+            CopyHeader = count > 1 ? $"_Copy {count} Nodes" : "_Copy";
+            DeleteHeader = count > 1 ? $"_Delete {count} Nodes" : "_Delete";
+            CanCopy = count > 0;
         }
 
         private void OnClipboardChanged()
@@ -810,6 +862,7 @@ namespace Hyperion.Editor.ViewModels
                     bool isRootNode = SceneHierarchy.IsRootNode(validNode);
                     Inspector.SetSelectedNode(validNode, SceneHierarchy.Scene, isRootNode);
                     SceneHierarchy.SelectNodeFromEngine(validNode);
+                    UpdateCopyDeleteHeaders();
 
                     // can ONLY add Instanced Mesh Proxy child objects instances to entities that have a MeshComponent.
                     // Note that for now the most derived class MUST be EQUAL to Entity (not just derived from it)
@@ -867,6 +920,7 @@ namespace Hyperion.Editor.ViewModels
                     Dispatcher.UIThread.Post(() =>
                     {
                         SceneHierarchy.UpdateSelectionFromEngine(selectedNodes.Cast<Node>());
+                        UpdateCopyDeleteHeaders();
                         Interlocked.Exchange(ref _isUpdatingSelectionFromEngine, 0);
                     });
                 }
@@ -911,6 +965,7 @@ namespace Hyperion.Editor.ViewModels
                     try
                     {
                         SceneHierarchy.UpdateSelectionFromEngine(selectedNodes.Cast<Node>());
+                        UpdateCopyDeleteHeaders();
                     }
                     finally
                     {
@@ -922,6 +977,151 @@ namespace Hyperion.Editor.ViewModels
             {
                 Logger.Log(LogLevel.Warning, $"Failed to get selected nodes from engine: {ex.Message}");
                 Interlocked.Exchange(ref _isUpdatingSelectionFromEngine, 0);
+            }
+        }
+
+        public void HandleTreeSelectionChanged(List<NodeViewModel> added, List<NodeViewModel> removed)
+        {
+            Dispatcher.UIThread.VerifyAccess();
+
+            if (!_isReady || _isUpdatingSelectionFromEngine != 0 || _isUpdatingFocusedNodeFromEngine != 0)
+                return;
+
+            // Nothing changed
+            if (added.Count == 0 && removed.Count == 0)
+                return;
+
+            bool isReplace = removed.Count > 0 && added.Count == 1;
+            bool isToggleAdd = removed.Count == 0 && added.Count == 1;
+            bool isToggleRemove = removed.Count >= 1 && added.Count == 0;
+
+            if (isReplace)
+            {
+                // Normal click: replace selection with the single clicked node
+                NodeViewModel clicked = added[0];
+                Node? clickedNode = clicked.Node;
+
+                SceneHierarchy.SelectedNodes.Clear();
+                SceneHierarchy.SelectedNodes.Add(clicked);
+                SceneHierarchy.NotifySelectedNodesChanged();
+                UpdateCopyDeleteHeaders();
+
+                if (clickedNode != null)
+                {
+                    _ = EngineManager.PostToSimThread(() =>
+                    {
+                        try
+                        {
+                            _editorSubsystem.SetFocusedNode(clickedNode, false);
+                            _editorSubsystem.ClearSelection();
+                            _editorSubsystem.AddToSelection(clickedNode);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Log(LogLevel.Warning, $"Failed to set selection: {ex.Message}");
+                        }
+                    });
+
+                    bool isRootNode = SceneHierarchy.IsRootNode(clickedNode);
+                    Inspector.SetSelectedNode(clickedNode, SceneHierarchy.Scene, isRootNode);
+                    CanAddInstance = clickedNode is Entity;
+                }
+            }
+            else if (isToggleAdd)
+            {
+                // Ctrl+Click: add to selection
+                NodeViewModel toggled = added[0];
+                Node? toggledNode = toggled.Node;
+
+                if (!SceneHierarchy.SelectedNodes.Contains(toggled))
+                {
+                    SceneHierarchy.SelectedNodes.Add(toggled);
+                    SceneHierarchy.NotifySelectedNodesChanged();
+                    UpdateCopyDeleteHeaders();
+
+                    if (toggledNode != null)
+                    {
+                        _ = EngineManager.PostToSimThread(() =>
+                        {
+                            try
+                            {
+                                _editorSubsystem.AddToSelection(toggledNode);
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.Log(LogLevel.Warning, $"Failed to add to selection: {ex.Message}");
+                            }
+                        });
+                    }
+                }
+            }
+            else if (isToggleRemove)
+            {
+                // Ctrl+Click or deselect: remove from selection
+                foreach (NodeViewModel vm in removed)
+                {
+                    SceneHierarchy.SelectedNodes.Remove(vm);
+
+                    Node? node = vm.Node;
+                    if (node != null)
+                    {
+                        _ = EngineManager.PostToSimThread(() =>
+                        {
+                            try
+                            {
+                                _editorSubsystem.RemoveFromSelection(node);
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.Log(LogLevel.Warning, $"Failed to remove from selection: {ex.Message}");
+                            }
+                        });
+                    }
+                }
+
+                SceneHierarchy.NotifySelectedNodesChanged();
+                UpdateCopyDeleteHeaders();
+            }
+            else
+            {
+                // Bulk change (programmatic): sync SelectedNodes to match tree selection
+                SceneHierarchy.SelectedNodes.Clear();
+                foreach (NodeViewModel vm in added)
+                {
+                    SceneHierarchy.SelectedNodes.Add(vm);
+                }
+                SceneHierarchy.NotifySelectedNodesChanged();
+                UpdateCopyDeleteHeaders();
+
+                // Sync to engine
+                List<Node> nodes = added
+                    .Select(vm => vm.Node)
+                    .Where(n => n != null && n.IsValid)
+                    .ToList();
+
+                if (nodes.Count > 0 && added.Count > 0)
+                {
+                    Node? first = nodes[0];
+                    _ = EngineManager.PostToSimThread(() =>
+                    {
+                        try
+                        {
+                            _editorSubsystem.ClearSelection();
+                            foreach (Node node in nodes)
+                            {
+                                _editorSubsystem.AddToSelection(node);
+                            }
+                            if (first != null)
+                            {
+                                _editorSubsystem.SetFocusedNode(first, false);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Log(LogLevel.Warning, $"Failed to sync bulk selection: {ex.Message}");
+                        }
+                    });
+                }
             }
         }
     }

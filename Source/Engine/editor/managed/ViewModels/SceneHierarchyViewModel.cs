@@ -191,6 +191,16 @@ namespace Hyperion.Editor.ViewModels
             }
         }
 
+        public void SetSuppressSelectionNotifications(bool suppress)
+        {
+            _suppressSelectionNotifications = suppress;
+        }
+
+        public void NotifySelectedNodesChanged()
+        {
+            OnPropertyChanged(nameof(SelectedNodes));
+        }
+
         public bool IsRootNode(Node? node)
         {
             if (node == null || _scene == null)

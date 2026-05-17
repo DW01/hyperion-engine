@@ -109,11 +109,12 @@
                     <MenuItem Command="{Binding Exit}" Header="_Exit" />
                 </MenuItem>
                 <MenuItem Header="_Edit">
-                    <MenuItem Command="{Binding Undo}" Header="{Binding UndoHeader}" />
-                    <MenuItem Command="{Binding Redo}" Header="{Binding RedoHeader}" />
+                    <MenuItem Command="{Binding Undo}" Header="{Binding UndoHeader}" IsEnabled="{Binding CanUndo}" />
+                    <MenuItem Command="{Binding Redo}" Header="{Binding RedoHeader}" IsEnabled="{Binding CanRedo}" />
                     <Separator />
-                    <MenuItem Command="{Binding Copy}" Header="_Copy" />
-                    <MenuItem Command="{Binding Paste}" Header="{Binding PasteHeader}" />
+                    <MenuItem Command="{Binding Copy}" Header="{Binding CopyHeader}" IsEnabled="{Binding CanCopy}" />
+                    <MenuItem Command="{Binding Paste}" Header="{Binding PasteHeader}" IsEnabled="{Binding CanPaste}" />
+                    <MenuItem Command="{Binding Delete}" Header="{Binding DeleteHeader}" />
                     <Separator />
                     <MenuItem Command="{Binding SelectAll}" Header="Select _All" />
                     <MenuItem Header="Select All in Viewport" />
@@ -121,32 +122,30 @@
                 </MenuItem>
             </Menu>
 
-            <Border Classes="panel-header" DockPanel.Dock="Top">
+            <Border Classes="panel-header" DockPanel.Dock="Top" Padding="6,4">
                 <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,*,Auto">
                     <StackPanel
                         Grid.Column="0"
                         Orientation="Horizontal"
-                        Spacing="6">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Button Command="{Binding SaveProject}">
-                                <StackPanel Orientation="Vertical" Spacing="4">
-                                    <LucideIcon Kind="Save" Size="24" />
-                                    <TextBlock Text="Save" />
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                          <!-- <DropDownButton
-                              Background="Transparent"
-                              BorderThickness="0"
-                              Content="Show Flags">
-                            <DropDownButton.Flyout>
-                              <MenuFlyout>
-                                <MenuItem Header="Unlit" />
-                              </MenuFlyout>
-                            </DropDownButton.Flyout>
-                          </DropDownButton> -->
-                        </StackPanel>
+                        Spacing="4">
+                        <Button Command="{Binding OpenProject}" ToolTip.Tip="Open">
+                            <LucideIcon Kind="FolderOpen" Size="16" />
+                        </Button>
+                        <Button Command="{Binding SaveProject}" ToolTip.Tip="Save">
+                            <LucideIcon Kind="Save" Size="16" />
+                        </Button>
+                        <Button Command="{Binding Undo}" ToolTip.Tip="{Binding UndoHeader}" Margin="12,0,0,0" IsEnabled="{Binding CanUndo}">
+                            <LucideIcon Kind="Undo2" Size="16" />
+                        </Button>
+                        <Button Command="{Binding Redo}" ToolTip.Tip="{Binding RedoHeader}" IsEnabled="{Binding CanRedo}">
+                            <LucideIcon Kind="Redo2" Size="16" />
+                        </Button>
+                        <Button Command="{Binding Copy}" ToolTip.Tip="{Binding CopyHeader}" Margin="12,0,0,0" IsEnabled="{Binding CanCopy}">
+                            <LucideIcon Kind="Copy" Size="16" />
+                        </Button>
+                        <Button Command="{Binding Paste}" ToolTip.Tip="{Binding PasteHeader}" IsEnabled="{Binding CanPaste}">
+                            <LucideIcon Kind="ClipboardPaste" Size="16" />
+                        </Button>
                     </StackPanel>
 
                     <StackPanel
@@ -154,69 +153,54 @@
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
-                        Spacing="6">
+                        Spacing="4">
                         <Button
                             x:Name="TransformModeTranslate"
                             Classes="gizmo"
                             Command="{Binding SelectTransformModeTranslate}"
-                            Width="64"
-                            IsEnabled="{Binding CanSelectTransformModeTranslate}">
-                            <StackPanel Orientation="Vertical" Spacing="4">
-                                <LucideIcon Kind="Move" Size="24" />
-                                <TextBlock Text="Translate" />
-                            </StackPanel>
+                            IsEnabled="{Binding CanSelectTransformModeTranslate}"
+                            ToolTip.Tip="Translate">
+                            <LucideIcon Kind="Move" Size="16" />
                         </Button>
                         <Button
                             x:Name="TransformModeRotate"
                             Classes="gizmo"
                             Command="{Binding SelectTransformModeRotate}"
-                            Width="64"
-                            IsEnabled="{Binding CanSelectTransformModeRotate}">
-                            <StackPanel Orientation="Vertical" Spacing="4">
-                                <LucideIcon Kind="RotateCw" Size="24" />
-                                <TextBlock Text="Rotate" />
-                            </StackPanel>
+                            IsEnabled="{Binding CanSelectTransformModeRotate}"
+                            ToolTip.Tip="Rotate">
+                            <LucideIcon Kind="RotateCw" Size="16" />
                         </Button>
                         <Button
                             x:Name="TransformModeScale"
                             Classes="gizmo"
                             Command="{Binding SelectTransformModeScale}"
-                            Width="64"
-                            IsEnabled="{Binding CanSelectTransformModeScale}">
-                            <StackPanel Orientation="Vertical" Spacing="4">
-                                <LucideIcon Kind="Maximize" Size="24" />
-                                <TextBlock Text="Scale" />
-                            </StackPanel>
+                            IsEnabled="{Binding CanSelectTransformModeScale}"
+                            ToolTip.Tip="Scale">
+                            <LucideIcon Kind="Maximize" Size="16" />
                         </Button>
                     </StackPanel>
 
                     <StackPanel
                         Grid.Column="2"
                         Orientation="Horizontal"
-                        Spacing="6">
+                        Spacing="4">
                         <Button
                             Command="{Binding SetGameModePlaying}"
-                            IsVisible="{Binding CanSetGameModePlaying}">
-                            <StackPanel Orientation="Vertical" Spacing="4">
-                                <LucideIcon Kind="Play" Size="24" />
-                                <TextBlock Text="Play" />
-                            </StackPanel>
+                            IsVisible="{Binding CanSetGameModePlaying}"
+                            ToolTip.Tip="Play">
+                            <LucideIcon Kind="Play" Size="16" />
                         </Button>
                         <Button
                             Command="{Binding SetGameModePaused}"
-                            IsVisible="{Binding CanSetGameModePaused}">
-                            <StackPanel Orientation="Vertical" Spacing="4">
-                                <LucideIcon Kind="Pause" Size="24" />
-                                <TextBlock Text="Pause" />
-                            </StackPanel>
+                            IsVisible="{Binding CanSetGameModePaused}"
+                            ToolTip.Tip="Pause">
+                            <LucideIcon Kind="Pause" Size="16" />
                         </Button>
                         <Button
                             Command="{Binding SetGameModeStopped}"
-                            IsVisible="{Binding CanSetGameModeStopped}">
-                            <StackPanel Orientation="Vertical" Spacing="4">
-                                <LucideIcon Kind="Square" Size="24" />
-                                <TextBlock Text="Stop" />
-                            </StackPanel>
+                            IsVisible="{Binding CanSetGameModeStopped}"
+                            ToolTip.Tip="Stop">
+                            <LucideIcon Kind="Square" Size="16" />
                         </Button>
                     </StackPanel>
                 </Grid>
@@ -331,7 +315,8 @@
                                 x:Name="SceneHierarchyTreeView"
                                 Grid.Row="1"
                                 ItemsSource="{Binding SceneHierarchy.RootNodes}"
-                                SelectedItem="{Binding SceneHierarchy.SelectedNode}">
+                                SelectedItem="{Binding SceneHierarchy.SelectedNode}"
+                                SelectionMode="Multiple">
                                 <TreeView.ItemContainerTheme>
                                     <ControlTheme
                                         x:DataType="vm:NodeViewModel"
@@ -356,12 +341,12 @@
                                             </StackPanel>
                                             <Grid.ContextMenu>
                                                 <ContextMenu>
-                                                    <MenuItem Command="{Binding DataContext.Copy, ElementName=Root}" CommandParameter="{Binding Name}" Header="Copy" />
+                                                    <MenuItem Command="{Binding DataContext.Copy, ElementName=Root}" Header="{Binding DataContext.CopyHeader, ElementName=Root}" />
                                                     <MenuItem Command="{Binding DataContext.Paste, ElementName=Root}" Header="{Binding DataContext.PasteHeader, ElementName=Root}" />
                                                     <Separator />
                                                     <MenuItem Command="{Binding DataContext.TeleportToNode, ElementName=Root}" CommandParameter="{Binding Name}" Header="Teleport to" />
                                                     <Separator />
-                                                    <MenuItem Command="{Binding DataContext.DeleteNode, ElementName=Root}" CommandParameter="{Binding Name}" Header="Delete" />
+                                                    <MenuItem Command="{Binding DataContext.DeleteNode, ElementName=Root}" Header="{Binding DataContext.DeleteHeader, ElementName=Root}" />
                                                 </ContextMenu>
                                             </Grid.ContextMenu>
                                         </Grid>

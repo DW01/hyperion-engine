@@ -122,6 +122,8 @@ namespace Hyperion.Editor
             _sceneTree.AddHandler(DragDrop.DragLeaveEvent, OnSceneTreeDragLeave);
             _sceneTree.AddHandler(DragDrop.DropEvent, OnSceneTreeDrop);
 
+            _sceneTree.SelectionChanged += OnSceneTreeSelectionChanged;
+
             // Lazily find the internal ScrollViewer once the template is applied.
             _sceneTree.TemplateApplied += (_, _) =>
             {
@@ -135,17 +137,7 @@ namespace Hyperion.Editor
 
             if (point.Properties.IsRightButtonPressed)
             {
-                var nodeVm = FindNodeViewModelInEventSource(e.Source);
-                if (nodeVm != null)
-                {
-                    var vm = DataContext as MainWindowViewModel;
-                    if (vm?.SceneHierarchy != null)
-                    {
-                        vm.SceneHierarchy.SelectedNode = nodeVm;
-                    }
-                }
-
-                e.Handled = true;
+                // Let the TreeView handle context menu natively; do not alter selection
                 return;
             }
 
@@ -165,6 +157,12 @@ namespace Hyperion.Editor
 
                     e.Handled = true;
                     return;
+                }
+
+                // Suppress SelectedNodeChanged notification until SelectionChanged handles the sync
+                if (DataContext is MainWindowViewModel mvm)
+                {
+                    mvm.SceneHierarchy.SetSuppressSelectionNotifications(true);
                 }
 
                 _dragCandidate = FindNodeViewModelInEventSource(e.Source);
@@ -278,6 +276,21 @@ namespace Hyperion.Editor
 
             _autoScrollDelta = 0;
             _autoScrollTimer?.Stop();
+        }
+
+        private void OnSceneTreeSelectionChanged(object? sender, SelectionChangedEventArgs e)
+        {
+            var mvm = DataContext as MainWindowViewModel;
+            if (mvm == null)
+                return;
+
+            var added = e.AddedItems.OfType<NodeViewModel>().ToList();
+            var removed = e.RemovedItems.OfType<NodeViewModel>().ToList();
+
+            // Un-suppress after SelectedItem binding fired (suppressed)
+            mvm.SceneHierarchy.SetSuppressSelectionNotifications(false);
+
+            mvm.HandleTreeSelectionChanged(added, removed);
         }
 
         private void UpdateAutoScroll(Point posRelativeToTree)

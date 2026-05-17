@@ -203,7 +203,6 @@ double VulkanGpuTimerBackend::ComputeDeltaMs(uint64 start, uint64 end) const
     return double(end - start) * m_timestampPeriod * 1e-6;
 }
 
-HYP_DISABLE_OPTIMIZATION;
 void VulkanGpuTimerBackend::ResolveFrameResults(uint32 completedFrameIndex)
 {
     if (!m_isSupported)
