@@ -85,6 +85,7 @@ namespace Hyperion.Editor.ViewModels
         private string GetSelectedNodeName() => SceneHierarchy.SelectedNode?.Node?.Name.ToString() ?? string.Empty;
 
         public EditorCommand DeleteNode => new EditorCommand("DeleteNode", GetSelectedNodeName);
+        public EditorCommand Delete => new EditorCommand("DeleteNode");
         public EditorCommand TeleportToNode => new EditorCommand("TeleportTo", GetSelectedNodeName);
         public EditorCommand Copy => new EditorCommand("Copy");
         public EditorCommand Paste => new EditorCommand("Paste");

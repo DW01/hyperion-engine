@@ -1263,7 +1263,7 @@ public:
 
     virtual String GetText() const override
     {
-        return "Delete Node";
+        return "Delete Nodes";
     }
 
     virtual void Execute(EditorSubsystem* subsystem) override
@@ -1277,56 +1277,132 @@ public:
             return;
         }
 
-        Handle<Node> node;
+        Array<Handle<Node>> nodesToDelete;
 
         if (NumArguments() >= 1 && !GetArgument(0).Empty())
         {
-            node = subsystem->GetActiveScene()->FindNodeByName(StringHash(GetArgument(0)));
+            // Named node deletion (e.g., from context menu)
+            Handle<Node> node = subsystem->GetActiveScene()->FindNodeByName(StringHash(GetArgument(0)));
 
             if (!node.IsValid())
             {
                 HYP_LOG(Editor, Warning, "EditorCommandDeleteNode: could not find node '{}'", GetArgument(0));
                 return;
             }
+
+            nodesToDelete.PushBack(node);
         }
         else
         {
-            node = subsystem->GetFocusedNode();
+            // Delete all selected nodes; fall back to focused node if nothing selected
+            nodesToDelete = subsystem->GetSelectedNodes();
+
+            if (nodesToDelete.Empty())
+            {
+                Handle<Node> focusedNode = subsystem->GetFocusedNode();
+
+                if (focusedNode.IsValid())
+                {
+                    nodesToDelete.PushBack(focusedNode);
+                }
+            }
         }
 
-        if (!node.IsValid())
+        // Filter: skip nodes whose parent is also in the deletion set (they'll be removed implicitly)
+        Array<Handle<Node>> topLevelNodes;
+        for (const Handle<Node>& node : nodesToDelete)
         {
-            HYP_LOG(Editor, Warning, "EditorCommandDeleteNode: no node specified or focused");
+            if (!node.IsValid())
+            {
+                continue;
+            }
+
+            bool hasAncestorInSet = false;
+            for (Node* p = node->GetParent(); p; p = p->GetParent())
+            {
+                for (const Handle<Node>& other : nodesToDelete)
+                {
+                    if (other.Get() == p)
+                    {
+                        hasAncestorInSet = true;
+                        break;
+                    }
+                }
+                if (hasAncestorInSet) { break; }
+            }
+
+            if (!hasAncestorInSet)
+            {
+                topLevelNodes.PushBack(node);
+            }
+        }
+
+        if (topLevelNodes.Empty())
+        {
+            HYP_LOG(Editor, Warning, "EditorCommandDeleteNode: no nodes to delete (all are children of other selected nodes)");
             return;
         }
 
-        Node* parentRaw = node->GetParent();
-        if (!parentRaw)
+        // Build undo data: each node paired with its parent
+        Array<Pair<Handle<Node>, WeakHandle<Node>>> nodesWithParents;
+        for (const Handle<Node>& node : topLevelNodes)
         {
-            HYP_LOG(Editor, Warning, "EditorCommandDeleteNode: node has no parent (cannot delete root)");
-            return;
+            Node* parentRaw = node->GetParent();
+            if (!parentRaw)
+            {
+                HYP_LOG(Editor, Warning, "EditorCommandDeleteNode: node has no parent (cannot delete root)");
+                continue;
+            }
+
+            nodesWithParents.PushBack({ node, MakeWeakRef(parentRaw) });
         }
 
-        Handle<Node> parent = MakeStrongRef(parentRaw);
+        if (nodesWithParents.Empty())
+        {
+            return;
+        }
 
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
-            HYP_FORMAT("Delete {}", node->GetName()),
-            Proc<EditorActionFunctions()>([node, parent]() -> EditorActionFunctions
+            nodesWithParents.Size() == 1
+                ? HYP_FORMAT("Delete {}", nodesWithParents[0].first->GetName())
+                : HYP_FORMAT("Delete {} nodes", nodesWithParents.Size()),
+            Proc<EditorActionFunctions()>([nodesWithParents]() -> EditorActionFunctions
                 {
                     return EditorActionFunctions {
-                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([node, parent](EditorSubsystem* editorSubsystem, EditorProject* project)
+                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([nodesWithParents](EditorSubsystem* editorSubsystem, EditorProject* project)
                             {
-                                node->Remove();
-
-                                if (editorSubsystem->GetFocusedNode() == node)
+                                for (const auto& pair : nodesWithParents)
                                 {
-                                    editorSubsystem->SetFocusedNode(nullptr, true);
+                                    pair.first->Remove();
+                                }
+
+                                // Clear focus if it was one of the deleted nodes
+                                if (Handle<Node> focusedNode = editorSubsystem->GetFocusedNode(); !focusedNode.IsValid())
+                                {
+                                    // Focus was auto-cleared; nothing to restore
                                 }
                             }),
-                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([node, parent](EditorSubsystem* editorSubsystem, EditorProject* project)
+                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([nodesWithParents](EditorSubsystem* editorSubsystem, EditorProject* project)
                             {
-                                parent->AddChild(node);
-                                editorSubsystem->SetFocusedNode(node, true);
+                                // Re-attach in reverse order so original order is preserved
+                                for (int i = nodesWithParents.Size() - 1; i >= 0; --i)
+                                {
+                                    const auto& pair = nodesWithParents[i];
+
+                                    Handle<Node> parent = pair.second.Lock();
+                                    if (!parent.IsValid())
+                                    {
+                                        continue;
+                                    }
+
+                                    parent->AddChild(pair.first);
+                                }
+
+                                // Focus the first restored node
+                                if (nodesWithParents.Any())
+                                {
+                                    editorSubsystem->SetFocusedNode(nodesWithParents[0].first, true);
+                                }
                             })
                     };
                 }));

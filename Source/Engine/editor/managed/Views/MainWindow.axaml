@@ -114,6 +114,7 @@
                     <Separator />
                     <MenuItem Command="{Binding Copy}" Header="_Copy" />
                     <MenuItem Command="{Binding Paste}" Header="{Binding PasteHeader}" />
+                    <MenuItem Command="{Binding Delete}" Header="_Delete" />
                     <Separator />
                     <MenuItem Command="{Binding SelectAll}" Header="Select _All" />
                     <MenuItem Header="Select All in Viewport" />
