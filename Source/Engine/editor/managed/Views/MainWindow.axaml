@@ -332,7 +332,8 @@
                                 x:Name="SceneHierarchyTreeView"
                                 Grid.Row="1"
                                 ItemsSource="{Binding SceneHierarchy.RootNodes}"
-                                SelectedItem="{Binding SceneHierarchy.SelectedNode}">
+                                SelectedItem="{Binding SceneHierarchy.SelectedNode}"
+                                SelectionMode="Multiple">
                                 <TreeView.ItemContainerTheme>
                                     <ControlTheme
                                         x:DataType="vm:NodeViewModel"
@@ -357,12 +358,12 @@
                                             </StackPanel>
                                             <Grid.ContextMenu>
                                                 <ContextMenu>
-                                                    <MenuItem Command="{Binding DataContext.Copy, ElementName=Root}" CommandParameter="{Binding Name}" Header="Copy" />
+                                                    <MenuItem Command="{Binding DataContext.Copy, ElementName=Root}" Header="Copy" />
                                                     <MenuItem Command="{Binding DataContext.Paste, ElementName=Root}" Header="{Binding DataContext.PasteHeader, ElementName=Root}" />
                                                     <Separator />
                                                     <MenuItem Command="{Binding DataContext.TeleportToNode, ElementName=Root}" CommandParameter="{Binding Name}" Header="Teleport to" />
                                                     <Separator />
-                                                    <MenuItem Command="{Binding DataContext.DeleteNode, ElementName=Root}" CommandParameter="{Binding Name}" Header="Delete" />
+                                                    <MenuItem Command="{Binding DataContext.DeleteNode, ElementName=Root}" Header="Delete" />
                                                 </ContextMenu>
                                             </Grid.ContextMenu>
                                         </Grid>

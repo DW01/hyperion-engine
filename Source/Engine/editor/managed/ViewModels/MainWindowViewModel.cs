@@ -84,7 +84,7 @@ namespace Hyperion.Editor.ViewModels
 
         private string GetSelectedNodeName() => SceneHierarchy.SelectedNode?.Node?.Name.ToString() ?? string.Empty;
 
-        public EditorCommand DeleteNode => new EditorCommand("DeleteNode", GetSelectedNodeName);
+        public EditorCommand DeleteNode => new EditorCommand("DeleteNode");
         public EditorCommand Delete => new EditorCommand("DeleteNode");
         public EditorCommand TeleportToNode => new EditorCommand("TeleportTo", GetSelectedNodeName);
         public EditorCommand Copy => new EditorCommand("Copy");
@@ -923,6 +923,147 @@ namespace Hyperion.Editor.ViewModels
             {
                 Logger.Log(LogLevel.Warning, $"Failed to get selected nodes from engine: {ex.Message}");
                 Interlocked.Exchange(ref _isUpdatingSelectionFromEngine, 0);
+            }
+        }
+
+        public void HandleTreeSelectionChanged(List<NodeViewModel> added, List<NodeViewModel> removed)
+        {
+            Dispatcher.UIThread.VerifyAccess();
+
+            if (!_isReady || _isUpdatingSelectionFromEngine != 0 || _isUpdatingFocusedNodeFromEngine != 0)
+                return;
+
+            // Nothing changed
+            if (added.Count == 0 && removed.Count == 0)
+                return;
+
+            bool isReplace = removed.Count > 0 && added.Count == 1;
+            bool isToggleAdd = removed.Count == 0 && added.Count == 1;
+            bool isToggleRemove = removed.Count >= 1 && added.Count == 0;
+
+            if (isReplace)
+            {
+                // Normal click: replace selection with the single clicked node
+                NodeViewModel clicked = added[0];
+                Node? clickedNode = clicked.Node;
+
+                SceneHierarchy.SelectedNodes.Clear();
+                SceneHierarchy.SelectedNodes.Add(clicked);
+                SceneHierarchy.NotifySelectedNodesChanged();
+
+                if (clickedNode != null)
+                {
+                    _ = EngineManager.PostToSimThread(() =>
+                    {
+                        try
+                        {
+                            _editorSubsystem.SetFocusedNode(clickedNode, false);
+                            _editorSubsystem.ClearSelection();
+                            _editorSubsystem.AddToSelection(clickedNode);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Log(LogLevel.Warning, $"Failed to set selection: {ex.Message}");
+                        }
+                    });
+
+                    bool isRootNode = SceneHierarchy.IsRootNode(clickedNode);
+                    Inspector.SetSelectedNode(clickedNode, SceneHierarchy.Scene, isRootNode);
+                    CanAddInstance = clickedNode is Entity;
+                }
+            }
+            else if (isToggleAdd)
+            {
+                // Ctrl+Click: add to selection
+                NodeViewModel toggled = added[0];
+                Node? toggledNode = toggled.Node;
+
+                if (!SceneHierarchy.SelectedNodes.Contains(toggled))
+                {
+                    SceneHierarchy.SelectedNodes.Add(toggled);
+                    SceneHierarchy.NotifySelectedNodesChanged();
+
+                    if (toggledNode != null)
+                    {
+                        _ = EngineManager.PostToSimThread(() =>
+                        {
+                            try
+                            {
+                                _editorSubsystem.AddToSelection(toggledNode);
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.Log(LogLevel.Warning, $"Failed to add to selection: {ex.Message}");
+                            }
+                        });
+                    }
+                }
+            }
+            else if (isToggleRemove)
+            {
+                // Ctrl+Click or deselect: remove from selection
+                foreach (NodeViewModel vm in removed)
+                {
+                    SceneHierarchy.SelectedNodes.Remove(vm);
+
+                    Node? node = vm.Node;
+                    if (node != null)
+                    {
+                        _ = EngineManager.PostToSimThread(() =>
+                        {
+                            try
+                            {
+                                _editorSubsystem.RemoveFromSelection(node);
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.Log(LogLevel.Warning, $"Failed to remove from selection: {ex.Message}");
+                            }
+                        });
+                    }
+                }
+
+                SceneHierarchy.NotifySelectedNodesChanged();
+            }
+            else
+            {
+                // Bulk change (programmatic): sync SelectedNodes to match tree selection
+                SceneHierarchy.SelectedNodes.Clear();
+                foreach (NodeViewModel vm in added)
+                {
+                    SceneHierarchy.SelectedNodes.Add(vm);
+                }
+                SceneHierarchy.NotifySelectedNodesChanged();
+
+                // Sync to engine
+                List<Node> nodes = added
+                    .Select(vm => vm.Node)
+                    .Where(n => n != null && n.IsValid)
+                    .ToList();
+
+                if (nodes.Count > 0 && added.Count > 0)
+                {
+                    Node? first = nodes[0];
+                    _ = EngineManager.PostToSimThread(() =>
+                    {
+                        try
+                        {
+                            _editorSubsystem.ClearSelection();
+                            foreach (Node node in nodes)
+                            {
+                                _editorSubsystem.AddToSelection(node);
+                            }
+                            if (first != null)
+                            {
+                                _editorSubsystem.SetFocusedNode(first, false);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Log(LogLevel.Warning, $"Failed to sync bulk selection: {ex.Message}");
+                        }
+                    });
+                }
             }
         }
     }
