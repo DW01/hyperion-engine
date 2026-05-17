@@ -66,7 +66,34 @@ HYP_DEFINE_LOG_CHANNEL(Game);
 
 namespace game {
 
-static bool s_isSaving = false;
+static void DebugDrawVoxelOctreeNode(DebugDrawCommandList& dbg, const VoxelOctree* node)
+{
+    if (node == nullptr)
+        return;
+
+    const BoundingBox& aabb = node->GetAABB();
+
+    if (node->GetPayload().occupiedBit)
+    {
+        dbg.box(aabb.GetCenter(), aabb.GetExtent() * 0.5f, Color::Red());
+    }
+    else if (node->IsDivided())
+    {
+        //dbg.box(aabb.GetCenter(), aabb.GetExtent() * 0.5f, Color(0.0f, 1.0f, 0.0f, 0.3f));
+    }
+
+    if (node->IsDivided())
+    {
+        for (uint8 i = 0; i < 8; i++)
+        {
+            const auto& octant = node->GetOctants()[i];
+            if (octant.octree != nullptr)
+            {
+                DebugDrawVoxelOctreeNode(dbg, octant.octree);
+            }
+        }
+    }
+}
 
 DefaultGame::DefaultGame()
     : Game()
@@ -131,12 +158,23 @@ void DefaultGame::OnLaunch_Impl()
             GetWorld()->AddView(view);
 
             GetWorld()->AddScene(mainScene);
+
+            // test voxel octree build
+            {
+                VoxelOctreeParams params;
+                params.aabb = BoundingBox(Vec3f(-70.0f), Vec3f(70.0f));
+                params.allowResize = false;
+                params.maxDepth = 7;
+
+                m_voxelOctree.Reset(new VoxelOctree());
+                m_voxelOctree->Build(params, *mainScene->GetEntityManager());
+            }
         }
+
+        StartSimulating();
+
+        return;
     }
-
-    StartSimulating();
-
-    return;
 #endif
 
 #if 1
@@ -222,24 +260,22 @@ void DefaultGame::OnLaunch_Impl()
     parameters.roughness = 0.3f;
     parameters.metalness = 0.02f;
 
-    Handle<MaterialDefinition> skyboxMaterialDefinition = MakeHandle<MaterialDefinition>(NAME("NewMat"), attributes, parameters, MaterialTextures {});
-    skyboxMaterialDefinition->SetIsTransient(true);
-    InitObject(skyboxMaterialDefinition);
+    Handle<MaterialDefinition> materialDefinition = MakeHandle<MaterialDefinition>(NAME("NewMat"), attributes, parameters, MaterialTextures {});
+    materialDefinition->SetIsTransient(true);
+    InitObject(materialDefinition);
+    GetCurrentAssetRegistry()->PutAssetUnique(materialDefinition);
 
-    GetCurrentAssetRegistry()->PutAssetUnique(skyboxMaterialDefinition);
-
-    Handle<MaterialInstance> skyboxMaterialInstance = MakeHandle<MaterialInstance>(NAME("NewMat"), skyboxMaterialDefinition);
-    skyboxMaterialInstance->SetIsTransient(true);
-    InitObject(skyboxMaterialInstance);
-
-    GetCurrentAssetRegistry()->PutAssetUnique(skyboxMaterialInstance);
+    Handle<MaterialInstance> materialInstance = MakeHandle<MaterialInstance>(NAME("NewMat"), materialDefinition);
+    materialInstance->SetIsTransient(true);
+    InitObject(materialInstance);
+    GetCurrentAssetRegistry()->PutAssetUnique(materialInstance);
 
     scene->GetRoot()->AddChild(cubeEnt);
 
     cubeEnt->Translate(Vec3f(-10.0f, 0.0f, 0.0f));
 
     // add MeshComponent to skybox entity
-    cubeEnt->AddComponent<MeshComponent>(MeshComponent { mesh, skyboxMaterialInstance });
+    cubeEnt->AddComponent<MeshComponent>(MeshComponent { mesh, materialInstance });
 
      AssetBatch* batch = g_assetManager->CreateBatch();
      batch->Add("testbed", "Models/testbed/testbed.obj");
@@ -286,6 +322,13 @@ void DefaultGame::OnUpdate_Impl(float delta)
                 controller->GetInputHandler()->SetTouchMovementDelta(tcs->GetMovementDelta());
             }
         }
+    }
+
+    // test voxel octree visualization
+    if (m_voxelOctree != nullptr)
+    {
+        DebugDrawCommandList& dbg = DebugDrawer::GetInstance().CreateCommandList();
+        DebugDrawVoxelOctreeNode(dbg, m_voxelOctree.Get());
     }
 }
 

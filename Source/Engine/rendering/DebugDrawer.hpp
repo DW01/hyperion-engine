@@ -271,7 +271,7 @@ private:
 
     FixedArray<LinkedList<DebugDrawCommandList>, RingBufferDepth> m_commandLists;
 
-    typedef Array<ImmediateDrawShaderData, DynamicAllocator> CachedPartitionedShaderData[MaxDebugDrawShapeTypes];
+    typedef Array<ImmediateDrawShaderData, RenderAllocator> CachedPartitionedShaderData[MaxDebugDrawShapeTypes];
 
     CachedPartitionedShaderData m_cachedPartitionedShaderData;
 

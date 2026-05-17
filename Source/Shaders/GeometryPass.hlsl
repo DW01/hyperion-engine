@@ -377,6 +377,8 @@ PSOutput PSMain(PSInput input)
     output.gbuffer_material.w = 0u;
 #endif
 
+    // output.gbuffer_albedo = float4(N * 0.5 + 0.5, 1.0);
+
     output.gbuffer_velocity = velocity;
 
     return output;

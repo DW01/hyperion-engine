@@ -299,7 +299,7 @@ static void BlitImages(
             ShaderUniform& ubUniform = state.shaderUniforms[2];
             ubUniform = ShaderUniform("BlitConstants"_sh, cbuffer);
             state.shaderUniformBufferOffsets[2] = uint32(cbufferOffset);
-            state.shaderUniformBufferOffsetStrides[2] = uint32(cbufferSize);
+            state.shaderUniformBufferStrides[2] = uint32(cbufferSize);
             state.dirtyUniforms |= 1u << 2;
             state.dirtyBufferOffsets |= 1u << 2;
 
@@ -689,7 +689,7 @@ void GenerateMipmaps::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
             ShaderUniform& ubUniform = state.shaderUniforms[2];
             ubUniform = ShaderUniform("Constants"_sh, cbuffers[srcMip]);
             state.shaderUniformBufferOffsets[2] = uint32(cbufferOffsets[srcMip]);
-            state.shaderUniformBufferOffsetStrides[2] = uint32(cbufferSizes[srcMip]);
+            state.shaderUniformBufferStrides[2] = uint32(cbufferSizes[srcMip]);
             state.dirtyUniforms |= 1u << 2;
             state.dirtyBufferOffsets |= 1u << 2;
 
@@ -1562,14 +1562,14 @@ void SetShaderUniform::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
     if (cmdCasted->uniform.type == ShaderUniform::UT_Buffer)
     {
         // strides differ for buffer; needs rebind
-        if (state.shaderUniformBufferOffsetStrides[cmdCasted->uniformIndex] != cmdCasted->shaderDataOffset.stride)
+        if (state.shaderUniformBufferStrides[cmdCasted->uniformIndex] != cmdCasted->shaderDataOffset.stride)
         {
             state.dirtyUniforms |= (1u << cmdCasted->uniformIndex);
         }
 
         // buffer offset + stride updating
         state.shaderUniformBufferOffsets[cmdCasted->uniformIndex] = cmdCasted->shaderDataOffset.offset;
-        state.shaderUniformBufferOffsetStrides[cmdCasted->uniformIndex] = cmdCasted->shaderDataOffset.stride;
+        state.shaderUniformBufferStrides[cmdCasted->uniformIndex] = cmdCasted->shaderDataOffset.stride;
 
         state.dirtyBufferOffsets |= (1u << cmdCasted->uniformIndex);
     }
@@ -1616,14 +1616,14 @@ void SetShaderUniforms::InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
             const size_t bufferOffset = srcUniforms.bufferOffsets[i - cmdCasted->startIndex];
 
             // strides differ for buffer; needs rebind
-            if (state.shaderUniformBufferOffsetStrides[i] != bufferStride)
+            if (state.shaderUniformBufferStrides[i] != bufferStride)
             {
                 state.dirtyUniforms |= (1u << i);
             }
 
             // buffer offset + stride updating
             state.shaderUniformBufferOffsets[i] = bufferOffset;
-            state.shaderUniformBufferOffsetStrides[i] = bufferStride;
+            state.shaderUniformBufferStrides[i] = bufferStride;
 
             state.dirtyBufferOffsets |= (1u << i);
         }
