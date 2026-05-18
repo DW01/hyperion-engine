@@ -78,8 +78,6 @@
 #include <system/AppContext.hpp>
 #include <system/DirectoryInitializer.hpp>
 
-#include <scripting/ScriptingService.hpp>
-
 #include <HyperionEngine.hpp>
 
 #define HYP_PROCESS_VIEWS_ASYNC 1
@@ -161,12 +159,6 @@ void HandleSignal(int signum)
 #endif
 
     exit(signum);
-}
-
-static const FilePath& GetScriptsSourceDirectory()
-{
-    static DirectoryInitializer<HYP_STATIC_STRING("Data/Scripts"), /* RelativeToExecutablePath */ false> s_directory;
-    return s_directory.path;
 }
 
 namespace MeshEntityHelpers {
@@ -292,21 +284,6 @@ void EngineDriver::Initialize()
     {
         return;
     }
-
-#if HYP_EDITOR
-    // Create script compilation service
-    // @TODO: Add project-specific scripts directory (Projects/<current>/Scripts)
-    Array<FilePath> scriptSourceDirectories;
-    scriptSourceDirectories.PushBack(GetScriptsSourceDirectory());
-    // scriptSourceDirectories.PushBack(GetProjectScriptsDirectory()); // Future: project-specific scripts
-
-    m_scriptingService = MakeUnique<ScriptingService>(
-        scriptSourceDirectories,
-        GetTempDirectory() / "ScriptProjects",
-        CoreApi::GetExecutablePath()); // copy script binaries into executable path
-
-    m_scriptingService->Start();
-#endif
 
     RC<NetRequestThread> netRequestThread = MakeRefCountedPtr<NetRequestThread>();
     SetGlobalNetRequestThread(netRequestThread);
@@ -524,12 +501,6 @@ void EngineDriver::FinalizeStop()
 
     m_debugDrawer.Reset();
 
-    if (m_scriptingService)
-    {
-        m_scriptingService->Stop();
-        m_scriptingService.Reset();
-    }
-
     // must stop before net request thread
     StopProfilerConnectionThread();
 
@@ -554,11 +525,6 @@ void EngineDriver::FinalizeStop()
 void EngineDriver::UpdateSim(float delta)
 {
     static const bool s_dedicatedVisThread = CoreApi::GetCommandLineArguments()["DedicatedVisThread"].ToBool();
-
-    if (m_scriptingService)
-    {
-        m_scriptingService->Update();
-    }
 
     g_streamingManager->Update(delta);
 

@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <ScenePch.hpp>
 
@@ -23,13 +23,19 @@
 
 #include <dotnet/ManagedClass.hpp>
 #include <dotnet/ManagedObject.hpp>
+#include <dotnet/Assembly.hpp>
 #include <dotnet/DotNETHost.hpp>
 
 #include <scripting/ScriptingService.hpp>
 
-#include <engine/EngineDriver.hpp>
+#include <asset/AssetRegistry.hpp>
+
 #include <engine/EngineStats.hpp>
 #include <engine/Game.hpp>
+
+#include <system/DirectoryInitializer.hpp>
+
+#include <HyperionEngine.hpp>
 
 #ifdef HYP_SCRIPT
 #include <Lang/HypScript.hpp>
@@ -65,7 +71,6 @@ static void InvokeScriptMethodT(ReturnType* outReturnValue, ScriptObjectResource
             {
                 if (!managedMethod->GetAttributes().HasAttribute("ScriptMethodStub"))
                 {
-                    // Stubbed method, don't waste cycles calling it if it's not implemented
                     if constexpr (!std::is_void_v<ReturnType>)
                     {
                         AssertDebug(outReturnValue != nullptr);
@@ -111,17 +116,122 @@ static void InvokeScriptMethodT(ReturnType* outReturnValue, ScriptObjectResource
     /// \todo add native script support here
 }
 
+#pragma region ScriptTracker
+
+class ScriptTracker
+{
+public:
+    ScriptTracker()
+    {
+        // @TODO will this be an issue, if running from Editor?
+        if (!DotNETHost::GetInstance().IsInitialized())
+        {
+            return;
+        }
+
+        RC<dotnet::Assembly> managedAssembly = DotNETHost::GetInstance().LoadAssembly("Hyperion.NET.Scripting.dll");
+        Assert(managedAssembly != nullptr, "Failed to load Hyperion.NET.Scripting assembly");
+
+        RC<dotnet::ManagedClass> managedClass = managedAssembly->FindClassByName("ScriptTracker");
+        Assert(managedClass != nullptr, "Failed to load ScriptTracker class from Hyperion.NET.Scripting assembly (Guid: {})",
+            managedAssembly->GetGuid());
+
+        object = UniquePtr<dotnet::ManagedObject>(managedClass->NewObject());
+        assembly = std::move(managedAssembly);
+    }
+
+    ~ScriptTracker()
+    {
+        Shutdown();
+    }
+
+    void Initialize(
+        const Array<FilePath>& sourceDirectories,
+        const FilePath& intermediateDirectory,
+        const FilePath& binaryOutputDirectory,
+        void* callbackPtr,
+        void* callbackSelfPtr)
+    {
+        if (!object || !object->IsValid())
+        {
+            return;
+        }
+
+        object->InvokeMethodByName<void>(
+            "Initialize",
+            sourceDirectories,
+            intermediateDirectory,
+            binaryOutputDirectory,
+            callbackPtr,
+            callbackSelfPtr);
+    }
+
+    void InvokeUpdate()
+    {
+        if (!object || !object->IsValid())
+        {
+            return;
+        }
+
+        object->InvokeMethodByName<void>("Update");
+    }
+
+    void Shutdown()
+    {
+        if (!object || !object->IsValid())
+        {
+            return;
+        }
+
+        object->InvokeMethodByName<void>("Shutdown");
+
+        object.Reset();
+        assembly.Reset();
+    }
+
+    RC<dotnet::Assembly> assembly;
+    UniquePtr<dotnet::ManagedObject> object;
+};
+
+#pragma endregion ScriptTracker
+
+#pragma region ScriptSystem
+
+static const FilePath& GetScriptsSourceDirectory()
+{
+    static DirectoryInitializer<HYP_STATIC_STRING("Data/Scripts"), /* RelativeToExecutablePath */ false> s_directory;
+    return s_directory.path;
+}
+
 ScriptSystem::ScriptSystem()
 {
-    // @FIXME: Issue with reloaded assemblies that spawn native objects having their classes change.
+}
+
+ScriptSystem::~ScriptSystem() = default;
+
+void ScriptSystem::OnAddedToWorld(World* world)
+{
+    SystemBase::OnAddedToWorld(world);
+
+    Game* gameInstance = world->GetGame();
+    Assert(gameInstance != nullptr);
+
+    m_delegateHandlers.Add(
+        NAME("OnGameStateChange"),
+        gameInstance->OnGameStateChange.Bind([this](Game* gameInstance, GameStateMode previousGameStateMode, GameStateMode currentGameStateMode)
+            {
+                AssertOnThread(g_simThread);
+
+                HandleGameStateChanged(currentGameStateMode, previousGameStateMode);
+            }));
 
     if (EnableScriptReloading)
     {
-        Assert(g_engineDriver->GetScriptingService() != nullptr);
+        m_scriptingService = MakeUnique<ScriptingService>();
 
         m_delegateHandlers.Add(
             NAME("OnScriptStateChanged"),
-            g_engineDriver->GetScriptingService()->OnScriptStateChanged.Bind([this](const ScriptDesc& script)
+            m_scriptingService->OnScriptStateChanged.Bind([this](const ScriptDesc& script)
                 {
                     AssertOnThread(g_simThread);
 
@@ -153,7 +263,6 @@ ScriptSystem::ScriptSystem()
                             {
                                 HYP_LOG(Script, Info, "ScriptSystem: Reloading script for entity #{}", entity->Id());
 
-                                // Reload the script
                                 scriptComponent.flags |= ScriptComponentFlags::RELOADING;
 
                                 scriptDesc.uuid = script.uuid;
@@ -176,24 +285,37 @@ ScriptSystem::ScriptSystem()
                         }
                     }
                 }));
-    }
-}
 
-void ScriptSystem::OnAddedToWorld(World* world)
-{
-    SystemBase::OnAddedToWorld(world);
+        m_scriptTracker = MakeUnique<ScriptTracker>();
 
-    Game* gameInstance = world->GetGame();
-    Assert(gameInstance != nullptr);
+        Array<FilePath> scriptSourceDirectories;
+        scriptSourceDirectories.PushBack(GetScriptsSourceDirectory());
 
-    m_delegateHandlers.Add(
-        NAME("OnGameStateChange"),
-        gameInstance->OnGameStateChange.Bind([this](Game* gameInstance, GameStateMode previousGameStateMode, GameStateMode currentGameStateMode)
+        // Add project-specific scripts directory from asset registry
+        if (Handle<AssetRegistry> assetRegistry = GetCurrentAssetRegistry(); assetRegistry.IsValid())
+        {
+            if (assetRegistry->GetRootPath().Exists())
             {
-                AssertOnThread(g_simThread);
+                const FilePath projectScriptsPath = assetRegistry->GetRootPath() / "Scripts";
 
-                HandleGameStateChanged(currentGameStateMode, previousGameStateMode);
-            }));
+                if (projectScriptsPath.Exists())
+                {
+                    scriptSourceDirectories.PushBack(projectScriptsPath);
+                }
+            }
+        }
+
+        m_scriptTracker->Initialize(
+            scriptSourceDirectories,
+            GetTempDirectory() / "ScriptProjects",
+            CoreApi::GetExecutablePath(),
+            (void*)[](void* selfPtr, ScriptEvent event)
+            {
+                static_cast<ScriptingService*>(selfPtr)->PushScriptEvent(event);
+            },
+            m_scriptingService.Get()
+        );
+    }
 }
 
 void ScriptSystem::OnRemovedFromWorld(World* world)
@@ -201,6 +323,18 @@ void ScriptSystem::OnRemovedFromWorld(World* world)
     SystemBase::OnRemovedFromWorld(world);
 
     m_delegateHandlers.Remove("OnGameStateChange"_sh);
+    m_delegateHandlers.Remove("OnScriptStateChanged"_sh);
+
+    if (m_scriptTracker)
+    {
+        m_scriptTracker->Shutdown();
+        m_scriptTracker.Reset();
+    }
+
+    if (m_scriptingService)
+    {
+        m_scriptingService.Reset();
+    }
 }
 
 void ScriptSystem::OnEntityAdded(Entity* entity)
@@ -223,6 +357,16 @@ void ScriptSystem::OnEntityRemoved(Entity* entity)
 
 void ScriptSystem::Process(float delta, Span<Handle<Scene>> scenes)
 {
+    if (m_scriptingService)
+    {
+        m_scriptingService->Update();
+    }
+
+    if (m_scriptTracker)
+    {
+        m_scriptTracker->InvokeUpdate();
+    }
+
     World* world = GetWorld();
 
     if (!world)
@@ -303,5 +447,7 @@ void ScriptSystem::CallScriptMethod(UTF8StringView methodName, ScriptComponent& 
 
     InvokeScriptMethodT<void>(nullptr, target.scriptObjectResource, *methodName);
 }
+
+#pragma endregion ScriptSystem
 
 } // namespace Hyperion

@@ -4,53 +4,20 @@ using System.Linq;
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.Emit;
 using System.Diagnostics;
 
 namespace Hyperion
 {
-    public class ScriptCompiler
+    public class CSharpScriptCompiler : ScriptCompilerBase
     {
-        private static LogChannel logChannel = LogChannel.ByName("ScriptCompiler");
-
-        private string sourceDirectory;
-        private string intermediateDirectory;
-        private string binaryOutputDirectory;
-
-        private const int timeoutMilliseconds = 30000; // 30 seconds
-
-        public ScriptCompiler(string sourceDirectory, string intermediateDirectory, string binaryOutputDirectory)
+        public CSharpScriptCompiler(string sourceDirectory, string intermediateDirectory, string binaryOutputDirectory)
+            : base(sourceDirectory, intermediateDirectory, binaryOutputDirectory)
         {
-            this.sourceDirectory = sourceDirectory;
-            this.intermediateDirectory = intermediateDirectory;
-            this.binaryOutputDirectory = binaryOutputDirectory;
-
-            // Make the directories if they don't exist.
-
-            foreach (string directory in new string[] { sourceDirectory, intermediateDirectory, binaryOutputDirectory })
-            {
-                try
-                {
-                    CreateDirectoryIfNotExist(directory);
-                }
-                catch (Exception e)
-                {
-                    Logger.Log(logChannel, LogLevel.Error, "Failed to create directory {0}: {1}", directory, e.Message);
-                }
-            }
         }
 
-        private void CreateDirectoryIfNotExist(string directory)
-        {
-            if (!System.IO.Directory.Exists(directory))
-            {
-                System.IO.Directory.CreateDirectory(directory);
-            }
-        }
-
-        public void BuildAllProjects()
+        public override void BuildAllProjects()
         {
             Logger.Log(logChannel, LogLevel.Info, "Building all projects in source directory: {0}", sourceDirectory);
 
@@ -544,7 +511,7 @@ namespace Hyperion
             return true;
         }
 
-        public bool Compile(ref ScriptDesc scriptDesc)
+        public override bool Compile(ref ScriptDesc scriptDesc)
         {
             string moduleName;
             int hotReloadVersion;

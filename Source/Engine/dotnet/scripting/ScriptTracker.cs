@@ -12,14 +12,16 @@ namespace Hyperion
     {
         private static LogChannel logChannel = LogChannel.ByName("ScriptTracker");
 
-        private List<FileSystemWatcher> watchers = new List<FileSystemWatcher>();
+        private List<FileSystemWatcher> watchers = [];
 
         private ScriptEventCallback? callback;
         private IntPtr callbackSelfPtr;
 
-        private ScriptCompiler? scriptCompiler = null;
+        private CSharpScriptCompiler? csharpCompiler = null;
+        private HypScriptCompiler? hypScriptCompiler = null;
 
-        private Dictionary<string, ScriptInstance> processingScripts = new Dictionary<string, ScriptInstance>();
+        private Dictionary<string, ScriptInstance> processingScripts = [];
+        private Dictionary<string, CompileScriptEditorTask> tasks = [];
 
         private List<string> sourceDirectories = [];
         private string intermediateDirectory = string.Empty;
@@ -36,14 +38,15 @@ namespace Hyperion
             this.intermediateDirectory = intermediateDirectory;
             this.binaryOutputDirectory = binaryOutputDirectory;
 
-            // For C# compilation, use the first source directory (typically Data/Scripts)
-            // In the future, ScriptCompiler should support multiple directories
             if (sourceDirectories.Count > 0)
             {
                 Logger.Log(logChannel, LogLevel.Info, "Primary source directory: {0}", sourceDirectories[0]);
 
-                scriptCompiler = new ScriptCompiler(sourceDirectories[0], intermediateDirectory, binaryOutputDirectory);
-                scriptCompiler.BuildAllProjects();
+                csharpCompiler = new CSharpScriptCompiler(sourceDirectories[0], intermediateDirectory, binaryOutputDirectory);
+                csharpCompiler.BuildAllProjects();
+
+                hypScriptCompiler = new HypScriptCompiler(sourceDirectories[0], intermediateDirectory, binaryOutputDirectory);
+                hypScriptCompiler.BuildAllProjects();
             }
 
             Logger.Log(logChannel, LogLevel.Info, "Script tracker initialized with {0} source directories.", sourceDirectories.Count);
@@ -85,6 +88,31 @@ namespace Hyperion
             }
         }
 
+        public void Shutdown()
+        {
+            Logger.Log(logChannel, LogLevel.Info, "Shutting down script tracker...");
+
+            foreach (FileSystemWatcher watcher in watchers)
+            {
+                watcher.EnableRaisingEvents = false;
+                watcher.Dispose();
+            }
+
+            watchers.Clear();
+
+            processingScripts.Clear();
+
+            callback = null;
+            callbackSelfPtr = IntPtr.Zero;
+
+            csharpCompiler = null;
+            hypScriptCompiler = null;
+
+            sourceDirectories.Clear();
+            intermediateDirectory = string.Empty;
+            binaryOutputDirectory = string.Empty;
+        }
+
         public void Update()
         {
             if (processingScripts.Count == 0)
@@ -118,13 +146,20 @@ namespace Hyperion
                     continue;
                 }
 
-                if (scriptCompiler != null)
+                ScriptCompilerBase? compiler = entry.Value.Get().Language switch
+                {
+                    ScriptLanguage.CSharp => csharpCompiler,
+                    ScriptLanguage.HypScript => hypScriptCompiler,
+                    _ => null
+                };
+
+                if (compiler != null)
                 {
                     ref ScriptDesc scriptDesc = ref entry.Value.Get();
 
                     try
                     {
-                        if (scriptCompiler.Compile(ref scriptDesc))
+                        if (compiler.Compile(ref scriptDesc))
                         {
                             scriptDesc.CompileStatus |= ScriptCompileStatus.Compiled;
                         }
@@ -152,6 +187,11 @@ namespace Hyperion
             foreach (string scriptPath in scriptsToRemove)
             {
                 processingScripts.Remove(scriptPath);
+
+                if (tasks.Remove(scriptPath, out CompileScriptEditorTask? task))
+                {
+                    task.SetIsCompleted(true);
+                }
             }
         }
 
@@ -213,6 +253,8 @@ namespace Hyperion
                 if (task.Commit())
                 {
                     Logger.Log(logChannel, LogLevel.Info, "Started compilation task for {0}", filePath);
+
+                    tasks.Add(filePath, task);
                 }
                 else
                 {
