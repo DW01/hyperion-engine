@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -12,8 +12,12 @@
 #include <engine/GameState.hpp>
 
 #include <Core/functional/Delegate.hpp>
+#include <Core/memory/UniquePtr.hpp>
 
 namespace Hyperion {
+
+class ScriptingService;
+class ScriptTracker;
 
 HYP_CLASS(NoScriptBindings, Serialize=false)
 class ScriptSystem final : public SystemBase
@@ -22,7 +26,7 @@ class ScriptSystem final : public SystemBase
 
 public:
     ScriptSystem();
-    ~ScriptSystem() override = default;
+    ~ScriptSystem() override;
 
     // This system does not support parallel execution because scripts may modify
     // any component in the entity manager
@@ -56,6 +60,9 @@ private:
 
     void CallScriptMethod(UTF8StringView methodName);
     void CallScriptMethod(UTF8StringView methodName, ScriptComponent& target);
+
+    UniquePtr<ScriptingService> m_scriptingService;
+    UniquePtr<ScriptTracker> m_scriptTracker;
 };
 
 } // namespace Hyperion

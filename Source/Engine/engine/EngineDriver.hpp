@@ -37,7 +37,6 @@ using threading::TaskBatch;
 class Game;
 class SimThread;
 class RenderGlobalState;
-class ScriptingService;
 class DebugDrawer;
 class DeferredPass;
 class FinalPass;
@@ -88,11 +87,6 @@ public:
         return m_debugDrawer;
     }
 
-    HYP_FORCE_INLINE ScriptingService* GetScriptingService() const
-    {
-        return m_scriptingService.Get();
-    }
-
     HYP_FORCE_INLINE EngineDelegates& GetDelegates()
     {
         return m_delegates;
@@ -138,8 +132,6 @@ private:
     void UpdateSim(float delta);
 
     Handle<DebugDrawer> m_debugDrawer;
-
-    UniquePtr<ScriptingService> m_scriptingService;
 
     Array<Handle<World>> m_worlds; // Sim thread only
     World* m_currentWorld;         // Sim thread only

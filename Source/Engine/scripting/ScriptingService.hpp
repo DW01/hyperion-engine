@@ -1,21 +1,14 @@
 #pragma once
 #include <scripting/Script.hpp>
 
-#include <Core/containers/FlatMap.hpp>
+#include <Core/containers/Queue.hpp>
 
 #include <Core/threading/Mutex.hpp>
 #include <Core/threading/AtomicVar.hpp>
-#include <Core/threading/TaskThread.hpp>
 
 #include <Core/functional/Delegate.hpp>
 
-#include <Core/filesystem/FilePath.hpp>
-
 namespace Hyperion {
-
-class ScriptTracker;
-
-class ScriptingServiceThread;
 
 enum class ScriptEventType : uint32
 {
@@ -32,31 +25,23 @@ struct ScriptEvent
 class HYP_API ScriptingService
 {
 public:
-    ScriptingService(
-        const FilePath& watchDirectory,
-        const FilePath& intermediateDirectory,
-        const FilePath& binaryOutputDirectory);
+    ScriptingService() = default;
     ScriptingService(const ScriptingService& other) = delete;
     ScriptingService& operator=(const ScriptingService& other) = delete;
     ScriptingService(ScriptingService&& other) noexcept = delete;
     ScriptingService& operator=(ScriptingService&& other) noexcept = delete;
-    ~ScriptingService();
-
-    void Start();
-    void Stop();
+    ~ScriptingService() = default;
 
     /*! \brief Called from sim thread */
     void Update();
 
-    /*! \brief To be called from ScriptingService thread only */
+    /*! \brief Thread-safe event push (can be called from any thread) */
     void PushScriptEvent(const ScriptEvent& event);
 
     Delegate<void, const ScriptDesc&> OnScriptStateChanged;
 
 private:
     bool HasEvents() const;
-
-    UniquePtr<ScriptingServiceThread> m_thread;
 
     Queue<ScriptEvent> m_scriptEventQueue;
     Mutex m_scriptEventQueueMutex;

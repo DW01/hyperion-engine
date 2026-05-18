@@ -18,7 +18,6 @@ Logger.LogScript(Channel, LogLevel.Info, "closure(10.0) = " + string(closure(10.
 
 // Debugger.Breakpoint()
 
-
 Fps := 0.0
 Accum := 0.0
 Counter := 0
