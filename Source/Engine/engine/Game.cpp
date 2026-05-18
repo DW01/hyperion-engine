@@ -115,9 +115,13 @@ void Game::Shutdown(bool shutdownWorld)
 
     if (m_world)
     {
-        m_world->m_gameInstance = nullptr;
+        if (m_uiSubsystem.IsValid())
+        {
+            m_world->RemoveSubsystem(m_uiSubsystem);
+            m_uiSubsystem.Reset();
+        }
 
-        // @TODO Purge all streamed scenes from world upon world shutdown.
+        m_world->m_gameInstance = nullptr;
 
         g_engineDriver->RemoveWorld(m_world);
 

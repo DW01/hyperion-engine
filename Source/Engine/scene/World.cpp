@@ -225,19 +225,6 @@ void World::Initialize()
         system->m_world = this;
 
         InitObject(system);
-
-        system->OnAddedToWorld(this);
-
-        if (wasAddedToExecutionGroup)
-        {
-            for (const Handle<Scene>& scene : m_scenes)
-            {
-                if (scene != nullptr)
-                {
-                    scene->GetEntityManager()->NotifySystemOfExistingEntities(system);
-                }
-            }
-        }
     }
 
     // Needs to be before AddSystem() calls.
@@ -266,6 +253,16 @@ void World::Initialize()
 
     if (!HasSystem<MeshSystem>())
         AddSystem(MakeHandle<MeshSystem>());
+
+    for (SystemBase* system : m_systems)
+    {
+        system->OnAddedToWorld(this);
+
+        for (const Handle<Scene>& scene : m_scenes)
+        {
+            scene->GetEntityManager()->NotifySystemOfExistingEntities(system);
+        }
+    }
 
     for (View* view : m_views)
     {
@@ -330,8 +327,10 @@ void World::Shutdown()
             }
         }
 
-        scene->SetWorld(nullptr);
+        scene->Shutdown();
     }
+
+    scenes.Clear();
 
     for (const Handle<SystemBase>& system : m_systems)
     {
@@ -348,8 +347,6 @@ void World::Shutdown()
     m_systemExecutionGroups.Clear();
 
     m_rayTracingView = nullptr;
-
-    EnqueueDeletion(std::move(m_scenes));
 
     for (View* view : m_views)
     {
@@ -1531,19 +1528,6 @@ SystemBase* World::AddSystem(const Handle<SystemBase>& system)
         system->m_world = this;
 
         InitObject(system);
-
-        system->OnAddedToWorld(this);
-
-        if (wasAddedToExecutionGroup)
-        {
-            for (const Handle<Scene>& scene : m_scenes)
-            {
-                if (scene != nullptr)
-                {
-                    scene->GetEntityManager()->NotifySystemOfExistingEntities(system);
-                }
-            }
-        }
     }
 
     return system;
