@@ -17,7 +17,7 @@ namespace Hyperion
 
         private ScriptCompiler scriptCompiler = null;
 
-        private Dictionary<string, ScriptInstance> processingScripts = new Dictionary<string, ScriptInstance>();
+        private readonly Dictionary<string, ScriptInstance> processingScripts = [];
 
         public void Initialize(string sourceDirectory, string intermediateDirectory, string binaryOutputDirectory, IntPtr callbackPtr, IntPtr callbackSelfPtr)
         {
@@ -28,17 +28,24 @@ namespace Hyperion
 
             Logger.Log(logChannel, LogLevel.Info, "Source directory: {0}", sourceDirectory);
 
-            scriptCompiler = new ScriptCompiler(sourceDirectory, intermediateDirectory, binaryOutputDirectory);
+            scriptCompiler = new ScriptCompiler(
+                sourceDirectory,
+                intermediateDirectory,
+                binaryOutputDirectory);
+
             scriptCompiler.BuildAllProjects();
 
             Logger.Log(logChannel, LogLevel.Info, "Script tracker initialized.");
 
-            watcher = new FileSystemWatcher(sourceDirectory);
-            watcher.NotifyFilter = NotifyFilters.LastWrite;
-            watcher.Filter = "*.cs";
+            watcher = new FileSystemWatcher(sourceDirectory)
+            {
+                NotifyFilter = NotifyFilters.LastWrite,
+                Filter = "*.cs",
+                EnableRaisingEvents = true,
+                IncludeSubdirectories = true
+            };
+
             watcher.Changed += OnFileChanged;
-            watcher.EnableRaisingEvents = true;
-            watcher.IncludeSubdirectories = true;
         }
 
         public void Update()
@@ -50,7 +57,7 @@ namespace Hyperion
 
             Logger.Log(logChannel, LogLevel.Info, "Processing {0} scripts...", processingScripts.Count);
 
-            List<string> scriptsToRemove = new List<string>();
+            List<string> scriptsToRemove = [];
 
             foreach (KeyValuePair<string, ScriptInstance> entry in processingScripts)
             {
@@ -74,8 +81,6 @@ namespace Hyperion
                     continue;
                 }
 
-                // script processing - compile using Roslyn
-                // just testing for now
                 if (scriptCompiler != null)
                 {
                     ref ScriptDesc scriptDesc = ref entry.Value.Get();

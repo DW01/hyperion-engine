@@ -180,6 +180,16 @@ namespace Hyperion
             }
         }
 
+        public static bool operator == (Property a, Property b)
+        {
+            return a._ptr == b._ptr;
+        }
+
+        public static bool operator != (Property a, Property b)
+        {
+            return a._ptr != b._ptr;
+        }
+
         [DllImport("hyperion", EntryPoint = "Property_GetName")]
         private static extern void Property_GetName([In] IntPtr propertyPtr, [Out] out Name name);
 

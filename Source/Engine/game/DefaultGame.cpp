@@ -256,7 +256,7 @@ void DefaultGame::OnLaunch_Impl()
      }
 
     ScriptComponent& scriptComponent = sunEntity->AddComponent<ScriptComponent>(ScriptComponent {
-        TAssetReference<ScriptAsset>(scriptAsset) });
+        scriptAsset });
 
     //    Handle<FogVolume> fogVolume = MakeHandle<FogVolume>();
     //    fogVolume->SetLocalBounds(BoundingBox(Vec3f(-30.0f, -0.5f, -30.0f), Vec3f(30.0f, 40.0f, 30.0f)));

@@ -17,6 +17,8 @@
 
 #include <scene/components/BoundingBoxComponent.hpp>
 
+#include <scripting/asset/ScriptAsset.hpp>
+
 #include <Core/reflection/ClassUtils.hpp>
 
 #include <Core/logging/Logger.hpp>
@@ -1754,6 +1756,61 @@ public:
 DEFINE_EDITOR_COMMAND(SelectAll);
 
 #pragma endregion SelectAll
+
+#pragma region NewScript
+
+class HYP_API EditorCommandNewScript final : public EditorCommandBase
+{
+    HYP_OBJECT_BODY(EditorCommandNewScript);
+
+public:
+    virtual ~EditorCommandNewScript() override = default;
+
+    virtual String GetText() const override
+    {
+        return "New Script";
+    }
+
+    virtual void Execute(EditorSubsystem* subsystem) override
+    {
+        const Handle<EditorProject>& currentProject = subsystem->GetCurrentProject();
+        if (!currentProject.IsValid())
+        {
+            HYP_LOG(Editor, Error, "No project loaded; cannot create script asset!");
+
+            return;
+        }
+
+        Handle<ScriptAsset> scriptAsset = MakeHandle<ScriptAsset>(Name::Unique("NewScript"), ScriptDesc());
+        InitObject(scriptAsset);
+
+        //scriptAsset->SetSourceCode(HYP_FORMAT("// {}\n\nexport func Update(DeltaTime : float)\nend\n", scriptAsset->GetName()));
+
+        Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
+            GetText(),
+            Proc<EditorActionFunctions()>([scriptAsset]() -> EditorActionFunctions
+                {
+                    return EditorActionFunctions {
+                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([scriptAsset](EditorSubsystem*, EditorProject*)
+                            {
+                                GetCurrentAssetRegistry()->PutAssetUnique(scriptAsset);
+                            }),
+                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([scriptAsset](EditorSubsystem*, EditorProject*)
+                            {
+                                GetCurrentAssetRegistry()->RemoveAsset(scriptAsset);
+                            })
+                    };
+                }));
+
+        InitObject(action);
+
+        currentProject->GetActionStack()->PushAction(action);
+    }
+};
+
+DEFINE_EDITOR_COMMAND(NewScript);
+
+#pragma endregion NewScript
 
 #undef DEFINE_EDITOR_COMMAND
 

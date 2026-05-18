@@ -33,7 +33,10 @@ static const Name s_nameSceneRoot = NAME("<ROOT>");
 
 void Scene_OnPostLoad(Scene& scene)
 {
-    scene.SetOwnerThreadId(g_simThread);
+    if (!g_engineDriver->IsShuttingDown())
+    {
+        scene.SetOwnerThreadId(g_simThread);
+    }
 }
 
 #pragma region Scene
@@ -68,6 +71,41 @@ Scene::Scene(Name name, ThreadId ownerThreadId, EnumFlags<SceneFlags> flags)
 
 Scene::~Scene()
 {
+    Shutdown();
+}
+
+void Scene::Init()
+{
+    AssetObject::Init();
+
+    if (!m_root.IsValid())
+    {
+        m_root = MakeHandle<Node>(s_nameSceneRoot, Transform::identity, this);
+        m_root->SetIsStatic(false);
+    }
+
+    if (!m_entityManager.IsValid())
+    {
+        m_entityManager = MakeHandle<EntityManager>(m_ownerThreadId, this);
+    }
+
+    m_entityManager->SetWorld(m_world);
+
+    m_octree.SetEntityManager(m_entityManager);
+
+    // Scene must be ready before entity manager is initialized
+    // (OnEntityAdded() calls on Systems may require this)
+    SetReady(true);
+
+    InitObject(m_root);
+
+    m_entityManager->Initialize();
+
+    AssertDebug(m_entityManager->GetWorld() == m_world);
+}
+
+void Scene::Shutdown()
+{
     m_octree.SetEntityManager(nullptr);
     m_octree.Clear();
 
@@ -86,6 +124,8 @@ Scene::~Scene()
         {
             m_root->SetScene(nullptr);
         }
+
+        m_root.Reset();
     }
 
     // Move so destruction of components can check GetEntityManager() returns nullptr
@@ -107,25 +147,13 @@ Scene::~Scene()
             // Wait for shut down to complete
             task.Await();
         }
-
+    
         entityManager.Reset();
     }
-}
 
-void Scene::Init()
-{
-    AssetObject::Init();
+    m_root.Reset();
 
-    m_entityManager->SetWorld(m_world);
-
-    // Scene must be ready before entity manager is initialized
-    // (OnEntityAdded() calls on Systems may require this)
-    SetReady(true);
-
-    InitObject(m_root);
-    InitObject(m_entityManager);
-
-    AssertDebug(m_entityManager->GetWorld() == m_world);
+    m_world = nullptr;
 }
 
 void Scene::SetOwnerThreadId(ThreadId ownerThreadId)
@@ -136,7 +164,11 @@ void Scene::SetOwnerThreadId(ThreadId ownerThreadId)
     }
 
     m_ownerThreadId = ownerThreadId;
-    m_entityManager->SetOwnerThreadId(ownerThreadId);
+
+    if (m_entityManager.IsValid())
+    {
+        m_entityManager->SetOwnerThreadId(ownerThreadId);
+    }
 }
 
 Camera* Scene::GetPrimaryCamera() const
@@ -144,7 +176,7 @@ Camera* Scene::GetPrimaryCamera() const
     HYP_SCOPE;
     AssertOnThread(g_simThread | ThreadCategory::THREAD_CATEGORY_TASK);
 
-    if (!m_entityManager)
+    if (!m_entityManager.IsValid())
     {
         return nullptr;
     }
@@ -175,8 +207,11 @@ void Scene::SetWorld(World* world)
 
     m_world = world;
 
-    // When world is changed, entity manager needs all systems to have this change reflected
-    m_entityManager->SetWorld(world);
+    if (m_entityManager.IsValid())
+    {
+        // When world is changed, entity manager needs all systems to have this change reflected
+        m_entityManager->SetWorld(world);
+    }
 }
 
 Handle<Node> Scene::FindNodeByName(StringHash name) const

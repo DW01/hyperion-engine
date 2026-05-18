@@ -11,6 +11,8 @@
 
 #include <Core/threading/Mutex.hpp>
 #include <Core/threading/Thread.hpp>
+#include <Core/threading/AtomicFlag.hpp>
+
 #include <Core/threading/util/ThreadId.hpp>
 
 #include <engine/EngineDriver.hpp>

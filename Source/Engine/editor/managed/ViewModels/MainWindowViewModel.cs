@@ -27,7 +27,15 @@ namespace Hyperion.Editor.ViewModels
         public EditorCommand OpenProject => new EditorCommand("OpenProject");
         public EditorCommand SaveProject => new EditorCommand("SaveProject");
         public EditorCommand SaveProjectAs => new EditorCommand("SaveProjectAs");
-        public EditorCommand Exit => new EditorCommand("Exit");
+        public ICommand Exit { get; } = new RelayCommand(() =>
+        {
+            try
+            {
+                EngineManager.Shutdown();
+            }
+            catch { }
+            Environment.Exit(0);
+        });
         public EditorCommand Undo => new EditorCommand("Undo");
         public EditorCommand Redo => new EditorCommand("Redo");
         public EditorCommand SelectAll => new EditorCommand("SelectAll");
@@ -123,6 +131,8 @@ namespace Hyperion.Editor.ViewModels
         public EditorCommand AddReflectionProbe => new EditorCommand("AddReflectionProbe");
         public EditorCommand AddParticleVolume => new EditorCommand("AddParticleVolume");
         public EditorCommand AddFogVolume => new EditorCommand("AddFogVolume");
+
+        public EditorCommand NewScript => new EditorCommand("NewScript");
 
         private string GetSelectedNodeName() => SceneHierarchy.SelectedNode?.Node?.Name.ToString() ?? string.Empty;
 

@@ -142,7 +142,7 @@ ScriptSystem::ScriptSystem()
                     {
                         for (auto [entity, scriptComponent] : scene->GetEntityManager()->GetEntitySet<ScriptComponent>().GetScopedView(GetComponentInfos()))
                         {
-                            const Handle<ScriptAsset>& scriptAsset = scriptComponent.assetReference.Resolve();
+                            const Handle<ScriptAsset>& scriptAsset = scriptComponent.script;
                             Assert(scriptAsset != nullptr);
 
                             auto resGuard = scriptAsset->GetReadScope();
@@ -177,58 +177,30 @@ ScriptSystem::ScriptSystem()
                     }
                 }));
     }
+}
 
-    if (World* world = GetWorld())
-    {
-        Game* gameInstance = world->GetGame();
-        Assert(gameInstance != nullptr);
+void ScriptSystem::OnAddedToWorld(World* world)
+{
+    SystemBase::OnAddedToWorld(world);
 
-        m_delegateHandlers.Add(
-            NAME("OnGameStateChange"),
-            gameInstance->OnGameStateChange.Bind([this](Game* gameInstance, GameStateMode previousGameStateMode, GameStateMode currentGameStateMode)
-                {
-                    AssertOnThread(g_simThread);
+    Game* gameInstance = world->GetGame();
+    Assert(gameInstance != nullptr);
 
-                    HandleGameStateChanged(currentGameStateMode, previousGameStateMode);
-                }));
-    }
+    m_delegateHandlers.Add(
+        NAME("OnGameStateChange"),
+        gameInstance->OnGameStateChange.Bind([this](Game* gameInstance, GameStateMode previousGameStateMode, GameStateMode currentGameStateMode)
+            {
+                AssertOnThread(g_simThread);
 
-    // m_delegateHandlers.Add(
-    //     NAME("OnWorldChange"),
-    //     OnWorldChanged.Bind([this](World* newWorld, World* previousWorld)
-    //         {
-    //             AssertOnThread(g_simThread);
+                HandleGameStateChanged(currentGameStateMode, previousGameStateMode);
+            }));
+}
 
-    //             // Remove previous OnGameStateChange handler
-    //             m_delegateHandlers.Remove(NAME("OnGameStateChange"));
+void ScriptSystem::OnRemovedFromWorld(World* world)
+{
+    SystemBase::OnRemovedFromWorld(world);
 
-    //             // If we were simulating before we need to stop it
-    //             if (previousWorld != nullptr && previousWorld->GetGameState().mode == GameStateMode::SIMULATING)
-    //             {
-    //                 CallScriptMethod("OnPlayStop");
-    //             }
-
-    //             if (newWorld != nullptr)
-    //             {
-    //                 // If the newly set world is simulating we need to notify the scripts
-    //                 if (newWorld->GetGameState().mode == GameStateMode::SIMULATING)
-    //                 {
-    //                     CallScriptMethod("OnPlayStart");
-    //                 }
-
-    //                 // Add new handler for the new world's game state changing
-    //                 m_delegateHandlers.Add(
-    //                     NAME("OnGameStateChange"),
-    //                     newWorld->OnGameStateChange.Bind([this](World* world, GameStateMode gameStateMode)
-    //                         {
-    //                             AssertOnThread(g_simThread);
-
-    //                             const GameStateMode previousGameStateMode = world->GetGameState().mode;
-
-    //                             HandleGameStateChanged(gameStateMode, previousGameStateMode);
-    //                         }));
-    //             }
-    //         }));
+    m_delegateHandlers.Remove("OnGameStateChange"_sh);
 }
 
 void ScriptSystem::OnEntityAdded(Entity* entity)
@@ -287,8 +259,6 @@ void ScriptSystem::Process(float delta, Span<Handle<Scene>> scenes)
 
 void ScriptSystem::HandleGameStateChanged(GameStateMode gameStateMode, GameStateMode previousGameStateMode)
 {
-    HYP_SCOPE;
-
     if (previousGameStateMode == GameStateMode::SIMULATING)
     {
         CallScriptMethod("OnPlayStop");

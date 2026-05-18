@@ -789,7 +789,7 @@ public:
 
                 GetCurrentAssetRegistry()->PutAsset(scriptAsset);
 
-                scriptComponent.assetReference = TAssetReference<ScriptAsset>(std::move(scriptAsset));
+                scriptComponent.script = std::move(scriptAsset);
 
                 if (m_uiObjectStack.Any())
                 {

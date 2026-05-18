@@ -1415,7 +1415,7 @@ extern class Game
     OnLaunch() -> void
     OnUpdate(delta : float) -> void
     Initialize() -> void
-    Shutdown() -> void
+    Shutdown(shutdownWorld : bool) -> void
     SetToEditMode() -> void
     IsLaunched() -> bool
     StartSimulating() -> void
@@ -1566,7 +1566,7 @@ extern class EditorSubsystem : Subsystem
     ExecuteCommandByName(name : Name, arguments : string) -> bool
     NewProject() -> void
     OpenProject(project : EditorProject) -> void
-    CloseProject() -> void
+    CloseProject(shutdownWorld : bool) -> void
     ShowImportContentDialog() -> void
     SetFocusedNode(focusedNode : Node, shouldSelectInOutline : bool) -> void
     GetFocusedNode() -> Node
@@ -1623,7 +1623,7 @@ extern class EditorProject
     Save() -> Result
     SaveAs(filepath : string) -> Result
     GetActionStack() -> EditorActionStack
-    Close() -> void
+    Close(shutdownWorld : bool) -> void
     OnProjectSaved : any
     Name : Name
     LastSavedTime : Time
@@ -1779,8 +1779,6 @@ extern class AssetRegistry
     SetRootPath(rootPath : string) -> void
 end
 extern struct AssetReference
-    GetAssetPath() -> AssetPath
-    SetAssetPath(assetPath : AssetPath) -> void
 end
 extern struct AssetPath
     IsValid() -> bool
@@ -1828,6 +1826,8 @@ extern class FontAtlas : AssetObject
     SymbolList : Array<uint32>
 end
 extern class ScriptAsset : AssetObject
+    ScriptDesc : ScriptDesc
+    Data : BlobDataReference
 end
 extern class Skeleton : AssetObject
     GetRootBone() -> Bone

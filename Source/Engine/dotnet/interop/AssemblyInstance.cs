@@ -26,7 +26,7 @@ namespace Hyperion
         public static Assembly LoadGlobalAssembly(string path)
         {
             Logger.Log(LogLevel.Verbose, "Loading global assembly from path: " + path);
-            
+
             AssemblyName assemblyName = AssemblyName.GetAssemblyName(path);
             Assembly? assembly = FindGlobalAssembly(assemblyName);
 
@@ -37,18 +37,13 @@ namespace Hyperion
                 return assembly;
             }
 
-            assembly = Assembly.LoadFrom(path);
-
-            if (assembly == null)
-            {
-                throw new Exception($"Failed to load assembly {assemblyName.Name} into default context");
-            }
+            assembly = Assembly.LoadFrom(path) ?? throw new Exception($"Failed to load assembly {assemblyName.Name} into default context");
 
             Logger.Log(LogLevel.Verbose, "Loaded assembly {0} (version: {1}) into default context", assemblyName.Name, assemblyName.Version);
 
             return assembly;
         }
-        
+
         public static Assembly LoadGlobalAssembly(AssemblyName name)
         {
             Assembly? assembly = FindGlobalAssembly(name);
@@ -261,7 +256,8 @@ namespace Hyperion
                 if (assemblyName != null)
                 {
                     assembly = GlobalAssemblyHelper.LoadGlobalAssembly(assemblyName);
-                } else
+                }
+                else
                 {
                     if (assemblyPath == null)
                     {

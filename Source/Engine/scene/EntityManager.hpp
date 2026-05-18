@@ -777,6 +777,7 @@ public:
         }
     }
 
+    void Initialize();
     void Shutdown();
 
     void UpdateEntities(float delta);
@@ -817,8 +818,6 @@ public:
     }
 
 private:
-    void Init() override;
-
     HYP_METHOD()
     Handle<Entity> AddBasicEntity();
 
@@ -928,11 +927,10 @@ private:
     TMap<EntitySetId, UniquePtr<EntitySetBase>> m_pendingEntitySets;
     mutable Mutex m_pendingEntitySetsMtx;
 
-    Array<SystemExecutionGroup*> m_systemExecutionGroups;
-
     TMap<SystemBase*, TSet<Entity*>> m_systemEntityMap;
     mutable Mutex m_systemEntityMapMutex;
 
+    bool m_isInitialized;
     bool m_isLocked;
 };
 

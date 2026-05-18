@@ -159,7 +159,10 @@ void HypScript::DestroyScript(ScriptInstance* instance)
     delete instance;
 }
 
-ScriptInstance* HypScript::Compile(SourceFile& sourceFile, ErrorList& outErrorList)
+HYP_NODISCARD ScriptInstance* HypScript::Compile(
+    SourceFile& sourceFile,
+    ErrorList& outErrorList,
+    const HypScriptCompileParams& params)
 {
     if (!sourceFile.IsValid())
     {
@@ -177,6 +180,11 @@ ScriptInstance* HypScript::Compile(SourceFile& sourceFile, ErrorList& outErrorLi
     compilationUnit.GetGlobalModule()->AddScanPath(basePath);
     // add local path as well
     compilationUnit.GetGlobalModule()->AddScanPath(CoreApi::GetExecutablePath());
+
+    for (const FilePath& scanPath : params.scanPaths)
+    {
+        compilationUnit.GetGlobalModule()->AddScanPath(scanPath);
+    }
 
     BuiltinTypes::RegisterTypes(&compilationUnit);
 
@@ -246,14 +254,41 @@ ScriptInstance* HypScript::Compile(SourceFile& sourceFile, ErrorList& outErrorLi
     return nullptr;
 }
 
-InstructionStream* HypScript::Decompile(ScriptInstance* instance, std::ostream* os) const
+HYP_NODISCARD ScriptInstance* HypScript::CreateFromBytecode(ConstByteView view)
 {
-    if (!instance)
+    if (view.Size() == 0)
     {
         return nullptr;
     }
+    
+    return new ScriptInstance {
+        BytecodeStream(ByteBuffer(view))
+    };
+}
 
-    return DecompilationUnit().Decompile(instance->stream, os);
+void HypScript::WriteBytecodeToStream(ScriptInstance* instance, ByteWriter& stream)
+{
+    if (!instance)
+    {
+        return;
+    }
+
+    const size_t currPosition = instance->stream.Position();
+    const size_t max = instance->stream.Size();
+
+    if (currPosition >= max)
+    {
+        return;
+    }
+
+    const size_t count = max - currPosition;
+
+    ubyte* buffer = new ubyte[count];
+    instance->stream.ReadBytes(buffer, count);
+
+    stream.Write(reinterpret_cast<const char*>(buffer), count);
+
+    delete[] buffer;
 }
 
 void HypScript::Run(ScriptInstance* instance)
@@ -264,6 +299,16 @@ void HypScript::Run(ScriptInstance* instance)
     }
 
     m_impl->vm->Execute(instance);
+}
+
+InstructionStream* HypScript::Decompile(ScriptInstance* instance, std::ostream* os) const
+{
+    if (!instance)
+    {
+        return nullptr;
+    }
+
+    return DecompilationUnit().Decompile(instance->stream, os);
 }
 
 BoxedValue HypScript::CallFunctionArgV(ScriptInstance* instance, const BoxedValue& value, BoxedValue* args, ArgCount numArgs)

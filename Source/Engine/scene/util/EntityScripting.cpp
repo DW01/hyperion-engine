@@ -18,6 +18,8 @@
 
 #include <scripting/asset/ScriptAsset.hpp>
 
+#include <asset/AssetRegistry.hpp>
+
 #include <dotnet/ManagedObject.hpp>
 #include <dotnet/ManagedClass.hpp>
 #include <dotnet/Assembly.hpp>
@@ -186,8 +188,7 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
     }
     else // external script object (C# or HypScript)
     {
-        const Handle<ScriptAsset>& scriptAsset = scriptComponent.assetReference.Resolve();
-        AssertDebug(scriptAsset != nullptr);
+        const Handle<ScriptAsset>& scriptAsset = scriptComponent.script;
 
         if (!scriptAsset)
         {
@@ -208,11 +209,11 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
                 delete sor;
                 sor = nullptr;
 
-                auto resGuard = scriptAsset->GetReadScope();
+                auto readScope = scriptAsset->GetReadScope();
 
                 if (!scriptComponent.assembly)
                 {
-                    ANSIString assemblyPath(scriptDesc.assemblyPath.Data(), scriptDesc.assemblyPath.Data() + ArraySize(scriptDesc.assemblyPath));
+                    ANSIString assemblyPath(scriptDesc.assemblyPath.Data(), scriptDesc.assemblyPath.Data() + scriptDesc.assemblyPath.Size());
 
                     if (scriptDesc.hotReloadVersion > 0)
                     {
@@ -236,10 +237,14 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
                     if (RC<dotnet::Assembly> assembly = DotNETHost::GetInstance().LoadAssembly(assemblyPath.Data()))
                     {
                         scriptComponent.assembly = std::move(assembly);
+
+                        // @TODO Set bytecode to be assembly binary data.
                     }
                     else
                     {
                         HYP_LOG(Script, Error, "ScriptSystem::OnEntityAdded: Failed to load assembly '{}'", assemblyPath.Data());
+
+                        scriptAsset->SetBytecode(ConstByteView());
 
                         return;
                     }
@@ -326,50 +331,141 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
                 delete sor;
                 sor = nullptr;
 
-                auto resGuard = scriptAsset->GetReadScope();
+                auto readScope = scriptAsset->GetReadScope();
 
-                // @FIXME: Use proper path resolution. Should use asset system instead of filesystem directly.
-                FilePath path = GetDataDirectory() / "Scripts" / String(scriptDesc.path.Data());
+                ScriptInstance* instance = nullptr;
 
-                if (!path.Exists() || !path.CanRead())
+                // Create from bytecode
+                ConstByteView bytecode = scriptAsset->GetBytecode();
+#if HYP_EDITOR
+                if (bytecode.Size() > 0)
                 {
-                    HYP_LOG(Script, Error, "ScriptSystem::OnEntityAdded: Script file '{}' does not exist or cannot be read!", scriptDesc.path.Data());
-                    return;
-                }
+                    // Check if source file has been modified since the bytecode was compiled
+                    bool needsRecompile = false;
 
-                FileByteReader stream { path };
+                    {
+                        Handle<AssetRegistry> registry = scriptAsset->GetAssetRegistry();
 
-                if (stream.Eof())
-                {
-                    HYP_LOG(Script, Error, "ScriptSystem::OnEntityAdded: Failed to open script file '{}' for reading!", scriptDesc.path.Data());
-                    return;
-                }
+                        if (registry.IsValid())
+                        {
+                            const FilePath sourcePath = registry->GetRootPath() / "Scripts" / (scriptAsset->GetName().ToString() + ".hyp");
 
-                ByteBuffer byteBuffer = stream.Read();
-
-                SourceFile sourceFile(path, byteBuffer.Size());
-                sourceFile.ReadIntoBuffer(byteBuffer);
-
-                ErrorList errorList;
-
-                ScriptInstance* instance = hs.Compile(sourceFile, errorList);
-
-                if (errorList.HasFatalErrors())
-                {
-                    SystemMessageBox(MessageBoxType::CRITICAL)
-                        .Title("Script Compilation Error")
-                        .Text(HYP_FORMAT("Failed to compile script file '{}'. See the log for details.", scriptDesc.path.Data()))
-                        .Button("Close", []()
+                            if (sourcePath.Exists() && sourcePath.CanRead())
                             {
-                            })
-                        .Show(/* showBlocking */ false);
+                                const Time sourceModified = sourcePath.LastModifiedTimestamp();
+                                const Time lastCompiled(scriptDesc.lastModifiedTimestamp);
 
-                    HYP_BREAKPOINT;
+                                if (sourceModified > lastCompiled)
+                                {
+                                    needsRecompile = true;
+                                }
+                            }
+                        }
+                    }
 
-                    return;
+                    if (!needsRecompile)
+                    {
+                        instance = hs.CreateFromBytecode(bytecode);
+                        Assert(instance != nullptr);
+                    }
                 }
 
-                Assert(instance != nullptr);
+                if (!instance)
+                {
+                    // Load source file and compile it
+                    Handle<AssetRegistry> registry = scriptAsset->GetAssetRegistry();
+                    AssertDebug(registry.IsValid());
+
+                    if (!registry.IsValid())
+                    {
+                        HYP_LOG(Script, Error, "ScriptSystem::OnEntityAdded: Invalid AssetRegistry, cannot load script source", scriptAsset->GetName());
+                        return;
+                    }
+
+                    const FilePath sourcePath = registry->GetRootPath() / "Scripts" / (scriptAsset->GetName().ToString() + ".hyp");
+
+                    if (!sourcePath.Exists() || !sourcePath.CanRead())
+                    {
+                        HYP_LOG(Script, Error, "ScriptSystem::OnEntityAdded: Script file '{}' does not exist or cannot be read!", scriptDesc.path.Data());
+                        return;
+                    }
+
+                    FileByteReader readStream { sourcePath };
+
+                    if (readStream.Eof())
+                    {
+                        HYP_LOG(Script, Error, "ScriptSystem::OnEntityAdded: Failed to open script file '{}' for reading!", scriptDesc.path.Data());
+                        return;
+                    }
+
+                    ByteBuffer byteBuffer = readStream.Read();
+
+                    SourceFile sourceFile(sourcePath, byteBuffer.Size());
+                    sourceFile.ReadIntoBuffer(byteBuffer);
+
+                    byteBuffer.Clear();
+
+                    HypScriptCompileParams compileParams;
+                    // Add data / scripts path as scan path so we pick up Lib.hyp
+                    compileParams.scanPaths.Add(GetDataDirectory() / "Scripts");
+                    
+                    ErrorList errorList;
+                    instance = hs.Compile(sourceFile, errorList, compileParams);
+
+                    if (errorList.HasFatalErrors())
+                    {
+                        SystemMessageBox(MessageBoxType::CRITICAL)
+                            .Title("Script Compilation Error")
+                            .Text(HYP_FORMAT("Failed to compile script file '{}'. See the log for details.", sourcePath))
+                            .Button("Close", []()
+                                {
+                                })
+                            .Show(/* showBlocking */ false);
+
+                        return;
+                    }
+
+                    Assert(instance != nullptr);
+
+                    // Record the source file timestamp so we can detect future changes
+                    scriptDesc.lastModifiedTimestamp = uint64(sourcePath.LastModifiedTimestamp());
+
+                    { // Save bytecode.
+                        MemoryByteWriter bytecodeStream;
+                        hs.WriteBytecodeToStream(instance, bytecodeStream);
+
+                        readScope.Reset();
+
+                        // Get exclusive access to write the bytecode data.
+                        auto writeScope = scriptAsset->GetWriteScope();
+                        scriptAsset->SetBytecode(bytecodeStream.GetBuffer().ToByteView());
+                        writeScope.Reset();
+                        
+                        // Save script binary again if it exists on the filesystem.
+                        if (scriptAsset->IsSaved())
+                        {
+                            Result saveResult = scriptAsset->Save();
+                            if (saveResult.HasError())
+                            {
+                                HYP_LOG(Script, Warning, "Failed to save script asset: {}", saveResult.GetError().GetMessage());
+                            }
+                        }
+
+                        readScope = scriptAsset->GetReadScope();
+                    }
+                }
+#else
+                if (bytecode.Size() > 0)
+                {
+                    instance = hs.CreateFromBytecode(bytecode);
+                    Assert(instance != nullptr);
+                }
+                else
+                {
+                    HYP_LOG(Script, Error, "Invalid bytecode for script: {}", scriptAsset->GetName());
+                    return;
+                }
+#endif
 
                 // run the script to initialize classes, functions, etc.
                 hs.Run(instance);
@@ -406,8 +502,7 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
             break;
         }
 #endif
-        default:
-            return;
+        default:  return;
         }
     }
 

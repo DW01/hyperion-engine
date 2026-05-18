@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -13,7 +13,7 @@
 namespace Hyperion {
 
 HYP_CLASS(AssetBucket = "Scripts")
-class ScriptAsset : public AssetObject
+class HYP_API ScriptAsset : public AssetObject
 {
     HYP_OBJECT_BODY(ScriptAsset);
 
@@ -40,7 +40,7 @@ public:
     ScriptAsset(ScriptAsset&& other) noexcept = delete;
     ScriptAsset& operator=(ScriptAsset&& other) noexcept = delete;
 
-    ~ScriptAsset() = default;
+    ~ScriptAsset();
 
     HYP_FORCE_INLINE ScriptDesc& GetScriptDesc()
     {
@@ -52,8 +52,26 @@ public:
         return m_scriptDesc;
     }
 
+    void SetBytecode(ConstByteView view);
+    ConstByteView GetBytecode() const;
+
+protected:
+    void Init() override;
+
+    void PageBlobData() override;
+    void UnpageBlobData() override;
+
+    void CollectBlobDataReferences(Array<Tuple<const char*, uint16, BlobDataReference*>>& outReferences) override
+    {
+        outReferences.EmplaceBack("BC", 1, &m_data);
+    }
+
 private:
+    HYP_FIELD(Property = "ScriptDesc", Serialize)
     ScriptDesc m_scriptDesc;
+
+    HYP_FIELD(Property = "Data", Serialize)
+    BlobDataReference m_data;
 };
 
 } // namespace Hyperion

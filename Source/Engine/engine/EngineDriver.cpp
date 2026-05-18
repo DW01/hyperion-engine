@@ -356,7 +356,7 @@ void EngineDriver::AddWorld(const Handle<World>& world)
         return;
     }
 
-    InitObject(world);
+    world->Initialize();
 
     if (!m_worlds.Contains(world))
     {

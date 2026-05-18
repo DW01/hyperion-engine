@@ -22,27 +22,30 @@ class ScriptSystem final : public SystemBase
 
 public:
     ScriptSystem();
-    virtual ~ScriptSystem() override = default;
+    ~ScriptSystem() override = default;
 
     // This system does not support parallel execution because scripts may modify
     // any component in the entity manager
-    virtual bool AllowParallelExecution() const override
+    bool AllowParallelExecution() const override
     {
         return false;
     }
 
-    virtual bool RequiresSimThread() const override
+    bool RequiresSimThread() const override
     {
         return true;
     }
 
-    virtual void OnEntityAdded(Entity* entity) override;
-    virtual void OnEntityRemoved(Entity* entity) override;
+    void OnAddedToWorld(World* world) override;
+    void OnRemovedFromWorld(World* world) override;
 
-    virtual void Process(float delta, Span<Handle<Scene>> scenes) override;
+    void OnEntityAdded(Entity* entity) override;
+    void OnEntityRemoved(Entity* entity) override;
+
+    void Process(float delta, Span<Handle<Scene>> scenes) override;
 
 private:
-    virtual SystemComponentDescriptors GetComponentDescriptors() const override
+    SystemComponentDescriptors GetComponentDescriptors() const override
     {
         return {
             ComponentDescriptor<ScriptComponent, ComponentAccess::READ_WRITE> {}

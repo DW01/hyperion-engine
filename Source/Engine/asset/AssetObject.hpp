@@ -166,6 +166,8 @@ public:
 
     void GetNumUsers(int64& outReaders, int64& outWriters) const;
 
+    Handle<AssetRegistry> GetAssetRegistry();
+
     virtual void Init() override
     {
         SetReady(true);
@@ -180,8 +182,6 @@ public:
         Handle<AssetObject>& outAssetObject);
 
 protected:
-    Handle<AssetRegistry> GetAssetRegistry();
-
     virtual void OnLoaded()
     {
         // do nothing

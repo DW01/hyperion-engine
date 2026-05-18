@@ -104,7 +104,8 @@ EntityManager::EntityManager(const ThreadId& ownerThreadId, Scene* scene, EnumFl
       m_world(scene != nullptr ? scene->GetWorld() : nullptr),
       m_scene(scene),
       m_flags(flags),
-      m_isLocked(false)
+      m_isLocked(false),
+      m_isInitialized(false)
 {
     Assert(scene != nullptr);
 
@@ -121,18 +122,11 @@ EntityManager::EntityManager(const ThreadId& ownerThreadId, Scene* scene, EnumFl
 
         m_containers.Set(componentInterface->GetTypeInfo().id, std::move(componentContainer));
     }
-
-    if (m_world != nullptr)
-    {
-        for (SystemExecutionGroup* group : m_world->GetSystemExecutionGroups())
-        {
-            m_systemExecutionGroups.PushBack(group);
-        }
-    }
 }
 
 EntityManager::~EntityManager()
 {
+    Shutdown();
 }
 
 void EntityManager::NotifySystemOfExistingEntities(SystemBase* system)
@@ -160,7 +154,7 @@ void EntityManager::NotifySystemOfExistingEntities(SystemBase* system)
                     auto systemEntityIt = m_systemEntityMap.Find(system);
 
                     // Check if the system already has this entity initialized
-                    if (systemEntityIt != m_systemEntityMap.End() && (systemEntityIt->second.FindAs(entity) != systemEntityIt->second.End()))
+                    if (systemEntityIt != m_systemEntityMap.End() && (systemEntityIt->second.Find(entity) != systemEntityIt->second.End()))
                     {
                         continue;
                     }
@@ -199,11 +193,11 @@ void EntityManager::NotifySystemOfAllEntitiesRemoved(SystemBase* system)
                     auto systemEntityIt = m_systemEntityMap.Find(system);
 
                     // Check if the system already has this entity initialized
-                    if (systemEntityIt != m_systemEntityMap.End() && systemEntityIt->second.Contains(entity))
+                    if (systemEntityIt == m_systemEntityMap.End())
                     {
+
                         continue;
                     }
-
                     systemEntityIt->second.Erase(entity);
                 }
 
@@ -215,44 +209,56 @@ void EntityManager::NotifySystemOfAllEntitiesRemoved(SystemBase* system)
     system->Shutdown();
 }
 
-void EntityManager::Init()
+void EntityManager::Initialize()
 {
+    if (m_isInitialized)
+    {
+        return;
+    }
+    
     AssertOnThread(m_ownerThreadId);
 
-    Array<SystemBase*> systems;
-
-    for (SystemExecutionGroup* group : m_systemExecutionGroups)
-    {
-        for (auto& systemIt : group->GetSystems())
-        {
-            SystemBase* system = systemIt.second;
-            Assert(system != nullptr);
-
-            systems.PushBack(system);
-        }
-    }
-
-    for (SystemBase* system : systems)
-    {
-        // Must be called before InitObject() is called on Systems to ensure the system is initialized if
-        // other systems end up adding/removing components that trigger OnEntityAdded() or OnEntityRemoved() calls.
-        system->InitComponentInfos_Internal();
-    }
-
+    m_isInitialized = true;
+    
     if (m_world != nullptr)
     {
+        Array<SystemBase*> systems;
+
+        for (SystemExecutionGroup* group : m_world->GetSystemExecutionGroups())
+        {
+            for (auto& systemIt : group->GetSystems())
+            {
+                SystemBase* system = systemIt.second;
+                Assert(system != nullptr);
+
+                systems.PushBack(system);
+            }
+        }
+
+        for (SystemBase* system : systems)
+        {
+            // Must be called before InitObject() is called on Systems to ensure the system is initialized if
+            // other systems end up adding/removing components that trigger OnEntityAdded() or OnEntityRemoved() calls.
+            system->InitComponentInfos_Internal();
+        }
+
         for (SystemBase* system : systems)
         {
             // Initialize the system
+            InitObject(system);
             NotifySystemOfExistingEntities(system);
         }
     }
-
-    SetReady(true);
 }
 
 void EntityManager::Shutdown()
 {
+    if (!m_isInitialized)
+    {
+        return;
+    }
+
+#if 0
     // Notify all entities that they're being removed from the world
     for (auto& subtypeData : m_entities.GetSubtypeData())
     {
@@ -272,10 +278,13 @@ void EntityManager::Shutdown()
             if (m_scene->GetSceneFlags() & SceneFlags::HAS_OCTREE)
             {
                 auto removeFromOctreeResult = m_scene->GetOctree().Remove(entity, /* allowRebuild */ false);
-                AssertDebug(!removeFromOctreeResult.HasError(), "Failed to remove Entity {} from Scene {}'s octree: {}",
-                    entity->GetName(),
-                    m_scene->GetName(),
-                    removeFromOctreeResult.GetError().GetMessage());
+                if (removeFromOctreeResult.HasError())
+                {
+                    HYP_LOG(Entity, Warning, "Failed to remove Entity {} from Scene {}'s octree: {}",
+                        entity->GetName(),
+                        m_scene->GetName(),
+                        removeFromOctreeResult.GetError().GetMessage());
+                }
             }
 
             entity->OnRemovedFromScene(m_scene);
@@ -318,31 +327,75 @@ void EntityManager::Shutdown()
                 componentInfoPairIt = entityData.components.Erase(componentInfoPairIt);
             }
         }
+        subtypeData.data.Clear();
+    }
+#endif
 
-        if (m_world != nullptr)
+    if (m_world != nullptr)
+    {
+        for (SystemExecutionGroup* group : m_world->GetSystemExecutionGroups())
         {
-            Array<SystemBase*> systems;
-
-            for (SystemExecutionGroup* group : m_systemExecutionGroups)
+            for (auto& systemIt : group->GetSystems())
             {
-                for (auto& systemIt : group->GetSystems())
+                SystemBase* system = systemIt.second;
+                Assert(system != nullptr);
+
+                // Drain all remaining entities registered with this system in the system entity map.
+                // This covers entities that were moved out of the main entity list (e.g. via MoveEntity
+                // from SetScene(nullptr)) before Shutdown had a chance to process them.
+                Array<Entity*> entities;
+
                 {
-                    SystemBase*& system = systemIt.second;
-                    Assert(system != nullptr);
+                    Mutex::Guard guard(m_systemEntityMapMutex);
 
-                    systems.PushBack(system);
+                    auto systemEntityIt = m_systemEntityMap.Find(system);
+
+                    if (systemEntityIt != m_systemEntityMap.End())
+                    {
+                        for (Entity* entity : systemEntityIt->second)
+                        {
+                            entities.PushBack(entity);
+                        }
+
+                        systemEntityIt->second.Clear();
+                    }
                 }
-            }
 
-            for (SystemBase* system : systems)
-            {
-                // Shutdown the system
-                NotifySystemOfAllEntitiesRemoved(system);
+                for (Entity* entity : entities)
+                {
+                    entity->OnRemovedFromWorld(m_world);
+
+                    if (m_scene->GetSceneFlags() & SceneFlags::HAS_OCTREE)
+                    {
+                        auto removeFromOctreeResult = m_scene->GetOctree().Remove(entity, /* allowRebuild */ false);
+                        if (removeFromOctreeResult.HasError())
+                        {
+                            HYP_LOG(Entity, Warning, "Failed to remove Entity {} from Scene {}'s octree: {}",
+                                entity->GetName(),
+                                m_scene->GetName(),
+                                removeFromOctreeResult.GetError().GetMessage());
+                        }
+                    }
+
+                    entity->OnRemovedFromScene(m_scene);
+
+                    system->OnEntityRemoved(entity);
+                }
+
+                system->Shutdown();
             }
         }
     }
 
-    SetReady(false);
+    for (auto& subtypeData : m_entities.GetSubtypeData())
+    {
+        subtypeData.data.Clear();
+    }
+
+    Mutex::Guard guard(m_systemEntityMapMutex);
+    m_systemEntityMap.Clear();
+
+    m_isInitialized = false;
 }
 
 void EntityManager::SetWorld(World* world)
@@ -356,21 +409,21 @@ void EntityManager::SetWorld(World* world)
 
     // If EntityManager is initialized we need to notify all of our systems that the world has changed.
     Array<SystemBase*> systems;
-
-    for (SystemExecutionGroup* group : m_systemExecutionGroups)
-    {
-        for (auto& systemIt : group->GetSystems())
-        {
-            SystemBase* system = systemIt.second;
-            Assert(system != nullptr);
-
-            systems.PushBack(system);
-        }
-    }
-
+    
     // Call OnRemovedFromWorld() now for all entities in the EntityManager if previous world is not null
     if (m_world)
     {
+        for (SystemExecutionGroup* group : m_world->GetSystemExecutionGroups())
+        {
+            for (auto& systemIt : group->GetSystems())
+            {
+                SystemBase* system = systemIt.second;
+                Assert(system != nullptr);
+
+                systems.PushBack(system);
+            }
+        }
+
         for (auto& subtypeData : m_entities.GetSubtypeData())
         {
             for (EntityData& entityData : subtypeData.data)
@@ -389,18 +442,12 @@ void EntityManager::SetWorld(World* world)
     }
 
     m_world = world;
-    m_systemExecutionGroups.Clear();
 
     if (m_world != nullptr)
     {
-        for (SystemExecutionGroup* group : m_world->GetSystemExecutionGroups())
-        {
-            m_systemExecutionGroups.PushBack(group);
-        }
-
         systems.Clear();
 
-        for (SystemExecutionGroup* group : m_systemExecutionGroups)
+        for (SystemExecutionGroup* group : m_world->GetSystemExecutionGroups())
         {
             for (auto& systemIt : group->GetSystems())
             {
@@ -711,13 +758,16 @@ void EntityManager::MoveEntity(const Handle<Entity>& entity, const Handle<Entity
             entity->OnRemovedFromWorld(m_world);
         }
 
-        if (m_scene->GetSceneFlags() & SceneFlags::HAS_OCTREE)
+        if ((m_scene->GetSceneFlags() & SceneFlags::HAS_OCTREE))
         {
             auto removeFromOctreeResult = m_scene->GetOctree().Remove(entity, /* allowRebuild */ false);
-            AssertDebug(!removeFromOctreeResult.HasError(), "Failed to remove Entity {} from Scene {}'s octree: {}",
-                entity->GetName(),
-                m_scene->GetName(),
-                removeFromOctreeResult.GetError().GetMessage());
+            if (removeFromOctreeResult.HasError())
+            {
+                HYP_LOG(Entity, Warning, "Failed to remove Entity {} from Scene {}'s octree: {}",
+                    entity->GetName(),
+                    m_scene->GetName(),
+                    removeFromOctreeResult.GetError().GetMessage());
+            }
         }
 
         entity->OnRemovedFromScene(m_scene);
@@ -1242,12 +1292,12 @@ void EntityManager::NotifySystemsOfEntityAdded(const Handle<Entity>& entity, con
 
     // If the EntityManager is initialized, notify systems of the entity being added
     // otherwise, the systems will be notified when the EntityManager is initialized
-    if (!IsInitCalled() || m_world == nullptr)
+    if (!m_world)
     {
         return;
     }
 
-    for (SystemExecutionGroup* group : m_systemExecutionGroups)
+    for (SystemExecutionGroup* group : m_world->GetSystemExecutionGroups())
     {
         for (auto& systemIt : group->GetSystems())
         {
@@ -1280,14 +1330,14 @@ void EntityManager::NotifySystemsOfEntityRemoved(Entity* entity, const Component
         return;
     }
 
-    if (!IsInitCalled() || m_world == nullptr)
+    if (!m_world)
     {
         return;
     }
 
     WeakHandle<Entity> entityWeak = MakeWeakRef(entity);
 
-    for (SystemExecutionGroup* group : m_systemExecutionGroups)
+    for (SystemExecutionGroup* group : m_world->GetSystemExecutionGroups())
     {
         for (auto& systemIt : group->GetSystems())
         {
@@ -1383,7 +1433,7 @@ bool EntityManager::IsEntityInitializedForSystem(SystemBase* system, const Entit
         return false;
     }
 
-    return it->second.FindAs(entity) != it->second.End();
+    return it->second.Find(const_cast<Entity*>(entity)) != it->second.End();
 }
 
 #pragma endregion EntityManager

@@ -386,7 +386,7 @@ namespace Hyperion
             return a.ptr != b.ptr;
         }
 
-        public static Class GetClass<T>()
+        public static Class GetClass<T>() where T : allows ref struct
         {
             return GetClass(typeof(T));
         }
@@ -403,7 +403,7 @@ namespace Hyperion
             return cls.Value;
         }
 
-        public static Class? TryGetClass<T>()
+        public static Class? TryGetClass<T>() where T : allows ref struct
         {
             return TryGetClass(typeof(T));
         }

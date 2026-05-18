@@ -82,7 +82,8 @@ World::World(Name name, EnumFlags<WorldFlags> worldFlags)
       m_gameInstance(nullptr),
       m_worldFlags(worldFlags),
       m_rayTracingView(nullptr),
-      m_rootSynchronousExecutionGroup(nullptr)
+      m_rootSynchronousExecutionGroup(nullptr),
+      m_isInitialized(false)
 {
     if (m_worldFlags & WorldFlags::ALL_STREAMING_LAYER_FLAGS)
     {
@@ -96,88 +97,15 @@ World::World(Name name, EnumFlags<WorldFlags> worldFlags)
 
 World::~World()
 {
-    if (IsInitCalled())
-    {
-        Array<Handle<Scene>> scenes = std::move(m_scenes);
-
-        for (const Handle<Scene>& scene : scenes)
-        {
-            if (!scene)
-            {
-                continue;
-            }
-
-            scene->SetOwnerThreadId(CurrentThreadId());
-
-            OnSceneRemoved(this, scene);
-
-            for (Subsystem* subsystem : m_subsystemsArray)
-            {
-                subsystem->OnSceneDetached(scene);
-            }
-
-            if ((scene->GetSceneFlags() & (SceneFlags::FOREGROUND | SceneFlags::UI | SceneFlags::DETACHED)) == SceneFlags::FOREGROUND)
-            {
-                for (View* view : m_views)
-                {
-                    if (!(view->GetFlags() & ViewFlags::ALL_WORLD_SCENES))
-                    {
-                        continue;
-                    }
-
-                    view->RemoveScene(scene);
-                }
-            }
-
-            scene->SetWorld(nullptr);
-        }
-
-        for (const Handle<SystemBase>& system : m_systems)
-        {
-            system->OnRemovedFromWorld(this);
-            system->m_world = nullptr;
-        }
-    }
-
-    m_systems.Clear();
-
-    for (SystemExecutionGroup* executionGroup : m_systemExecutionGroups)
-    {
-        PoolDelete(*g_scenePool, executionGroup);
-    }
-    m_systemExecutionGroups.Clear();
-
-    m_rayTracingView = nullptr;
-
-    EnqueueDeletion(std::move(m_scenes));
-
-    for (View* view : m_views)
-    {
-        view->Release();
-    }
-
-    m_views.Clear();
-
-    for (Subsystem* subsystem : m_subsystemsArray)
-    {
-        subsystem->OnRemovedFromWorld();
-    }
-
-    if (m_physicsWorld)
-    {
-        m_physicsWorld->Teardown();
-        m_physicsWorld.Reset();
-    }
-
-    if (m_worldGrid)
-    {
-        m_worldGrid->Shutdown();
-    }
+    Shutdown();
 }
 
-void World::Init()
+void World::Initialize()
 {
-    ObjectBase::Init();
+    if (m_isInitialized)
+    {
+        return;
+    }
 
     if (m_worldFlags & WorldFlags::HAS_STREAMING)
     {
@@ -297,20 +225,10 @@ void World::Init()
         system->m_world = this;
 
         InitObject(system);
-
-        system->OnAddedToWorld(this);
-
-        if (wasAddedToExecutionGroup)
-        {
-            for (const Handle<Scene>& scene : m_scenes)
-            {
-                if (scene != nullptr)
-                {
-                    scene->GetEntityManager()->NotifySystemOfExistingEntities(system);
-                }
-            }
-        }
     }
+
+    // Needs to be before AddSystem() calls.
+    m_isInitialized = true;
 
     if (!HasSystem<VisibilityStateUpdaterSystem>())
         AddSystem(MakeHandle<VisibilityStateUpdaterSystem>());
@@ -336,6 +254,16 @@ void World::Init()
     if (!HasSystem<MeshSystem>())
         AddSystem(MakeHandle<MeshSystem>());
 
+    for (SystemBase* system : m_systems)
+    {
+        system->OnAddedToWorld(this);
+
+        for (const Handle<Scene>& scene : m_scenes)
+        {
+            scene->GetEntityManager()->NotifySystemOfExistingEntities(system);
+        }
+    }
+
     for (View* view : m_views)
     {
         if (view->m_rayTracingView.GetUnsafe() != m_rayTracingView)
@@ -357,8 +285,91 @@ void World::Init()
 
         InitObject(view);
     }
+}
 
-    SetReady(true);
+void World::Shutdown()
+{
+    if (!m_isInitialized)
+    {
+        return;
+    }
+
+    m_isInitialized = false;
+
+    Array<Handle<Scene>> scenes = std::move(m_scenes);
+
+    for (const Handle<Scene>& scene : scenes)
+    {
+        if (!scene)
+        {
+            continue;
+        }
+
+        scene->SetOwnerThreadId(CurrentThreadId());
+
+        OnSceneRemoved(this, scene);
+
+        for (Subsystem* subsystem : m_subsystemsArray)
+        {
+            subsystem->OnSceneDetached(scene);
+        }
+
+        if ((scene->GetSceneFlags() & (SceneFlags::FOREGROUND | SceneFlags::UI | SceneFlags::DETACHED)) == SceneFlags::FOREGROUND)
+        {
+            for (View* view : m_views)
+            {
+                if (!(view->GetFlags() & ViewFlags::ALL_WORLD_SCENES))
+                {
+                    continue;
+                }
+
+                view->RemoveScene(scene);
+            }
+        }
+
+        scene->Shutdown();
+    }
+
+    scenes.Clear();
+
+    for (const Handle<SystemBase>& system : m_systems)
+    {
+        system->OnRemovedFromWorld(this);
+        system->m_world = nullptr;
+    }
+
+    m_systems.Clear();
+
+    for (SystemExecutionGroup* executionGroup : m_systemExecutionGroups)
+    {
+        PoolDelete(*g_scenePool, executionGroup);
+    }
+    m_systemExecutionGroups.Clear();
+
+    m_rayTracingView = nullptr;
+
+    for (View* view : m_views)
+    {
+        view->Release();
+    }
+
+    m_views.Clear();
+
+    for (Subsystem* subsystem : m_subsystemsArray)
+    {
+        subsystem->OnRemovedFromWorld();
+    }
+
+    if (m_physicsWorld)
+    {
+        m_physicsWorld->Teardown();
+        m_physicsWorld.Reset();
+    }
+
+    if (m_worldGrid)
+    {
+        m_worldGrid->Shutdown();
+    }
 }
 
 void World::SetWorldFlags(EnumFlags<WorldFlags> flags)
@@ -855,8 +866,8 @@ const Handle<Subsystem>& World::AddSubsystem(TypeId typeId, const Handle<Subsyst
     m_subsystemsArray.PushBack(newSubsystem.Get());
 
     // If World is already initialized, initialize the subsystem
-    // otherwise, it will be initialized when World::Init() is called
-    if (IsInitCalled())
+    // otherwise, it will be initialized when World::Initialize() is called
+    if (m_isInitialized)
     {
         if (insertResult.second)
         {
@@ -960,7 +971,7 @@ bool World::RemoveSubsystem(Subsystem* subsystem)
 
     Assert(it->second.Get() == subsystem);
 
-    if (IsInitCalled())
+    if (m_isInitialized)
     {
         for (const Handle<Scene>& scene : m_scenes)
         {
@@ -1016,7 +1027,7 @@ void World::AddScene(const Handle<Scene>& scene, bool addToStreamingLayer)
 
     scene->SetWorld(this);
 
-    if (IsInitCalled())
+    if (m_isInitialized)
     {
         InitObject(scene);
 
@@ -1068,7 +1079,7 @@ bool World::RemoveScene(Scene* scene, bool removeFromStreamingLayer)
     {
         scene->SetWorld(nullptr);
 
-        if (IsInitCalled())
+        if (m_isInitialized)
         {
             if (removeFromStreamingLayer && (m_worldFlags & WorldFlags::HAS_SCENE_STREAMING_LAYER))
             {
@@ -1134,7 +1145,7 @@ void World::AddView(View* view)
 
     m_views.PushBack(view);
 
-    if (IsInitCalled())
+    if (m_isInitialized)
     {
         if (view->m_rayTracingView.GetUnsafe() != m_rayTracingView)
         {
@@ -1181,7 +1192,7 @@ void World::RemoveView(View* view)
         return;
     }
 
-    if (IsInitCalled())
+    if (m_isInitialized)
     {
         view->m_rayTracingView.Reset();
 
@@ -1223,8 +1234,6 @@ void World::DeserializeNonStreamingScenes(const Array<Handle<Scene>>& scenes)
 {
     // no thread assertion if not yet init since this is used for deserialization mainly
 
-    const bool isInitialized = IsInitCalled();
-
     for (Handle<Scene>& scene : m_scenes)
     {
         if (m_worldFlags & WorldFlags::HAS_SCENE_STREAMING_LAYER)
@@ -1237,7 +1246,7 @@ void World::DeserializeNonStreamingScenes(const Array<Handle<Scene>>& scenes)
 
         scene->SetWorld(nullptr);
 
-        if (isInitialized)
+        if (m_isInitialized)
         {
             OnSceneRemoved(this, scene);
 
@@ -1271,7 +1280,7 @@ void World::DeserializeNonStreamingScenes(const Array<Handle<Scene>>& scenes)
 
         scene->SetWorld(this);
 
-        if (isInitialized)
+        if (m_isInitialized)
         {
             InitObject(scene);
 
@@ -1430,7 +1439,7 @@ void World::DeserializeStreamingLayers(const Array<WGLayerDesc, DynamicAllocator
         /// \todo if scene streaming is enabled and we're Init()'d, stream them in!
     }
 
-    if (IsInitCalled())
+    if (m_isInitialized)
     {
         InitObject(m_worldGrid);
     }
@@ -1510,7 +1519,7 @@ SystemBase* World::AddSystem(const Handle<SystemBase>& system)
     m_systems.PushBack(system);
 
     // If the World is initialized, call Initialize() on the System.
-    if (IsInitCalled())
+    if (m_isInitialized)
     {
         system->InitComponentInfos_Internal();
 
@@ -1519,19 +1528,6 @@ SystemBase* World::AddSystem(const Handle<SystemBase>& system)
         system->m_world = this;
 
         InitObject(system);
-
-        system->OnAddedToWorld(this);
-
-        if (wasAddedToExecutionGroup)
-        {
-            for (const Handle<Scene>& scene : m_scenes)
-            {
-                if (scene != nullptr)
-                {
-                    scene->GetEntityManager()->NotifySystemOfExistingEntities(system);
-                }
-            }
-        }
     }
 
     return system;
@@ -1557,7 +1553,7 @@ bool World::RemoveSystem(SystemBase* system)
 
     m_systems.Erase(it);
 
-    if (IsInitCalled())
+    if (m_isInitialized)
     {
         SystemExecutionGroup* executionGroup = nullptr;
         for (SystemExecutionGroup* systemExecutionGroup : m_systemExecutionGroups)
