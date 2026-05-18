@@ -47,7 +47,7 @@ struct ScriptDesc
     HYP_FIELD(Transient)
     int32 hotReloadVersion;
 
-    HYP_FIELD(Transient)
+    HYP_FIELD()
     uint64 lastModifiedTimestamp;
 };
 

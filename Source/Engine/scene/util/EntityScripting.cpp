@@ -337,17 +337,42 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
 
                 // Create from bytecode
                 ConstByteView bytecode = scriptAsset->GetBytecode();
+#if HYP_EDITOR
                 if (bytecode.Size() > 0)
                 {
-                    instance = hs.CreateFromBytecode(bytecode);
-                    Assert(instance != nullptr);
+                    // Check if source file has been modified since the bytecode was compiled
+                    bool needsRecompile = false;
+
+                    {
+                        Handle<AssetRegistry> registry = scriptAsset->GetAssetRegistry();
+
+                        if (registry.IsValid())
+                        {
+                            const FilePath sourcePath = registry->GetRootPath() / "Scripts" / (scriptAsset->GetName().ToString() + ".hyp");
+
+                            if (sourcePath.Exists() && sourcePath.CanRead())
+                            {
+                                const Time sourceModified = sourcePath.LastModifiedTimestamp();
+                                const Time lastCompiled(scriptDesc.lastModifiedTimestamp);
+
+                                if (sourceModified > lastCompiled)
+                                {
+                                    needsRecompile = true;
+                                }
+                            }
+                        }
+                    }
+
+                    if (!needsRecompile)
+                    {
+                        instance = hs.CreateFromBytecode(bytecode);
+                        Assert(instance != nullptr);
+                    }
                 }
-#if HYP_EDITOR
-                else
+
+                if (!instance)
                 {
                     // Load source file and compile it
-                    // @TODO Check if script file has been modified since, and recompile it.
-
                     Handle<AssetRegistry> registry = scriptAsset->GetAssetRegistry();
                     AssertDebug(registry.IsValid());
 
@@ -402,6 +427,9 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
 
                     Assert(instance != nullptr);
 
+                    // Record the source file timestamp so we can detect future changes
+                    scriptDesc.lastModifiedTimestamp = uint64(sourcePath.LastModifiedTimestamp());
+
                     { // Save bytecode.
                         MemoryByteWriter bytecodeStream;
                         hs.WriteBytecodeToStream(instance, bytecodeStream);
@@ -419,12 +447,23 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
                             Result saveResult = scriptAsset->Save();
                             if (saveResult.HasError())
                             {
-                                HYP_LOG(Script, Error, "Failed to save script asset: {}", saveResult.GetError().GetMessage());
+                                HYP_LOG(Script, Warning, "Failed to save script asset: {}", saveResult.GetError().GetMessage());
                             }
                         }
 
                         readScope = scriptAsset->GetReadScope();
                     }
+                }
+#else
+                if (bytecode.Size() > 0)
+                {
+                    instance = hs.CreateFromBytecode(bytecode);
+                    Assert(instance != nullptr);
+                }
+                else
+                {
+                    HYP_LOG(Script, Error, "Invalid bytecode for script: {}", scriptAsset->GetName());
+                    return;
                 }
 #endif
 
