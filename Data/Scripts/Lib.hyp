@@ -470,13 +470,13 @@ extern class TerrainStreamingCell : StreamingCell
     OnLoaded_Impl() -> void
     OnRemoved_Impl() -> void
 end
-extern enum ScriptLanguage : uint32
-    Invalid = ~0u,
+extern enum ScriptLanguage : uint8
+    Invalid = UINT8_MAX,
     Native = 0,
     HypScript = 1,
     CSharp = 2
 end
-extern enum ScriptCompileStatus : uint32
+extern enum ScriptCompileStatus : uint8
     Uninitialized = 0x0,
     Compiled = 0x1,
     Dirty = 0x2,
@@ -489,7 +489,7 @@ extern struct ScriptDesc
     Path : Array<any>
     AssemblyPath : Array<any>
     ClassName : Array<any>
-    CompileStatus : uint32
+    CompileStatus : uint8
     HotReloadVersion : int32
     LastModifiedTimestamp : uint64
 end

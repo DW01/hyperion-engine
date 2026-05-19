@@ -36,24 +36,11 @@ namespace Hyperion
 
         public EditorProject? CurrentProject
         {
-            get
-            {
-                return this.GetCurrentProject();
-            }
-            set
-            {
-                this.SetCurrentProject(value);
-            }
+            get => this.GetCurrentProject();
+            set => this.SetCurrentProject(value);
         }
 
-        public Node? ClipboardNode
-        {
-            get => this.GetClipboardNodes().Cast<Node>().FirstOrDefault();
-        }
-
-        public Node[] ClipboardNodes
-        {
-            get => this.GetClipboardNodes().Cast<Node>().ToArray();
-        }
+        public Node? ClipboardNode => this.GetClipboardNodes().Cast<Node>().FirstOrDefault();
+        public IEnumerable<Node> ClipboardNodes => this.GetClipboardNodes().Cast<Node>();
     }
 }

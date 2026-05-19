@@ -214,7 +214,6 @@ Result EditorProject::SaveAs(FilePath filepath)
 
     EditorTaskScope taskScope(
         TickableEditorTask::StaticClass(),
-        []() { /* do nothing on tick */ },
         "Saving project",
         "Registering assets",
         /* isForegroundTask */ true);

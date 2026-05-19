@@ -267,7 +267,9 @@ void AstClass::Visit(AstVisitor* visitor, Module* mod)
             }
         }
 
+#if 0
         TMap<uint64, Array<String>> revEnumMembers;
+#endif
 
         // ===== STATIC DATA MEMBERS ======
         {
@@ -338,13 +340,17 @@ void AstClass::Visit(AstVisitor* visitor, Module* mod)
                     {
                         nextEnumValue = ConstantValue(constantValue.AsUInt() + 1, nextEnumValue.bitSize);
 
-                        revEnumMembers[constantValue.AsUInt()].PushBack(decl->GetName());
+    #if 0
+                    revEnumMembers[constantValue.AsUInt()].PushBack(decl->GetName());
+#endif
                     }
                     else
                     {
                         nextEnumValue = ConstantValue(constantValue.AsInt() + 1, nextEnumValue.bitSize);
 
-                        revEnumMembers[std::bit_cast<uint64>(constantValue.AsInt())].PushBack(decl->GetName());
+    #if 0
+                    revEnumMembers[std::bit_cast<uint64>(constantValue.AsInt())].PushBack(decl->GetName());
+#endif
                     }
                 }
 
@@ -383,7 +389,9 @@ void AstClass::Visit(AstVisitor* visitor, Module* mod)
 #endif
 
         // won't be needing this anymore
+#if 0
         revEnumMembers.Clear();
+#endif
 
         // ===== INSTANCE DATA MEMBERS =====
 

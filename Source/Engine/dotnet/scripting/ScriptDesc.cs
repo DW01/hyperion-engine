@@ -6,7 +6,7 @@ namespace Hyperion
 {
     [ClassBinding(Name = "ScriptCompileStatus")]
     [Flags]
-    public enum ScriptCompileStatus : uint
+    public enum ScriptCompileStatus : byte
     {
         Uninitialized = 0x0,
         Compiled = 0x1,
@@ -17,9 +17,9 @@ namespace Hyperion
 
 
     [ClassBinding(Name = "ScriptLanguage")]
-    public enum ScriptLanguage : uint
+    public enum ScriptLanguage : byte
     {
-        Invalid = ~0u,
+        Invalid = byte.MaxValue,
 
         Native = 0,
 
@@ -39,10 +39,9 @@ namespace Hyperion
 
         private fixed byte assemblyPath[1024];
 
-        private fixed byte className[1024];
+        private fixed byte className[128];
 
-        [MarshalAs(UnmanagedType.U4)]
-        private uint compileStatus;
+        private byte compileStatus;
 
         [MarshalAs(UnmanagedType.U4)]
         public int hotReloadVersion;
@@ -52,14 +51,8 @@ namespace Hyperion
 
         public Guid Guid
         {
-            get
-            {
-                return guid;
-            }
-            set
-            {
-                guid = value;
-            }
+            get => guid;
+            set => guid = value;
         }
 
         public string Path
@@ -127,38 +120,20 @@ namespace Hyperion
 
         public ScriptCompileStatus CompileStatus
         {
-            get
-            {
-                return (ScriptCompileStatus)compileStatus;
-            }
-            set
-            {
-                compileStatus = (uint)value;
-            }
+            get => (ScriptCompileStatus)compileStatus;
+            set => compileStatus = (byte)value;
         }
 
         public int HotReloadVersion
         {
-            get
-            {
-                return hotReloadVersion;
-            }
-            set
-            {
-                hotReloadVersion = value;
-            }
+            get => hotReloadVersion;
+            set => hotReloadVersion = value;
         }
 
         public ulong LastModifiedTimestamp
         {
-            get
-            {
-                return lastModifiedTimestamp;
-            }
-            set
-            {
-                lastModifiedTimestamp = value;
-            }
+            get => lastModifiedTimestamp;
+            set => lastModifiedTimestamp = value;
         }
     }
 
@@ -184,21 +159,9 @@ namespace Hyperion
             }
         }
 
-        public IntPtr Address
-        {
-            get
-            {
-                return ptr;
-            }
-        }
+        public IntPtr Address => ptr;
 
-        public bool IsValid
-        {
-            get
-            {
-                return ptr != IntPtr.Zero;
-            }
-        }
+        public bool IsValid => ptr != IntPtr.Zero;
 
         public bool IsErrored
         {

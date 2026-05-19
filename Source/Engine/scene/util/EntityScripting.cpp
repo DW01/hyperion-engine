@@ -32,6 +32,8 @@
 
 #include <engine/Game.hpp>
 
+#include <editor/EditorTask.hpp>
+
 #ifdef HYP_SCRIPT
 #include <Lang/HypScript.hpp>
 #endif
@@ -372,6 +374,7 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
 
                 if (!instance)
                 {
+
                     // Load source file and compile it
                     Handle<AssetRegistry> registry = scriptAsset->GetAssetRegistry();
                     AssertDebug(registry.IsValid());
@@ -389,6 +392,12 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
                         HYP_LOG(Script, Error, "ScriptSystem::OnEntityAdded: Script file '{}' does not exist or cannot be read!", scriptDesc.path.Data());
                         return;
                     }
+
+                    EditorTaskScope editorTaskScope(
+                        TickableEditorTask::StaticClass(),
+                        "Compiling script",
+                        "Processing source file: " + sourcePath,
+                        /* isForegroundTask */ true);
 
                     FileByteReader readStream { sourcePath };
 

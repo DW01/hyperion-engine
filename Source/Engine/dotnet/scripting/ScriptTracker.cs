@@ -141,8 +141,6 @@ namespace Hyperion
                         ScriptPtr = entry.Value.Address
                     });
 
-                    scriptsToRemove.Add(entry.Key);
-
                     continue;
                 }
 
@@ -182,6 +180,8 @@ namespace Hyperion
                 {
                     entry.Value.Get().CompileStatus = ScriptCompileStatus.Errored;
                 }
+
+                scriptsToRemove.Add(entry.Key);
             }
 
             foreach (string scriptPath in scriptsToRemove)
@@ -191,6 +191,10 @@ namespace Hyperion
                 if (tasks.Remove(scriptPath, out CompileScriptEditorTask? task))
                 {
                     task.SetIsCompleted(true);
+                }
+                else
+                {
+                    Logger.Log(LogLevel.Warning, "Editor task not found for script {}", scriptPath);
                 }
             }
         }
@@ -237,15 +241,19 @@ namespace Hyperion
                 ScriptPtr = scriptInstance.Address
             });
 
-            // Start editor task for script compilation
-            StartCompilationTask(filePath, language);
+            if (language == ScriptLanguage.CSharp)
+            {
+                // Start editor task for script compilation
+                // We only do this for C# since HypScript is compiled from C++ so we manage the editor task from there.
+                StartCompilationTask(filePath, language);
+            }
         }
 
         private void StartCompilationTask(string filePath, ScriptLanguage language)
         {
             try
             {
-                // Create and commit a compilation task
+                // Create and commit a compilation StartCompilationTask
                 CompileScriptEditorTask task = new(filePath);
                 task.SetIsForegroundTask(true);
                 

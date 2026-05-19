@@ -9,6 +9,8 @@ namespace Hyperion
         private string ScriptPath { get; set; }
         private bool _isCompleted = false;
 
+        public Action? OnCancelAction { get; set; }
+
         public CompileScriptEditorTask(string scriptPath)
         {
             ScriptPath = scriptPath;
@@ -31,7 +33,10 @@ namespace Hyperion
 
         public override void Cancel()
         {
-            InvokeNativeMethod(new Name("Cancel", weak: true));
+            if (OnCancelAction != null)
+            {
+                OnCancelAction();
+            }
         }
 
         public override bool IsCompleted()

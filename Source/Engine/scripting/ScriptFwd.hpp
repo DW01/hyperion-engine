@@ -15,7 +15,7 @@ struct ObjectReference;
 } // namespace dotnet
 
 enum class ObjectFlags : uint32;
-enum class ScriptLanguage : uint32;
+enum class ScriptLanguage : uint8;
 
 struct ScriptObjectData_DotNet;
 struct ScriptObjectData_HypScript;
@@ -25,7 +25,7 @@ struct ScriptInstance;
 #endif
 
 HYP_ENUM()
-enum class ScriptCompileStatus : uint32
+enum class ScriptCompileStatus : uint8
 {
     Uninitialized = 0x0,
     Compiled = 0x1,
@@ -34,12 +34,12 @@ enum class ScriptCompileStatus : uint32
     Errored = 0x8
 };
 
-HYP_MAKE_ENUM_FLAGS(ScriptCompileStatus)
+HYP_MAKE_ENUM_FLAGS(ScriptCompileStatus);
 
 HYP_ENUM()
-enum class ScriptLanguage : uint32
+enum class ScriptLanguage : uint8
 {
-    Invalid = ~0u,
+    Invalid = UINT8_MAX,
 
     Native = 0,
 
