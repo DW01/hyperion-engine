@@ -33,6 +33,8 @@
 #include <asset/AssetObject.hpp>
 #include <asset/AssetRegistry.hpp>
 
+#include <Core/serialization/SerializationUtils.hpp>
+
 #include <Entity.generated.inl>
 
 namespace Hyperion {
@@ -130,6 +132,11 @@ Handle<Node> Entity::Clone() const
         Array<BoxedValue, DynamicAllocator> serializedComponents = SerializeComponents();
 
         cloned->DeserializeComponents(serializedComponents);
+
+        // Copy serializable entity tags (skip runtime-only tags like FocusedInEditor)
+        Array<EntityTag> serializedTags = SerializeTags();
+
+        cloned->DeserializeTags(serializedTags);
     }
 
     return cloned;
@@ -645,10 +652,14 @@ Array<BoxedValue, DynamicAllocator> Entity::SerializeComponents() const
                 continue;
             }
 
-            // @FIXME we need to ensure Transient fields/properties are unset,
-            // otherwise cloning an entity could have unintended consequences by copying transient state that is not intended to be copied
+            // Create a copy of the component with transient fields stripped,
+            // so cloning doesn't copy unintended runtime state
+            BoxedValue componentData;
+            CloneWithoutTransientMembers(
+                BoxedValue(entityManager->TryGetComponent(componentTypeId, this)),
+                componentData);
 
-            resultArray.PushBack(BoxedValue(entityManager->TryGetComponent(componentTypeId, this)));
+            resultArray.PushBack(std::move(componentData));
             serializedComponents.Insert(componentTypeId);
         }
     };

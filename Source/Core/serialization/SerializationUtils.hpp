@@ -117,4 +117,16 @@ void WalkBoxedValue(
     const BoxedValue& target,
     const ProcRef<void(const BoxedValue& current)>& func);
 
+/*! \brief Resets all members marked with the Transient attribute to their default values.
+ *  Used when cloning objects to prevent transient runtime state from being copied.
+ *  \param value The BoxedValue to strip transient members from (modified in place). */
+void StripTransientMembers(BoxedValue& value);
+
+/*! \brief Creates a clone of the source BoxedValue with all transient members reset to defaults.
+ *  Creates a new default instance of the same type, then copies only non-transient members.
+ *  \param src The source BoxedValue to clone.
+ *  \param outDst The output BoxedValue (will be overwritten with the cleaned clone).
+ *  \return True if the clone was successful. */
+bool CloneWithoutTransientMembers(const BoxedValue& src, BoxedValue& outDst);
+
 } // namespace Hyperion

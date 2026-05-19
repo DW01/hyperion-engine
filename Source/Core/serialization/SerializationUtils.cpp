@@ -16,6 +16,7 @@
 #include <Core/reflection/BoxedValue.hpp>
 
 #include <Core/containers/Array.hpp>
+#include <Core/containers/FlatSet.hpp>
 #include <Core/containers/LinkedList.hpp>
 
 #include <Core/utilities/Format.hpp>
@@ -2179,6 +2180,122 @@ void WalkBoxedValue(
 
         return func(BoxedValue(activeValue));
     }
+}
+
+void StripTransientMembers(BoxedValue& value)
+{
+    if (!value.IsValid())
+    {
+        return;
+    }
+
+    const TypeInfo& typeInfo = *value.GetTypeInfo();
+    const Class* cls = typeInfo.GetClass();
+
+    if (!cls)
+    {
+        return;
+    }
+
+    // Build a set of transient member names so we know which to skip
+    FlatSet<Name> transientMembers;
+
+    for (const IMember& member : cls->GetMembers(MemberType::Field | MemberType::Property, /* deep */ false))
+    {
+        const ClassAttributeValue& transientAttr = member.GetAttribute(Attributes::g_attrTransient);
+
+        if (transientAttr.IsValid() && transientAttr.GetBool())
+        {
+            transientMembers.Insert(member.GetName());
+        }
+    }
+
+    if (transientMembers.Empty())
+    {
+        return;
+    }
+
+    // Create a default instance of the same class
+    BoxedValue defaultValue;
+
+    if (!cls->CreateInstance(defaultValue))
+    {
+        return;
+    }
+
+    // Copy default values for transient members from the default instance to the target
+    for (const IMember& member : cls->GetMembers(MemberType::Field | MemberType::Property, /* deep */ false))
+    {
+        if (!transientMembers.Contains(member.GetName()))
+        {
+            continue;
+        }
+
+        BoxedValue memberDefaultValue;
+
+        switch (member.GetMemberType())
+        {
+        case MemberType::Field:
+            memberDefaultValue = static_cast<const Field&>(member).Get(defaultValue);
+            static_cast<const Field&>(member).Set(value, memberDefaultValue);
+            break;
+        case MemberType::Property:
+            memberDefaultValue = static_cast<const Property&>(member).Get(defaultValue);
+            static_cast<const Property&>(member).Set(value, memberDefaultValue);
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+bool CloneWithoutTransientMembers(const BoxedValue& src, BoxedValue& outDst)
+{
+    if (!src.IsValid())
+    {
+        return false;
+    }
+
+    const TypeInfo& typeInfo = *src.GetTypeInfo();
+    const Class* cls = typeInfo.GetClass();
+
+    if (!cls)
+    {
+        outDst = src;
+        return true;
+    }
+
+    if (!cls->CreateInstance(outDst))
+    {
+        return false;
+    }
+
+    for (const IMember& member : cls->GetMembers(MemberType::Field | MemberType::Property, /* deep */ false))
+    {
+        const ClassAttributeValue& transientAttr = member.GetAttribute(Attributes::g_attrTransient);
+        if (transientAttr.IsValid() && transientAttr.GetBool())
+        {
+            continue;
+        }
+
+        BoxedValue srcValue;
+
+        switch (member.GetMemberType())
+        {
+        case MemberType::Field:
+            srcValue = static_cast<const Field&>(member).Get(src);
+            static_cast<const Field&>(member).Set(outDst, srcValue);
+            break;
+        case MemberType::Property:
+            srcValue = static_cast<const Property&>(member).Get(src);
+            static_cast<const Property&>(member).Set(outDst, srcValue);
+            break;
+        default:
+            break;
+        }
+    }
+
+    return true;
 }
 
 } // namespace Hyperion
