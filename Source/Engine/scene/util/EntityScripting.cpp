@@ -48,6 +48,8 @@ extern FilePath GetExecutablePath();
 
 extern const FilePath& GetDataDirectory();
 
+HYP_DISABLE_OPTIMIZATION;
+
 template <class ReturnType, class... ArgTypes>
 static void InvokeScriptMethodT(ReturnType* outReturnValue, ScriptObjectResource* sor, const char* methodName, ArgTypes&&... args)
 {

@@ -2,6 +2,7 @@
 #include <Lang/compiler/ast/AstVariableDeclaration.hpp>
 #include <Lang/compiler/ast/AstClass.hpp>
 #include <Lang/compiler/AstVisitor.hpp>
+#include <Lang/compiler/Compiler.hpp>
 #include <Lang/compiler/Keywords.hpp>
 
 #include <Lang/compiler/type-system/BuiltinTypes.hpp>
@@ -136,6 +137,8 @@ UniquePtr<Buildable> AstModuleDeclaration::Build(AstVisitor* visitor, Module* mo
         if (child != nullptr)
         {
             chunk->Append(child->Build(visitor, m_module));
+
+            Compiler::MaybeAutoExport(visitor, child.Get(), chunk);
         }
     }
 

@@ -19,6 +19,7 @@ namespace ScriptConfig {
 
 static constexpr bool CullUnusedObjects = false;
 static constexpr const char* GlobalModuleName = "global";
+static constexpr bool BakeBytecodeComments = false;
 
 } // namespace ScriptConfig
 } // namespace Hyperion

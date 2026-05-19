@@ -1,4 +1,5 @@
 #include <Lang/compiler/emit/codegen/CodeGenerator.hpp>
+#include <Lang/compiler/Configuration.hpp>
 
 #include <Core/HashCode.hpp>
 #include <Core/reflection/Field.hpp>
@@ -35,6 +36,11 @@ void CodeGenerator::Visit(BytecodeChunk* chunk)
 
     for (auto& buildable : chunk->buildables)
     {
+        if (!ScriptConfig::BakeBytecodeComments && dynamic_cast<Comment*>(buildable.Get()) != nullptr)
+        {
+            continue;
+        }
+
         codeGenerator.BuildableVisitor::Visit(buildable.Get());
     }
 

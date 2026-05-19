@@ -430,6 +430,25 @@ void BuiltinTypes::Initialize(CompilationUnit* globalCompilationUnit)
 {
     Assert(globalCompilationUnit != nullptr);
 
+#pragma region Varargs
+    SymbolType* varargsTypeNonConst = const_cast<SymbolType*>(BuiltinTypes::s_varArgsType);
+
+    // VarArgs has Size() type because it is really an array
+    varargsTypeNonConst->GetMembers().PushBack(SymbolTypeMember {
+        "Size",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_uint64Type },
+                    { "self", SymbolType::Placeholder("SelfType") }
+                }
+            })
+        });
+
+#pragma endregion Varargs
+
 #pragma region String
     // HAX - we need to cast away const-ness here because we want to add members to the string type
     SymbolType* stringTypeNonConst = const_cast<SymbolType*>(BuiltinTypes::s_stringType);
@@ -505,7 +524,7 @@ void BuiltinTypes::Initialize(CompilationUnit* globalCompilationUnit)
                 }
             })
         });
-    
+
     nameTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
         "FromString",
         SymbolType::GenericInstance(

@@ -289,10 +289,15 @@ void HypScript::WriteBytecodeToStream(ScriptInstance* instance, ByteWriter& stre
     stream.Write(reinterpret_cast<const char*>(buffer), count);
 
     delete[] buffer;
+
+    // rewind stream back to where it was
+    instance->stream.Seek(currPosition);
 }
 
 void HypScript::Run(ScriptInstance* instance)
 {
+    AssertDebug(instance != nullptr);
+
     if (!instance)
     {
         return;

@@ -128,7 +128,7 @@ Handle<Node> Entity::Clone() const
     if (entityManager != nullptr && m_scene != nullptr)
     {
         Array<BoxedValue, DynamicAllocator> serializedComponents = SerializeComponents();
- 
+
         cloned->DeserializeComponents(serializedComponents);
     }
 
@@ -644,6 +644,9 @@ Array<BoxedValue, DynamicAllocator> Entity::SerializeComponents() const
                 // tags are serialized separately via the "Tags" property
                 continue;
             }
+
+            // @FIXME we need to ensure Transient fields/properties are unset,
+            // otherwise cloning an entity could have unintended consequences by copying transient state that is not intended to be copied
 
             resultArray.PushBack(BoxedValue(entityManager->TryGetComponent(componentTypeId, this)));
             serializedComponents.Insert(componentTypeId);

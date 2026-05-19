@@ -5,6 +5,7 @@
 #include <Lang/compiler/Configuration.hpp>
 
 #include <Lang/compiler/emit/BytecodeUtil.hpp>
+#include <Lang/compiler/emit/Instruction.hpp>
 #include <Lang/compiler/emit/StorageOperation.hpp>
 
 #include <Lang/Instructions.hpp>
@@ -14,6 +15,39 @@
 #include <limits>
 
 namespace Hyperion {
+
+void Compiler::MaybeAutoExport(
+    AstVisitor* visitor,
+    AstStatement* stmt,
+    UniquePtr<BytecodeChunk>& chunk)
+{
+    AstDeclaration* declaration = dynamic_cast<AstDeclaration*>(stmt);
+
+    if (!declaration)
+    {
+        return;
+    }
+
+    if (dynamic_cast<AstModuleDeclaration*>(declaration) != nullptr)
+    {
+        return;
+    }
+
+    const String& name = declaration->GetName();
+
+    if (name.Empty())
+    {
+        return;
+    }
+
+    if (name[0] < 'A' || name[0] > 'Z')
+    {
+        return;
+    }
+
+    uint8 rp = visitor->GetCompilationUnit()->GetInstructionStream().GetCurrentRegister();
+    chunk->Append(BytecodeUtil::Make<SymbolExport>(rp, name));
+}
 
 UniquePtr<Buildable> Compiler::BuildArgumentsStart(
     AstVisitor* visitor,

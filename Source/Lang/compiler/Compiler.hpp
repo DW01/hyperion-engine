@@ -94,6 +94,11 @@ public:
     Compiler(const Compiler& other);
 
     UniquePtr<BytecodeChunk> Compile();
+
+    static void MaybeAutoExport(
+        AstVisitor* visitor,
+        AstStatement* stmt,
+        UniquePtr<BytecodeChunk>& chunk);
 };
 
 } // namespace Hyperion
