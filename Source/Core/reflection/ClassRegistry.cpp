@@ -249,14 +249,19 @@ const Class* ClassRegistry::GetEnum(StringHash typeName) const
     return cls;
 }
 
-void ClassRegistry::RegisterClass(TypeId typeId, Class* cls)
+void ClassRegistry::Register(TypeId typeId, Class* cls, bool* outWasRegistered)
 {
     if (typeId == TypeId::Void() || !cls)
     {
+        if (outWasRegistered)
+        {
+            *outWasRegistered = false;
+        }
+
         return;
     }
 
-    HYP_CORE_ASSERT(typeId.IsDynamicType() == cls->IsDynamic());
+    Assert(typeId.IsDynamicType() == cls->IsDynamic());
 
     m_mutex.Lock();
 
@@ -273,10 +278,26 @@ void ClassRegistry::RegisterClass(TypeId typeId, Class* cls)
     {
         if (m_dynamicClasses.Contains(typeId))
         {
+            HYP_LOG(Object, Warning, "Attempted to register dynamic class with name {} but one already exists with that TypeId ({})!",
+                cls->GetName(), typeId.Value());
+
+            if (outWasRegistered)
+            {
+                *outWasRegistered = false;
+            }
+
+
             return;
         }
 
+        HYP_LOG(Object, Verbose, "Registered dynamic class {}", cls->GetName());
+
         m_dynamicClasses.Set(typeId, cls);
+
+        if (outWasRegistered)
+        {
+            *outWasRegistered = true;
+        }
 
         return;
     }
@@ -284,10 +305,20 @@ void ClassRegistry::RegisterClass(TypeId typeId, Class* cls)
     const auto it = m_classesByTypeId.Find(typeId);
     if (it != m_classesByTypeId.End())
     {
+        if (outWasRegistered)
+        {
+            *outWasRegistered = false;
+        }
+
         return;
     }
 
     m_classesByTypeId[typeId] = cls;
+
+    if (outWasRegistered)
+    {
+        *outWasRegistered = true;
+    }
 
     if (cls->GetStaticIndex() >= 0)
     {
@@ -313,7 +344,7 @@ void ClassRegistry::RegisterClass(TypeId typeId, Class* cls)
 #endif
 }
 
-bool ClassRegistry::UnregisterClass(const Class* cls)
+bool ClassRegistry::Unregister(const Class* cls)
 {
     HYP_CORE_ASSERT(cls->IsDynamic(), "Cannot unregister class - must be a dynamic Class to unregister");
 

@@ -462,19 +462,21 @@ void AstFunctionExpression::Visit(AstVisitor* visitor, Module* mod)
             visitor->GetCompilationUnit()->GetAnonClassName(),
             nullptr,
             {},
-            { RC<AstVariableDeclaration>(new AstVariableDeclaration(
-                "$invoke",
-                RC<AstTypeSpecifier>(new AstTypeSpecifier(
-                    RC<AstTypeRef>(new AstTypeRef(functionType, m_location)),
-                    m_location)),
-                RC<AstFunctionExpression>(new AstFunctionExpression(
-                    closureParams,
-                    CloneAstNode(m_returnTypeSpecification),
-                    CloneAstNode(m_block),
-                    false, // do not enable closure
-                    m_location)),
-                IdentifierFlags::PLACEHOLDER,
-                m_location)) },
+            {
+                RC<AstVariableDeclaration>(new AstVariableDeclaration(
+                    "$invoke",
+                    RC<AstTypeSpecifier>(new AstTypeSpecifier(
+                        RC<AstTypeRef>(new AstTypeRef(functionType, m_location)),
+                        m_location)),
+                    RC<AstFunctionExpression>(new AstFunctionExpression(
+                        closureParams,
+                        CloneAstNode(m_returnTypeSpecification),
+                        CloneAstNode(m_block),
+                        false, // do not enable closure
+                        m_location)),
+                    IdentifierFlags::PLACEHOLDER,
+                    m_location))
+            },
             {},
             CLASS_FLAG_ANONYMOUS,
             m_location));

@@ -34,21 +34,16 @@ void AstTypeOfExpression::Visit(AstVisitor* visitor, Module* mod)
 
     m_heldType = BuiltinTypes::s_errorType;
 
-    const AstExpression* valueOf = m_expr->GetDeepValueOf();
-    Assert(valueOf != nullptr);
-
 #if HYP_SCRIPT_TYPEOF_RETURN_OBJECT
-    if (const SymbolType* exprType = valueOf->GetExprType())
+    const SymbolType* exprType = m_expr->GetExprType();
+
+    if (exprType != nullptr)
     {
         m_heldType = exprType->GetUnaliased();
+        Assert(m_heldType != nullptr);
     }
 
-    Assert(m_heldType != nullptr);
-
-    m_typeRef.Reset(new AstTypeRef(
-        m_heldType,
-        m_location));
-
+    m_typeRef.Reset(new AstTypeRef(m_heldType, m_location));
     m_typeRef->Visit(visitor, mod);
 #else
     m_symbolType = BuiltinTypes::s_stringType;

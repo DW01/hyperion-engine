@@ -192,7 +192,7 @@ extern "C"
             dynamicClassNonConst->SetManagedClass(classObject);
 
             /// \todo Implement unregistering of dynamic hyp classes
-            ClassRegistry::GetInstance().RegisterClass(typeId, dynamicClassNonConst);
+            ClassRegistry::GetInstance().Register(typeId, dynamicClassNonConst);
         }
 
         ManagedClassDesc& desc = *outDesc;

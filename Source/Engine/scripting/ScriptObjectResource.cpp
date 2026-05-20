@@ -104,7 +104,7 @@ ScriptObjectResource::ScriptObjectResource(ObjectBase* ptr, const RC<dotnet::Man
 
 #ifdef HYP_SCRIPT
 
-ScriptObjectResource::ScriptObjectResource(ScriptInstance* hypScriptInstance, BoxedValue&& hypScriptValue)
+ScriptObjectResource::ScriptObjectResource(ScriptInstance* hypScriptInstance, ObjectBase* hypScriptValue)
     : m_ptr(nullptr)
 {
     if (!hypScriptData)
@@ -114,7 +114,7 @@ ScriptObjectResource::ScriptObjectResource(ScriptInstance* hypScriptInstance, Bo
 
     ScriptObjectData_HypScript& data = *hypScriptData;
     data.instance = hypScriptInstance;
-    data.obj = std::move(hypScriptValue);
+    data.obj = hypScriptValue;
 }
 
 #endif
@@ -126,11 +126,11 @@ ScriptObjectResource::~ScriptObjectResource()
     {
         if (hypScriptData->instance)
         {
-            HypScript::GetInstance().DestroyScript(hypScriptData->instance);
+            HypScript::DestroyScript(hypScriptData->instance);
             hypScriptData->instance = nullptr;
         }
 
-        hypScriptData->obj = BoxedValue();
+        hypScriptData->obj = nullptr;
 
         hypScriptData.Unset();
     }

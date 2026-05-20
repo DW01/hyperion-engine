@@ -3370,8 +3370,6 @@ bool ShaderCompiler::CompileBundle(
             HYP_LOG(ShaderCompiler, Error, "\t{}", errorMessage);
         }
 
-        //HYP_BREAKPOINT;
-
         return false;
     }
 

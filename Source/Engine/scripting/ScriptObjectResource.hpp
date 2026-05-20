@@ -53,7 +53,7 @@ struct ScriptObjectData_HypScript final
     static constexpr ScriptLanguage Language = ScriptLanguage::HypScript;
 
     ScriptInstance* instance = nullptr;
-    BoxedValue obj;
+    ObjectBase* obj = nullptr;
 };
 #endif
 
@@ -79,7 +79,7 @@ public:
 #endif
 
 #ifdef HYP_SCRIPT
-    ScriptObjectResource(ScriptInstance* hypScriptInstance, BoxedValue&& hypScriptValue);
+    ScriptObjectResource(ScriptInstance* hypScriptInstance, ObjectBase* hypScriptValue);
 #endif
 
     ScriptObjectResource(const ScriptObjectResource& other) = delete;

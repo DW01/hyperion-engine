@@ -10,12 +10,13 @@ namespace Hyperion {
 
 class Entity;
 struct ScriptComponent;
+struct GameState;
 
-class EntityScripting
+namespace EntityScripting
 {
-public:
-    static void InitEntityScriptComponent(Entity* entity, ScriptComponent& scriptComponent);
-    static void DeinitEntityScriptComponent(Entity* entity, ScriptComponent& scriptComponent);
-};
+void InitializeEntityScript(Entity* entity, ScriptComponent& scriptComponent, const GameState& gameState);
+void ShutdownEntityScript(Entity* entity, ScriptComponent& scriptComponent, const GameState& gameState);
+
+} // namespace EntityScripting
 
 } // namespace Hyperion

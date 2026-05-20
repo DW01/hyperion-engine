@@ -210,16 +210,9 @@ UniquePtr<Buildable> AstVariable::Build(AstVisitor* visitor, Module* mod)
         Assert(heldType != nullptr);
 
         chunk->Append(BytecodeUtil::Make<Comment>("Accessing type reference: " + m_name));
+
         m_typeRef->SetAccessMode(m_accessMode);
-
-        // SHouldn't build anything currently but add anyway for future proof and consistency
         chunk->Append(m_typeRef->Build(visitor, mod));
-
-        // Add LOAD_CLASS op to load the ClassRef object into register.
-        const uint8 rp = visitor->GetCompilationUnit()->GetInstructionStream().GetCurrentRegister();
-
-        const String& className = BuiltinTypes::GetNativeClassNameForType(heldType);
-        chunk->Append(BytecodeUtil::Make<LoadClass>(rp, StringHash(className)));
 
         return chunk;
     }

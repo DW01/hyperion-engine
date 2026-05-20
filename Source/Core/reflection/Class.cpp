@@ -1703,17 +1703,14 @@ bool DynamicClassInstance::CreateInstance_Internal(BoxedValue& out) const
 
     if (!scriptObjectResource)
     {
-        scriptObjectResource = new ScriptObjectResource((ScriptInstance*)nullptr, std::move(obj));
+        scriptObjectResource = new ScriptObjectResource((ScriptInstance*)nullptr, target);
         Assert(scriptObjectResource != nullptr);
 
         target->SetScriptObjectResource(scriptObjectResource);
     }
     else
     {
-        scriptObjectResource->SetScriptObjectData_HypScript(ScriptObjectData_HypScript {
-            .instance = nullptr,
-            .obj = std::move(obj)
-        });
+        scriptObjectResource->SetScriptObjectData_HypScript(ScriptObjectData_HypScript { nullptr, target });
     }
     // }
 
@@ -1793,7 +1790,7 @@ void DynamicClassInstance::Release()
 {
     if (AtomicDecrement(&m_refCount) <= 0)
     {
-        if (!ClassRegistry::GetInstance().UnregisterClass(this))
+        if (!ClassRegistry::GetInstance().Unregister(this))
         {
             HYP_LOG(Object, Warning, "Failed to unregister dynamic Class \"{}\"", GetName());
         }

@@ -6,6 +6,8 @@
 
 namespace Hyperion {
 
+class AstTypeRef;
+
 class AstAsExpression : public AstExpression
 {
 public:
@@ -44,6 +46,7 @@ protected:
     RC<AstTypeSpecifier> m_typeSpecification;
 
     // set while analyzing
+    RC<AstTypeRef> m_typeRef;
     const SymbolType* m_resultType;
     Tribool m_isType;
 

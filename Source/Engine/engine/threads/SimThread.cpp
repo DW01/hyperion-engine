@@ -217,7 +217,8 @@ void SimThread::Update()
 void SimThread::operator()()
 {
 #if HYP_SCRIPT
-    HypScript::GetInstance().Initialize();
+    HypScript::Initialize();
+    AddOnExitCallback(&HypScript::Shutdown);
 #endif
 
     // Handle -SimulateOnMainThread

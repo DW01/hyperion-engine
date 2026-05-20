@@ -789,11 +789,29 @@ void BuiltinTypes::RegisterTypes(CompilationUnit* compilationUnit)
 
     // Create new types per-compilation unit:
 
+    SymbolType* sbyteType = SymbolType::Alias("sbyte", { BuiltinTypes::s_int8Type });
+    sbyteType->Register(compilationUnit);
+
+    SymbolType* byteType = SymbolType::Alias("byte", { BuiltinTypes::s_uint8Type });
+    byteType->Register(compilationUnit);
+
+    SymbolType* shortType = SymbolType::Alias("short", { BuiltinTypes::s_int16Type });
+    shortType->Register(compilationUnit);
+
+    SymbolType* ushortType = SymbolType::Alias("ushort", { BuiltinTypes::s_uint16Type });
+    ushortType->Register(compilationUnit);
+
     SymbolType* intType = SymbolType::Alias("int", { BuiltinTypes::s_int32Type });
     intType->Register(compilationUnit);
 
     SymbolType* uintType = SymbolType::Alias("uint", { BuiltinTypes::s_uint32Type });
     uintType->Register(compilationUnit);
+
+    SymbolType* longType = SymbolType::Alias("long", { BuiltinTypes::s_int64Type });
+    longType->Register(compilationUnit);
+
+    SymbolType* ulongType = SymbolType::Alias("ulong", { BuiltinTypes::s_uint64Type });
+    ulongType->Register(compilationUnit);
 
     SymbolType* uintptrType = SymbolType::Alias("UIntPtr", { sizeof(void*) == 4 ? BuiltinTypes::s_uint32Type : BuiltinTypes::s_uint64Type });
     uintptrType->Register(compilationUnit);
@@ -924,8 +942,14 @@ void BuiltinTypes::RegisterTypes(CompilationUnit* compilationUnit)
         BuiltinTypes::s_arrayType,
         BuiltinTypes::s_mapType,
         BuiltinTypes::s_classType,
+        sbyteType,
+        byteType,
+        shortType,
+        ushortType,
         intType,
         uintType,
+        longType,
+        ulongType,
         uintptrType,
         intptrType,
         vec2iType,

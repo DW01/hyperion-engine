@@ -13,4 +13,15 @@
 
 namespace Hyperion {
 
+BoxedValue::~BoxedValue()
+{
+#ifdef HYP_SCRIPT
+    AssertDebug(extData.gcIndex == INVALID_GC_INDEX,
+        "BoxedValue being destroyed while still registered with the GC (index = {})",
+        uint32(extData.gcIndex));
+
+    extData.gcIndex = GARBAGE_GC_INDEX;
+#endif
+}
+
 } // namespace Hyperion

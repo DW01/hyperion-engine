@@ -5,7 +5,7 @@
 
 namespace Hyperion {
 
-class AstTypeSpecifier;
+class AstTypeRef;
 
 class AstMember : public AstExpression
 {
@@ -62,7 +62,7 @@ protected:
     const SymbolType* m_targetType;
     const SymbolType* m_heldType;
 
-    RC<AstTypeSpecifier> m_typeSpec;
+    RC<AstTypeRef> m_typeRef;
     uint32 m_foundIndex;
     bool m_isStaticField : 1;
     bool m_isStaticMethod : 1;

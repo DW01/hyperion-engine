@@ -1531,7 +1531,7 @@ RC<AstNil> Parser::ParseNil()
     return nullptr;
 }
 
-RC<AstBlock> Parser::ParseBlock(bool requireBraces, bool skipEnd)
+RC<AstBlock> Parser::ParseBlock(bool requireBraces, bool skipEnd, bool endOnCatch)
 {
     SourceLocation location = CurrentLocation();
 
@@ -1547,7 +1547,7 @@ RC<AstBlock> Parser::ParseBlock(bool requireBraces, bool skipEnd)
 
     RC<AstBlock> block(new AstBlock(location));
 
-    while (requireBraces ? !Match(TK_CLOSE_BRACE, false) : !MatchKeyword(Keyword_end, false))
+    while (requireBraces ? !Match(TK_CLOSE_BRACE, false) : !(endOnCatch ? MatchKeyword(Keyword_catch, false) : MatchKeyword(Keyword_end, false)))
     {
         // skip statement terminator tokens
         if (!Match(TK_SEMICOLON, true) && !Match(TK_NEWLINE, true))
@@ -1801,7 +1801,7 @@ RC<AstTryCatch> Parser::ParseTryCatchStatement()
     {
         bool useBraces = !Match(TK_OPEN_BRACE, false).Empty();
 
-        RC<AstBlock> tryBlock = ParseBlock(/* requireBraces */ useBraces, /* skipEnd */ true);
+        RC<AstBlock> tryBlock = ParseBlock(/* requireBraces */ useBraces, /* skipEnd */ true, /* endOnCatch */ !useBraces);
         RC<AstBlock> catchBlock;
 
         SkipStatementTerminators();
@@ -1814,9 +1814,6 @@ RC<AstTryCatch> Parser::ParseTryCatchStatement()
 
             catchBlock = ParseBlock(useBraces, /* skipEnd */ true);
         }
-        else
-        {
-        }
 
         if (!useBraces)
         {
@@ -1824,6 +1821,8 @@ RC<AstTryCatch> Parser::ParseTryCatchStatement()
                 return nullptr;
             }
         }
+
+        // @TODO finally
 
         if (tryBlock != nullptr && catchBlock != nullptr)
         {
@@ -2866,8 +2865,6 @@ RC<AstClass> Parser::ParseClass(
         staticVariables,
         classFlags,
         location));
-
-    return nullptr;
 }
 
 RC<AstStatement> Parser::ParseEnumDefinition()

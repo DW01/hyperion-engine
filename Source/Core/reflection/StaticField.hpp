@@ -126,12 +126,26 @@ public:
     {
         return m_name.IsValid()
             && m_typeInfo && TypeInfo_GetId(*m_typeInfo) != TypeId::Void()
-            && m_size != 0;
+            && m_size != 0
+            && m_getProc.IsValid();
+    }
+
+    HYP_FORCE_INLINE bool CanGet() const
+    {
+        return m_getProc.IsValid();
     }
 
     HYP_FORCE_INLINE BoxedValue Get() const
     {
         return m_getProc();
+    }
+
+    void SetValue(BoxedValue&& value)
+    {
+        m_getProc = [value = std::move(value)]() -> BoxedValue
+        {
+            return value;
+        };
     }
 
 private:

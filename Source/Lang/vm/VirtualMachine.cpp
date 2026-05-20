@@ -4,6 +4,7 @@
 #include <Lang/vm/Map.hpp>
 #include <Lang/vm/GarbageCollector.hpp>
 #include <Lang/vm/Exception.hpp>
+#include <Lang/vm/ScriptMemory.hpp>
 
 #include <Core/reflection/BoxedValue.hpp>
 #include <Core/reflection/Class.hpp>
@@ -24,6 +25,7 @@
 #include <Core/Types.hpp>
 
 #include <Lang/Instructions.hpp>
+#include <Lang/compiler/dis/DecompilationUnit.hpp>
 
 #include <iostream>
 
@@ -41,20 +43,7 @@
 
 namespace Hyperion {
 
-extern Pool* g_scriptPool;
-using ScriptAllocator = AllocatorInstance<Pool, &g_scriptPool>;
-
 using ScriptArray = Array<BoxedValue, ScriptAllocator>;
-
-static inline void* ScriptAlloc(size_t size, size_t alignment = 1)
-{
-    return g_scriptPool->Allocate(size, alignment);
-}
-
-static inline void ScriptFree(void* ptr)
-{
-    g_scriptPool->Free(ptr);
-}
 
 using RegisterIndex = uint8;
 
@@ -341,7 +330,7 @@ bool StringifyData(const BoxedValue& value, ScriptString& outString, int maxDept
                 if (elementRef.HasValue())
                 {
                     // get the existing reference for ScriptArray instances
-                    if (elementRef.GetTypeId() == TypeId::ForType<BoxedValue>())
+                    if (elementRef.GetTypeId().Value() == BoxedValueTypeId)
                     {
                         outString += ValueToString(elementRef.Get<BoxedValue>(), currDepth + 1);
                     }
@@ -526,6 +515,15 @@ Script_RegisterMemory::Script_RegisterMemory()
 {
 }
 
+Script_RegisterMemory::~Script_RegisterMemory()
+{
+    for (BoxedValue& value : regs)
+    {
+        value.~BoxedValue();
+        value.extData.gcIndex = INVALID_GC_INDEX;
+    }
+}
+
 #pragma endregion Script_RegisterMemory
 
 #pragma region Script_StaticMemory
@@ -535,14 +533,14 @@ const uint16 Script_StaticMemory::staticSize = 2048;
 Script_StaticMemory::Script_StaticMemory()
     : m_data((BoxedValue*)ScriptAlloc(staticSize * sizeof(BoxedValue), alignof(BoxedValue)))
 {
-    Memory::Fill(m_data, 0, staticSize * sizeof(BoxedValue));
+    Memory::Fill(m_data, 0xFFu, staticSize * sizeof(BoxedValue));
 }
 
 Script_StaticMemory::~Script_StaticMemory()
 {
     for (uint32 i = 0; i < staticSize; i++)
     {
-        if (m_data[i].extData.isStaticInit)
+        if (!IsGarbage(m_data[i]) && m_data[i].extData.isStaticInit)
         {
             m_data[i].~BoxedValue();
         }
@@ -556,13 +554,16 @@ Script_StaticMemory::~Script_StaticMemory()
 #pragma region Script_StackMemory
 
 // 64 KiB stack size
-static constexpr size_t stackSize = ((64 * 1024) + (sizeof(BoxedValue) - 1)) / sizeof(BoxedValue);
+static constexpr size_t StackSize = ((64 * 1024) + (sizeof(BoxedValue) - 1)) / sizeof(BoxedValue);
 
 Script_StackMemory::Script_StackMemory()
-    : m_data((BoxedValue*)ScriptAlloc(stackSize * sizeof(BoxedValue), alignof(BoxedValue))),
+    : m_data((BoxedValue*)ScriptAlloc(StackSize * sizeof(BoxedValue), alignof(BoxedValue))),
       m_sp(0)
 {
-    Memory::Fill(m_data, 0, stackSize * sizeof(BoxedValue));
+    AssertDebug(m_data != nullptr);
+
+    // 0xFFu == Garbage value bit pattern
+    Memory::Fill(m_data, 0xFFu, StackSize * sizeof(BoxedValue));
 }
 
 Script_StackMemory::~Script_StackMemory()
@@ -573,12 +574,14 @@ Script_StackMemory::~Script_StackMemory()
 
 void Script_StackMemory::Purge()
 {
-    for (size_t i = m_sp; i > 0; i--)
+    const size_t countBefore = m_sp;
+    while (m_sp != 0)
     {
-        m_data[i - 1].~BoxedValue();
+        BoxedValue& value = m_data[--m_sp];
+        value.~BoxedValue();
     }
 
-    m_sp = 0;
+    Memory::Fill(m_data, 0xFFu, countBefore * sizeof(BoxedValue));
 }
 
 #pragma endregion Script_StackMemory
@@ -742,7 +745,7 @@ public:
 
             // For ScriptArray we want to get the BoxedValue and work off that rather than
             // double boxing it.
-            if (elementRef.GetTypeId() == TypeId::ForType<BoxedValue>())
+            if (elementRef.GetTypeId().Value() == BoxedValueTypeId)
             {
                 BoxedValue& srcValue = elementRef.Get<BoxedValue>();
 
@@ -775,7 +778,7 @@ public:
 
         Assert(
             index < stackMemory.GetStackPointer(),
-            "Stack index out of bounds (%u >= %llu)",
+            "Stack index out of bounds ({} >= {})",
             index,
             stackMemory.GetStackPointer());
 
@@ -816,7 +819,13 @@ public:
         const Class* cls = ClassRegistry::GetInstance().GetClass(name);
         if (!cls)
         {
-            vm->ThrowException(instance, Exception::ClassNotFoundException(name.LookupString()));
+            // @TODO Put it back. This is commented out for now because our CodeGen tool isn't emitting
+            // stuff conditionally for Lib.hyp so it's trying to load Android* stuff on Windows.
+
+            //vm->ThrowException(instance, Exception::ClassNotFoundException(name.LookupString()));
+
+            // TEMP
+            instance->thread.m_regs[reg] = BoxedValue();
 
             return;
         }
@@ -829,13 +838,19 @@ public:
     SCRIPT_INLINE void OpMovOffset(uint16 offset, RegisterIndex reg)
     {
         // copy value from register to stack value at (sp - offset)
-        AssignValue(instance->thread.m_stack[instance->thread.m_stack.GetStackPointer() - offset], ShallowCopy(*Deref(instance->thread.m_regs[reg]), vm->GetGC()), true);
+        AssignValue(
+            instance->thread.m_stack[instance->thread.m_stack.GetStackPointer() - offset],
+            ShallowCopy(*Deref(instance->thread.m_regs[reg]), vm->GetGC()),
+            true);
     }
 
     SCRIPT_INLINE void OpMovIndex(uint16 index, RegisterIndex reg)
     {
         // copy value from register to stack value at index
-        AssignValue(instance->thread.m_stack[index], ShallowCopy(*Deref(instance->thread.m_regs[reg]), vm->GetGC()), true);
+        AssignValue(
+            instance->thread.m_stack[index],
+            ShallowCopy(*Deref(instance->thread.m_regs[reg]), vm->GetGC()),
+            true);
     }
 
     SCRIPT_INLINE void OpMovStatic(uint16 index, RegisterIndex reg)
@@ -1058,12 +1073,14 @@ public:
         if (member->GetMemberType() == MemberType::Field)
         {
             Field* field = static_cast<Field*>(member);
+            AssertDebug(field->IsValid());
 
             instance->thread.m_regs[dstReg] = MakeValue(field->Get(src));
         }
         else if (member->GetMemberType() == MemberType::StaticField)
         {
             StaticField* staticField = static_cast<StaticField*>(member);
+            AssertDebug(staticField->IsValid());
 
             instance->thread.m_regs[dstReg] = MakeValue(staticField->Get());
         }
@@ -1190,10 +1207,20 @@ public:
         // leave function and return to previous position
         instance->stream.Seek((uint32)callInfo.returnAddress);
 
-        // increase stack size by the amount required by the call
-        instance->thread.GetStack().m_sp += callInfo.varargsPush - 1;
-        // NOTE: the -1 is because we will be popping the StackFrame
-        // object from the stack anyway...
+        int numVarArgs = callInfo.varargsPush;
+
+        // pop call info
+        instance->thread.GetStack().Pop();
+
+        if (numVarArgs > 0)
+        {
+            for (int i = 0; i < numVarArgs; i++)
+            {
+                // NOTE: We used to just do `sp += ...`, but since each popped stack elem needs to be destructed upon Pop(),
+                // we push individually constructed objects
+                instance->thread.GetStack().Push(BoxedValue());
+            }
+        }
 
         // decrease function depth
         instance->thread.m_funcDepth--;
@@ -1269,13 +1296,15 @@ public:
 
         // Create a new class with the given name
         Name className = CreateNameFromDynamicString(nameStr);
+
         ScriptFree(nameStr);
+        nameStr = nullptr;
 
         // Read type id
         TypeId::ValueType typeIdValue;
         bs->Read(&typeIdValue);
 
-        uint8 flags;
+        ClassFlags flags;
         bs->Read(&flags);
 
         Array<MemberVariant, ScriptAllocator> members;
@@ -1310,6 +1339,8 @@ public:
                 char* memberNameStr = (char*)ScriptAlloc(memberNameLen + 1);
                 memberNameStr[memberNameLen] = '\0';
                 bs->Read(memberNameStr, memberNameLen);
+
+                HYP_DEFER({ ScriptFree(memberNameStr); });
 
                 // Read attributes
                 uint16 numAttrs;
@@ -1391,15 +1422,28 @@ public:
                 {
                     // static field
 
+                    TypeId::ValueType targetTypeIdValue;
+                    bs->Read(&targetTypeIdValue);
+
                     uint32 size;
                     bs->Read(&size);
 
-                    // Create constant
-                    members.PushBack(MemberVariant(StaticField(
+                    uint16 stackOffset;
+                    bs->Read(&stackOffset);
+
+                    StaticField staticField(
                         CreateNameFromDynamicString(memberNameStr),
-                        &TypeInfo::ForType<BoxedValue>(), // TypeId(memberTypeIdValue),
+                        &TypeOf<BoxedValue>(),
                         size,
-                        attrs.ToSpan())));
+                        attrs.ToSpan());
+
+                    // load initial value from stack
+                    Assert(stackOffset <= instance->thread.GetStack().GetStackPointer());
+                    BoxedValue& initialValue = instance->thread.GetStack()[instance->thread.GetStack().GetStackPointer() - stackOffset];
+
+                    staticField.SetValue(std::move(initialValue));
+
+                    members.PushBack(MemberVariant(std::move(staticField)));
 
                     break;
                 }
@@ -1480,12 +1524,25 @@ public:
                     HYP_NOT_IMPLEMENTED();
                     break;
                 }
-
-                ScriptFree(memberNameStr);
             }
         }
 
         Assert(hitEnd);
+
+        // if *not* ANONYMOUS, check if the class is already registered and use that instead.
+        // @TODO: Write the end stream offset so we can just read the flags and skip the stream that amount,
+        // rather than needing to read everything up to this point.
+        if (!(flags & ClassFlags::ANONYMOUS))
+        {
+            // @FIXME: What if another thread removes it from the registry before we can add the reference?
+            // Currnetly we only use script VM on a single thread, but this should be looked at for the future
+            const Class* classPtr = ClassRegistry::GetInstance().GetClass(TypeId(typeIdValue));
+            if (classPtr != nullptr)
+            {
+                instance->thread.m_regs[reg] = MakeValue(ClassRef(classPtr));
+                return;
+            }
+        }
 
         // Read parent class register
         BoxedValue& parentClassValue = instance->thread.m_regs[reg];
@@ -1499,22 +1556,35 @@ public:
         }
 
         // some type needs to be set
-        Assert((flags & (uint8)(ClassFlags::CLASS_TYPE | ClassFlags::STRUCT_TYPE | ClassFlags::ENUM_TYPE)) != 0);
+        Assert((flags & (ClassFlags::CLASS_TYPE | ClassFlags::STRUCT_TYPE | ClassFlags::ENUM_TYPE)));
 
         DynamicClassInstance* newClass = new DynamicClassInstance(
             TypeId(typeIdValue),
             className,
             parentClass,
             Span<const ClassAttribute>(), // @TODO
-            (ClassFlags)flags,
+            flags,
             members.ToSpan());
 
-        ClassRegistry::GetInstance().RegisterClass(newClass->GetTypeId(), newClass);
+        // Only register if not anonymous
+        if (!(flags & ClassFlags::ANONYMOUS))
+        {
+            bool wasRegistered = false;
+            ClassRegistry::GetInstance().Register(newClass->GetTypeId(), newClass, &wasRegistered);
 
-        BoxedValue classValue = MakeValue(ClassRef(newClass));
+            if (!wasRegistered)
+            {
+                // Throw exception due to class registration failing.
+                vm->ThrowException(instance, Exception("Invalid operation: The class was already registered with the class registry!"));
 
-        // promote the class object to tracked gc memory so it doesn't instantly get destroyed
-        instance->thread.m_regs[reg] = MakeTrackedRef(&classValue, vm->GetGC());
+                // Delete as to not leak the memory.
+                delete newClass;
+
+                return;
+            }
+        }
+
+        instance->thread.m_regs[reg] = MakeValue(ClassRef(newClass));
     }
 
     SCRIPT_INLINE void OpCmp(RegisterIndex lhsReg, RegisterIndex rhsReg)
@@ -2432,6 +2502,29 @@ public:
         instance->thread.m_regs[dst] = ShallowCopy(value, vm->GetGC());
     }
 };
+
+#if HYP_DEBUG_MODE
+static void DiagnoseUnknownInstruction(BytecodeStream* bs, int64 errorPos, ubyte code)
+{
+    constexpr size_t windowBack = 512;
+
+    const size_t savedPos = bs->Position();
+    const size_t startPos = (errorPos > int64(windowBack)) ? (errorPos - windowBack) : 0;
+
+    std::cerr << "=== Bytecode disassembly around unknown instruction 0x"
+              << std::hex << (int)code << std::dec
+              << " at position " << errorPos << std::hex << " (" << errorPos << ")" << " ===" << std::endl;
+
+    bs->Seek(startPos);
+
+    DecompilationUnit decompilationUnit;
+    decompilationUnit.Decompile(*bs, &std::cerr);
+
+    bs->Seek(savedPos);
+
+    std::cerr << "=== End disassembly ===" << std::endl;
+}
+#endif
 
 /// \todo : Make all instructions that have args emit aligned up to 1 word (or at least 32 bits)
 
@@ -3405,6 +3498,9 @@ SCRIPT_INLINE static void HandleInstruction(
     default:
     {
         int64 lastPos = int64(bs->Position()) - sizeof(ubyte);
+#if HYP_DEBUG_MODE
+        DiagnoseUnknownInstruction(bs, lastPos, code);
+#endif
         HYP_FAIL("unknown instruction '{}' referenced at location {}", code, lastPos);
         // seek to end of bytecode stream
         instance->stream.Seek(bs->Size());
@@ -3438,6 +3534,32 @@ VirtualMachine::~VirtualMachine()
         m_unhandledException->~Exception();
         ScriptFree(m_unhandledException);
     }
+}
+
+void VirtualMachine::CollectGarbage(Span<ScriptInstance*> instances)
+{
+    if (m_gc == nullptr)
+    {
+        return;
+    }
+
+    m_gc->ClearMarks();
+
+    for (ScriptInstance* instance : instances)
+    {
+        if (instance == nullptr)
+        {
+            continue;
+        }
+
+        Script_StackMemory& stack = instance->thread.GetStack();
+        m_gc->MarkReachable(Span<BoxedValue>(stack.GetData(), stack.GetStackPointer()));
+
+        Script_RegisterMemory& regs = instance->thread.GetRegisters();
+        m_gc->MarkReachable(Span<BoxedValue>(regs.regs, Script_RegisterMemory::NumRegisters));
+    }
+
+    m_gc->Collect();
 }
 
 void VirtualMachine::ThrowException(ScriptInstance* instance, const Exception& exception)

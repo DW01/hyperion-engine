@@ -78,8 +78,6 @@ static constexpr uint32 LightmapVolumeMaxBoundEnvProbes = 4;
 static const ShaderPropertyId s_propMaxLights = InternShaderProperty(ShaderProperty(NAME("MAX_LIGHTS"), int(LightmapVolumeMaxBoundLights)));
 static const ShaderPropertyId s_propMaxEnvProbes = InternShaderProperty(ShaderProperty(NAME("MAX_ENV_PROBES"), int(LightmapVolumeMaxBoundEnvProbes)));
 
-HYP_DISABLE_OPTIMIZATION;
-
 namespace Baking {
 
 #pragma region LightmapRenderer_GpuPathTracing

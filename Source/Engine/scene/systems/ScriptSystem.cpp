@@ -91,14 +91,14 @@ static void InvokeScriptMethodT(ReturnType* outReturnValue, ScriptObjectResource
         auto* data = sor->GetScriptObjectData_HypScript();
         Assert(data != nullptr);
 
-        HypScript& hs = HypScript::GetInstance();
-
         BoxedValue functionValue;
+        
+        namespace HS = HypScript;
 
-        if (hs.GetFunctionHandle(data->instance, methodName, functionValue)
+        if (HS::GetFunctionHandle(data->instance, methodName, functionValue)
             && IsFunction(functionValue))
         {
-            BoxedValue returnValue = hs.CallFunction(data->instance, functionValue, std::forward<ArgTypes>(args)...);
+            BoxedValue returnValue = HS::CallFunction(data->instance, functionValue, std::forward<ArgTypes>(args)...);
 
             if constexpr (!std::is_void_v<ReturnType>)
             {
@@ -262,6 +262,8 @@ void ScriptSystem::OnAddedToWorld(World* world)
                         return;
                     }
 
+                    const GameState& gameState = world->GetGameState();
+
                     for (Scene* scene : world->GetScenes())
                     {
                         for (auto [entity, scriptComponent] : scene->GetEntityManager()->GetEntitySet<ScriptComponent>().GetScopedView(GetComponentInfos()))
@@ -287,11 +289,11 @@ void ScriptSystem::OnAddedToWorld(World* world)
 
                                 writeScope.Reset();
 
-                                EntityScripting::DeinitEntityScriptComponent(entity, scriptComponent);
+                                EntityScripting::ShutdownEntityScript(entity, scriptComponent, gameState);
 
                                 scriptComponent.assembly.Reset();
 
-                                EntityScripting::InitEntityScriptComponent(entity, scriptComponent);
+                                EntityScripting::InitializeEntityScript(entity, scriptComponent, gameState);
 
                                 scriptComponent.flags &= ~ScriptComponentFlags::RELOADING;
 
@@ -358,7 +360,12 @@ void ScriptSystem::OnEntityAdded(Entity* entity)
 
     ScriptComponent& scriptComponent = entity->GetEntityManager()->GetComponent<ScriptComponent>(entity);
 
-    EntityScripting::InitEntityScriptComponent(entity, scriptComponent);
+    const GameState& gameState = GetWorld()->GetGameState();
+
+    if (!gameState.IsStopped())
+    {
+        EntityScripting::InitializeEntityScript(entity, scriptComponent, gameState);
+    }
 }
 
 void ScriptSystem::OnEntityRemoved(Entity* entity)
@@ -367,7 +374,9 @@ void ScriptSystem::OnEntityRemoved(Entity* entity)
 
     ScriptComponent& scriptComponent = entity->GetEntityManager()->GetComponent<ScriptComponent>(entity);
 
-    EntityScripting::DeinitEntityScriptComponent(entity, scriptComponent);
+    const GameState& gameState = GetWorld()->GetGameState();
+
+    EntityScripting::ShutdownEntityScript(entity, scriptComponent, gameState);
 }
 
 void ScriptSystem::Process(float delta, Span<Handle<Scene>> scenes)
@@ -409,7 +418,7 @@ void ScriptSystem::Process(float delta, Span<Handle<Scene>> scenes)
 
         for (auto [entity, scriptComponent] : scene->GetEntityManager()->GetEntitySet<ScriptComponent>().GetScopedView(GetComponentInfos()))
         {
-            if (!(scriptComponent.flags & ScriptComponentFlags::INITIALIZED))
+            if (!(scriptComponent.flags & ScriptComponentFlags::ACTIVATED))
             {
                 continue;
             }
@@ -419,16 +428,47 @@ void ScriptSystem::Process(float delta, Span<Handle<Scene>> scenes)
     }
 }
 
+template <class T>
+static void QueryScriptedEntities(World* world, T&& function)
+{
+    for (Scene* scene : world->GetScenes())
+    {
+        for (auto [entity, scriptComponent] : scene->GetEntityManager()->GetEntitySet<ScriptComponent>())
+        {
+            function(entity, scriptComponent);
+        }
+    }
+}
+
 void ScriptSystem::HandleGameStateChanged(GameStateMode gameStateMode, GameStateMode previousGameStateMode)
 {
-    if (previousGameStateMode == GameStateMode::SIMULATING)
+    World* world = GetWorld();
+
+    if (!world)
     {
-        CallScriptMethod("OnPlayStop");
+        return;
     }
 
-    if (gameStateMode == GameStateMode::SIMULATING)
+    const GameState& gameState = world->GetGameState();
+
+    if (gameStateMode == GameStateMode::STOPPED)
     {
-        CallScriptMethod("OnPlayStart");
+        QueryScriptedEntities(world, [&gameState](Entity* entity, ScriptComponent& scriptComponent)
+            {
+                EntityScripting::ShutdownEntityScript(entity, scriptComponent, gameState);
+            });
+
+        return;
+    }
+
+    if (previousGameStateMode == GameStateMode::STOPPED)
+    {
+        QueryScriptedEntities(world, [&gameState](Entity* entity, ScriptComponent& scriptComponent)
+            {
+                EntityScripting::InitializeEntityScript(entity, scriptComponent, gameState);
+            });
+
+        return;
     }
 }
 

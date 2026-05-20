@@ -1656,6 +1656,7 @@ void SymbolType::Assign(const SymbolType& other)
     m_constantBitSize = other.m_constantBitSize;
     m_flags = other.m_flags;
     m_declScope = nullptr; // do not copy scope
+    m_classRefDecl = other.m_classRefDecl;
 
     if (IsRegistered())
     {
@@ -1707,6 +1708,7 @@ void SymbolType::Assign(SymbolType&& other)
     m_constantBitSize = other.m_constantBitSize;
     m_flags = other.m_flags;
     m_declScope = nullptr; // do not copy scope
+    m_classRefDecl = std::move(other.m_classRefDecl);
 
     if (IsRegistered())
     {

@@ -77,12 +77,12 @@ DynamicStructInstance::DynamicStructInstance(
     m_alignment = alignof(void*);
 
     /// \todo Register the ManagedClass (dotnet::ManagedClass) for this. We need the assembly.
-    ClassRegistry::GetInstance().RegisterClass(typeId, this);
+    ClassRegistry::GetInstance().Register(typeId, this);
 }
 
 DynamicStructInstance::~DynamicStructInstance()
 {
-    ClassRegistry::GetInstance().UnregisterClass(this);
+    ClassRegistry::GetInstance().Unregister(this);
 }
 
 #ifdef HYP_DOTNET

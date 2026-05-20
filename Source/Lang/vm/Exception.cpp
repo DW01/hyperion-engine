@@ -1,44 +1,57 @@
 #include <Lang/vm/Exception.hpp>
 #include <Lang/vm/Value.hpp>
+#include <Lang/vm/ScriptMemory.hpp>
+
+#include <Core/memory/pool/Pool.hpp>
 
 namespace Hyperion {
 
 template <class FormatStringType, class... Args>
-static inline Exception FormattedException(FormatStringType formatString, Args&&... args)
+Exception Exception::FormattedException(FormatStringType formatString, Args... args)
 {
     char buffer[256];
-    int n = std::snprintf(buffer, HYP_ARRAY_SIZE(buffer), formatString.Data(), std::forward<Args>(args)...);
+    int n = std::snprintf(buffer, HYP_ARRAY_SIZE(buffer), formatString.Data(), args...);
 
     if (n >= HYP_ARRAY_SIZE(buffer))
     {
         // recreate buffer using dynamic allocation
         const size_t size = size_t(n) + 1;
 
-        char* dynamicBuffer = (char*)std::malloc(size);
-        std::snprintf(dynamicBuffer, size, formatString.Data(), std::forward<Args>(args)...);
+        char* dynamicBuffer = (char*)g_scriptPool->Allocate(size);
+        AssertDebug(dynamicBuffer != nullptr);
 
-        Exception exc(dynamicBuffer);
+        std::snprintf(dynamicBuffer, size, formatString.Data(), args...);
 
-        std::free(dynamicBuffer);
-
-        return exc;
+        return { Exception::TakeOwnershipOfStringPointer, dynamicBuffer };
     }
 
     return Exception(buffer);
 }
 
+Exception::Exception(TakeOwnershipOfStringPointerTag, char* str)
+    : m_str(str)
+{
+}
+
 Exception::Exception(const char* str)
 {
     const size_t len = std::strlen(str);
-    m_str = new char[len + 1];
-    std::strcpy(m_str, str);
+
+    m_str = (char*)g_scriptPool->Allocate(len + 1);
+    AssertDebug(m_str != nullptr);
+
+    std::strncpy(m_str, str, len);
+    m_str[len] = '\0';
 }
 
 Exception::Exception(const Exception& other)
 {
     const size_t len = std::strlen(other.m_str);
-    m_str = new char[len + 1];
-    std::strcpy(m_str, other.m_str);
+    m_str = (char*)g_scriptPool->Allocate(len + 1);
+    AssertDebug(m_str != nullptr);
+
+    std::strncpy(m_str, other.m_str, len);
+    m_str[len] = '\0';
 }
 
 Exception::Exception(Exception&& other) noexcept
@@ -51,10 +64,14 @@ Exception& Exception::operator=(const Exception& other)
 {
     if (this != &other)
     {
-        delete[] m_str;
+        g_scriptPool->Free(m_str);
         const size_t len = std::strlen(other.m_str);
-        m_str = new char[len + 1];
-        std::strcpy(m_str, other.m_str);
+
+        m_str = (char*)g_scriptPool->Allocate(len + 1);
+        AssertDebug(m_str != nullptr);
+
+        std::strncpy(m_str, other.m_str, len);
+        m_str[len] = '\0';
     }
 
     return *this;
@@ -64,7 +81,8 @@ Exception& Exception::operator=(Exception&& other) noexcept
 {
     if (this != &other)
     {
-        delete[] m_str;
+        g_scriptPool->Free(m_str);
+
         m_str = other.m_str;
         other.m_str = nullptr;
     }
@@ -74,7 +92,7 @@ Exception& Exception::operator=(Exception&& other) noexcept
 
 Exception::~Exception()
 {
-    delete[] m_str;
+    g_scriptPool->Free(m_str);
 }
 
 Exception Exception::InvalidComparisonException(

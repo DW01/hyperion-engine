@@ -40,6 +40,9 @@
 
 #include <system/MessageBox.hpp>
 
+// temp
+#include <sstream>
+
 namespace Hyperion {
 
 namespace CoreApi {
@@ -48,7 +51,7 @@ extern FilePath GetExecutablePath();
 
 extern const FilePath& GetDataDirectory();
 
-HYP_DISABLE_OPTIMIZATION;
+namespace EntityScripting {
 
 template <class ReturnType, class... ArgTypes>
 static void InvokeScriptMethodT(ReturnType* outReturnValue, ScriptObjectResource* sor, const char* methodName, ArgTypes&&... args)
@@ -91,12 +94,12 @@ static void InvokeScriptMethodT(ReturnType* outReturnValue, ScriptObjectResource
         auto* data = sor->GetScriptObjectData_HypScript();
         Assert(data != nullptr);
 
-        HypScript& hs = HypScript::GetInstance();
+        namespace HS = HypScript;
 
         BoxedValue functionValue;
-        if (hs.GetFunctionHandle(data->instance, methodName, functionValue))
+        if (HS::GetFunctionHandle(data->instance, methodName, functionValue))
         {
-            BoxedValue returnValue = hs.CallFunction(data->instance, functionValue);
+            BoxedValue returnValue = HS::CallFunction(data->instance, functionValue);
 
             if constexpr (!std::is_void_v<ReturnType>)
             {
@@ -139,24 +142,12 @@ static HYP_FORCE_INLINE void InvokeScriptMethod(UTF8StringView methodName, Scrip
     InvokeScriptMethodT<void>(nullptr, target.scriptObjectResource, *methodName);
 }
 
-void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent& scriptComponent)
+void InitializeEntityScript(Entity* entity, ScriptComponent& scriptComponent, const GameState& gameState)
 {
     World* world = entity->GetWorld();
     Scene* scene = entity->GetScene();
 
     ScriptObjectResource*& sor = scriptComponent.scriptObjectResource;
-
-    if (scriptComponent.flags & ScriptComponentFlags::INITIALIZED)
-    {
-        AssertDebug(sor != nullptr);
-
-        if (world != nullptr && world->GetGameState().mode == GameStateMode::SIMULATING)
-        {
-            InvokeScriptMethod("OnPlayStart", scriptComponent);
-        }
-
-        return;
-    }
 
     if (scriptComponent.nativeObject != nullptr) // native script object
     {
@@ -175,19 +166,16 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
         HYP_LOG(Script, Verbose, "Created ScriptObjectResource for ScriptComponent, native class: {}", nativeClass->GetName());
 
         InitObject(scriptComponent.nativeObject);
-
-        if (!(scriptComponent.flags & ScriptComponentFlags::BEFORE_ADDED_CALLED))
+        
+        if (!gameState.IsStopped())
         {
-            InvokeScriptMethodT<void>(nullptr, sor, "BeforeAdded", world, scene);
+            if (!(scriptComponent.flags & ScriptComponentFlags::ACTIVATED))
+            {
+                InvokeScriptMethodT<void>(nullptr, sor, "BeforeAdded", world, scene);
+                InvokeScriptMethodT<void>(nullptr, sor, "OnAdded", entity);
 
-            scriptComponent.flags |= ScriptComponentFlags::BEFORE_ADDED_CALLED;
-        }
-
-        if (!(scriptComponent.flags & ScriptComponentFlags::ON_ADDED_CALLED))
-        {
-            InvokeScriptMethodT<void>(nullptr, sor, "OnAdded", entity);
-
-            scriptComponent.flags |= ScriptComponentFlags::ON_ADDED_CALLED;
+                scriptComponent.flags |= ScriptComponentFlags::ACTIVATED;
+            }
         }
     }
     else // external script object (C# or HypScript)
@@ -270,34 +258,26 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
 
                     sor = new ScriptObjectResource(object, classPtr);
                     sor->AddReader();
+                    
+                    if (!gameState.IsStopped())
+                    {
+                        if (!(scriptComponent.flags & ScriptComponentFlags::ACTIVATED))
+                        {
+                            if (dotnet::ManagedMethod* beforeInitMethodPtr = classPtr->GetMethod("BeforeAdded"))
+                            {
+                                object->InvokeMethod<void>(beforeInitMethodPtr, world, scene);
+                            }
+
+                            if (dotnet::ManagedMethod* initMethodPtr = classPtr->GetMethod("OnAdded"))
+                            {
+                                object->InvokeMethod<void>(initMethodPtr, entity);
+                            }
+
+                            scriptComponent.flags |= ScriptComponentFlags::ACTIVATED;
+                        }
+                    }
 
                     HYP_LOG(Script, Verbose, "Created ScriptObjectResource for ScriptComponent, .NET class: {}", classPtr->GetName());
-
-                    if (!(scriptComponent.flags & ScriptComponentFlags::BEFORE_ADDED_CALLED))
-                    {
-                        if (dotnet::ManagedMethod* beforeInitMethodPtr = classPtr->GetMethod("BeforeAdded"))
-                        {
-                            HYP_NAMED_SCOPE("Call BeforeAdded() on script component");
-                            HYP_LOG(Script, Verbose, "Calling BeforeAdded() on script component");
-
-                            object->InvokeMethod<void>(beforeInitMethodPtr, world, scene);
-
-                            scriptComponent.flags |= ScriptComponentFlags::BEFORE_ADDED_CALLED;
-                        }
-                    }
-
-                    if (!(scriptComponent.flags & ScriptComponentFlags::ON_ADDED_CALLED))
-                    {
-                        if (dotnet::ManagedMethod* initMethodPtr = classPtr->GetMethod("OnAdded"))
-                        {
-                            HYP_NAMED_SCOPE("Call Init() on script component");
-                            HYP_LOG(Script, Info, "Calling Init() on script component");
-
-                            object->InvokeMethod<void>(initMethodPtr, entity);
-
-                            scriptComponent.flags |= ScriptComponentFlags::ON_ADDED_CALLED;
-                        }
-                    }
                 }
 #if HYP_DEBUG_MODE
                 else
@@ -328,7 +308,7 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
 #ifdef HYP_SCRIPT
         case ScriptLanguage::HypScript:
         {
-            HypScript& hs = HypScript::GetInstance();
+            namespace HS = HypScript;
 
             if (!sor || !sor->GetScriptObjectData_HypScript() || !sor->GetScriptObjectData_HypScript()->instance)
             {
@@ -369,7 +349,7 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
 
                     if (!needsRecompile)
                     {
-                        instance = hs.CreateFromBytecode(bytecode);
+                        instance = HS::CreateFromBytecode(bytecode);
                         Assert(instance != nullptr);
                     }
                 }
@@ -419,9 +399,9 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
                     HypScriptCompileParams compileParams;
                     // Add data / scripts path as scan path so we pick up Lib.hyp
                     compileParams.scanPaths.Add(GetDataDirectory() / "Scripts");
-                    
+
                     ErrorList errorList;
-                    instance = hs.Compile(sourceFile, errorList, compileParams);
+                    instance = HS::Compile(sourceFile, errorList, compileParams);
 
                     if (errorList.HasFatalErrors())
                     {
@@ -438,12 +418,19 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
 
                     Assert(instance != nullptr);
 
+                    {
+                        // Debug: decompile the bytecode
+                        std::stringstream ss;
+                        HS::Decompile(instance, &ss);
+                        HYP_LOG(Script, Debug, "Decompiled bytecode:\n\n{}", ss.str().c_str());
+                    }
+
                     // Record the source file timestamp so we can detect future changes
                     scriptDesc.lastModifiedTimestamp = uint64(sourcePath.LastModifiedTimestamp());
 
                     { // Save bytecode.
                         MemoryByteWriter bytecodeStream;
-                        hs.WriteBytecodeToStream(instance, bytecodeStream);
+                        HS::WriteBytecodeToStream(instance, bytecodeStream);
 
                         readScope.Reset();
 
@@ -451,7 +438,7 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
                         auto writeScope = scriptAsset->GetWriteScope();
                         scriptAsset->SetBytecode(bytecodeStream.GetBuffer().ToByteView());
                         writeScope.Reset();
-                        
+
                         // Save script binary again if it exists on the filesystem.
                         if (scriptAsset->IsSaved())
                         {
@@ -468,7 +455,7 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
 #else
                 if (bytecode.Size() > 0)
                 {
-                    instance = hs.CreateFromBytecode(bytecode);
+                    instance = HS::CreateFromBytecode(bytecode);
                     Assert(instance != nullptr);
                 }
                 else
@@ -478,22 +465,22 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
                 }
 #endif
 
-                // run the script to initialize classes, functions, etc.
-                hs.Run(instance);
-
-                sor = new ScriptObjectResource(instance, BoxedValue());
+                sor = new ScriptObjectResource(instance, (ObjectBase*)nullptr);
                 sor->AddReader();
 
-                if (!(scriptComponent.flags & ScriptComponentFlags::BEFORE_ADDED_CALLED))
+                if (!gameState.IsStopped())
                 {
-                    InvokeScriptMethodT<void>(nullptr, sor, "BeforeAdded", world, scene);
-                    scriptComponent.flags |= ScriptComponentFlags::BEFORE_ADDED_CALLED;
-                }
+                    
+                    if (!(scriptComponent.flags & ScriptComponentFlags::ACTIVATED))
+                    {
+                        // run the script to initialize classes, functions, etc.
+                        HS::Run(instance);
 
-                if (!(scriptComponent.flags & ScriptComponentFlags::ON_ADDED_CALLED))
-                {
-                    InvokeScriptMethodT<void>(nullptr, sor, "OnAdded", entity);
-                    scriptComponent.flags |= ScriptComponentFlags::ON_ADDED_CALLED;
+                        InvokeScriptMethodT<void>(nullptr, sor, "BeforeAdded", world, scene);
+                        InvokeScriptMethodT<void>(nullptr, sor, "OnAdded", entity);
+
+                        scriptComponent.flags |= ScriptComponentFlags::ACTIVATED;
+                    }
                 }
 
                 if (!sor || !sor->GetScriptObjectData_HypScript() || !sor->GetScriptObjectData_HypScript()->instance)
@@ -513,20 +500,15 @@ void EntityScripting::InitEntityScriptComponent(Entity* entity, ScriptComponent&
             break;
         }
 #endif
-        default:  return;
+        default:
+            return;
         }
     }
 
     scriptComponent.flags |= ScriptComponentFlags::INITIALIZED;
-
-    // Call OnPlayStart on first init if we're currently simulating
-    if (world != nullptr && world->GetGameState().mode == GameStateMode::SIMULATING)
-    {
-        InvokeScriptMethod("OnPlayStart", scriptComponent);
-    }
 }
 
-void EntityScripting::DeinitEntityScriptComponent(Entity* entity, ScriptComponent& scriptComponent)
+void ShutdownEntityScript(Entity* entity, ScriptComponent& scriptComponent, const GameState& gameState)
 {
     World* world = entity->GetWorld();
 
@@ -535,17 +517,14 @@ void EntityScripting::DeinitEntityScriptComponent(Entity* entity, ScriptComponen
         return;
     }
 
-    // If we're simulating while the script is removed, call OnPlayStop so OnPlayStart never gets double called
-    if (world != nullptr && world->GetGameState().mode == GameStateMode::SIMULATING)
-    {
-        InvokeScriptMethod("OnPlayStop", scriptComponent);
-    }
-
     ScriptObjectResource*& sor = scriptComponent.scriptObjectResource;
 
     if (sor)
     {
-        InvokeScriptMethod("Destroy", scriptComponent);
+        if (scriptComponent.flags & ScriptComponentFlags::ACTIVATED)
+        {
+            InvokeScriptMethod("Destroy", scriptComponent);
+        }
 
         sor->ReleaseReader();
 
@@ -553,7 +532,13 @@ void EntityScripting::DeinitEntityScriptComponent(Entity* entity, ScriptComponen
         sor = nullptr;
     }
 
-    scriptComponent.flags &= ~(ScriptComponentFlags::INITIALIZED | ScriptComponentFlags::BEFORE_ADDED_CALLED | ScriptComponentFlags::ON_ADDED_CALLED);
+#ifdef HYP_SCRIPT
+    HypScript::CollectGarbage();
+#endif
+
+    scriptComponent.flags &= ~(ScriptComponentFlags::INITIALIZED | ScriptComponentFlags::ACTIVATED);
 }
+
+} // namespace EntityScripting
 
 } // namespace Hyperion

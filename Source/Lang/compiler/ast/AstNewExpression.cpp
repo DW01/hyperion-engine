@@ -161,11 +161,8 @@ UniquePtr<Buildable> AstNewExpression::Build(AstVisitor* visitor, Module* mod)
     Assert(m_typeSpec != nullptr);
 
     chunk->Append(m_typeSpec->Build(visitor, mod));
-
-    uint8 rp = visitor->GetCompilationUnit()->GetInstructionStream().GetCurrentRegister();
-
-    // add LoadClass instruction here
-    chunk->Append(BytecodeUtil::Make<LoadClass>(rp, CreateNameFromDynamicString(m_instanceType->GetName())));
+    
+    const uint8 rp = visitor->GetCompilationUnit()->GetInstructionStream().GetCurrentRegister();
 
     auto instrNew = BytecodeUtil::Make<RawOperation<>>();
     instrNew->opcode = NEW;

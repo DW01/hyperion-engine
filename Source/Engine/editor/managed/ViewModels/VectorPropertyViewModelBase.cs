@@ -293,6 +293,7 @@ namespace Hyperion.Editor.ViewModels
                 return Marshal.PtrToStructure<TStruct>(ptr);
             });
 
+            // @FIXME Make async and use task.ConfigureAwait(false) to avoid deadlock
             task.Wait();
 
             return task.Result;

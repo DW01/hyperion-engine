@@ -90,10 +90,10 @@ void AstCallExpression::Visit(AstVisitor* visitor, Module* mod)
     // check if we are calling a type directly (static invoke)
     if (const SymbolType* heldType = m_expr->GetHeldType())
     {
-        SymbolTypeMember staticInvokeMember;
-        uint32 staticInvokeIndex = ~0u;
+        SymbolTypeMember member;
+        uint32 memberIndex = ~0u;
 
-        if (heldType->FindStaticMember("$invoke", staticInvokeMember, staticInvokeIndex))
+        if (heldType->FindStaticMember("$invoke", member, memberIndex))
         {
             // transform into static member call
             m_overrideExpr.Reset(new AstCallExpression(
@@ -101,54 +101,47 @@ void AstCallExpression::Visit(AstVisitor* visitor, Module* mod)
                 CloneAllAstNodes(argsWithSelf),
                 false,
                 m_location));
-
-            m_overrideExpr->Visit(visitor, mod);
-
-            return;
         }
     }
 
     const SymbolType* unaliased = targetType->GetUnaliased();
     Assert(unaliased != nullptr);
 
-    const SymbolType* callMemberType = unaliased->FindMember("$invoke");
-    String callMemberName;
-
-    // check if $invoke is found on the object or its prototype
-    if (callMemberType != nullptr)
+    if (!m_overrideExpr && !unaliased->IsOrHasBase(*BuiltinTypes::s_functionBaseType))
     {
-        callMemberName = "$invoke";
-    }
+        // Check for $invoke instance member (for closure)
+        const SymbolType* callMemberType = unaliased->FindMember("$invoke");
 
-    if (callMemberType != nullptr)
-    {
-        // closure objects have a self parameter for the '$invoke' call.
-        RC<AstArgument> closureSelfArg(new AstArgument(
-            CloneAstNode(m_expr),
-            false,
-            false,
-            false,
-            false,
-            "$functor",
-            m_expr->GetLocation()));
+        if (callMemberType != nullptr)
+        {
+            // closure objects have a self parameter for the '$invoke' call.
+            RC<AstArgument> closureSelfArg(new AstArgument(
+                CloneAstNode(m_expr),
+                false,
+                false,
+                false,
+                false,
+                "$functor",
+                m_expr->GetLocation()));
 
-        // insert at front
-        argsWithSelf.PushFront(std::move(closureSelfArg));
+            // insert at front
+            argsWithSelf.PushFront(std::move(closureSelfArg));
 
-        m_overrideExpr.Reset(new AstCallExpression(
-            RC<AstMember>(new AstMember(callMemberName, CloneAstNode(m_expr), m_location)),
-            CloneAllAstNodes(argsWithSelf),
-            false,
-            m_location));
+            m_overrideExpr.Reset(new AstCallExpression(
+                RC<AstMember>(new AstMember("$invoke", CloneAstNode(m_expr), m_location)),
+                CloneAllAstNodes(argsWithSelf),
+                false,
+                m_location));
 
-        m_overrideExpr->Visit(visitor, mod);
-
-        unaliased = callMemberType->GetUnaliased();
-        Assert(unaliased != nullptr);
+            unaliased = callMemberType->GetUnaliased();
+            Assert(unaliased != nullptr);
+        }
     }
 
     if (m_overrideExpr != nullptr)
     {
+        m_overrideExpr->Visit(visitor, mod);
+
         return;
     }
 

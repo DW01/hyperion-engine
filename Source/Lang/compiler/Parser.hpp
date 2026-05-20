@@ -113,7 +113,7 @@ public:
     RC<AstTrue> ParseTrue();
     RC<AstFalse> ParseFalse();
     RC<AstNil> ParseNil();
-    RC<AstBlock> ParseBlock(bool requireBraces, bool skipEnd = false);
+    RC<AstBlock> ParseBlock(bool requireBraces, bool skipEnd = false, bool endOnCatch = false);
     RC<AstIfStatement> ParseIfStatement();
     RC<AstWhileLoop> ParseWhileLoop();
     RC<AstStatement> ParseForLoop();

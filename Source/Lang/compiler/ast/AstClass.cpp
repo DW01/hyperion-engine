@@ -86,6 +86,14 @@ AstClass::AstClass(
     m_baseType = baseType;
 }
 
+AstClass::~AstClass()
+{
+    if (m_symbolType && m_refDecl && m_symbolType->GetClassRefDecl() == m_refDecl)
+    {
+        m_symbolType->SetClassRefDecl(nullptr);
+    }
+}
+
 void AstClass::Visit(AstVisitor* visitor, Module* mod)
 {
     Assert(visitor != nullptr && mod != nullptr);
@@ -100,6 +108,21 @@ void AstClass::Visit(AstVisitor* visitor, Module* mod)
             m_name));
 
         return;
+    }
+
+    if (!m_refDecl)
+    {
+        // Create local to store the ClassRef
+        m_refDecl.Reset(new AstVariableDeclaration(
+            "$" + m_name + "Ref",
+            RC<AstTypeSpecifier>(new AstTypeSpecifier(
+                RC<AstTypeRef>(new AstTypeRef(BuiltinTypes::s_classType, m_location)),
+                m_location)),
+            nullptr, // no initializer
+            IdentifierFlags::LAX,
+            m_location));
+
+        m_refDecl->Visit(visitor, mod);
     }
 
     // Create scope
@@ -203,6 +226,19 @@ void AstClass::Visit(AstVisitor* visitor, Module* mod)
     }
 
     newType = nullptr;
+
+    m_symbolType->SetClassRefDecl(m_refDecl);
+
+    // We don't apply the base type if it is ObjectBase (Runtime does this automatically)
+    if (m_baseType != nullptr && !m_baseType->TypeEqual(*BuiltinTypes::s_objectType))
+    {
+        if (!m_baseTypeRef)
+        {
+            m_baseTypeRef.Reset(new AstTypeRef(m_baseType, m_location));
+        }
+
+        m_baseTypeRef->Visit(visitor, mod);
+    }
 
     const Array<RC<AstVariableDeclaration>>* allMembers[] = {
         &m_dataMembers,
@@ -423,7 +459,8 @@ void AstClass::Visit(AstVisitor* visitor, Module* mod)
                 m_symbolType->GetMembers().PushBack(SymbolTypeMember {
                     memberName,
                     const_cast<SymbolType*>(memberType),
-                    decl->GetRealAssignment() });
+                    decl->GetRealAssignment()
+                });
             }
 
             for (size_t i = 0; i < m_functionMembers.Size(); i++)
@@ -612,13 +649,45 @@ UniquePtr<Buildable> AstClass::Build(AstVisitor* visitor, Module* mod)
 {
     Assert(m_symbolType != nullptr);
 
-    if (IsProxyClass() || IsExternClass())
-    {
-        // add a comment indicating that this is a proxy or extern class, nothing else to build
-        const String classTypeStr = IsProxyClass() ? " <Proxy>" : (IsExternClass() ? " <Extern>" : "");
+    UniquePtr<BytecodeChunk> chunk = BytecodeUtil::Make<BytecodeChunk>();
 
-        UniquePtr<BytecodeChunk> chunk = BytecodeUtil::Make<BytecodeChunk>();
-        chunk->Append(BytecodeUtil::Make<Comment>("Void class table for " + m_symbolType->GetName() + classTypeStr));
+    if (IsProxyClass())
+    {
+        chunk->Append(BytecodeUtil::Make<Comment>("Void class table for " + m_symbolType->GetName() + " <Proxy>"));
+
+        return chunk;
+    }
+
+    Assert(m_refDecl != nullptr);
+
+    { // Create stack space for ClassRef.
+        chunk->Append(m_refDecl->Build(visitor, mod));
+
+        Assert(m_refDecl->GetIdentifier()->GetStackLocation() != -1);
+    }
+
+    if (IsExternClass())
+    {
+        chunk->Append(BytecodeUtil::Make<Comment>("Load extern class " + m_symbolType->GetName()));
+
+        uint8 rp = visitor->GetCompilationUnit()->GetInstructionStream().GetCurrentRegister();
+
+        chunk->Append(BytecodeUtil::Make<LoadClass>(rp, CreateNameFromDynamicString(m_symbolType->GetName())));
+
+        const Identifier* identifier = m_refDecl->GetIdentifier();
+        Assert(identifier != nullptr);
+
+        // Extern class shouldn't be declared in a function
+        Assert(!(identifier->GetFlags() & IdentifierFlags::DECLARED_IN_FUNCTION));
+
+        const int stackLocation = identifier->GetStackLocation();
+        Assert(stackLocation != -1);
+
+        // Move from register to stack location
+        // store the value at the index into this local variable
+        auto instrMov = BytecodeUtil::Make<StorageOperation>();
+        instrMov->GetBuilder().Store(rp).Local().ByIndex(stackLocation);
+        chunk->Append(std::move(instrMov));
 
         return chunk;
     }
@@ -626,8 +695,6 @@ UniquePtr<Buildable> AstClass::Build(AstVisitor* visitor, Module* mod)
     InstructionStreamContextGuard contextGuard(
         &visitor->GetCompilationUnit()->GetInstructionStream().GetContextTree(),
         INSTRUCTION_STREAM_CONTEXT_DEFAULT);
-
-    UniquePtr<BytecodeChunk> chunk = BytecodeUtil::Make<BytecodeChunk>();
 
     Array<ClassTable::StaticFieldInfo> staticFields;
 
@@ -639,10 +706,11 @@ UniquePtr<Buildable> AstClass::Build(AstVisitor* visitor, Module* mod)
         staticFieldInfo.name = decl->GetName();
         staticFieldInfo.typeId = TypeId::ForType<BoxedValue>();
         staticFieldInfo.targetTypeId = TypeId::ForType<ObjectBase>();
+        staticFieldInfo.size = uint32(sizeof(BoxedValue));
 
         chunk->Append(decl->Build(visitor, mod));
 
-        staticFieldInfo.stackOffset = uint16(m_staticMembers.Size() - staticFields.Size()); // reverse order because stack
+        staticFieldInfo.stackOffset = uint16(m_functionMembers.Size() + m_staticMembers.Size() - staticFields.Size()); // reverse order because stack; methods sit on top
         staticFields.PushBack(staticFieldInfo);
     }
 
@@ -752,13 +820,14 @@ UniquePtr<Buildable> AstClass::Build(AstVisitor* visitor, Module* mod)
     {
         chunk->Append(BytecodeUtil::Make<Comment>("Begin class " + m_symbolType->GetName() + (IsProxyClass() ? " <Proxy>" : "")));
 
-        const SymbolType* base = m_symbolType->GetBaseType();
-
-        if (base != nullptr && !base->TypeEqual(*BuiltinTypes::s_objectType))
+        if (m_baseTypeRef != nullptr)
         {
-            chunk->Append(BytecodeUtil::Make<Comment>("Base type: " + base->GetName()));
+            const SymbolType* baseType = m_baseTypeRef->GetHeldType();
+            Assert(baseType != nullptr);
 
-            chunk->Append(BytecodeUtil::Make<LoadClass>(rp, CreateNameFromDynamicString(base->GetName())));
+            chunk->Append(BytecodeUtil::Make<Comment>("Base type: " + String(baseType->GetName())));
+
+            chunk->Append(m_baseTypeRef->Build(visitor, mod));
         }
         else
         {
@@ -815,6 +884,19 @@ UniquePtr<Buildable> AstClass::Build(AstVisitor* visitor, Module* mod)
         }
 
         chunk->Append(Compiler::PopStack(visitor, numFunctionMembers));
+    }
+
+    // pop anything we pushed for static members
+    const int numStaticMembers = int(m_staticMembers.Size());
+
+    if (numStaticMembers > 0)
+    {
+        for (int i = 0; i < numStaticMembers; i++)
+        {
+            visitor->GetCompilationUnit()->GetInstructionStream().DecStackSize();
+        }
+
+        chunk->Append(Compiler::PopStack(visitor, numStaticMembers));
     }
 
 #if 0 // come back to this
@@ -906,6 +988,20 @@ UniquePtr<Buildable> AstClass::Build(AstVisitor* visitor, Module* mod)
     {
         chunk->Append(BytecodeUtil::Make<Comment>("End class " + m_symbolType->GetName()));
     }
+
+    // Move ClassRef to local
+    const int stackSize = visitor->GetCompilationUnit()->GetInstructionStream().GetStackSize();
+
+    const int classRefStackLocation = m_refDecl->GetIdentifier()->GetStackLocation();
+    Assert(classRefStackLocation != -1);
+
+    const int offset = visitor->GetCompilationUnit()->GetInstructionStream().GetStackSize() - classRefStackLocation;
+
+    // Move from register to stack location
+    // store the value at the index into this local variable
+    auto instrMov = BytecodeUtil::Make<StorageOperation>();
+    instrMov->GetBuilder().Store(objReg).Local().ByOffset(offset);
+    chunk->Append(std::move(instrMov));
 
     return chunk;
 }
