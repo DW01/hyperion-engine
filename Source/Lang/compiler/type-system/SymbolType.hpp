@@ -21,8 +21,10 @@ extern void CheckUnfreedSymbolTypes();
 class SymbolType;
 class AstExpression;
 class AstArgument;
-struct Scope;
+class AstVariableDeclaration;
 class CompilationUnit;
+
+struct Scope;
 
 extern SlabAllocator& GetSymbolTypeAllocator();
 
@@ -468,6 +470,16 @@ public:
         m_defaultValue = defaultValue;
     }
 
+    HYP_FORCE_INLINE const RC<AstVariableDeclaration>& GetClassRefDecl() const
+    {
+        return m_classRefDecl;
+    }
+
+    HYP_FORCE_INLINE void SetClassRefDecl(const RC<AstVariableDeclaration>& classRefDecl)
+    {
+        m_classRefDecl = classRefDecl;
+    }
+
     HYP_FORCE_INLINE Array<SymbolTypeMember>& GetMembers()
     {
         return m_members;
@@ -694,6 +706,7 @@ public:
         result->m_genericParamInfo = m_genericParamInfo;
         result->m_constantBitSize = m_constantBitSize;
         result->m_flags = m_flags;
+        result->m_classRefDecl = m_classRefDecl;
         result->m_declScope = nullptr; // do not copy scope
 
         return result;
@@ -737,6 +750,8 @@ private:
     ConstantBitSize m_constantBitSize;
     EnumFlags<SymbolTypeFlags> m_flags;
     Scope* m_declScope;
+    
+    RC<AstVariableDeclaration> m_classRefDecl;
 
     // set to default empty registration upon creation so we can delete all unregistered types
     mutable SymbolTypeRegistration* m_registration;

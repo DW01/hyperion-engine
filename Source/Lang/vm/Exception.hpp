@@ -10,12 +10,25 @@ struct BoxedValue;
 
 class Exception
 {
+    enum TakeOwnershipOfStringPointerTag
+    {
+        TakeOwnershipOfStringPointer
+    };
+    
+    template <class FormatStringType, class... Args>
+    static Exception FormattedException(FormatStringType formatString, Args... args);
+    
+    Exception(TakeOwnershipOfStringPointerTag, char* str);
+
 public:
-    Exception(const char* str);
+    explicit Exception(const char* str);
+
     Exception(const Exception& other);
     Exception& operator=(const Exception& other);
+
     Exception(Exception&& other) noexcept;
     Exception& operator=(Exception&& other) noexcept;
+
     ~Exception();
 
     const char* ToString() const

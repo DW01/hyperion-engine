@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Lang/SourceFile.hpp>
+
 #include <Core/debug/Debug.hpp>
 #include <Core/memory/ByteBuffer.hpp>
 
@@ -15,9 +16,12 @@ public:
 
 public:
     BytecodeStream();
+    
     BytecodeStream(const ubyte* buffer, size_t size, size_t position = 0);
     BytecodeStream(const ByteBuffer& byteBuffer, size_t position = 0);
+    
     BytecodeStream(const BytecodeStream& other);
+
     ~BytecodeStream() = default;
 
     BytecodeStream& operator=(const BytecodeStream& other);

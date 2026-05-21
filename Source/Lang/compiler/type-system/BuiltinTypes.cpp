@@ -430,6 +430,25 @@ void BuiltinTypes::Initialize(CompilationUnit* globalCompilationUnit)
 {
     Assert(globalCompilationUnit != nullptr);
 
+#pragma region Varargs
+    SymbolType* varargsTypeNonConst = const_cast<SymbolType*>(BuiltinTypes::s_varArgsType);
+
+    // VarArgs has Size() type because it is really an array
+    varargsTypeNonConst->GetMembers().PushBack(SymbolTypeMember {
+        "Size",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_uint64Type },
+                    { "self", SymbolType::Placeholder("SelfType") }
+                }
+            })
+        });
+
+#pragma endregion Varargs
+
 #pragma region String
     // HAX - we need to cast away const-ness here because we want to add members to the string type
     SymbolType* stringTypeNonConst = const_cast<SymbolType*>(BuiltinTypes::s_stringType);
@@ -505,7 +524,7 @@ void BuiltinTypes::Initialize(CompilationUnit* globalCompilationUnit)
                 }
             })
         });
-    
+
     nameTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
         "FromString",
         SymbolType::GenericInstance(
@@ -770,11 +789,29 @@ void BuiltinTypes::RegisterTypes(CompilationUnit* compilationUnit)
 
     // Create new types per-compilation unit:
 
+    SymbolType* sbyteType = SymbolType::Alias("sbyte", { BuiltinTypes::s_int8Type });
+    sbyteType->Register(compilationUnit);
+
+    SymbolType* byteType = SymbolType::Alias("byte", { BuiltinTypes::s_uint8Type });
+    byteType->Register(compilationUnit);
+
+    SymbolType* shortType = SymbolType::Alias("short", { BuiltinTypes::s_int16Type });
+    shortType->Register(compilationUnit);
+
+    SymbolType* ushortType = SymbolType::Alias("ushort", { BuiltinTypes::s_uint16Type });
+    ushortType->Register(compilationUnit);
+
     SymbolType* intType = SymbolType::Alias("int", { BuiltinTypes::s_int32Type });
     intType->Register(compilationUnit);
 
     SymbolType* uintType = SymbolType::Alias("uint", { BuiltinTypes::s_uint32Type });
     uintType->Register(compilationUnit);
+
+    SymbolType* longType = SymbolType::Alias("long", { BuiltinTypes::s_int64Type });
+    longType->Register(compilationUnit);
+
+    SymbolType* ulongType = SymbolType::Alias("ulong", { BuiltinTypes::s_uint64Type });
+    ulongType->Register(compilationUnit);
 
     SymbolType* uintptrType = SymbolType::Alias("UIntPtr", { sizeof(void*) == 4 ? BuiltinTypes::s_uint32Type : BuiltinTypes::s_uint64Type });
     uintptrType->Register(compilationUnit);
@@ -905,8 +942,14 @@ void BuiltinTypes::RegisterTypes(CompilationUnit* compilationUnit)
         BuiltinTypes::s_arrayType,
         BuiltinTypes::s_mapType,
         BuiltinTypes::s_classType,
+        sbyteType,
+        byteType,
+        shortType,
+        ushortType,
         intType,
         uintType,
+        longType,
+        ulongType,
         uintptrType,
         intptrType,
         vec2iType,

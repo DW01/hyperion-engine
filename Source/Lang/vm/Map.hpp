@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Lang/vm/Value.hpp>
+#include <Lang/vm/ScriptMemory.hpp>
 
 #include <Core/containers/Map.hpp>
 
@@ -39,7 +40,7 @@ public:
         }
     };
 
-    using InternalMapType = TMap<VMMapKey, BoxedValue, DynamicAllocator, HashTablePolicy::NotPooled>;
+    using InternalMapType = TMap<VMMapKey, BoxedValue, ScriptAllocator, HashTablePolicy::NotPooled>;
 
     ScriptMap();
     ScriptMap(const ScriptMap& other) = delete;

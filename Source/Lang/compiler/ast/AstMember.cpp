@@ -116,8 +116,8 @@ void AstMember::Visit(AstVisitor* visitor, Module* mod)
         if (isProxyClass)
         {
             // load the type by name
-            m_typeSpec.Reset(new AstTypeSpecifier(RC<AstTypeRef>(new AstTypeRef(m_targetType, m_location)), m_location));
-            m_typeSpec->Visit(visitor, mod);
+            m_typeRef.Reset(new AstTypeRef(m_targetType, m_location));
+            m_typeRef->Visit(visitor, mod);
 
             // if it is a proxy class,
             // convert thing.DoThing()
@@ -186,7 +186,7 @@ void AstMember::Visit(AstVisitor* visitor, Module* mod)
             // continue up the base type chain.
             m_targetType = base->GetUnaliased();
         }
-        else if (m_targetType->IsObject() && m_targetType != BuiltinTypes::s_classType)
+        else if (m_targetType->IsObject() && !m_targetType->TypeEqual(*BuiltinTypes::s_classType))
         {
             // Finally, allow for member calls to the base Class type. Used for stuff like (GetName(), CreateInstance(), etc.)
             m_targetType = BuiltinTypes::s_classType;
@@ -198,6 +198,13 @@ void AstMember::Visit(AstVisitor* visitor, Module* mod)
     }
 
     Assert(m_targetType != nullptr);
+    
+    const bool isStaticMember = m_isStaticField || m_isStaticMethod;
+    if (!m_typeRef && (isStaticMember || m_targetType->IsClassType()))
+    {
+        m_typeRef.Reset(new AstTypeRef(m_targetType, m_location));
+        m_typeRef->Visit(visitor, mod);
+    }
 
     if (fieldType != nullptr)
     {
@@ -232,20 +239,11 @@ UniquePtr<Buildable> AstMember::Build(AstVisitor* visitor, Module* mod)
 
     UniquePtr<BytecodeChunk> chunk = BytecodeUtil::Make<BytecodeChunk>();
 
-    if (m_typeSpec != nullptr)
-    {
-        chunk->Append(m_typeSpec->Build(visitor, mod));
-    }
-
     const bool isStaticMember = m_isStaticField || m_isStaticMethod;
 
-    if (isStaticMember || m_targetType->IsClassType())
+    if (m_typeRef != nullptr)
     {
-        const uint8 rp = visitor->GetCompilationUnit()->GetInstructionStream().GetCurrentRegister();
-
-        const String& className = BuiltinTypes::GetNativeClassNameForType(m_targetType);
-
-        chunk->Append(BytecodeUtil::Make<LoadClass>(rp, StringHash(className)));
+        chunk->Append(m_typeRef->Build(visitor, mod));
     }
     else if (m_target != nullptr)
     {
@@ -274,9 +272,9 @@ UniquePtr<Buildable> AstMember::Build(AstVisitor* visitor, Module* mod)
 
 void AstMember::Optimize(AstVisitor* visitor, Module* mod)
 {
-    if (m_typeSpec != nullptr)
+    if (m_typeRef != nullptr)
     {
-        m_typeSpec->Optimize(visitor, mod);
+        m_typeRef->Optimize(visitor, mod);
 
         // return;
     }
@@ -298,7 +296,7 @@ Tribool AstMember::IsTrue() const
 
 bool AstMember::MayHaveSideEffects() const
 {
-    if (m_typeSpec != nullptr && m_typeSpec->MayHaveSideEffects())
+    if (m_typeRef != nullptr && m_typeRef->MayHaveSideEffects())
     {
         return true;
     }
@@ -350,7 +348,7 @@ AstExpression* AstMember::GetTarget() const
 
 bool AstMember::IsMutable() const
 {
-    if (m_typeSpec != nullptr && !m_typeSpec->IsMutable())
+    if (m_typeRef != nullptr && !m_typeRef->IsMutable())
     {
         return false;
     }

@@ -4,6 +4,7 @@
 #include <Lang/compiler/ast/AstHasExpression.hpp>
 #include <Lang/compiler/ast/AstTernaryExpression.hpp>
 #include <Lang/compiler/ast/AstCallExpression.hpp>
+#include <Lang/compiler/ast/AstTypeRef.hpp>
 #include <Lang/compiler/ast/AstMember.hpp>
 #include <Lang/compiler/AstVisitor.hpp>
 #include <Lang/compiler/Module.hpp>
@@ -51,6 +52,9 @@ void AstAsExpression::Visit(AstVisitor* visitor, Module* mod)
     resolvedType->Register(visitor->GetCompilationUnit());
 
     m_resultType = resolvedType->GetUnaliased();
+
+    m_typeRef.Reset(new AstTypeRef(m_resultType, m_location));
+    m_typeRef->Visit(visitor, mod);
 
     if (m_resultType->IsAnyType())
     {
@@ -221,9 +225,14 @@ UniquePtr<Buildable> AstAsExpression::Build(AstVisitor* visitor, Module* mod)
     else if (resultType->IsObject())
     {
         // dynamic type needs to load the class into a register (reuse dstRegister)
+        Assert(m_typeRef != nullptr);
+
         const String className = resultType->GetName();
 
-        chunk->Append(BytecodeUtil::Make<LoadClass>(dstRegister, CreateNameFromDynamicString(className)));
+        chunk->Append(BytecodeUtil::Make<Comment>("Load ClassRef for: " + className));
+
+        chunk->Append(m_typeRef->Build(visitor, mod));
+
         chunk->Append(BytecodeUtil::Make<CastOperation>(CastOperation::CAST_DYNAMIC, dstRegister, srcRegister));
     }
     else
@@ -275,6 +284,11 @@ void AstAsExpression::Optimize(AstVisitor* visitor, Module* mod)
 
     Assert(m_typeSpecification != nullptr);
     m_typeSpecification->Optimize(visitor, mod);
+
+    if (m_typeRef != nullptr)
+    {
+        m_typeRef->Optimize(visitor, mod);
+    }
 }
 
 const SymbolType* AstAsExpression::GetExprType() const

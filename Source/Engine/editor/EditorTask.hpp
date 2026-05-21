@@ -125,7 +125,7 @@ protected:
           m_isCommitted(false)
     {
     }
-    
+
     String m_title;
     String m_description;
     float m_progress;
@@ -202,7 +202,7 @@ public:
 
     HYP_METHOD(Scriptable)
     virtual void Tick();
-    
+
     bool isComplete;
 
 protected:
@@ -211,13 +211,13 @@ protected:
     {
         // nothing by default
     }
-    
+
     HYP_METHOD()
     virtual void Cancel_Impl();
-    
+
     HYP_METHOD()
     virtual bool IsCompleted_Impl() const;
-    
+
     HYP_METHOD()
     virtual void Tick_Impl()
     {
@@ -247,7 +247,7 @@ class HYP_API LongRunningEditorTask : public EditorTaskBase
 
 public:
     LongRunningEditorTask();
-    
+
     LongRunningEditorTask(
         const String& title,
         const String& description = "")
@@ -301,13 +301,13 @@ protected:
     {
         // nothing by default
     }
-    
+
     HYP_METHOD()
     virtual void Cancel_Impl();
-    
+
     HYP_METHOD()
     virtual bool IsCompleted_Impl() const;
-    
+
     HYP_METHOD()
     virtual void Process_Impl()
     {
@@ -333,7 +333,8 @@ class EditorTaskScope
         ConstructWithProc
     };
 
-    EditorTaskScope(ConstructWithProcTag,
+    EditorTaskScope(
+        ConstructWithProcTag,
         const Class* editorTaskClass,
         Proc<void()>&& proc,
         const String& title,
@@ -363,7 +364,7 @@ public:
             isForegroundTask)
     {
     }
-    
+
     template <class TargetType>
     EditorTaskScope(
         const Class* editorTaskClass,
@@ -381,7 +382,7 @@ public:
             isForegroundTask)
     {
     }
-    
+
     template <class Functor>
     EditorTaskScope(
         const Class* editorTaskClass,
@@ -393,6 +394,21 @@ public:
             ConstructWithProc,
             editorTaskClass,
             std::forward<Functor>(functor),
+            title,
+            description,
+            isForegroundTask)
+    {
+    }
+
+    EditorTaskScope(
+        const Class* editorTaskClass,
+        const String& title,
+        const String& description = "",
+        bool isForegroundTask = false)
+        : EditorTaskScope(
+            ConstructWithProc,
+            editorTaskClass,
+            Proc<void()>(+[]() { /* do nothing */ }),
             title,
             description,
             isForegroundTask)
@@ -422,12 +438,12 @@ public:
     }
 
     ~EditorTaskScope();
-    
+
     HYP_FORCE_INLINE EditorTaskBase* GetEditorTask() const
     {
         return m_task;
     }
-    
+
     void Reset(bool shouldCancel = false);
 
 private:

@@ -110,20 +110,15 @@ ObjectInitializerGuardBase::~ObjectInitializerGuardBase()
 #endif
 
 #ifdef HYP_SCRIPT
-            BoxedValue obj;
-
             if (!scriptObjectResource)
             {
-                scriptObjectResource = new ScriptObjectResource((ScriptInstance*)nullptr, std::move(obj));
+                scriptObjectResource = new ScriptObjectResource((ScriptInstance*)nullptr, target);
 
                 target->SetScriptObjectResource(scriptObjectResource);
             }
             else
             {
-                scriptObjectResource->SetScriptObjectData_HypScript(ScriptObjectData_HypScript {
-                    nullptr,
-                    std::move(obj)
-                });
+                scriptObjectResource->SetScriptObjectData_HypScript(ScriptObjectData_HypScript { nullptr, target });
             }
 #endif
         }
@@ -182,35 +177,46 @@ ObjectBase::~ObjectBase()
     {
 #ifdef HYP_SCRIPT
         // destruct all dynamic fields
-        if ((m_scriptObjectResource->GetScriptLanguageMask() & (1u << uint32(ScriptLanguage::HypScript))) && m_header->cls->IsDynamic())
+        if (m_header->cls->IsDynamic())
         {
             const Class* cls = m_header->cls;
 
-            size_t fieldOffset = sizeof(ObjectBase);
+            const bool isScriptObj = (m_scriptObjectResource->GetScriptLanguageMask() & (1u << uint32(ScriptLanguage::HypScript))) != 0;
 
-            // `class` field
-            fieldOffset = ByteUtil::AlignAs(fieldOffset, alignof(ClassRef));
-            ClassRef* classFieldPtr = (ClassRef*)(UIntPtr(this) + fieldOffset);
-            fieldOffset += sizeof(ClassRef);
-
-            while (cls != nullptr && cls->IsDynamic())
+            if (isScriptObj)
             {
-                for (Field* field : cls->GetFields())
+                size_t fieldOffset = sizeof(ObjectBase);
+
+                // `class` field
+                fieldOffset = ByteUtil::AlignAs(fieldOffset, alignof(ClassRef));
+                ClassRef* classFieldPtr = (ClassRef*)(UIntPtr(this) + fieldOffset);
+                fieldOffset += sizeof(ClassRef);
+
+                while (cls != nullptr && cls->IsDynamic())
                 {
-                    // align field offset
-                    fieldOffset = ByteUtil::AlignAs(fieldOffset, alignof(BoxedValue));
+                    for (Field* field : cls->GetFields())
+                    {
+                        // align field offset
+                        fieldOffset = ByteUtil::AlignAs(fieldOffset, alignof(BoxedValue));
 
-                    BoxedValue* fieldPtr = (BoxedValue*)(UIntPtr(this) + fieldOffset);
-                    fieldPtr->~BoxedValue();
+                        BoxedValue* fieldPtr = (BoxedValue*)(UIntPtr(this) + fieldOffset);
 
-                    fieldOffset += sizeof(BoxedValue);
+                        // We don't want to destruct values that are in tracked memory!
+                        // Destruct only if we own it
+                        if (fieldPtr->extData.gcIndex == INVALID_GC_INDEX)
+                        {
+                            fieldPtr->~BoxedValue();
+                        }
+
+                        fieldOffset += sizeof(BoxedValue);
+                    }
+
+                    cls = cls->GetParent();
                 }
 
-                cls = cls->GetParent();
+                // destruct the `class` field last:
+                classFieldPtr->~ClassRef();
             }
-
-            // destruct the `class` field last:
-            classFieldPtr->~ClassRef();
         }
 #endif
 

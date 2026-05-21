@@ -1166,12 +1166,19 @@ void DecompilationUnit::DecodeNext(
                 {
                 case MemberType::StaticField:
                 {
+                    TypeId::ValueType targetTypeIdValue;
+                    bs.Read(&targetTypeIdValue);
+
                     uint32 valueSize;
                     bs.Read(&valueSize);
 
+                    uint16 stackOffset;
+                    bs.Read(&stackOffset);
+
                     if (os != nullptr)
                     {
-                        (*os) << "\t\t\tstatic_field [typeId(" << memberTypeIdValue << "), size(" << valueSize << ")]" << std::endl;
+                        (*os) << "\t\t\tstatic_field [typeId(" << memberTypeIdValue << "), targetTypeId(" << targetTypeIdValue
+                              << "), size(" << valueSize << "), stackOffset(" << stackOffset << ")]" << std::endl;
                     }
                     break;
                 }
@@ -1525,6 +1532,22 @@ void DecompilationUnit::DecodeNext(
         {
             (*os)
                 << "NEG ["
+                << "%r" << (int)reg
+                << "]"
+                << std::endl;
+        }
+
+        break;
+    }
+    case NOT:
+    {
+        uint8 reg;
+        bs.Read(&reg);
+
+        if (os != nullptr)
+        {
+            (*os)
+                << "NOT ["
                 << "%r" << (int)reg
                 << "]"
                 << std::endl;

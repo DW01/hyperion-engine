@@ -85,10 +85,8 @@ struct GenericArrayWrapper;
 enum class GCIndex : uint32;
 
 static constexpr GCIndex INVALID_GC_INDEX = GCIndex(0);
-static constexpr GCIndex GARBAGE_GC_INDEX = GCIndex(1u << 30);
-
-// max 31 bits for index - this is the highest valid index
-static constexpr GCIndex MAX_GC_INDEX = GCIndex((1u << 31) - 1);
+static constexpr GCIndex GARBAGE_GC_INDEX = GCIndex((1u << 31) - 1);
+static constexpr GCIndex MAX_GC_INDEX = GCIndex((1u << 31) - 2);
 #endif // HYP_SCRIPT
 
 /*! \brief A type-safe union that can store multiple different types of run-time data, abstracting away internal engine structures such as Handle<T>, RC<T>, etc.
@@ -236,15 +234,7 @@ struct BoxedValue
         return *this;
     }
 
-    ~BoxedValue()
-    {
-#if HYP_DEBUG_MODE
-#ifdef HYP_SCRIPT
-        HYP_CORE_ASSERT(extData.gcIndex == INVALID_GC_INDEX, "BoxedValue being destroyed while still registered with the GC (index = %u)", uint32(extData.gcIndex));
-        extData.gcIndex = GARBAGE_GC_INDEX;
-#endif
-#endif
-    }
+    ~BoxedValue();
 
     HYP_FORCE_INLINE bool IsValid() const
     {

@@ -512,22 +512,18 @@ namespace Hyperion.Editor.ViewModels
         {
             _ = EngineManager.PostToSimThread(() =>
             {
-                Node[]? clipboardNodes = null;
-                try
-                {
-                    clipboardNodes = EditorState.Instance.ClipboardNodes;
-                }
-                catch { }
+                IEnumerable<Node> clipboardNodes = EditorState.Instance.ClipboardNodes;
 
-                int count = clipboardNodes?.Length ?? 0;
+                int count = clipboardNodes.Count();
                 string header;
+
                 if (count == 0)
                 {
                     header = "_Paste";
                 }
                 else if (count == 1)
                 {
-                    string? nodeName = clipboardNodes?[0]?.Name.ToString();
+                    string? nodeName = clipboardNodes.FirstOrDefault()?.Name.ToString();
                     header = string.IsNullOrEmpty(nodeName) ? "_Paste" : $"_Paste {nodeName}";
                 }
                 else

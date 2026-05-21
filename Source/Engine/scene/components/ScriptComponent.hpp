@@ -28,8 +28,7 @@ enum class ScriptComponentFlags : uint32
     INITIALIZED = 0x1,
     RELOADING = 0x2,
     INITIALIZATION_STARTED = 0x4,
-    BEFORE_ADDED_CALLED = 0x10,
-    ON_ADDED_CALLED = 0x20 // the script has already been compiled once, with Init() and BeforeAdded() called. don't call them again.
+    ACTIVATED = 0x8
 };
 
 HYP_MAKE_ENUM_FLAGS(ScriptComponentFlags);

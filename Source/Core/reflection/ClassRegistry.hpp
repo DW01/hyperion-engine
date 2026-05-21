@@ -57,10 +57,13 @@ public:
     static ClassRegistry& GetInstance();
 
     ClassRegistry();
+    
     ClassRegistry(const ClassRegistry& other) = delete;
     ClassRegistry& operator=(const ClassRegistry& other) = delete;
+
     ClassRegistry(ClassRegistry&& other) noexcept = delete;
     ClassRegistry& operator=(ClassRegistry&& other) noexcept = delete;
+
     ~ClassRegistry();
 
     HYP_FORCE_INLINE bool IsInitialized() const
@@ -127,10 +130,15 @@ public:
      */
     const Class* GetEnum(StringHash typeName) const;
 
-    void RegisterClass(TypeId typeId, Class* cls);
+    /*! \brief Register a class instance with the class registry for global use.
+    *   \param typeId The typeId to associate with the Class instance pointer
+    *   \param cls The class instance pointer
+    *   \param [outWasRegistered] If provided, will be set to true/false depending on whether or not registration succeeded
+    *                             Otherwise, ignored. (The class instance will not be registered if another one exists for the given \p{typeId}  */
+    void Register(TypeId typeId, Class* cls, bool* outWasRegistered = nullptr);
 
     // Only for Dynamic classes
-    bool UnregisterClass(const Class* cls);
+    bool Unregister(const Class* cls);
 
     void ForEachClass(const ProcRef<IterationResult(const Class*)>& callback, bool includeDynamicClasses = true) const;
 

@@ -19,7 +19,7 @@
 namespace Hyperion {
 
 static constexpr size_t ScriptMaxPathLength = 1024;
-static constexpr size_t ScriptMaxClassNameLength = 1024;
+static constexpr size_t ScriptMaxClassNameLength = 128;
 
 HYP_STRUCT()
 struct ScriptDesc
@@ -42,7 +42,7 @@ struct ScriptDesc
     FixedArray<char, ScriptMaxClassNameLength> className;
 
     HYP_FIELD(Transient)
-    uint32 compileStatus;
+    uint8 compileStatus;
 
     HYP_FIELD(Transient)
     int32 hotReloadVersion;

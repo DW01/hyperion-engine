@@ -110,8 +110,6 @@ void EditorState::SetCurrentProject(const Handle<EditorProject>& project)
 
 void EditorState::AddTask(const Handle<EditorTaskBase>& task)
 {
-    HYP_SCOPE;
-
     if (!task)
     {
         return;
@@ -131,16 +129,16 @@ void EditorState::Update(float delta)
 
 Array<Handle<Node>> EditorState::GetClipboardNodes() const
 {
-    Mutex::Guard guard(m_mutex);
+    AssertOnThread(g_simThread);
+
     return m_clipboardNodes;
 }
 
 void EditorState::SetClipboardNodes(const Array<Handle<Node>>& nodes)
 {
-    {
-        Mutex::Guard guard(m_mutex);
-        m_clipboardNodes = nodes;
-    }
+    AssertOnThread(g_simThread);
+
+    m_clipboardNodes = nodes;
 
     OnClipboardChanged();
 }

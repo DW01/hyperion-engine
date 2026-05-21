@@ -91,14 +91,14 @@ static void InvokeScriptMethodT(ReturnType* outReturnValue, ScriptObjectResource
         auto* data = sor->GetScriptObjectData_HypScript();
         Assert(data != nullptr);
 
-        HypScript& hs = HypScript::GetInstance();
-
         BoxedValue functionValue;
+        
+        namespace HS = HypScript;
 
-        if (hs.GetFunctionHandle(data->instance, methodName, functionValue)
+        if (HS::GetFunctionHandle(data->instance, methodName, functionValue)
             && IsFunction(functionValue))
         {
-            BoxedValue returnValue = hs.CallFunction(data->instance, functionValue, std::forward<ArgTypes>(args)...);
+            BoxedValue returnValue = HS::CallFunction(data->instance, functionValue, std::forward<ArgTypes>(args)...);
 
             if constexpr (!std::is_void_v<ReturnType>)
             {
@@ -225,19 +225,33 @@ void ScriptSystem::OnAddedToWorld(World* world)
                 HandleGameStateChanged(currentGameStateMode, previousGameStateMode);
             }));
 
-    if (EnableScriptReloading)
+    if constexpr (EnableScriptReloading)
     {
         m_scriptingService = MakeUnique<ScriptingService>();
 
         m_delegateHandlers.Add(
             NAME("OnScriptStateChanged"),
-            m_scriptingService->OnScriptStateChanged.Bind([this](const ScriptDesc& script)
+            m_scriptingService->OnScriptStateChanged.Bind([this](const ScriptDesc& inScriptDesc)
                 {
                     AssertOnThread(g_simThread);
 
-                    if (!(script.compileStatus & uint32(ScriptCompileStatus::Compiled)))
+                    switch (inScriptDesc.language)
                     {
-                        return;
+                    case ScriptLanguage::CSharp:
+                        // Compilation is driven from C#
+                        if (!(inScriptDesc.compileStatus & uint32(ScriptCompileStatus::Compiled)))
+                        {
+                            return;
+                        }
+                        break;
+                    case ScriptLanguage::HypScript:
+                        // Compilation is driven from C++
+                        if (!(inScriptDesc.compileStatus & uint32(ScriptCompileStatus::Processing)))
+                        {
+                            return;
+                        }
+                        break;
+                    default: break;
                     }
 
                     World* world = GetWorld();
@@ -248,6 +262,8 @@ void ScriptSystem::OnAddedToWorld(World* world)
                         return;
                     }
 
+                    const GameState& gameState = world->GetGameState();
+
                     for (Scene* scene : world->GetScenes())
                     {
                         for (auto [entity, scriptComponent] : scene->GetEntityManager()->GetEntitySet<ScriptComponent>().GetScopedView(GetComponentInfos()))
@@ -255,28 +271,29 @@ void ScriptSystem::OnAddedToWorld(World* world)
                             const Handle<ScriptAsset>& scriptAsset = scriptComponent.script;
                             Assert(scriptAsset != nullptr);
 
-                            auto resGuard = scriptAsset->GetReadScope();
+                            auto writeScope = scriptAsset->GetWriteScope();
 
                             ScriptDesc& scriptDesc = scriptAsset->GetScriptDesc();
 
-                            if (Memory::StrCmp(script.assemblyPath.Data(), scriptDesc.assemblyPath.Data(), MathUtil::Min(ArraySize(script.assemblyPath), ArraySize(scriptDesc.assemblyPath))) == 0)
+                            // @TODO: Will need `path` for hypscript, assemblypath is only relevent for c#.
+                            if (Memory::StrCmp(inScriptDesc.assemblyPath.Data(), scriptDesc.assemblyPath.Data(), MathUtil::Min(ArraySize(inScriptDesc.assemblyPath), ArraySize(scriptDesc.assemblyPath))) == 0)
                             {
-                                HYP_LOG(Script, Info, "ScriptSystem: Reloading script for entity #{}", entity->Id());
+                                HYP_LOG(Script, Info, "ScriptSystem: Reloading script for entity {}", entity->Id());
 
                                 scriptComponent.flags |= ScriptComponentFlags::RELOADING;
 
-                                scriptDesc.uuid = script.uuid;
-                                scriptDesc.compileStatus = script.compileStatus;
-                                scriptDesc.hotReloadVersion = script.hotReloadVersion;
-                                scriptDesc.lastModifiedTimestamp = script.lastModifiedTimestamp;
+                                scriptDesc.uuid = inScriptDesc.uuid;
+                                scriptDesc.compileStatus = inScriptDesc.compileStatus;
+                                scriptDesc.hotReloadVersion = inScriptDesc.hotReloadVersion;
+                                scriptDesc.lastModifiedTimestamp = inScriptDesc.lastModifiedTimestamp;
 
-                                resGuard.Reset();
+                                writeScope.Reset();
 
-                                EntityScripting::DeinitEntityScriptComponent(entity, scriptComponent);
+                                EntityScripting::ShutdownEntityScript(entity, scriptComponent, gameState);
 
                                 scriptComponent.assembly.Reset();
 
-                                EntityScripting::InitEntityScriptComponent(entity, scriptComponent);
+                                EntityScripting::InitializeEntityScript(entity, scriptComponent, gameState);
 
                                 scriptComponent.flags &= ~ScriptComponentFlags::RELOADING;
 
@@ -298,10 +315,7 @@ void ScriptSystem::OnAddedToWorld(World* world)
             {
                 const FilePath projectScriptsPath = assetRegistry->GetRootPath() / "Scripts";
 
-                if (projectScriptsPath.Exists())
-                {
-                    scriptSourceDirectories.PushBack(projectScriptsPath);
-                }
+                scriptSourceDirectories.PushBack(projectScriptsPath);
             }
         }
 
@@ -309,10 +323,10 @@ void ScriptSystem::OnAddedToWorld(World* world)
             scriptSourceDirectories,
             GetTempDirectory() / "ScriptProjects",
             CoreApi::GetExecutablePath(),
-            (void*)[](void* selfPtr, ScriptEvent event)
+            reinterpret_cast<void*>(+[](void* selfPtr, ScriptEvent event)
             {
                 static_cast<ScriptingService*>(selfPtr)->PushScriptEvent(event);
-            },
+            }),
             m_scriptingService.Get()
         );
     }
@@ -325,15 +339,18 @@ void ScriptSystem::OnRemovedFromWorld(World* world)
     m_delegateHandlers.Remove("OnGameStateChange"_sh);
     m_delegateHandlers.Remove("OnScriptStateChanged"_sh);
 
-    if (m_scriptTracker)
+    if constexpr (EnableScriptReloading)
     {
-        m_scriptTracker->Shutdown();
-        m_scriptTracker.Reset();
-    }
+        if (m_scriptTracker)
+        {
+            m_scriptTracker->Shutdown();
+            m_scriptTracker.Reset();
+        }
 
-    if (m_scriptingService)
-    {
-        m_scriptingService.Reset();
+        if (m_scriptingService)
+        {
+            m_scriptingService.Reset();
+        }
     }
 }
 
@@ -343,7 +360,12 @@ void ScriptSystem::OnEntityAdded(Entity* entity)
 
     ScriptComponent& scriptComponent = entity->GetEntityManager()->GetComponent<ScriptComponent>(entity);
 
-    EntityScripting::InitEntityScriptComponent(entity, scriptComponent);
+    const GameState& gameState = GetWorld()->GetGameState();
+
+    if (!gameState.IsStopped())
+    {
+        EntityScripting::InitializeEntityScript(entity, scriptComponent, gameState);
+    }
 }
 
 void ScriptSystem::OnEntityRemoved(Entity* entity)
@@ -352,19 +374,24 @@ void ScriptSystem::OnEntityRemoved(Entity* entity)
 
     ScriptComponent& scriptComponent = entity->GetEntityManager()->GetComponent<ScriptComponent>(entity);
 
-    EntityScripting::DeinitEntityScriptComponent(entity, scriptComponent);
+    const GameState& gameState = GetWorld()->GetGameState();
+
+    EntityScripting::ShutdownEntityScript(entity, scriptComponent, gameState);
 }
 
 void ScriptSystem::Process(float delta, Span<Handle<Scene>> scenes)
 {
-    if (m_scriptingService)
+    if constexpr (EnableScriptReloading)
     {
-        m_scriptingService->Update();
-    }
+        if (m_scriptingService)
+        {
+            m_scriptingService->Update();
+        }
 
-    if (m_scriptTracker)
-    {
-        m_scriptTracker->InvokeUpdate();
+        if (m_scriptTracker)
+        {
+            m_scriptTracker->InvokeUpdate();
+        }
     }
 
     World* world = GetWorld();
@@ -391,7 +418,7 @@ void ScriptSystem::Process(float delta, Span<Handle<Scene>> scenes)
 
         for (auto [entity, scriptComponent] : scene->GetEntityManager()->GetEntitySet<ScriptComponent>().GetScopedView(GetComponentInfos()))
         {
-            if (!(scriptComponent.flags & ScriptComponentFlags::INITIALIZED))
+            if (!(scriptComponent.flags & ScriptComponentFlags::ACTIVATED))
             {
                 continue;
             }
@@ -401,16 +428,47 @@ void ScriptSystem::Process(float delta, Span<Handle<Scene>> scenes)
     }
 }
 
+template <class T>
+static void QueryScriptedEntities(World* world, T&& function)
+{
+    for (Scene* scene : world->GetScenes())
+    {
+        for (auto [entity, scriptComponent] : scene->GetEntityManager()->GetEntitySet<ScriptComponent>())
+        {
+            function(entity, scriptComponent);
+        }
+    }
+}
+
 void ScriptSystem::HandleGameStateChanged(GameStateMode gameStateMode, GameStateMode previousGameStateMode)
 {
-    if (previousGameStateMode == GameStateMode::SIMULATING)
+    World* world = GetWorld();
+
+    if (!world)
     {
-        CallScriptMethod("OnPlayStop");
+        return;
     }
 
-    if (gameStateMode == GameStateMode::SIMULATING)
+    const GameState& gameState = world->GetGameState();
+
+    if (gameStateMode == GameStateMode::STOPPED)
     {
-        CallScriptMethod("OnPlayStart");
+        QueryScriptedEntities(world, [&gameState](Entity* entity, ScriptComponent& scriptComponent)
+            {
+                EntityScripting::ShutdownEntityScript(entity, scriptComponent, gameState);
+            });
+
+        return;
+    }
+
+    if (previousGameStateMode == GameStateMode::STOPPED)
+    {
+        QueryScriptedEntities(world, [&gameState](Entity* entity, ScriptComponent& scriptComponent)
+            {
+                EntityScripting::InitializeEntityScript(entity, scriptComponent, gameState);
+            });
+
+        return;
     }
 }
 

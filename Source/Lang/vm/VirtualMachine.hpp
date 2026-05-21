@@ -10,6 +10,7 @@
 #include <Core/reflection/BoxedValue.hpp>
 
 #include <Core/Types.hpp>
+#include <Core/utilities/Span.hpp>
 
 #include <limits>
 #include <cstdint>
@@ -48,12 +49,18 @@ class GarbageCollector;
 
 struct Script_RegisterMemory
 {
-    static constexpr uint32 NumRegisters = 8;
+    static constexpr uint32 NumRegisters = 4;
 
     BoxedValue regs[NumRegisters];
+
     int flags = 0;
 
     Script_RegisterMemory();
+
+    Script_RegisterMemory(const Script_RegisterMemory& other) = delete;
+    Script_RegisterMemory& operator=(const Script_RegisterMemory& other) = delete;
+
+    ~Script_RegisterMemory();
 
     HYP_FORCE_INLINE BoxedValue& operator[](uint8 index)
     {
@@ -73,10 +80,13 @@ public:
 
 public:
     Script_StaticMemory();
+    
     Script_StaticMemory(const Script_StaticMemory& other) = delete;
     Script_StaticMemory& operator=(const Script_StaticMemory& other) = delete;
+    
     Script_StaticMemory(Script_StaticMemory&& other) noexcept = delete;
     Script_StaticMemory& operator=(Script_StaticMemory&& other) noexcept = delete;
+
     ~Script_StaticMemory();
 
     HYP_FORCE_INLINE BoxedValue& operator[](size_t index)
@@ -92,18 +102,14 @@ private:
 class Script_StackMemory
 {
 public:
-    friend std::ostream& operator<<(std::ostream& os, const Script_StackMemory& stack);
-
-public:
     Script_StackMemory();
+    
     Script_StackMemory(const Script_StackMemory& other) = delete;
     Script_StackMemory& operator=(const Script_StackMemory& other) = delete;
+
     ~Script_StackMemory();
 
-    /** Purge all items on the stack */
     void Purge();
-    /** Mark all items on the stack to not be garbage collected */
-    void MarkAll();
 
     HYP_FORCE_INLINE BoxedValue* GetData()
     {
@@ -188,10 +194,11 @@ struct Script_ExceptionState
 struct Script_ExecutionThread
 {
     friend struct VMState;
-
-    Script_StackMemory m_stack;
-    Script_ExceptionState m_exceptionState;
+    
     Script_RegisterMemory m_regs;
+    Script_StackMemory m_stack;
+
+    Script_ExceptionState m_exceptionState;
 
     uint32 m_funcDepth = 0;
     int m_id = -1;
@@ -247,6 +254,8 @@ public:
     void Reset();
 
     void ThrowException(ScriptInstance* instance, const Exception& exception);
+
+    void CollectGarbage(Span<ScriptInstance*> instances);
 
     GarbageCollector* GetGC() const
     {

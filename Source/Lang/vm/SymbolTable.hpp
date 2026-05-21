@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Lang/vm/Value.hpp>
+#include <Lang/vm/ScriptMemory.hpp>
 
 #include <Core/HashCode.hpp>
 
@@ -11,14 +12,17 @@ namespace Hyperion {
 
 class SymbolTable
 {
-    using SymbolMap = TMap<HashCode::ValueType, BoxedValue*>;
+    using SymbolMap = TMap<HashCode::ValueType, BoxedValue*, ScriptAllocator>;
 
 public:
     SymbolTable();
+    
     SymbolTable(const SymbolTable& other) = delete;
     SymbolTable& operator=(const SymbolTable& other) = delete;
+    
     SymbolTable(SymbolTable&& other) noexcept = delete;
     SymbolTable& operator=(SymbolTable&& other) noexcept = delete;
+    
     ~SymbolTable();
 
     void MarkAll();

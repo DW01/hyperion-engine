@@ -1,4 +1,5 @@
 #include <Lang/compiler/emit/codegen/CodeGenerator.hpp>
+#include <Lang/compiler/Configuration.hpp>
 
 #include <Core/HashCode.hpp>
 #include <Core/reflection/Field.hpp>
@@ -35,6 +36,11 @@ void CodeGenerator::Visit(BytecodeChunk* chunk)
 
     for (auto& buildable : chunk->buildables)
     {
+        if (!ScriptConfig::BakeBytecodeComments && dynamic_cast<Comment*>(buildable.Get()) != nullptr)
+        {
+            continue;
+        }
+
         codeGenerator.BuildableVisitor::Visit(buildable.Get());
     }
 
@@ -167,6 +173,10 @@ void CodeGenerator::Visit(LoadRef* node)
     m_ibs.Put(subcmd);
     m_ibs.Put(node->dst);
     m_ibs.Put(node->src);
+
+    // m_ibs.Put(Instructions::REF);
+    // m_ibs.Put(node->dst);
+    // m_ibs.Put(node->src);
 }
 
 void CodeGenerator::Visit(LoadDeref* node)
@@ -178,6 +188,10 @@ void CodeGenerator::Visit(LoadDeref* node)
     m_ibs.Put(subcmd);
     m_ibs.Put(node->dst);
     m_ibs.Put(node->src);
+
+    // m_ibs.Put(Instructions::DEREF);
+    // m_ibs.Put(node->dst);
+    // m_ibs.Put(node->src);
 }
 
 void CodeGenerator::Visit(ConstI32* node)
@@ -418,8 +432,14 @@ void CodeGenerator::Visit(ClassTable* node)
                 {
                     const ClassTable::StaticFieldInfo& staticFieldInfo = static_cast<const ClassTable::StaticFieldInfo&>(member);
 
+                    TypeId::ValueType targetTypeIdValue = staticFieldInfo.targetTypeId.Value();
+                    m_ibs.Put(reinterpret_cast<ubyte*>(&targetTypeIdValue), sizeof(targetTypeIdValue));
+
                     uint32 size = staticFieldInfo.size;
                     m_ibs.Put(reinterpret_cast<ubyte*>(&size), sizeof(size));
+
+                    Assert(staticFieldInfo.stackOffset != UINT16_MAX, "Static field stack offset not set");
+                    m_ibs.Put(reinterpret_cast<const ubyte*>(&staticFieldInfo.stackOffset), sizeof(staticFieldInfo.stackOffset));
                 }
                 else
                 {

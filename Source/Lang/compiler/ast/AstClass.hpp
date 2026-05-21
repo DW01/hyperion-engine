@@ -42,7 +42,7 @@ public:
         EnumFlags<AstClassFlags> classFlags,
         const SourceLocation& location);
 
-    virtual ~AstClass() override = default;
+    virtual ~AstClass() override;
 
     /** enable setting to that variable declarations can change the type name */
     HYP_FORCE_INLINE void SetName(const String& name)
@@ -60,52 +60,52 @@ public:
         return m_dataMembers;
     }
 
-    Array<RC<AstVariableDeclaration>>& GetFunctionMembers()
+    HYP_FORCE_INLINE Array<RC<AstVariableDeclaration>>& GetFunctionMembers()
     {
         return m_functionMembers;
     }
 
-    const Array<RC<AstVariableDeclaration>>& GetFunctionMembers() const
+    HYP_FORCE_INLINE const Array<RC<AstVariableDeclaration>>& GetFunctionMembers() const
     {
         return m_functionMembers;
     }
 
-    Array<RC<AstVariableDeclaration>>& GetStaticMembers()
+    HYP_FORCE_INLINE Array<RC<AstVariableDeclaration>>& GetStaticMembers()
     {
         return m_staticMembers;
     }
 
-    const Array<RC<AstVariableDeclaration>>& GetStaticMembers() const
+    HYP_FORCE_INLINE const Array<RC<AstVariableDeclaration>>& GetStaticMembers() const
     {
-        return m_functionMembers;
+        return m_staticMembers;
     }
 
-    bool IsEnum() const
+    HYP_FORCE_INLINE bool IsEnum() const
     {
         return m_flags[CLASS_FLAG_IS_ENUM];
     }
 
-    bool IsStruct() const
+    HYP_FORCE_INLINE bool IsStruct() const
     {
         return m_flags[CLASS_FLAG_IS_STRUCT];
     }
 
-    bool IsProxyClass() const
+    HYP_FORCE_INLINE bool IsProxyClass() const
     {
         return m_flags[CLASS_FLAG_IS_PROXY];
     }
 
-    bool IsAnonymous() const
+    HYP_FORCE_INLINE bool IsAnonymous() const
     {
         return m_flags[CLASS_FLAG_ANONYMOUS];
     }
 
-    bool IsExternClass() const
+    HYP_FORCE_INLINE bool IsExternClass() const
     {
         return m_flags[CLASS_FLAG_EXTERN];
     }
 
-    void SetPreRegister(bool preRegister)
+    HYP_FORCE_INLINE void SetPreRegister(bool preRegister)
     {
         m_preRegister = preRegister;
     }
@@ -120,9 +120,9 @@ public:
         return m_symbolType;
     }
 
-    void SetSymbolType(SymbolType* symbolType)
+    HYP_FORCE_INLINE const RC<AstVariableDeclaration>& GetClassRefDecl() const
     {
-        m_symbolType = symbolType;
+        return m_refDecl;
     }
 
     virtual void Visit(AstVisitor* visitor, Module* mod) override;
@@ -184,6 +184,10 @@ protected:
     Array<RC<AstVariableDeclaration>> m_outsideMembers;
     Array<RC<AstVariableDeclaration>> m_combinedMembers;
     bool m_preRegister;
+
+    // ClassRef variable decl, lives on the stack
+    RC<AstVariableDeclaration> m_refDecl;
+    RC<AstTypeRef> m_baseTypeRef;
 
     RC<AstClass> CloneImpl() const
     {
