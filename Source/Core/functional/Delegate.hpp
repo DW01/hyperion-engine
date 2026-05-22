@@ -57,16 +57,16 @@ struct DelegateHandler;
 // such as adding new entries, we use a mutex to ensure exclusive access.
 static constexpr uint64 ExclusiveAccessFlag = 0x1;
 
+static constexpr uint64 MarkedForRemovalFlag = uint64(1) << 63;
 // A mask that is written when marking an entry for removal.
 // An entry is marked for removal rather than being removed directly to limit the amount of exclusive locking required.
 
 // When calling Broadcast(), delegate will also set this mask on a handler while executing the function that is assigned to the handler,
 // preventing an entry from being deleted while it is executing (but still allowing other threads to MARK an entry for removal at a later time)
-static constexpr uint64 SharedAccessMask = uint64(-1) & ~ExclusiveAccessFlag;
+static constexpr uint64 SharedAccessMask = (UINT64_MAX & ~ExclusiveAccessFlag) & (UINT64_MAX >> 1);
 
 struct DelegateHandlerEntryBase
 {
-    uint32 index;
     AtomicVar<uint64> mask;
     ThreadId callingThreadId;
 
@@ -81,12 +81,12 @@ struct DelegateHandlerEntryBase
 
     HYP_FORCE_INLINE void MarkForRemoval()
     {
-        index = ~0u;
+        mask.BitOr(MarkedForRemovalFlag, MemoryOrder::RELEASE);
     }
 
     HYP_FORCE_INLINE bool IsMarkedForRemoval() const
     {
-        return index == ~0u;
+        return (mask.Get(MemoryOrder::ACQUIRE) & MarkedForRemovalFlag);
     }
 
     ThreadBase* GetCallingThread() const
@@ -96,10 +96,7 @@ struct DelegateHandlerEntryBase
             return nullptr;
         }
 
-        ThreadBase* thread = GetThreadById(callingThreadId);
-        HYP_CORE_ASSERT(thread != nullptr);
-
-        return thread;
+        return GetThreadById(callingThreadId);
     }
 };
 
@@ -218,21 +215,6 @@ struct DelegateHandler
     {
         return entry != other.entry || delegateImpl != other.delegateImpl;
     }
-
-    HYP_FORCE_INLINE bool operator<(const DelegateHandler& other) const
-    {
-        if (entry != nullptr)
-        {
-            if (other.entry != nullptr)
-            {
-                return entry->index < other.entry->index;
-            }
-
-            return true;
-        }
-
-        return false;
-    }
 };
 
 /*! \brief A Delegate object that can be used to bind handler functions to be called when a broadcast is sent.
@@ -295,7 +277,6 @@ public:
         ProcList& list = LockActiveList();
 
         DelegateHandlerEntry<ProcType>* entry = list.PushBack(new DelegateHandlerEntry<ProcType>());
-        entry->index = m_idCounter++;
         entry->callingThreadId = ThreadId::Invalid();
         entry->proc = std::move(proc);
 
@@ -329,7 +310,6 @@ public:
         ProcList& list = LockActiveList();
 
         DelegateHandlerEntry<ProcType>* entry = list.PushBack(new DelegateHandlerEntry<ProcType>());
-        entry->index = m_idCounter++;
         entry->callingThreadId = callingThreadId;
         entry->proc = std::move(proc);
 
@@ -371,7 +351,7 @@ public:
                 HYP_WAIT_IDLE();
             }
 
-            if (current->IsMarkedForRemoval())
+            if (state & MarkedForRemovalFlag)
             {
                 delete current;
 
@@ -462,7 +442,6 @@ public:
 
             while ((localState & SharedAccessMask))
             {
-                HYP_WAIT_IDLE();
                 localState = current->mask.Get(MemoryOrder::ACQUIRE);
 
                 if (!(localState & SharedAccessMask))
@@ -574,7 +553,10 @@ public:
             {
                 if (current->callingThreadId.IsValid() && current->callingThreadId != currentThreadId)
                 {
-                    current->GetCallingThread()->GetScheduler().Enqueue([current, argsTuple = Tuple<Args...>(args...)]()
+                    ThreadBase* callingThread = current->GetCallingThread();
+                    HYP_CORE_ASSERT(callingThread != nullptr);
+
+                    callingThread->GetScheduler().Enqueue([current, argsTuple = Tuple<Args...>(args...)]()
                         {
                             Apply(current->proc, argsTuple);
 
@@ -642,42 +624,16 @@ protected:
             return false;
         }
 
-        uint64 state;
-        while (((state = entry->mask.Increment(2, MemoryOrder::ACQUIRE)) & ExclusiveAccessFlag))
-        {
-            entry->mask.Decrement(2, MemoryOrder::RELAXED);
-            // wait for write flag to be released
-            HYP_WAIT_IDLE();
-        }
-
         entry->MarkForRemoval();
 
-        // Upgrade from shared to exclusive access so we can safely reset the proc.
-        //
-        // Setting ExclusiveAccessFlag prevents new shared-access attempts (e.g. a concurrent
-        // Broadcast spinning to acquire a read slot will see the flag and back off).
-        // We keep our own shared slot (+2) held throughout, which prevents the entry from
-        // being deleted by a concurrent Broadcast before we are done.
-        entry->mask.BitOr(ExclusiveAccessFlag, MemoryOrder::ACQUIRE);
+        uint64 expected = MarkedForRemovalFlag;
 
-        // Wait until every OTHER shared reader has drained.
-        // (mask & SharedAccessMask) == 2 means only our own +2 slot remains.
-        // A concurrent Broadcast that already holds a read slot will call proc.Reset()
-        // itself once the proc returns (IsMarkedForRemoval() is now true), so this
-        // wait is expected to be very short.
-        while ((entry->mask.Get(MemoryOrder::ACQUIRE) & SharedAccessMask) > 2)
+        if (entry->mask.CompareExchangeStrong(expected, ExclusiveAccessFlag | MarkedForRemovalFlag, MemoryOrder::ACQUIRE_RELEASE))
         {
-            HYP_WAIT_IDLE();
+            static_cast<DelegateHandlerEntry<ProcType>*>(entry)->proc.Reset();
+
+            entry->mask.BitAnd(~ExclusiveAccessFlag, MemoryOrder::RELEASE);
         }
-
-        // No other shared reader is active - safe to reset the proc and release
-        // any captured resources (e.g. managed-object GC handles) immediately,
-        // rather than waiting for the next Broadcast() call (which may never come).
-        static_cast<DelegateHandlerEntry<ProcType>*>(entry)->proc.Reset();
-
-        // Release exclusive flag first, then our shared slot.
-        entry->mask.BitAnd(~ExclusiveAccessFlag, MemoryOrder::RELEASE);
-        entry->mask.Decrement(2, MemoryOrder::RELEASE);
 
         return true;
     }
