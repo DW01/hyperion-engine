@@ -181,6 +181,8 @@ ObjectBase::~ObjectBase()
         {
             const Class* cls = m_header->cls;
 
+            AssertDebug(cls->IsClassType());
+
             const bool isScriptObj = (m_scriptObjectResource->GetScriptLanguageMask() & (1u << uint32(ScriptLanguage::HypScript))) != 0;
 
             if (isScriptObj)

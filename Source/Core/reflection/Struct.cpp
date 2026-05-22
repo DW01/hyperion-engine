@@ -6,6 +6,7 @@
 
 #include <Core/reflection/Struct.hpp>
 #include <Core/reflection/ClassRegistry.hpp>
+#include <Core/reflection/Field.hpp>
 
 #include <Core/reflection/TypeInfo.hpp>
 
@@ -15,6 +16,36 @@
 #endif
 
 namespace Hyperion {
+
+#ifdef HYP_SCRIPT
+extern Pool* g_scriptPool;
+#endif
+
+static void* DynamicStructInstance_CopyCtor(void* ctx, const void* block)
+{
+    const Any::Block* src = static_cast<const Any::Block*>(block);
+    const DynamicStructInstance* pStruct = static_cast<const DynamicStructInstance*>(ctx);
+
+    void* objCopy = pStruct->GetFunctions().copy(const_cast<void*>(ctx), src->objectPtr);
+
+    static auto* s_allocator = GetDefaultAllocatorInstance<DynamicAllocator>();
+
+    void* raw = s_allocator->Allocate(sizeof(Any::Block), alignof(Any::Block));
+    HYP_CORE_ASSERT(raw != nullptr);
+
+    Any::Block* hdr = new (raw) Any::Block {
+        src->typeInfo,
+        objCopy,
+        ctx,
+        &DynamicStructInstance_CopyCtor,
+        pStruct->GetFunctions().destruct,
+        src->dtor,
+        src->objSize,
+        src->objAlign
+    };
+
+    return hdr;
+}
 
 #pragma region Struct
 
@@ -56,6 +87,50 @@ bool Struct::CreateStructInstance(dotnet::ObjectReference& outObjectReference, c
 
 #pragma region DynamicStructInstance
 
+#ifdef HYP_SCRIPT
+DynamicStructInstance::DynamicStructInstance(
+    TypeId typeId,
+    Name name,
+    Span<const ClassAttribute> attributes,
+    EnumFlags<ClassFlags> flags,
+    Span<MemberVariant> members,
+    const DynamicStructInstanceFunctions& functions)
+    : Struct(typeId, name, -1, 0, Name::Invalid(), attributes, flags | ClassFlags::DYNAMIC, members),
+      m_functions(functions)
+{
+    size_t dynamicSize = 0;
+    size_t dynamicAlignment = 0;
+
+    auto CalculateDynamicClassSize = [](const Class* cls, size_t& dynamicSize, size_t& dynamicAlignment)
+    {
+        AssertDebug(cls->IsDynamic());
+
+        for (const Field* field : cls->GetFields())
+        {
+            // In dynamic classes for scripts, all fields are stored as BoxedValue
+            const size_t fieldSize = sizeof(BoxedValue);
+            const size_t fieldAlignment = alignof(BoxedValue);
+
+            dynamicSize = ByteUtil::AlignAs(dynamicSize, fieldAlignment);
+
+            AssertDebug(field != nullptr);
+            AssertDebug(field->GetOffset() == dynamicSize, "Field offsets don't match expected offset! (field: {}, class: {}), expected {}, got {}",
+                field->GetName(), cls->GetName(),
+                dynamicSize, field->GetOffset());
+
+            dynamicSize += fieldSize;
+
+            dynamicAlignment = MathUtil::Max(dynamicAlignment, fieldAlignment);
+        }
+    };
+
+    CalculateDynamicClassSize(this, dynamicSize, dynamicAlignment);
+
+    m_size = MathUtil::Max(1, dynamicSize);
+    m_alignment = MathUtil::Max(1, dynamicAlignment);
+}
+#endif
+
 DynamicStructInstance::DynamicStructInstance(
     TypeId typeId,
     Name name,
@@ -63,14 +138,10 @@ DynamicStructInstance::DynamicStructInstance(
     Span<const ClassAttribute> attributes,
     EnumFlags<ClassFlags> flags,
     Span<MemberVariant> members,
-    DynamicStructInstance_CopyFunction copyFunction,
-    DynamicStructInstance_DestructFunction destructFunction)
+    const DynamicStructInstanceFunctions& functions)
     : Struct(typeId, name, -1, 0, Name::Invalid(), attributes, flags, members),
-      m_copyFunction(copyFunction),
-      m_destructFunction(destructFunction)
+      m_functions(functions)
 {
-    Assert(m_copyFunction != nullptr);
-    Assert(m_destructFunction != nullptr);
     Assert(size > 0);
 
     m_size = size;
@@ -102,15 +173,40 @@ bool DynamicStructInstance::GetManagedObject(const void* objectPtr, dotnet::Obje
 
 bool DynamicStructInstance::ToBoxed(ByteView memory, BoxedValue& out) const
 {
-    void* data = Memory::Allocate(m_size);
+    void* data = GetDefaultAllocatorInstance<DynamicAllocator>()->Allocate(m_size, m_alignment);
+    Assert(data != nullptr);
+
     Memory::Copy(data, memory.Data(), m_size);
 
     const TypeInfo* pTypeInfo = GetTypeInfo();
     AssertDebug(pTypeInfo != nullptr);
 
-    out = BoxedValue(Any::FromVoidPointer(pTypeInfo, data, m_copyFunction, m_destructFunction));
+    out = BoxedValue(Any::FromVoidPointer<DynamicAllocator>(pTypeInfo, data, &DynamicStructInstance_CopyCtor, m_functions.destruct, const_cast<void*>(static_cast<const void*>(this)), m_size, m_alignment));
 
     return true;
+}
+
+bool DynamicStructInstance::CreateInstance_Internal(BoxedValue& out) const
+{
+    void* data = GetDefaultAllocatorInstance<DynamicAllocator>()->Allocate(m_size, m_alignment);
+    Assert(data != nullptr);
+
+    AssertDebug(m_functions.construct != nullptr);
+    m_functions.construct(const_cast<void*>(static_cast<const void*>(this)), data);
+
+    const TypeInfo* pTypeInfo = GetTypeInfo();
+    AssertDebug(pTypeInfo != nullptr);
+
+    out = BoxedValue(Any::FromVoidPointer<DynamicAllocator>(pTypeInfo, data, &DynamicStructInstance_CopyCtor, m_functions.destruct, const_cast<void*>(static_cast<const void*>(this)), m_size, m_alignment));
+
+    return true;
+}
+
+bool DynamicStructInstance::CreateInstanceArray_Internal(Span<BoxedValue> elements, BoxedValue& out) const
+{
+    HYP_NOT_IMPLEMENTED();
+
+    return false;
 }
 
 #pragma endregion DynamicStructInstance

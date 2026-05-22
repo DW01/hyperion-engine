@@ -46,7 +46,7 @@ namespace Hyperion {
 
 HYP_DEFINE_LOG_CHANNEL(SimThread);
 
-EngineStatTimer g_statSimUpdate("CPU/SimThread");
+EngineStatTimer g_statSimUpdate("SimThread");
 
 namespace CoreApi {
 extern const CommandLineArguments& GetCommandLineArguments();

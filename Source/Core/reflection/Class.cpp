@@ -1803,11 +1803,17 @@ void DynamicClassInstance::Release()
 
 #pragma region ClassRef
 
+static inline bool IsDynamicClass(const Class& cls)
+{
+    return (cls.GetFlags() & (ClassFlags::DYNAMIC | ClassFlags::CLASS_TYPE)) == (ClassFlags::DYNAMIC | ClassFlags::CLASS_TYPE);
+}
+
 ClassRef::ClassRef(const Class* cls, int initialRefCount)
     : cls(cls)
 {
-    if (cls && cls->IsDynamic() && initialRefCount > 0)
+    if (cls && IsDynamicClass(*cls) && initialRefCount > 0)
     {
+        // @FIXME DynamicStructInstance needs AddRef() / Release() too! Otherwise it'll leak!
         const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->AddRef();
     }
 }
@@ -1815,12 +1821,9 @@ ClassRef::ClassRef(const Class* cls, int initialRefCount)
 ClassRef::ClassRef(const ClassRef& other)
     : cls(other.cls)
 {
-    if (cls)
+    if (cls && IsDynamicClass(*cls))
     {
-        if (cls->IsDynamic())
-        {
-            const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->AddRef();
-        }
+        const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->AddRef();
     }
 }
 
@@ -1831,14 +1834,14 @@ ClassRef& ClassRef::operator=(const ClassRef& other)
         return *this;
     }
 
-    if (cls && cls->IsDynamic())
+    if (cls && IsDynamicClass(*cls))
     {
         const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->Release();
     }
 
     cls = other.cls;
 
-    if (cls && cls->IsDynamic())
+    if (cls && IsDynamicClass(*cls))
     {
         const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->AddRef();
     }
@@ -1859,7 +1862,7 @@ ClassRef& ClassRef::operator=(ClassRef&& other) noexcept
         return *this;
     }
 
-    if (cls && cls->IsDynamic())
+    if (cls && IsDynamicClass(*cls))
     {
         const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->Release();
     }
@@ -1872,7 +1875,7 @@ ClassRef& ClassRef::operator=(ClassRef&& other) noexcept
 
 ClassRef::~ClassRef()
 {
-    if (cls && cls->IsDynamic())
+    if (cls && IsDynamicClass(*cls))
     {
         const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->Release();
     }

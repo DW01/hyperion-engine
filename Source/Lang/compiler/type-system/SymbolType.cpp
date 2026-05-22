@@ -1413,7 +1413,8 @@ SymbolType* SymbolType::GenericInstance(
             allMembers.PushBack(SymbolTypeMember {
                 member.GetName(),
                 const_cast<SymbolType*>(member.GetType()),
-                CloneAstNode(member.GetExpr()) });
+                CloneAstNode(member.GetExpr()),
+                member.IsConst() });
         }
 
         for (const SymbolTypeMember& staticMember : genericType->GetStaticMembers())
@@ -1435,7 +1436,8 @@ SymbolType* SymbolType::GenericInstance(
             allStaticMembers.PushBack(SymbolTypeMember {
                 staticMember.GetName(),
                 const_cast<SymbolType*>(staticMember.GetType()),
-                CloneAstNode(staticMember.GetExpr()) });
+                CloneAstNode(staticMember.GetExpr()),
+                staticMember.IsConst() });
         }
     }
 
@@ -1457,7 +1459,8 @@ SymbolType* SymbolType::GenericInstance(
             allMembers.PushBack(SymbolTypeMember {
                 member.GetName(),
                 member.GetType(),
-                CloneAstNode(member.GetExpr()) });
+                CloneAstNode(member.GetExpr()),
+                member.IsConst() });
         }
     }
 
@@ -1479,7 +1482,8 @@ SymbolType* SymbolType::GenericInstance(
             allStaticMembers.PushBack(SymbolTypeMember {
                 staticMember.GetName(),
                 staticMember.GetType(),
-                CloneAstNode(staticMember.GetExpr()) });
+                CloneAstNode(staticMember.GetExpr()),
+                staticMember.IsConst() });
         }
     }
 

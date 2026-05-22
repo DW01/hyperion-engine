@@ -14,6 +14,8 @@
 #include <scene/SystemExecutionGroup.hpp>
 #include <scene/Subsystem.hpp>
 
+#include <scene/util/EntityScripting.hpp>
+
 #include <scene/systems/VisibilityStateUpdaterSystem.hpp>
 #include <scene/systems/LightmapSystem.hpp>
 #include <scene/systems/AnimationSystem.hpp>
@@ -45,6 +47,7 @@
 
 #include <engine/Game.hpp>
 #include <engine/EngineDriver.hpp>
+#include <Engine/EngineStats.hpp>
 #include <engine/CVarManager.hpp>
 
 #include <asset/Assets.hpp>
@@ -60,7 +63,6 @@ namespace Hyperion {
 #define HYP_WORLD_ASYNC_SUBSYSTEM_UPDATES
 #define HYP_WORLD_ASYNC_VIEW_COLLECTION
 
-#define HYP_SYSTEMS_PARALLEL_EXECUTION
 // #define HYP_SYSTEMS_LAG_SPIKE_DETECTION
 // #define HYP_SYSTEM_LOG_PERFORMANCE
 
@@ -68,6 +70,9 @@ namespace Hyperion {
 static constexpr double SystemExecutionGroupLagSpikeThreshold = 50.0;
 
 extern CVar<bool> cvRayTracingEnabled;
+
+EngineStatTimer g_statScriptUpdate("Script/Update");
+static EngineStatTimer s_statPhysicsUpdate("Physics/Update");
 
 static const Name s_nameStreamingLayerScenes = NAME("Scenes_Layer");
 static const Name s_nameUnnamedWorld = NAME("<unnamed world>");
@@ -506,12 +511,20 @@ void World::BeginUpdate(TaskBatch& inBatch, float delta)
 
     UpdateCSMState();
 
-    if (m_physicsWorld != nullptr && GetGameState().IsSimulating())
+    if (GetGameState().IsSimulating())
     {
-        m_physicsWorld->Tick(delta);
+        if (m_physicsWorld != nullptr)
+        {
+            ENGINE_STAT_SCOPE(&s_statPhysicsUpdate);
 
-        // must be called before entity managers are locked.
-        SyncPhysicsToEntities();
+            m_physicsWorld->Tick(delta);
+
+            // must be called before entity managers are locked.
+            SyncPhysicsToEntities();
+        }
+
+        ENGINE_STAT_SCOPE(&g_statScriptUpdate);
+        EntityScripting::UpdateScriptedEntities(*this, delta);
     }
 
     for (Scene* scene : m_scenes)

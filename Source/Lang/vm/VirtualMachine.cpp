@@ -8,6 +8,7 @@
 
 #include <Core/reflection/BoxedValue.hpp>
 #include <Core/reflection/Class.hpp>
+#include <Core/reflection/Struct.hpp>
 #include <Core/reflection/MemberVariant.hpp>
 #include <Core/reflection/Field.hpp>
 #include <Core/reflection/Property.hpp>
@@ -254,11 +255,6 @@ BoxedValue ShallowCopy(BoxedValue& refValue, GarbageCollector* gc)
 
 bool ShouldValuePassByRef(const BoxedValue& value)
 {
-    if (!value.IsValid())
-    {
-        return false;
-    }
-
     return PASS_AS_REF(value);
 }
 
@@ -1007,34 +1003,62 @@ public:
     {
         BoxedValue* pValue = Deref(instance->thread.m_regs[dstReg]);
 
+        if (pValue->Is<Field*>() || pValue->Is<StaticField*>())
+        {
+            HYP_BREAKPOINT;
+        }
+
+        BoxedValue& srcValue = *Deref(instance->thread.m_regs[srcReg]);
+        BoxedValue newValue = PASS_AS_REF(srcValue)
+            ? MakeTrackedRef(&srcValue, vm->GetGC())
+            : ShallowCopy(srcValue, vm->GetGC());
+
         const Class* cls = nullptr;
 
-        if (const Handle<ObjectBase>& object = GetObject(*pValue))
+        if (pValue->Is<ClassRef>())
         {
-            cls = object.ptr->InstanceClass();
+            cls = pValue->Get<ClassRef>().cls;
+
+            StaticField* staticField = cls->GetStaticField(StringHash(NameID(hash)));
+
+            if (!staticField)
+            {
+                vm->ThrowException(instance, Exception::MemberNotFoundException(pValue, hash));
+
+                return;
+            }
+
+            staticField->SetValue(std::move(newValue));
         }
         else
         {
-            cls = GetClass(pValue->GetTypeId());
+            if (const Handle<ObjectBase>& object = GetObject(*pValue))
+            {
+                cls = object.ptr->InstanceClass();
+            }
+            else
+            {
+                cls = GetClass(pValue->GetTypeId());
+            }
+
+            if (!cls)
+            {
+                vm->ThrowException(instance, Exception::InvalidMemberAccessException(pValue));
+
+                return;
+            }
+
+            Field* field = cls->GetField(StringHash(NameID(hash)));
+
+            if (!field)
+            {
+                vm->ThrowException(instance, Exception::MemberNotFoundException(pValue, hash));
+
+                return;
+            }
+
+            field->Set(*pValue, std::move(newValue));
         }
-
-        if (!cls)
-        {
-            vm->ThrowException(instance, Exception::InvalidMemberAccessException(pValue));
-
-            return;
-        }
-
-        Field* field = cls->GetField(StringHash(NameID(hash)));
-
-        if (!field)
-        {
-            vm->ThrowException(instance, Exception::MemberNotFoundException(pValue, hash));
-
-            return;
-        }
-
-        field->Set(*pValue, *Deref(instance->thread.m_regs[srcReg]));
     }
 
     SCRIPT_INLINE void OpGetMember(RegisterIndex dstReg, RegisterIndex srcReg, uint64 hash)
@@ -1557,7 +1581,8 @@ public:
 
         const Class* parentClass = nullptr;
 
-        if (parentClassValue.IsValid())
+        // Check if value in register is non-null
+        if (parentClassValue.ToRef().GetPointer() != nullptr)
         {
             parentClass = parentClassValue.Get<ClassRef>();
             Assert(parentClass != nullptr);
@@ -1566,13 +1591,86 @@ public:
         // some type needs to be set
         Assert((flags & (ClassFlags::CLASS_TYPE | ClassFlags::STRUCT_TYPE | ClassFlags::ENUM_TYPE)));
 
-        DynamicClassInstance* newClass = new DynamicClassInstance(
-            TypeId(typeIdValue),
-            className,
-            parentClass,
-            Span<const ClassAttribute>(), // @TODO
-            flags,
-            members.ToSpan());
+        Class* newClass = nullptr;
+
+        if (flags & (ClassFlags::CLASS_TYPE | ClassFlags::ENUM_TYPE)) // enum is here temporarily
+        {
+            newClass = new DynamicClassInstance(
+                TypeId(typeIdValue),
+                className,
+                parentClass,
+                Span<const ClassAttribute>(), // @TODO
+                flags,
+                members.ToSpan());
+        }
+        else if (flags & ClassFlags::STRUCT_TYPE)
+        {
+            DynamicStructInstanceFunctions functions {};
+            functions.construct = [](void* ctx, void* dest) -> void
+            {
+                ubyte* ptrRaw = reinterpret_cast<ubyte*>(dest);
+
+                const DynamicStructInstance* pStruct = static_cast<const DynamicStructInstance*>(ctx);
+
+                for (const Field* field : pStruct->GetFields())
+                {
+                    if (field->GetTypeId().Value() == BoxedValueTypeId)
+                    {
+                        new (ptrRaw + field->GetOffset()) BoxedValue;
+                    }
+                }
+            };
+            functions.copy = [](void* ctx, const void* src) -> void*
+            {
+                const DynamicStructInstance* pStruct = static_cast<const DynamicStructInstance*>(ctx);
+                
+                void* dest = GetDefaultAllocatorInstance<DynamicAllocator>()->Allocate(pStruct->GetSize(), pStruct->GetAlignment());
+
+                const ubyte* srcRaw = reinterpret_cast<const ubyte*>(src);
+                ubyte* destRaw = reinterpret_cast<ubyte*>(dest);
+
+                for (const Field* field : pStruct->GetFields())
+                {
+                    if (field->GetTypeId().Value() == BoxedValueTypeId)
+                    {
+                        const auto* srcBoxed = reinterpret_cast<const BoxedValue*>(srcRaw + field->GetOffset());
+                        new (destRaw + field->GetOffset()) BoxedValue(*srcBoxed);
+                    }
+                    else
+                    {
+                        Memory::Copy(destRaw + field->GetOffset(), srcRaw + field->GetOffset(), field->GetSize());
+                    }
+                }
+
+                return dest;
+            };
+            functions.destruct = [](void* ctx, void* ptr) -> void
+            {
+                const DynamicStructInstance* pStruct = static_cast<const DynamicStructInstance*>(ctx);
+
+                ubyte* ptrRaw = reinterpret_cast<ubyte*>(ptr);
+
+                for (const Field* field : pStruct->GetFields())
+                {
+                    if (field->GetTypeId().Value() == BoxedValueTypeId)
+                    {
+                        reinterpret_cast<BoxedValue*>(ptrRaw + field->GetOffset())->~BoxedValue();
+                    }
+                }
+            };
+
+            newClass = new DynamicStructInstance(
+                TypeId(typeIdValue),
+                className,
+                Span<const ClassAttribute>(), // @TODO
+                flags,
+                members.ToSpan(),
+                functions);
+        }
+        else
+        {
+            HYP_NOT_IMPLEMENTED();
+        }
 
         // Only register if not anonymous
         if (!(flags & ClassFlags::ANONYMOUS))

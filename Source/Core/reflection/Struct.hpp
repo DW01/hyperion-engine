@@ -193,12 +193,28 @@ protected:
     }
 };
 
-using DynamicStructInstance_CopyFunction = void* (*)(const void*);
-using DynamicStructInstance_DestructFunction = void (*)(void*);
+class DynamicStructInstance;
+
+struct DynamicStructInstanceFunctions
+{
+    void (*construct)(void* ctx, void* dest);
+    void* (*copy)(void* ctx, const void* src);
+    void (*destruct)(void* ctx, void* ptr);
+};
 
 class DynamicStructInstance final : public Struct
 {
 public:
+#ifdef HYP_SCRIPT
+    DynamicStructInstance(
+        TypeId typeId,
+        Name name,
+        Span<const ClassAttribute> attributes,
+        EnumFlags<ClassFlags> flags,
+        Span<MemberVariant> members,
+        const DynamicStructInstanceFunctions& functions);
+#endif
+
     DynamicStructInstance(
         TypeId typeId,
         Name name,
@@ -206,8 +222,7 @@ public:
         Span<const ClassAttribute> attributes,
         EnumFlags<ClassFlags> flags,
         Span<MemberVariant> members,
-        DynamicStructInstance_CopyFunction copyFunction,
-        DynamicStructInstance_DestructFunction destructFunction);
+        const DynamicStructInstanceFunctions& functions);
 
     virtual ~DynamicStructInstance() override;
 
@@ -220,6 +235,11 @@ public:
         return true;
     }
 
+    HYP_FORCE_INLINE const DynamicStructInstanceFunctions& GetFunctions() const
+    {
+        return m_functions;
+    }
+
     virtual bool ToBoxed(ByteView memory, BoxedValue& out) const override;
 
 protected:
@@ -227,22 +247,10 @@ protected:
     {
     }
 
-    virtual bool CreateInstance_Internal(BoxedValue& out) const override
-    {
-        HYP_NOT_IMPLEMENTED();
+    virtual bool CreateInstance_Internal(BoxedValue& out) const override;
+    virtual bool CreateInstanceArray_Internal(Span<BoxedValue> elements, BoxedValue& out) const override;
 
-        return false;
-    }
-
-    virtual bool CreateInstanceArray_Internal(Span<BoxedValue> elements, BoxedValue& out) const override
-    {
-        HYP_NOT_IMPLEMENTED();
-
-        return false;
-    }
-
-    DynamicStructInstance_CopyFunction m_copyFunction;
-    DynamicStructInstance_DestructFunction m_destructFunction;
+    DynamicStructInstanceFunctions m_functions;
 };
 
 } // namespace Hyperion

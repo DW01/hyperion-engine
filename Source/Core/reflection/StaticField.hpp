@@ -140,6 +140,14 @@ public:
         return m_getProc();
     }
 
+    void SetValue(const BoxedValue& value)
+    {
+        m_getProc = [value = value]() -> BoxedValue
+        {
+            return value;
+        };
+    }
+
     void SetValue(BoxedValue&& value)
     {
         m_getProc = [value = std::move(value)]() -> BoxedValue
