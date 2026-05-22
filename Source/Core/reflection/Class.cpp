@@ -1389,10 +1389,6 @@ DynamicClassInstance::DynamicClassInstance(
         dynamicAlignment = MathUtil::Max(dynamicAlignment, currentParent->GetAlignment());
     }
 
-    // add 'class' field space
-    dynamicSize = ByteUtil::AlignAs(dynamicSize, alignof(ClassRef));
-    dynamicSize += sizeof(ClassRef);
-
     for (size_t i = dynamicParents.Size(); i > 0; --i)
     {
         CalculateDynamicClassSize(dynamicParents[i - 1], dynamicSize, dynamicAlignment);
@@ -1642,14 +1638,8 @@ bool DynamicClassInstance::CreateInstance_Internal(BoxedValue& out) const
     size_t fieldOffset = (topParent != nullptr && !topParent->IsDynamic() && topParent != g_clsObjectBase ? topParent->GetSize() : 0)
         + sizeof(ObjectBase);
 
-    // add 'class' field
-    fieldOffset = ByteUtil::AlignAs(fieldOffset, alignof(ClassRef));
-    AssertDebug(fieldOffset + sizeof(ClassRef) <= m_size,
-        "Field offset out of bounds: {} + {} > {}", fieldOffset, sizeof(ClassRef), m_size);
-
-    ClassRef* classFieldPtr = (ClassRef*)(UIntPtr(target) + fieldOffset);
-    new (classFieldPtr) ClassRef(this);
-    fieldOffset += sizeof(ClassRef);
+    // Add reference for this, in ReleaseObject() will decrement the ref count.
+    const_cast<DynamicClassInstance*>(this)->AddRef();
 
     for (size_t i = dynamicParents.Size(); i > 0; i--)
     {

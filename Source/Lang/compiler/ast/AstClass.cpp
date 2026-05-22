@@ -765,10 +765,6 @@ UniquePtr<Buildable> AstClass::Build(AstVisitor* visitor, Module* mod)
     {
         fieldOffset = sizeof(ObjectBase); // start after base object for class types (enum temporarily too)
 
-        // reserve space for `class` field to hold reference to the class this object is an instance of
-        fieldOffset = ByteUtil::AlignAs(fieldOffset, alignof(ClassRef));
-        fieldOffset += sizeof(ClassRef);
-
         if (!IsEnum())
         {
             // iterate through parent types and add up their fields to get offset

@@ -16,6 +16,8 @@
 
 #include <Core/utilities/Pair.hpp>
 
+#include <Core/memory/pool/Pool.hpp>
+
 #include <Core/reflection/Handle.hpp>
 
 #include <scene/Entity.hpp>
@@ -37,6 +39,9 @@ class EntityManager;
 class View;
 
 class SceneOctree;
+
+HYP_API extern Pool* g_scenePool;
+using SceneAllocator = AllocatorInstance<Pool, &g_scenePool>;
 
 struct SceneOctreePayload
 {
@@ -81,7 +86,7 @@ struct SceneOctreePayload
         }
     };
 
-    using EntrySet = THashTable<Entry, &Entry::GetId, DynamicAllocator, HashTablePolicy::NotPooled>;
+    using EntrySet = THashTable<Entry, &Entry::GetId, SceneAllocator, HashTablePolicy::NotPooled>;
 
     EntrySet entries;
 

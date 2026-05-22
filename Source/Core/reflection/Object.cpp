@@ -189,11 +189,6 @@ ObjectBase::~ObjectBase()
             {
                 size_t fieldOffset = sizeof(ObjectBase);
 
-                // `class` field
-                fieldOffset = ByteUtil::AlignAs(fieldOffset, alignof(ClassRef));
-                ClassRef* classFieldPtr = (ClassRef*)(UIntPtr(this) + fieldOffset);
-                fieldOffset += sizeof(ClassRef);
-
                 while (cls != nullptr && cls->IsDynamic())
                 {
                     for (Field* field : cls->GetFields())
@@ -215,9 +210,6 @@ ObjectBase::~ObjectBase()
 
                     cls = cls->GetParent();
                 }
-
-                // destruct the `class` field last:
-                classFieldPtr->~ClassRef();
             }
         }
 #endif

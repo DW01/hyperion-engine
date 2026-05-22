@@ -27,7 +27,14 @@ HYP_API void ReleaseObject(ObjectHeader* header)
     ObjectContainerBase* container = cls->GetObjectContainer();
     AssertDebug(container != nullptr, "Class has no ObjectContainer");
 
-    cls->GetObjectContainer()->Release(header);
+    container->Release(header);
+
+    if (cls->IsDynamic())
+    {
+        AssertDebug(cls->IsClassType());
+
+        const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->Release();
+    }
 }
 
 #pragma region ObjectContainerMap

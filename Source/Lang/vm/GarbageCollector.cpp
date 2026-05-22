@@ -2,6 +2,9 @@
 
 #include <Core/reflection/BoxedValue.hpp>
 #include <Core/reflection/GenericArrayWrapper.hpp>
+#include <Core/reflection/Class.hpp>
+#include <Core/reflection/Field.hpp>
+#include <Core/reflection/StaticField.hpp>
 
 namespace Hyperion {
 
@@ -37,7 +40,9 @@ void GarbageCollector::MoveToTrackedMemory(BoxedValue& inOutRefValue)
     uint32 gcIndex = m_idGenerator.Next(); // starts at 1
     AssertDebug(gcIndex <= uint32(MAX_GC_INDEX), "Exceeded maximum number of tracked GC objects!");
 
-    TrackedStorage& storage = m_trackedObjects[gcIndex];
+    AssertDebug(!m_trackedObjects.HasIndex(gcIndex));
+
+    TrackedStorage& storage = *m_trackedObjects.Emplace(gcIndex);
     BoxedValue* ptr = storage.Construct(std::move(inOutRefValue));
     ptr->extData.gcIndex = GCIndex(gcIndex);
 
@@ -64,27 +69,46 @@ void GarbageCollector::MarkReachable(Span<BoxedValue> values)
 
 void GarbageCollector::Collect()
 {
+    // destruct in reverse order
+    Array<ValueStorage<BoxedValue>, ScriptAllocator> toDestroy;
+
     auto it = m_trackedObjects.Begin();
     while (it != m_trackedObjects.End())
     {
-        // GC index starts at 1
-        const size_t gcIndex = m_trackedObjects.IndexOf(it) + 1;
+        TrackedStorage& storage = *it;
+        BoxedValue& bv = storage.Get();
+
+        const uint32 gcIndex = uint32(bv.extData.gcIndex);
 
         if (m_marks.Test(gcIndex))
         {
             m_marks.Set(gcIndex, false); // reset for next collection
             ++it;
+
+            continue;
         }
-        else
+
+        if (!IsGarbage(storage.Get()))
         {
-            TrackedStorage& storage = *it;
-            storage.Get().extData.gcIndex = INVALID_GC_INDEX;
-            storage.Destruct();
-
-            it = m_trackedObjects.Erase(it);
-
-            m_idGenerator.ReleaseId(uint32(gcIndex));
+            toDestroy.PushBack(storage);
         }
+        
+        ++it;
+    }
+
+    for (size_t i = toDestroy.Size(); i != 0; i--)
+    {
+        TrackedStorage& storage = toDestroy[i - 1];
+        BoxedValue& bv = storage.Get();
+
+        const uint32 gcIndex = uint32(bv.extData.gcIndex);
+
+        storage.Get().extData.gcIndex = INVALID_GC_INDEX;
+        storage.Destruct();
+
+        m_trackedObjects.EraseAt(gcIndex);
+
+        m_idGenerator.ReleaseId(gcIndex);
     }
 }
 
@@ -97,8 +121,13 @@ void GarbageCollector::Collect(Span<BoxedValue> roots)
 
 void GarbageCollector::MarkReachable(BoxedValue& value)
 {
+    if (!value.IsValid() || IsGarbage(value))
+    {
+        return;
+    }
+
     BoxedValue* deref = Deref(value);
-    if (deref == nullptr || deref->extData.gcIndex == INVALID_GC_INDEX)
+    if (!deref || deref->extData.gcIndex == INVALID_GC_INDEX)
     {
         return;
     }
@@ -129,8 +158,23 @@ void GarbageCollector::MarkReachable(BoxedValue& value)
         }
     }
 
+    // Mark object fields
+    else if (const Class* cls = tracked.ToRef().GetClass())
+    {
+        for (const IMember& member : cls->GetMembers(MemberType::Field, /* deep */ true))
+        {
+            const Field& field = static_cast<const Field&>(member);
+
+            BoxedValue fieldValue = field.Get(tracked);
+
+            if (fieldValue.IsValid())
+            {
+                MarkReachable(fieldValue);
+            }
+        }
+    }
     // Mark array elements
-    if (GenericArrayWrapper* array = tracked.TryGet<GenericArrayWrapper>().TryGet())
+    else if (GenericArrayWrapper* array = tracked.TryGet<GenericArrayWrapper>().TryGet())
     {
         if (array->CanGetElementByIndex())
         {
@@ -144,6 +188,21 @@ void GarbageCollector::MarkReachable(BoxedValue& value)
                         MarkReachable(element.Get<BoxedValue>());
                     }
                 }
+            }
+        }
+    }
+    // Handle ClassRef static fields
+    else if (const ClassRef* classRef = tracked.TryGet<ClassRef>().TryGet())
+    {
+        for (const IMember& member : (*classRef)->GetMembers(MemberType::StaticField, /* deep */ true))
+        {
+            const StaticField& staticField = static_cast<const StaticField&>(member);
+
+            BoxedValue value = staticField.Get();
+
+            if (value.IsValid())
+            {
+                MarkReachable(value);
             }
         }
     }
