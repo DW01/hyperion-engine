@@ -265,15 +265,13 @@ UniquePtr<Buildable> AstMember::Build(AstVisitor* visitor, Module* mod)
         targetAsMember = dynamic_cast<AstMember*>(m_target.Get());
     }
 
-    const bool needsStaticFieldWriteback = targetAsMember != nullptr
-        && targetAsMember->m_isStaticField
-        && targetAsMember->m_typeRef != nullptr;
+    const bool needsWriteback = targetAsMember != nullptr;
 
-    if (needsStaticFieldWriteback)
+    if (needsWriteback)
     {
         // Skip normal target build – we will generate custom bytecode below
-        // that preserves the ClassRef in rp while loading the static field value
-        // into rp+1, enabling a writeback after the store.
+        // that preserves the base object or ClassRef in rp while loading the
+        // target member value into rp+1, enabling a writeback after the store.
     }
     else if (m_typeRef != nullptr)
     {
@@ -295,31 +293,39 @@ UniquePtr<Buildable> AstMember::Build(AstVisitor* visitor, Module* mod)
     case ACCESS_MODE_STORE:
         chunk->Append(BytecodeUtil::Make<Comment>((isStaticMember ? "Store static member " : "Store member ") + m_fieldName));
 
-        if (needsStaticFieldWriteback)
+        if (needsWriteback)
         {
             uint8 rp = visitor->GetCompilationUnit()->GetInstructionStream().GetCurrentRegister();
 
             Assert(rp > 0); // rp-1 must hold the source value from the binary assignment
 
-            // Step 1: Load ClassRef into rp
-            chunk->Append(targetAsMember->m_typeRef->Build(visitor, mod));
+            const HashCode::ValueType targetFieldHash = HashCode::GetHashCode(targetAsMember->m_fieldName.Data()).Value();
 
-            // Step 2: Load static field value into rp+1 (preserving ClassRef in rp)
-            const HashCode::ValueType staticFieldHash = HashCode::GetHashCode(targetAsMember->m_fieldName.Data()).Value();
-            chunk->Append(BytecodeUtil::Make<Comment>("Load static member " + targetAsMember->m_fieldName + " for writeback"));
-            auto instrLoadStaticMember = BytecodeUtil::Make<StorageOperation>();
-            instrLoadStaticMember->GetBuilder().Load(rp + 1).Member(rp).ByHash(staticFieldHash);
-            chunk->Append(std::move(instrLoadStaticMember));
+            // Step 1: Load the base (ClassRef for static, object for instance) into rp
+            if (targetAsMember->m_typeRef != nullptr)
+            {
+                chunk->Append(targetAsMember->m_typeRef->Build(visitor, mod));
+            }
+            else if (targetAsMember->m_target != nullptr)
+            {
+                chunk->Append(targetAsMember->m_target->Build(visitor, mod));
+            }
 
-            // Step 3: Store into member field of the loaded value
+            // Step 2: Load the target member value into rp+1 (preserving the base in rp)
+            chunk->Append(BytecodeUtil::Make<Comment>("Load member " + targetAsMember->m_fieldName + " for writeback"));
+            auto instrLoadTargetMember = BytecodeUtil::Make<StorageOperation>();
+            instrLoadTargetMember->GetBuilder().Load(rp + 1).Member(rp).ByHash(targetFieldHash);
+            chunk->Append(std::move(instrLoadTargetMember));
+
+            // Step 3: Store into this member's field on the loaded value in rp+1
             auto instrStoreMember = BytecodeUtil::Make<StorageOperation>();
             instrStoreMember->GetBuilder().Store(rp - 1).Member(rp + 1).ByHash(hash);
             chunk->Append(std::move(instrStoreMember));
 
-            // Step 4: Write back modified value to the static field via ClassRef in rp
-            chunk->Append(BytecodeUtil::Make<Comment>("Writeback to static member " + targetAsMember->m_fieldName));
+            // Step 4: Write back the modified value to the target member via the base in rp
+            chunk->Append(BytecodeUtil::Make<Comment>("Writeback to member " + targetAsMember->m_fieldName));
             auto instrWriteback = BytecodeUtil::Make<StorageOperation>();
-            instrWriteback->GetBuilder().Store(rp + 1).Member(rp).ByHash(staticFieldHash);
+            instrWriteback->GetBuilder().Store(rp + 1).Member(rp).ByHash(targetFieldHash);
             chunk->Append(std::move(instrWriteback));
         }
         else

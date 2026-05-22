@@ -1001,19 +1001,14 @@ public:
 
     SCRIPT_INLINE void OpSetField(RegisterIndex dstReg, uint64 hash, RegisterIndex srcReg)
     {
-        BoxedValue* pValue = Deref(instance->thread.m_regs[dstReg]);
-
-        if (pValue->Is<Field*>() || pValue->Is<StaticField*>())
-        {
-            HYP_BREAKPOINT;
-        }
-
         BoxedValue& srcValue = *Deref(instance->thread.m_regs[srcReg]);
         BoxedValue newValue = PASS_AS_REF(srcValue)
             ? MakeTrackedRef(&srcValue, vm->GetGC())
             : ShallowCopy(srcValue, vm->GetGC());
 
         const Class* cls = nullptr;
+        
+        BoxedValue* pValue = Deref(instance->thread.m_regs[dstReg]);
 
         if (pValue->Is<ClassRef>())
         {

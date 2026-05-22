@@ -240,6 +240,9 @@ public:
         return m_functions;
     }
 
+    void AddRef();
+    void Release();
+
     virtual bool ToBoxed(ByteView memory, BoxedValue& out) const override;
 
 protected:
@@ -251,6 +254,8 @@ protected:
     virtual bool CreateInstanceArray_Internal(Span<BoxedValue> elements, BoxedValue& out) const override;
 
     DynamicStructInstanceFunctions m_functions;
+
+    volatile int32 m_refCount;
 };
 
 } // namespace Hyperion

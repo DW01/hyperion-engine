@@ -494,4 +494,14 @@ const AstExpression* AstVariable::GetDeepValueOf() const
     return AstIdentifier::GetDeepValueOf();
 }
 
+AstExpression* AstVariable::GetTarget() const
+{
+    if (m_selfMemberAccess != nullptr)
+    {
+        return m_selfMemberAccess->GetTarget();
+    }
+
+    return AstExpression::GetTarget();
+}
+
 } // namespace Hyperion

@@ -67,7 +67,8 @@ void GarbageCollector::Collect()
     auto it = m_trackedObjects.Begin();
     while (it != m_trackedObjects.End())
     {
-        const size_t gcIndex = m_trackedObjects.IndexOf(it);
+        // GC index starts at 1
+        const size_t gcIndex = m_trackedObjects.IndexOf(it) + 1;
 
         if (m_marks.Test(gcIndex))
         {
@@ -80,7 +81,8 @@ void GarbageCollector::Collect()
             storage.Get().extData.gcIndex = INVALID_GC_INDEX;
             storage.Destruct();
 
-            it = m_trackedObjects.EraseAt(gcIndex);
+            it = m_trackedObjects.Erase(it);
+
             m_idGenerator.ReleaseId(uint32(gcIndex));
         }
     }

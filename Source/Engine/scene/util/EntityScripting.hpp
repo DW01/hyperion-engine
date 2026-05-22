@@ -21,7 +21,7 @@ static void QueryScriptedEntities(TWorld& world, T&& function)
 {
     for (auto&& scene : world.GetScenes())
     {
-        for (auto [entity, scriptComponent] : scene->GetEntityManager()->GetEntitySet<ScriptComponent>())
+        for (auto [entity, scriptComponent] : scene->GetEntityManager()->template GetEntitySet<ScriptComponent>())
         {
             function(entity, scriptComponent);
         }

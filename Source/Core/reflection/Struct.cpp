@@ -10,6 +10,11 @@
 
 #include <Core/reflection/TypeInfo.hpp>
 
+#include <Core/threading/AtomicVar.hpp>
+
+#include <Core/logging/Logger.hpp>
+#include <Core/logging/LogChannels.hpp>
+
 #ifdef HYP_DOTNET
 #include <dotnet/ManagedClass.hpp>
 #include <dotnet/ManagedObject.hpp>
@@ -98,6 +103,7 @@ DynamicStructInstance::DynamicStructInstance(
     : Struct(typeId, name, -1, 0, Name::Invalid(), attributes, flags | ClassFlags::DYNAMIC, members),
       m_functions(functions)
 {
+    m_refCount = 0;
     size_t dynamicSize = 0;
     size_t dynamicAlignment = 0;
 
@@ -142,6 +148,7 @@ DynamicStructInstance::DynamicStructInstance(
     : Struct(typeId, name, -1, 0, Name::Invalid(), attributes, flags, members),
       m_functions(functions)
 {
+    m_refCount = 0;
     Assert(size > 0);
 
     m_size = size;
@@ -153,7 +160,7 @@ DynamicStructInstance::DynamicStructInstance(
 
 DynamicStructInstance::~DynamicStructInstance()
 {
-    ClassRegistry::GetInstance().Unregister(this);
+    Assert(AtomicAdd(&m_refCount, 0) <= 0, "DynamicStructInstance destroyed while still being referenced!");
 }
 
 #ifdef HYP_DOTNET
@@ -207,6 +214,24 @@ bool DynamicStructInstance::CreateInstanceArray_Internal(Span<BoxedValue> elemen
     HYP_NOT_IMPLEMENTED();
 
     return false;
+}
+
+void DynamicStructInstance::AddRef()
+{
+    AtomicIncrement(&m_refCount);
+}
+
+void DynamicStructInstance::Release()
+{
+    if (AtomicDecrement(&m_refCount) <= 0)
+    {
+        if (!ClassRegistry::GetInstance().Unregister(this))
+        {
+            HYP_LOG(Object, Warning, "Failed to unregister dynamic Struct \"{}\"", GetName());
+        }
+
+        delete this;
+    }
 }
 
 #pragma endregion DynamicStructInstance

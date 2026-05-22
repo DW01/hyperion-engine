@@ -57,7 +57,7 @@ extern "C"
     {
         Assert(pStruct != nullptr);
 
-        delete pStruct;
+        static_cast<DynamicStructInstance*>(pStruct)->Release();
     }
 
 } // extern "C"

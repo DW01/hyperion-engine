@@ -5,6 +5,7 @@
 */
 
 #include <Core/reflection/Class.hpp>
+#include <Core/reflection/Struct.hpp>
 #include <Core/reflection/Enum.hpp>
 #include <Core/reflection/MemberVariant.hpp>
 #include <Core/reflection/Object.hpp>
@@ -1808,22 +1809,55 @@ static inline bool IsDynamicClass(const Class& cls)
     return (cls.GetFlags() & (ClassFlags::DYNAMIC | ClassFlags::CLASS_TYPE)) == (ClassFlags::DYNAMIC | ClassFlags::CLASS_TYPE);
 }
 
+static inline bool IsDynamicStruct(const Class& cls)
+{
+    return (cls.GetFlags() & (ClassFlags::DYNAMIC | ClassFlags::STRUCT_TYPE)) == (ClassFlags::DYNAMIC | ClassFlags::STRUCT_TYPE);
+}
+
+static inline bool IsDynamicType(const Class& cls)
+{
+    return IsDynamicClass(cls) || IsDynamicStruct(cls);
+}
+
+static inline void DynamicType_AddRef(const Class* cls)
+{
+    if (IsDynamicClass(*cls))
+    {
+        const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->AddRef();
+    }
+    else if (IsDynamicStruct(*cls))
+    {
+        const_cast<DynamicStructInstance*>(static_cast<const DynamicStructInstance*>(cls))->AddRef();
+    }
+}
+
+static inline void DynamicType_Release(const Class* cls)
+{
+    if (IsDynamicClass(*cls))
+    {
+        const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->Release();
+    }
+    else if (IsDynamicStruct(*cls))
+    {
+        const_cast<DynamicStructInstance*>(static_cast<const DynamicStructInstance*>(cls))->Release();
+    }
+}
+
 ClassRef::ClassRef(const Class* cls, int initialRefCount)
     : cls(cls)
 {
-    if (cls && IsDynamicClass(*cls) && initialRefCount > 0)
+    if (cls && IsDynamicType(*cls) && initialRefCount > 0)
     {
-        // @FIXME DynamicStructInstance needs AddRef() / Release() too! Otherwise it'll leak!
-        const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->AddRef();
+        DynamicType_AddRef(cls);
     }
 }
 
 ClassRef::ClassRef(const ClassRef& other)
     : cls(other.cls)
 {
-    if (cls && IsDynamicClass(*cls))
+    if (cls && IsDynamicType(*cls))
     {
-        const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->AddRef();
+        DynamicType_AddRef(cls);
     }
 }
 
@@ -1834,16 +1868,16 @@ ClassRef& ClassRef::operator=(const ClassRef& other)
         return *this;
     }
 
-    if (cls && IsDynamicClass(*cls))
+    if (cls && IsDynamicType(*cls))
     {
-        const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->Release();
+        DynamicType_Release(cls);
     }
 
     cls = other.cls;
 
-    if (cls && IsDynamicClass(*cls))
+    if (cls && IsDynamicType(*cls))
     {
-        const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->AddRef();
+        DynamicType_AddRef(cls);
     }
 
     return *this;
@@ -1862,9 +1896,9 @@ ClassRef& ClassRef::operator=(ClassRef&& other) noexcept
         return *this;
     }
 
-    if (cls && IsDynamicClass(*cls))
+    if (cls && IsDynamicType(*cls))
     {
-        const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->Release();
+        DynamicType_Release(cls);
     }
 
     cls = other.cls;
@@ -1875,9 +1909,9 @@ ClassRef& ClassRef::operator=(ClassRef&& other) noexcept
 
 ClassRef::~ClassRef()
 {
-    if (cls && IsDynamicClass(*cls))
+    if (cls && IsDynamicType(*cls))
     {
-        const_cast<DynamicClassInstance*>(static_cast<const DynamicClassInstance*>(cls))->Release();
+        DynamicType_Release(cls);
     }
 }
 
