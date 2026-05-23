@@ -69,12 +69,6 @@ namespace Hyperion.Editor
                 HandleProjectOpened(project);
             }
 
-
-
-            //project.World.AddSystem(new DynamicSkySystem());
-
-            //project.World.WorldGrid.AddLayer(new TerrainWorldGridLayer());
-
             // tmp debug
             AssetBatch ab = new();
             ab.Add("test_model", "Models/SponzaGltf/Sponza.gltf"); //"Models/testbed/testbed.obj");

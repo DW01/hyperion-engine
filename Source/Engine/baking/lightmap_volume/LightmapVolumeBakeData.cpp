@@ -669,6 +669,8 @@ auto BakeData<LightmapVolume>::ToBitmapIrradiance() const -> BitmapType
 
             AssertDebug(!MathUtil::IsNaN(color));
 
+            color = MathUtil::Clamp(color, Vec4f::Zero(), Vec4f::One());
+
             bitmap.GetPixelReference(x, y).SetRGBA(color);
         }
     }

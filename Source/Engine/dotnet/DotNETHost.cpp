@@ -621,7 +621,7 @@ bool DotNETHost::EnsureInitialized() const
 
 RC<Assembly> DotNETHost::LoadAssembly(const char* path) const
 {
-    if (!EnsureInitialized())
+    if (!m_impl)
     {
         return nullptr;
     }
@@ -631,7 +631,7 @@ RC<Assembly> DotNETHost::LoadAssembly(const char* path) const
 
 bool DotNETHost::UnloadAssembly(ManagedGuid guid) const
 {
-    if (!EnsureInitialized())
+    if (!m_impl)
     {
         return false;
     }
@@ -641,7 +641,7 @@ bool DotNETHost::UnloadAssembly(ManagedGuid guid) const
 
 bool DotNETHost::IsCoreAssembly(const Assembly* assembly) const
 {
-    if (!EnsureInitialized())
+    if (!m_impl)
     {
         return false;
     }

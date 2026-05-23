@@ -121,7 +121,6 @@ static bool BuildElementTextures(
     const BakeData<LightmapVolume>& bakeData,
     LightmapElementId elementId)
 {
-    HYP_SCOPE;
     AssertOnThread(g_simThread);
 
     uint16 atlasIndex;
@@ -238,8 +237,6 @@ void Baker<LightmapVolume>::Initialize_Internal()
 
 void Baker<LightmapVolume>::Build()
 {
-    HYP_SCOPE;
-
     EntityManager& mgr = *m_scene->GetEntityManager();
 
     m_bakeEntities.Clear();
@@ -260,8 +257,7 @@ void Baker<LightmapVolume>::Build()
         }
 
         if (meshComponent.material->GetBucket() != RenderBucket::Opaque
-            && meshComponent.material->GetBucket() != RenderBucket::Lightmapped
-            && meshComponent.material->GetBucket() != RenderBucket::Translucent)
+            && meshComponent.material->GetBucket() != RenderBucket::Lightmapped)
         {
             continue;
         }
@@ -315,8 +311,6 @@ void Baker<LightmapVolume>::Build()
 
 void Baker<LightmapVolume>::OnCompleted_Internal()
 {
-    HYP_SCOPE;
-
     AssertDebug(m_lightmapElementId != InvalidLightmapElementId);
 
     m_bakeData.Blur();

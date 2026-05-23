@@ -539,52 +539,69 @@ namespace Hyperion.Editor
 
         protected override void OnClosing(WindowClosingEventArgs e)
         {
-            var vm = DataContext as MainWindowViewModel;
-            var project = EngineManager.CurrentProject;
+            // Disable main thread loop until this is done 
+            // This should prevent MainThread::Update() from being triggered by avalonia
+            // directly after clicking any of the messagebox buttons
+            EngineManager.DisableMainLoop = true;
 
-            void SaveProjectSynchronous()
+            try
             {
-                if (vm == null)
+                var vm = DataContext as MainWindowViewModel;
+                var project = EngineManager.CurrentProject;
+
+                void SaveProjectSynchronous()
                 {
-                    return;
+                    if (vm == null)
+                    {
+                        return;
+                    }
+
+                    bool shouldTimeout = project != null && project.IsSaved;
+
+                    Task task = EngineManager.PostToSimThread(() => vm.SaveProject.Execute(null));
+                    bool taskCompleted = true;
+
+                    if (shouldTimeout)
+                        taskCompleted = task.Wait(TimeSpan.FromSeconds(30));
+                    else
+                        task.Wait();
+
+                    if (!taskCompleted)
+                    {
+                        Logger.Log(LogLevel.Error, "Failed to save project in a reasonable amount of time, so canceling exiting the editor process to prevent loss of data.");
+                        e.Cancel = true;
+
+                        return;
+                    }
                 }
 
-                bool shouldTimeout = project != null && project.IsSaved;
+                MessageBox.Info("Save changes?", "Closing will discard any unsaved changes. Do you want to save changes before exiting?")
+                    .Button("Save", SaveProjectSynchronous)
+                    .Button("Discard", () => { })
+                    .Button("Cancel", () => e.Cancel = true)
+                    .Show();
 
-                Task task = EngineManager.PostToSimThread(() => vm.SaveProject.Execute(null));
-                bool taskCompleted = true;
+                base.OnClosing(e);
 
-                if (shouldTimeout)
-                    taskCompleted = task.Wait(TimeSpan.FromSeconds(30));
-                else
-                    task.Wait();
+                EngineManager.DisableMainLoop = false;
 
-                if (!taskCompleted)
+                if (!e.Cancel)
                 {
-                    Logger.Log(LogLevel.Error, "Failed to save project in a reasonable amount of time, so canceling exiting the editor process to prevent loss of data.");
-                    e.Cancel = true;
-
-                    return;
+                    EngineManager.Shutdown();
                 }
             }
-
-            MessageBox.Info("Save changes?", "Closing will discard any unsaved changes. Do you want to save changes before exiting?")
-                .Button("Save", SaveProjectSynchronous)
-                .Button("Discard", () => { })
-                .Button("Cancel", () => e.Cancel = true)
-                .Show();
-
-            base.OnClosing(e);
-
-            if (!e.Cancel)
+            catch (Exception)
             {
-                EngineManager.Shutdown();
+                EngineManager.DisableMainLoop = false;
             }
         }
 
         private void OnFrame(TimeSpan time)
         {
-            NativeBindings.Hyp_MainThreadUpdate();
+            if (!EngineManager.DisableMainLoop)
+            {
+                NativeBindings.Hyp_MainThreadUpdate();
+            }
 
             ConsoleService.Instance.ProcessLogQueue();
 

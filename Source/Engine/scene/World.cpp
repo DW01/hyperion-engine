@@ -214,27 +214,6 @@ void World::Initialize()
         m_physicsWorld->Initialize();
     }
 
-    for (const Handle<SystemBase>& system : m_systems)
-    {
-        AssertDebug(system != nullptr);
-
-        if (!system)
-        {
-            continue;
-        }
-
-        system->InitComponentInfos_Internal();
-
-        const bool wasAddedToExecutionGroup = AddSystemToExecutionGroup(system);
-
-        system->m_world = this;
-
-        InitObject(system);
-    }
-
-    // Needs to be before AddSystem() calls.
-    m_isInitialized = true;
-
     if (!HasSystem<VisibilityStateUpdaterSystem>())
         AddSystem(MakeHandle<VisibilityStateUpdaterSystem>());
 
@@ -259,8 +238,18 @@ void World::Initialize()
     if (!HasSystem<MeshSystem>())
         AddSystem(MakeHandle<MeshSystem>());
 
+    m_isInitialized = true;
+
     for (SystemBase* system : m_systems)
     {
+        system->InitComponentInfos_Internal();
+
+        const bool wasAddedToExecutionGroup = AddSystemToExecutionGroup(system);
+
+        system->m_world = this;
+
+        system->OnAddedToWorld(this);
+
         for (const Handle<Scene>& scene : m_scenes)
         {
             scene->GetEntityManager()->NotifySystemOfExistingEntities(system);
@@ -1528,6 +1517,8 @@ SystemBase* World::AddSystem(const Handle<SystemBase>& system)
     if (it != m_systems.End())
     {
         // cannot add system of this type if one already exists!
+        HYP_LOG(Scene, Warning, "Attempted to add already existant System type {}", it->GetTypeInfo()->name);
+
         return *it;
     }
 
@@ -1542,9 +1533,12 @@ SystemBase* World::AddSystem(const Handle<SystemBase>& system)
 
         system->m_world = this;
 
-        InitObject(system);
-
         system->OnAddedToWorld(this);
+
+        for (const Handle<Scene>& scene : m_scenes)
+        {
+            scene->GetEntityManager()->NotifySystemOfExistingEntities(system);
+        }
     }
 
     return system;

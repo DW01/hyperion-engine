@@ -239,11 +239,6 @@ protected:
         m_afterProcessProcs.EmplaceBack(std::forward<Func>(fn));
     }
 
-    virtual void Init() override
-    {
-        SetReady(true);
-    }
-
     virtual SystemComponentDescriptors GetComponentDescriptors() const = 0;
 
     World* m_world = nullptr;

@@ -59,27 +59,21 @@ int Win32AppContext::PollEvents(Event& event)
 
     while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE))
     {
-        Win32ApplicationWindow* window = reinterpret_cast<Win32ApplicationWindow*>(GetWindowLongPtrW(msg.hwnd, GWLP_USERDATA));
+        ObjId<Win32ApplicationWindow> windowId;
+        windowId.value = static_cast<decltype(ObjId<Win32ApplicationWindow>::value)>(GetWindowLongPtrW(msg.hwnd, GWLP_USERDATA));
+    
+        Handle<Win32ApplicationWindow> windowHandle { windowId };
 
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
 
-        if (window && !window->m_useWndProc)
+        if (windowHandle.IsValid() && !windowHandle->m_useWndProc)
         {
-            if (HandleWindowEvent(window, event,
-                    msg.hwnd, msg.message, msg.wParam, msg.lParam))
+            if (HandleWindowEvent(windowHandle.Get(), event, msg.hwnd, msg.message, msg.wParam, msg.lParam))
             {
                 const EventType eventType = event.GetType();
 
-                if (eventType != EventType::INVALID)
-                {
-                    if (window)
-                    {
-                        return 1;
-                    }
-                }
-
-                return 0;
+                return (eventType != EventType::INVALID) ? 1 : 0;
             }
         }
     }

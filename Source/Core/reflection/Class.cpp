@@ -1781,7 +1781,7 @@ void DynamicClassInstance::Release()
 {
     if (AtomicDecrement(&m_refCount) <= 0)
     {
-        if (!ClassRegistry::GetInstance().Unregister(this))
+        if (!(GetFlags() & ClassFlags::ANONYMOUS) && !ClassRegistry::GetInstance().Unregister(this))
         {
             HYP_LOG(Object, Warning, "Failed to unregister dynamic Class \"{}\"", GetName());
         }
