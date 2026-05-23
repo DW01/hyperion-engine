@@ -537,10 +537,49 @@ namespace Hyperion.Editor
             if (_consoleCollapsedStrip != null) _consoleCollapsedStrip.IsVisible = !_consoleExpanded;
         }
 
-        // need to destroy the engine window when MainWindow is closed
-        protected override void OnClosed(EventArgs e)
+        protected override void OnClosing(WindowClosingEventArgs e)
         {
-            base.OnClosed(e);
+            var vm = DataContext as MainWindowViewModel;
+            var project = EngineManager.CurrentProject;
+
+            void SaveProjectSynchronous()
+            {
+                if (vm == null)
+                {
+                    return;
+                }
+
+                bool shouldTimeout = project != null && project.IsSaved;
+
+                Task task = EngineManager.PostToSimThread(() => vm.SaveProject.Execute(null));
+                bool taskCompleted = true;
+
+                if (shouldTimeout)
+                    taskCompleted = task.Wait(TimeSpan.FromSeconds(30));
+                else
+                    task.Wait();
+
+                if (!taskCompleted)
+                {
+                    Logger.Log(LogLevel.Error, "Failed to save project in a reasonable amount of time, so canceling exiting the editor process to prevent loss of data.");
+                    e.Cancel = true;
+
+                    return;
+                }
+            }
+
+            MessageBox.Info("Save changes?", "Closing will discard any unsaved changes. Do you want to save changes before exiting?")
+                .Button("Save", SaveProjectSynchronous)
+                .Button("Discard", () => { })
+                .Button("Cancel", () => e.Cancel = true)
+                .Show();
+
+            base.OnClosing(e);
+
+            if (!e.Cancel)
+            {
+                EngineManager.Shutdown();
+            }
         }
 
         private void OnFrame(TimeSpan time)

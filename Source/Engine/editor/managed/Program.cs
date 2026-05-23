@@ -12,8 +12,6 @@ namespace Hyperion.Editor
         public static void Main(string[] args)
         {
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
-
-            EngineManager.Shutdown();
         }
 
         public static AppBuilder BuildAvaloniaApp()

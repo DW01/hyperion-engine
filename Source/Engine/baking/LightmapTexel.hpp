@@ -31,8 +31,6 @@ class Entity;
 
 namespace Baking {
 
-using BakeVertex = TVertex<VT_Simple | VT_UV1>;
-
 struct BakeEntity
 {
     Handle<Entity> entity;
@@ -49,7 +47,7 @@ struct BakeMesh
 
     Mat4f transformMatrix;
 
-    Array<BakeVertex> vertices;
+    Array<float> vertices;
     Array<uint32> indices;
 };
 

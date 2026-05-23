@@ -66,11 +66,6 @@ bool RenderThread::Start()
     // handle integer division by zero
     signal(SIGFPE, HandleSignal);
 
-    AddOnExitCallback([](void)
-        {
-            RI.Shutdown();
-        });
-
     // -RenderOnMainThread option
     if (m_id == g_mainThread)
     {
@@ -239,12 +234,6 @@ void RenderThread::operator()()
     AssertDebug(g_renderArena == nullptr);
     g_renderArena = new Arena(RenderArenaSize);
 
-    AddOnExitCallback([]()
-        {
-            delete g_renderArena;
-            g_renderArena = nullptr;
-        });
-
     if (!CheckResult(RI.Initialize()))
     {
         HYP_FAIL("Failed to initialize rendering backend");
@@ -260,6 +249,25 @@ void RenderThread::operator()()
 
             Update();
         }
+        
+        RI.Shutdown();
+
+        delete g_renderArena;
+        g_renderArena = nullptr;
+
+        g_renderInitSignal.Reset();
+    }
+    else
+    {
+        AddOnExitCallback([]()
+            {
+                RI.Shutdown();
+                
+                delete g_renderArena;
+                g_renderArena = nullptr;
+
+                g_renderInitSignal.Reset();
+            });
     }
 }
 

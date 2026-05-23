@@ -28,6 +28,10 @@
 #include <Core/math/Vector3.hpp>
 #include <Core/math/Quat4f.hpp>
 
+#include <Core/threading/ThreadLocalStorage.hpp>
+
+#include <Core/memory/allocator/ThreadAllocator.hpp>
+
 #include <system/AppContext.hpp>
 
 #include <util/MeshBuilder.hpp>
@@ -66,6 +70,12 @@ static void ForEachCharacter(
 {
     HYP_SCOPE;
 
+    static thread_local bool s_isInFunction = false;
+    Assert(!s_isInFunction, "Re-entry detected");
+
+    s_isInFunction = true;
+    HYP_DEFER({ s_isInFunction = false; });
+
     Vec2f placement = Vec2f::Zero();
 
     const size_t length = text.Length();
@@ -93,7 +103,26 @@ static void ForEachCharacter(
         atlasPixelSize = Vec2f::One() / Vec2f(mainTextureAtlas->GetExtent().GetXY());
     }
 
-    Array<FontAtlasCharacterIterator> currentWordChars;
+    static thread_local Array<FontAtlasCharacterIterator, ThreadAllocator>* s_currentWordChars = nullptr;
+
+    if (HYP_UNLIKELY(!s_currentWordChars))
+    {
+        s_currentWordChars = new Array<FontAtlasCharacterIterator, ThreadAllocator>;
+
+        // This Reserve() is needed, we need it to allocate memory from the ThreadAllocator to initialize it and set up on exit callback,
+        // so we properly delete the array in order.
+        s_currentWordChars->Reserve(16);
+
+        CurrentThreadObject()->AddOnExitCallback([]()
+            {
+                delete s_currentWordChars;
+                s_currentWordChars = nullptr;
+            });
+    }
+
+    s_currentWordChars->Reserve(static_cast<size_t>(text.Size() * 1.1));
+
+    auto& currentWordChars = *s_currentWordChars;
 
     const auto iterateCurrentWord = [&currentWordChars, &callback]()
     {

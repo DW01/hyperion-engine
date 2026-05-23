@@ -87,9 +87,10 @@ void ThreadBase::OnExit()
 {
     Mutex::Guard guard(m_onExitMutex);
 
-    for (auto& cb : m_onExitCallbacks)
+    // Iterate FILO
+    for (size_t index = m_onExitCallbacks.Size(); index > 0; index--)
     {
-        cb();
+        m_onExitCallbacks[index - 1]();
     }
 
     m_onExitCallbacks.Clear();

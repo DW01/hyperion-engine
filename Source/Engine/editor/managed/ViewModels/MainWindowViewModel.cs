@@ -29,12 +29,10 @@ namespace Hyperion.Editor.ViewModels
         public EditorCommand SaveProjectAs => new EditorCommand("SaveProjectAs");
         public ICommand Exit { get; } = new RelayCommand(() =>
         {
-            try
+            if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime lifetime)
             {
-                EngineManager.Shutdown();
+                lifetime.MainWindow?.Close();
             }
-            catch { }
-            Environment.Exit(0);
         });
         public EditorCommand Undo => new EditorCommand("Undo");
         public EditorCommand Redo => new EditorCommand("Redo");
