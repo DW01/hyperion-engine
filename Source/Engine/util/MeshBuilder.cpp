@@ -16,6 +16,7 @@
 #include <scene/util/VoxelOctree.hpp>
 
 namespace Hyperion {
+namespace MeshBuilder {
 
 static Pair<Array<SimpleVertex>, Array<uint32>> CalculateIndices(const Array<SimpleVertex>& vertices)
 {
@@ -168,7 +169,7 @@ static const Array<SimpleVertex>& GetCubeVertices()
     return s_cubeVertices;
 }
 
-Handle<Mesh> MeshBuilder::Quad()
+HYP_API Handle<Mesh> Quad()
 {
     const auto& vertices = GetQuadVertices();
     const auto& indices = GetQuadIndices();
@@ -195,7 +196,7 @@ Handle<Mesh> MeshBuilder::Quad()
     return mesh;
 }
 
-Handle<Mesh> MeshBuilder::DoubleSidedQuad()
+HYP_API Handle<Mesh> DoubleSidedQuad()
 {
     const auto& vertices = GetDoubleSidedQuadVertices();
     const auto& indices = GetDoubleSidedQuadIndices();
@@ -222,7 +223,7 @@ Handle<Mesh> MeshBuilder::DoubleSidedQuad()
     return mesh;
 }
 
-Handle<Mesh> MeshBuilder::Cube(bool originOnBottom)
+HYP_API Handle<Mesh> Cube(bool originOnBottom)
 {
     static const auto s_cubeVerticesAndIndices = CalculateIndices(GetCubeVertices());
 
@@ -257,7 +258,7 @@ Handle<Mesh> MeshBuilder::Cube(bool originOnBottom)
 
     return mesh;
 }
-Handle<Mesh> MeshBuilder::NormalizedCubeSphere(uint32 numDivisions){
+HYP_API Handle<Mesh> NormalizedCubeSphere(uint32 numDivisions){
     const float step = 1.0f / float(numDivisions);
 
     static const Vec3f origins[6] = {
@@ -377,7 +378,7 @@ Handle<Mesh> MeshBuilder::NormalizedCubeSphere(uint32 numDivisions){
     return mesh;
 }
 
-Handle<Mesh> MeshBuilder::ApplyTransform(const Mesh* mesh, const Transform& transform)
+HYP_API Handle<Mesh> ApplyTransform(const Mesh* mesh, const Transform& transform)
 {
     Assert(mesh != nullptr);
 
@@ -436,7 +437,7 @@ Handle<Mesh> MeshBuilder::ApplyTransform(const Mesh* mesh, const Transform& tran
     return newMesh;
 }
 
-Handle<Mesh> MeshBuilder::Merge(const Mesh* a, const Mesh* b, const Transform& aTransform, const Transform& bTransform)
+HYP_API Handle<Mesh> Merge(const Mesh* a, const Mesh* b, const Transform& aTransform, const Transform& bTransform)
 {
     Assert(a != nullptr);
     Assert(b != nullptr);
@@ -557,12 +558,12 @@ Handle<Mesh> MeshBuilder::Merge(const Mesh* a, const Mesh* b, const Transform& a
     return newMesh;
 }
 
-Handle<Mesh> MeshBuilder::Merge(const Mesh* a, const Mesh* b)
+HYP_API Handle<Mesh> Merge(const Mesh* a, const Mesh* b)
 {
     return Merge(a, b, Transform(), Transform());
 }
 
-Handle<Mesh> MeshBuilder::BuildVoxelMesh(const VoxelOctree& voxelOctree)
+HYP_API Handle<Mesh> BuildVoxelMesh(const VoxelOctree& voxelOctree)
 {
     static const auto cubeVerticesAndIndices = CalculateIndices(GetCubeVertices());
 
@@ -659,7 +660,7 @@ Handle<Mesh> MeshBuilder::BuildVoxelMesh(const VoxelOctree& voxelOctree)
     return mesh;
 }
 
-Handle<Mesh> MeshBuilder::Cylinder(float radius, float height, uint32 numSegments)
+HYP_API Handle<Mesh> Cylinder(float radius, float height, uint32 numSegments)
 {
     numSegments = MathUtil::Max(numSegments, 3u);
 
@@ -728,7 +729,7 @@ Handle<Mesh> MeshBuilder::Cylinder(float radius, float height, uint32 numSegment
     return mesh;
 }
 
-Handle<Mesh> MeshBuilder::Cone(float radius, float height, uint32 numSegments)
+HYP_API Handle<Mesh> Cone(float radius, float height, uint32 numSegments)
 {
     numSegments = MathUtil::Max(numSegments, 3u);
 
@@ -790,7 +791,7 @@ Handle<Mesh> MeshBuilder::Cone(float radius, float height, uint32 numSegments)
     return mesh;
 }
 
-Handle<Mesh> MeshBuilder::Torus(float majorRadius, float minorRadius, uint32 majorSegments, uint32 minorSegments)
+HYP_API Handle<Mesh> Torus(float majorRadius, float minorRadius, uint32 majorSegments, uint32 minorSegments)
 {
     majorSegments = MathUtil::Max(majorSegments, 3u);
     minorSegments = MathUtil::Max(minorSegments, 3u);
@@ -869,4 +870,5 @@ Handle<Mesh> MeshBuilder::Torus(float majorRadius, float minorRadius, uint32 maj
     return mesh;
 }
 
+} // namespace MeshBuilder
 } // namespace Hyperion

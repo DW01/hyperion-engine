@@ -41,7 +41,7 @@ if(NOT "${${BUILD_NAME}_PCH}" STREQUAL "")
   target_precompile_headers(${BUILD_NAME} PRIVATE "${${BUILD_NAME}_PCH}")
 endif()
 
-target_link_libraries(${BUILD_NAME} PRIVATE hyperion-core)
+target_link_libraries(${BUILD_NAME} PRIVATE hyperion-core hyperion-scene hyperion-rendering hyperion-asset hyperion-ui hyperion-input hyperion-baking)
 
 # CSHARP_PROJECTS_DIR must be defined (from CMakeLists.txt in src/) as it is used to locate the Hyperion.NET packages
 # check to ensure it is defined

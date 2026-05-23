@@ -64,11 +64,24 @@ void AnimationTrack::PageBlobData()
 
                 AllocateBlobData(m_keyframeData, buffer.Data(), buffer.Size(), alignof(Keyframe));
 
-                MarkDirty();
+#if HYP_EDITOR
+                // Update to use cache instead of blob storage
+                if (blobStorage != nullptr)
+                {
+                    Result saveResult = SaveBlobData(blobStorage);
+
+                    if (saveResult.HasError())
+                    {
+                        HYP_LOG(Assets, Error, "Failed to save animation track blob data: {}", saveResult.GetError().GetMessage());
+                    }
+
+                    MarkDirty();
+                }
+#endif // HYP_EDITOR
 
                 return;
             }
-#endif
+#endif // HYP_EDITOR || HYP_ALLOW_INLINE_BLOBS
 
             HYP_FAIL("Blob data missing! Data corruption detected.");
         }
@@ -84,7 +97,7 @@ void AnimationTrack::UnpageBlobData()
     if (m_keyframeData.readOnly)
     {
         m_keyframeData.raw = nullptr;
-    }   
+    }
 }
 
 float AnimationTrack::GetLength() const

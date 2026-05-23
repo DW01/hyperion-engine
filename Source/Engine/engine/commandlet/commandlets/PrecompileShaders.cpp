@@ -8,8 +8,6 @@
 
 #include <engine/commandlet/Commandlet.hpp>
 
-#include <engine/EngineGlobals.hpp>
-
 #include <asset/Assets.hpp>
 #include <asset/AssetRegistry.hpp>
 
@@ -23,6 +21,8 @@
 #include <Core/threading/TaskSystem.hpp>
 
 namespace Hyperion {
+
+HYP_API extern ShaderCompiler* g_shaderCompiler;
 
 HYP_API extern const FilePath& GetLibraryDirectory();
 

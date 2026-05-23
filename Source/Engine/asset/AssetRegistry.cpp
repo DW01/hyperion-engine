@@ -1431,7 +1431,7 @@ void AssetRegistry::SaveDirtyAssets()
         const char* bucketName = GetAssetBucketName(bucketIndex);
         AssertDebug(bucketName != nullptr);
 
-        TSet<Handle<AssetObject>, AssetAllocator> dirtyAssets;
+        TSet<Handle<AssetObject>> dirtyAssets;
 
         {
             TUniqueLock lock(data.mtx);
@@ -1504,9 +1504,9 @@ void AssetRegistry::SaveDirtyAssets()
             }
         }
 
-        for (const Handle<AssetObject>& assetObject : dirtyAssets)
+        for (AssetObject* assetObject : dirtyAssets)
         {
-            auto readScope = assetObject->GetReadScope();
+            //auto readScope = assetObject->GetReadScope();
 
             const Name assetName = assetObject->GetName();
             AssertDebug(assetName.IsValid());
@@ -1546,8 +1546,6 @@ void AssetRegistry::SaveDirtyAssets()
 
                 HYP_LOG(Assets, Verbose, "Saved asset manifest for '{}' to '{}'", assetName, manifestPath);
             }
-
-            readScope.Reset();
         }
     }
 }

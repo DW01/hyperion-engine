@@ -95,19 +95,25 @@ extern "C"
     {
         Assert(cls != nullptr);
         Assert(nativeAddress != nullptr);
-
-        TypedObjPtr ptr = TypedObjPtr(cls, nativeAddress);
-
-        return ptr.GetRefCountStrong();
+        
+        ObjectBase* obj = static_cast<ObjectBase*>(nativeAddress);
+        return obj->GetObjectHeader_Internal()->GetRefCountStrong();
     }
 
     HYP_EXPORT void Object_IncRef(const Class* cls, void* nativeAddress, int8 isWeak)
     {
         Assert(cls != nullptr);
         Assert(nativeAddress != nullptr);
-
-        TypedObjPtr ptr = TypedObjPtr(cls, nativeAddress);
-        ptr.IncRef(isWeak);
+        
+        ObjectBase* obj = static_cast<ObjectBase*>(nativeAddress);
+        if (isWeak)
+        {
+            obj->GetObjectHeader_Internal()->IncRefWeak();
+        }
+        else
+        {
+            obj->AddRef();
+        }
     }
 
     HYP_EXPORT void Object_DecRef(const Class* cls, void* nativeAddress, int8 isWeak)
@@ -115,8 +121,15 @@ extern "C"
         Assert(cls != nullptr);
         Assert(nativeAddress != nullptr);
 
-        TypedObjPtr ptr = TypedObjPtr(cls, nativeAddress);
-        ptr.DecRef(isWeak);
+        ObjectBase* obj = static_cast<ObjectBase*>(nativeAddress);
+        if (isWeak)
+        {
+            obj->GetObjectHeader_Internal()->DecRefWeak();
+        }
+        else
+        {
+            obj->Release();
+        }
     }
 
 #pragma endregion Object

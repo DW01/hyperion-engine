@@ -290,9 +290,9 @@ Result AssetObject::SaveBlobData(BlobStorage* storage, const Optional<FilePath>&
         uint16 version = tup.GetElement<1>();
         BlobDataReference* reference = tup.GetElement<2>();
 
-        AssertDebug(reference != nullptr && reference->raw != nullptr);
+        AssertDebug(reference != nullptr);
 
-        // should not happen, but just in case.
+        // Not loaded
         if (!reference->raw)
         {
             continue;

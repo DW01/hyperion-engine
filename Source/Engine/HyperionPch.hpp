@@ -15,6 +15,8 @@
 #include <Core/reflection/Class.hpp>
 #include <Core/reflection/ObjectBase.hpp>
 #include <Core/reflection/ObjectMacros.hpp>
+#include <Core/reflection/TypeInfo.hpp>
+#include <Core/reflection/Handle.hpp>
 
 #include <Core/profiling/ProfileScope.hpp>
 
@@ -33,5 +35,6 @@
 #include <Core/logging/LogChannels.hpp>
 
 #include <Core/utilities/EnumFlags.hpp>
+#include <Core/utilities/Variant.hpp>
 
 #endif // __cplusplus

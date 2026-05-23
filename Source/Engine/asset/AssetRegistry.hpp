@@ -69,8 +69,6 @@ class HYP_API AssetRegistry final : public ObjectBase
     AssetRegistry() = default;
 
 public:
-    static Pool* GetAllocator() { return g_assetPool; }
-
     AssetRegistry(AssetRegistryId registryId, const FilePath& rootPath);
 
     AssetRegistry(const AssetRegistry& other) = delete;

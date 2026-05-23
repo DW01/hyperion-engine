@@ -10,8 +10,8 @@
 namespace Hyperion {
 
 #if defined(HYPERION_ENGINE) && HYPERION_ENGINE
-extern Pool* g_taskPool;
-#endif
+HYP_API extern Pool* g_taskPool;
+#endif // defined(HYPERION_ENGINE) && HYPERION_ENGINE
 
 namespace threading {
 

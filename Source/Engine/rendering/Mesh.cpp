@@ -108,8 +108,6 @@ Mesh::~Mesh()
 
 void Mesh::Init()
 {
-    HYP_SCOPE;
-
     if (m_flags[MeshFlags::ViewIndependent])
     {
         SetPersistentRequested(true, /* setFlag */ true);
@@ -200,13 +198,11 @@ void Mesh::PageBlobData()
 
                         needsSaveBlobData = true;
 
-                        MarkDirty();
-
                         return;
                     }
 #endif
 
-                    HYP_FAIL("Blob data missing! Data corruption detected.");
+                    HYP_LOG(Assets, Error, "Blob data missing or corrupted for {} vertex buffer", GetName());
                 })();
         }
         else
@@ -230,13 +226,11 @@ void Mesh::PageBlobData()
 
                         needsSaveBlobData = true;
 
-                        MarkDirty();
-
                         return;
                     }
 #endif
 
-                    HYP_FAIL("Blob data missing! Data corruption detected.");
+                    HYP_LOG(Assets, Error, "Blob data missing or corrupted for {} index buffer", GetName());
                 })();
         }
         else
@@ -264,8 +258,6 @@ void Mesh::PageBlobData()
 
                         needsSaveBlobData = true;
 
-                        MarkDirty();
-
                         return;
                     }
 #endif
@@ -285,13 +277,16 @@ void Mesh::PageBlobData()
     }
 
 #if HYP_EDITOR
-    if (needsSaveBlobData)
+    // Update to use blob cache rather than inline
+    if (needsSaveBlobData && blobStorage != nullptr)
     {
         Result saveBlobDataResult = SaveBlobData(blobStorage);
         if (saveBlobDataResult.HasError())
         {
             HYP_LOG(Assets, Error, "Failed to save local blob data: {}", saveBlobDataResult.GetError().GetMessage());
         }
+
+        MarkDirty();
     }
 #endif
 }
@@ -322,6 +317,13 @@ void Mesh::UploadGpuData()
     Array<float> vertices = BuildVertexBuffer(m_meshDesc.meshAttributes.inputLayout);
 
     const Span<const ubyte> indexData = GetIndexData();
+
+    if (vertices.Size() == 0 || indexData.Size() == 0)
+    {
+        // Building buffers failed? (likely due to blob data corruption or missing...)
+        // Exit here to not cause access violations
+        return;
+    }
 
     Array<uint32> indices;
     indices.Resize(indexData.Size() / sizeof(uint32));
@@ -499,9 +501,6 @@ void Mesh::SetMeshData(
     const VertexArrayView& vertices,
     Span<const ubyte> indices)
 {
-    HYP_SCOPE;
-    HYP_MT_CHECK_RW(m_dataRaceDetector);
-
     FreeBlobData(m_vertexData);
     FreeBlobData(m_indexData);
 
@@ -516,23 +515,11 @@ void Mesh::SetMeshData(
     // recalc aabb
     m_aabb = CalculateAABB();
 
-    if (IsInitCalled())
-    {
-        // needs reupload!
-        if (m_flags[MeshFlags::ViewIndependent] || isUploaded.Load())
-        {
-            UploadGpuData();
-        }
-    }
-
     MarkDirty();
 }
 
 void Mesh::SetFlags(EnumFlags<MeshFlags> flags)
 {
-    HYP_SCOPE;
-    HYP_MT_CHECK_RW(m_dataRaceDetector);
-
     if (m_flags == flags)
     {
         return;
@@ -617,8 +604,6 @@ bool Mesh::BuildBVH(BVHNode& bvhNode, int maxDepth) const
 
 BoundingBox Mesh::CalculateAABB() const
 {
-    HYP_SCOPE;
-
     const VertexArrayView vertexArrayView = GetVertexData();
 
     BoundingBox aabb = BoundingBox::Empty();
@@ -636,6 +621,7 @@ BoundingBox Mesh::CalculateAABB() const
 Array<float> Mesh::BuildVertexBuffer(const VertexInputLayoutDesc& inputLayout) const
 {
     const VertexArrayView vertices = GetVertexData();
+    AssertDebug(uintptr_t(vertices.floatData) > 0x1000000);
 
     const uint8 srcMask = m_meshDesc.meshAttributes.inputLayout.mask;
     const uint8 dstMask = inputLayout.mask;
@@ -655,6 +641,8 @@ Array<float> Mesh::BuildVertexBuffer(const VertexInputLayoutDesc& inputLayout) c
     for (size_t i = 0; i < vertices.vertexCount; i++)
     {
         const float* srcFloatBuffer = vertices.floatData + (i * srcVertexSizeInFloats);
+        AssertDebug((uintptr_t(srcFloatBuffer + srcVertexSizeInFloats) - uintptr_t(vertices.floatData)) <= m_vertexData.size);
+
         float* dstFloatBuffer = dstBuffer.Data() + (i * dstVertexSizeInFloats);
 
         if (combinedMask & VT_Position)
