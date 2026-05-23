@@ -123,14 +123,16 @@ void Shader::PageBlobData()
     }
 
 #if HYP_EDITOR
-    if (needSaveBlobData)
-    {    
+    if (needSaveBlobData && blobStorage != nullptr)
+    {
         Result saveBlobDataResult = SaveBlobData(blobStorage);
 
         if (saveBlobDataResult.HasError())
         {
             HYP_LOG(Assets, Error, "Failed to save local blob data: {}", saveBlobDataResult.GetError().GetMessage());
         }
+
+        MarkDirty();
     }
 #endif
 }

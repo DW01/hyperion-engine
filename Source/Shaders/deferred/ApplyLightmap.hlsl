@@ -150,8 +150,6 @@ PSOutput PSMain(PSInput input)
     ao = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, SSAOResultTexture, texcoord, 0).r;
 
     float2 lightmapUV = UV1;
-    // lightmapUV.x = 1.0 - lightmapUV.x;
-    // lightmapUV.y = 1.0 - lightmapUV.y;
 
     float4 irradiance = SAMPLE_TEXTURE_2D_LOD(LightmapSampler, IrradianceTexture, lightmapUV, 0) * irradianceWeight;
 

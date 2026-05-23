@@ -398,13 +398,17 @@ void Texture::PageBlobData()
                 AllocateBlobData(m_imageData, buffer.Data(), buffer.Size(), 1);
 
 #if HYP_EDITOR
-                Result saveBlobDataResult = SaveBlobData(blobStorage);
-                if (saveBlobDataResult.HasError())
+                // Update to use cache rather than inline blob
+                if (blobStorage != nullptr)
                 {
-                    HYP_LOG(Assets, Error, "Failed to save local blob data: {}", saveBlobDataResult.GetError().GetMessage());
-                }
+                    Result saveBlobDataResult = SaveBlobData(blobStorage);
+                    if (saveBlobDataResult.HasError())
+                    {
+                        HYP_LOG(Assets, Error, "Failed to save local blob data: {}", saveBlobDataResult.GetError().GetMessage());
+                    }
 
-                MarkDirty();
+                    MarkDirty();
+                }
 #endif
 
                 return;

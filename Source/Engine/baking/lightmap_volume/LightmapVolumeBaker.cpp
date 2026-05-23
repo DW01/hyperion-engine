@@ -340,6 +340,8 @@ void Baker<LightmapVolume>::OnCompleted_Internal()
             const Handle<Mesh>& mesh = bakeEntity.mesh;
             Assert(mesh.IsValid());
 
+            auto writeScope = mesh->GetWriteScope();
+
             Assert(bakeEntityIndex < m_bakeData.GetMeshData().Size());
 
             BakeMesh& bakeMesh = m_bakeData.GetMeshData()[bakeEntityIndex];
@@ -361,6 +363,8 @@ void Baker<LightmapVolume>::OnCompleted_Internal()
             uv1Offset += (prevInputLayout.mask & VT_Normal) ? (sizeof(TVertexPacket<VT_Normal>) / sizeof(float)) : 0;
             uv1Offset += (prevInputLayout.mask & VT_UV0) ? (sizeof(TVertexPacket<VT_UV0>) / sizeof(float)) : 0;
 
+            AssertDebug(bakeMesh.vertices.Size() % vertexStrideFloats == 0);
+
             for (size_t i = 0; i < bakeMesh.vertices.Size(); i += vertexStrideFloats)
             {
                 float* vertexDataFloat = bakeMesh.vertices.Data() + i;
@@ -381,7 +385,13 @@ void Baker<LightmapVolume>::OnCompleted_Internal()
 
             mesh->SetMeshData(newMeshDesc, vertexArrayView, bakeMesh.indices.ToByteView());
 
-            GetCurrentAssetRegistry()->PutAssetUnique(mesh);
+            writeScope.Reset();
+            
+            // needs reupload!
+            if (mesh->GetFlags()[MeshFlags::ViewIndependent] || mesh->isUploaded.Load())
+            {
+                mesh->UploadGpuData();
+            }
         };
 
         UpdateMeshData();

@@ -50,7 +50,7 @@ namespace Hyperion.Editor
             windowOptions.parentHwnd = parent.Handle;
 
             Window = Viewport.CreateViewportWindow(windowOptions);
-            
+
             AppContext.SetMainWindow(Window);
 
             if (OperatingSystem.IsWindows())
@@ -135,17 +135,17 @@ namespace Hyperion.Editor
                     MacInterop.ResizeEmbeddedView(nsView, width, height);
                 }
             }
-            else if (OperatingSystem.IsWindows() && Window is Win32ApplicationWindow win32Window)
-            {
-                IntPtr hwnd = win32Window.GetHWND();
-                if (hwnd != IntPtr.Zero)
-                {
-                    const uint SWP_NOZORDER = 0x0004;
-                    const uint SWP_NOACTIVATE = 0x0010;
-                    WinInterop.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, width, height,
-                        SWP_NOZORDER | SWP_NOACTIVATE);
-                }
-            }
+            // else if (OperatingSystem.IsWindows() && Window is Win32ApplicationWindow win32Window)
+            // {
+            //     IntPtr hwnd = win32Window.GetHWND();
+            //     if (hwnd != IntPtr.Zero)
+            //     {
+            //         const uint SWP_NOZORDER = 0x0004;
+            //         const uint SWP_NOACTIVATE = 0x0010;
+            //         WinInterop.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, width, height,
+            //             SWP_NOZORDER | SWP_NOACTIVATE);
+            //     }
+            // }
         }
 
         private static class MacInterop

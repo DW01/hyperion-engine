@@ -81,18 +81,24 @@ void ScriptAsset::PageBlobData()
 
                 AllocateBlobData(m_data, buffer.Data(), buffer.Size(), 1);
 
-                MarkDirty();
-
-                Result saveResult = SaveBlobData(blobStorage);
-
-                if (saveResult.HasError())
+#if HYP_EDITOR
+                // Update to use cache rather than inline blob
+                if (blobStorage != nullptr)
                 {
-                    HYP_LOG(Assets, Error, "Failed to save script blob data: {}", saveResult.GetError().GetMessage());
+                    Result saveResult = SaveBlobData(blobStorage);
+
+                    if (saveResult.HasError())
+                    {
+                        HYP_LOG(Assets, Error, "Failed to save script blob data: {}", saveResult.GetError().GetMessage());
+                    }
+
+                    MarkDirty();
                 }
+#endif // HYP_EDITOR
 
                 return;
             }
-#endif
+#endif // HYP_EDITOR || HYP_ALLOW_INLINE_BLOBS
         }
         else
         {
