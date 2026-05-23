@@ -480,11 +480,21 @@ void EnvProbe::Update(float delta)
         return;
 
     AssertDebug(m_camera != nullptr);
-    m_camera->Update(delta);
+    
+    if (m_camera != nullptr)
+    {
+        m_camera->Update(delta);
+    }
 
     AssertDebug(m_view != nullptr);
 
-    GetWorld()->ProcessViewAsync(m_view);
+    World* world = GetWorld();
+    AssertDebug(world != nullptr);
+
+    if (world != nullptr)
+    {
+        world->ProcessViewAsync(m_view);
+    }
 }
 
 void EnvProbe::UpdateRenderProxy(RenderProxyEnvProbe* proxy)

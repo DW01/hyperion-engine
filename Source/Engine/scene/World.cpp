@@ -261,8 +261,6 @@ void World::Initialize()
 
     for (SystemBase* system : m_systems)
     {
-        system->OnAddedToWorld(this);
-
         for (const Handle<Scene>& scene : m_scenes)
         {
             scene->GetEntityManager()->NotifySystemOfExistingEntities(system);
@@ -1490,7 +1488,9 @@ void World::DeserializeSystems(const Array<Handle<SystemBase>>& systems)
     for (const Handle<SystemBase>& system : systems)
     {
         if (!system)
+        {
             continue;
+        }
 
         AddSystem(system);
     }
@@ -1505,7 +1505,9 @@ Array<Handle<SystemBase>> World::SerializeSystems() const
     {
         // Skip systems with `Serialize` attr as false
         if (!system->InstanceClass()->GetAttribute(Attributes::g_attrSerialize).GetBool(true))
+        {
             continue;
+        }
 
         systemsToSerialize.PushBack(system);
     }
@@ -1525,7 +1527,7 @@ SystemBase* World::AddSystem(const Handle<SystemBase>& system)
 
     if (it != m_systems.End())
     {
-        // cannot add system if one already exists
+        // cannot add system of this type if one already exists!
         return *it;
     }
 
@@ -1541,6 +1543,8 @@ SystemBase* World::AddSystem(const Handle<SystemBase>& system)
         system->m_world = this;
 
         InitObject(system);
+
+        system->OnAddedToWorld(this);
     }
 
     return system;

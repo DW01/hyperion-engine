@@ -59,12 +59,11 @@ DynamicSkySystem::~DynamicSkySystem()
 {
 }
 
-void DynamicSkySystem::Init()
+void DynamicSkySystem::InitializeSky()
 {
-    SystemBase::Init();
-
     GlobalContextScope engineRegistryScope { AssetRegistryContext { GetEngineAssetRegistry() } };
 
+    if (!m_renderScene.IsValid())
     { // atmospheric scattering capture setup
         m_renderScene = MakeHandle<Scene>(NAME("DynamicSkyRenderScene"), SceneFlags::NONE);
         m_renderScene->SetIsTransient(true); // don't save; it's generated at runtime
@@ -97,6 +96,7 @@ void DynamicSkySystem::Init()
         }
     }
 
+    if (!m_visScene.IsValid())
     { // skybox entity setup (renders the captured texture to a box)
         m_skyboxEntity = MakeHandle<Entity>();
         m_skyboxEntity->SetName(NAME("Skybox"));
@@ -164,6 +164,8 @@ void DynamicSkySystem::OnAddedToWorld(World* world)
     AssertOnThread(g_simThread);
 
     SystemBase::OnAddedToWorld(world);
+
+    InitializeSky();
 
     GetWorld()->AddScene(m_renderScene);
     GetWorld()->AddScene(m_visScene);

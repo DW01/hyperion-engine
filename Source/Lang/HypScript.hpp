@@ -32,7 +32,6 @@ namespace HypScript
 {
 
 VirtualMachine* GetVM();
-ScriptInstance* GetGlobalInstance();
 
 void Initialize();
 void Shutdown();
