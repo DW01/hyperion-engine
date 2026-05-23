@@ -350,10 +350,10 @@ void VulkanSwapchain::SetExtent(Vec2u newExtent)
         return;
     }
 
+    m_extent = newExtent;
+
     if (!IsCreated())
     {
-        m_extent = newExtent;
-
         return;
     }
 
@@ -375,21 +375,38 @@ void VulkanSwapchain::Recreate()
 
     RendererResult createResult = Create();
 
-    if (m_oldHandle != VK_NULL_HANDLE)
+    if (createResult)
     {
-        // we can now destroy the old swapchain
-        vkDestroySwapchainKHR(
-            RI.GetDevice()->GetDevice(),
-            m_oldHandle,
-            nullptr);
+        if (m_oldHandle != VK_NULL_HANDLE)
+        {
+            // we can now destroy the old swapchain
+            vkDestroySwapchainKHR(
+                RI.GetDevice()->GetDevice(),
+                m_oldHandle,
+                nullptr);
 
-        m_oldHandle = VK_NULL_HANDLE;
+            m_oldHandle = VK_NULL_HANDLE;
+        }
+
+        // cleanup old resources
+        oldFramebuffers.Clear();
+        oldImages.Clear();
+        oldPresentSemaphores.Clear();
     }
+    else
+    {
+        HYP_LOG(RenderingBackend, Error, "Failed to recreate Vulkan swapchain: {}", createResult.GetError().GetMessage());
 
-    // cleanup old resources
-    oldFramebuffers.Clear();
-    oldImages.Clear();
-    oldPresentSemaphores.Clear();
+        // restore previous state
+        m_handle = m_oldHandle;
+        m_oldHandle = VK_NULL_HANDLE;
+
+        m_images = std::move(oldImages);
+        m_framebuffers = std::move(oldFramebuffers);
+        m_presentSemaphores = std::move(oldPresentSemaphores);
+
+        m_needsRecreate = true; // try again next frame
+    }
 }
 
 RendererResult VulkanSwapchain::ChooseSurfaceFormat()

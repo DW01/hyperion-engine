@@ -112,22 +112,52 @@ namespace Hyperion.Editor
 
         protected override void OnSizeChanged(Avalonia.Controls.SizeChangedEventArgs e)
         {
-            Logger.Log(LogLevel.Verbose, $"EditorViewportControl OnSizeChanged: New Size = {e.NewSize.Width} x {e.NewSize.Height}");
-
             base.OnSizeChanged(e);
 
-            if (Window != null)
+            if (Window == null)
             {
-                int width = (int)e.NewSize.Width;
-                int height = (int)e.NewSize.Height;
-
-                if (width <= 0 || height <= 0)
-                {
-                    return;
-                }
-
-                // Window.SetSize(new Vec2i(width, height));
+                return;
             }
+
+            int width = (int)e.NewSize.Width;
+            int height = (int)e.NewSize.Height;
+
+            if (width <= 0 || height <= 0)
+            {
+                return;
+            }
+
+            if (OperatingSystem.IsMacOS() && Window is CocoaApplicationWindow cocoaWindow)
+            {
+                IntPtr nsView = cocoaWindow.GetNSView();
+                if (nsView != IntPtr.Zero)
+                {
+                    MacInterop.ResizeEmbeddedView(nsView, width, height);
+                }
+            }
+            else if (OperatingSystem.IsWindows() && Window is Win32ApplicationWindow win32Window)
+            {
+                IntPtr hwnd = win32Window.GetHWND();
+                if (hwnd != IntPtr.Zero)
+                {
+                    const uint SWP_NOZORDER = 0x0004;
+                    const uint SWP_NOACTIVATE = 0x0010;
+                    WinInterop.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, width, height,
+                        SWP_NOZORDER | SWP_NOACTIVATE);
+                }
+            }
+        }
+
+        private static class MacInterop
+        {
+            [DllImport("hyperion", EntryPoint = "Hyp_CocoaWindow_ResizeEmbeddedView")]
+            public static extern void ResizeEmbeddedView(IntPtr nsView, int width, int height);
+        }
+
+        private static class WinInterop
+        {
+            [DllImport("user32.dll")]
+            public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
         }
 
         void InitEditorViewport(EditorViewport viewport)

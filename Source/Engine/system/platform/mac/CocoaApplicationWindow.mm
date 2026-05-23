@@ -236,6 +236,47 @@ HANDLE_COCOA_EVENT(keyUp)
 
 @end
 
+extern "C" HYP_EXPORT void Hyp_CocoaWindow_ResizeEmbeddedView(void* nsView, int width, int height)
+{
+    if (nsView == nullptr || width <= 0 || height <= 0)
+        return;
+
+    void (^performResize)(void) = ^{
+        NSView* view = (NSView*)nsView;
+
+        [view setFrame:NSMakeRect(0.0f, 0.0f, (CGFloat)width, (CGFloat)height)];
+
+        if ([view isKindOfClass:[HyperionMetalView class]])
+        {
+            HyperionMetalView* metalView = (HyperionMetalView*)view;
+            CocoaApplicationWindow* window = metalView.hyperionWindow;
+            CAMetalLayer* metalLayer = (CAMetalLayer*)[metalView layer];
+            CGFloat scale = metalLayer ? metalLayer.contentsScale : 1.0;
+
+            CGSize drawableSize = CGSizeMake((CGFloat)width * scale, (CGFloat)height * scale);
+
+            if (metalLayer)
+            {
+                metalLayer.drawableSize = drawableSize;
+            }
+
+            if (window)
+            {
+                window->HandleResize(Vec2i(int(drawableSize.width), int(drawableSize.height)));
+            }
+        }
+    };
+
+    if ([NSThread isMainThread])
+    {
+        performResize();
+    }
+    else
+    {
+        dispatch_sync(dispatch_get_main_queue(), performResize);
+    }
+}
+
 namespace Hyperion {
 
 HYP_DECLARE_LOG_CHANNEL(Core);
@@ -351,9 +392,6 @@ void CocoaApplicationWindow::Initialize(WindowOptions windowOptions)
 
         HyperionMetalView* metalView = [[HyperionMetalView alloc] initWithFrame:frame];
         metalView.hyperionWindow = this;
-
-        // Configure autoresizing to fill parent
-        metalView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 
         // Add to parent view
         [parentView addSubview:metalView];

@@ -2,21 +2,15 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug hyperion-sample",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/Binaries/Mac/Release/hyperion-sample",
-            "args": [],
-            "cwd": "${workspaceFolder}",
-            "MIMode": "lldb"
-        },
-        {
-            "name": "Debug Hyperion.Editor",
+            "name": "(lldb) Launch",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/Binaries/Mac/Release/Hyperion.Editor",
             "args": [],
-            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/Binaries/Mac/Release",
+            "environment": [],
+            "externalConsole": false,
             "MIMode": "lldb"
         }
     ]
