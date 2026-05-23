@@ -58,7 +58,7 @@ DECLARE_SRV(LightmapPass, GBufferMaterialTexture) Texture2D<uint4> gbuffer_mater
 DECLARE_SRV(LightmapPass, GBufferVelocityTexture) Texture2D gbuffer_velocity_texture;
 DECLARE_SRV(LightmapPass, GBufferDepthTexture) Texture2D gbuffer_depth_texture;
 
-DECLARE_SRV(DeferredPass, GBufferMipChain) Texture2D gbuffer_mip_chain;
+DECLARE_SRV(LightmapPass, GBufferMipChain) Texture2D gbuffer_mip_chain;
 
 DECLARE_SAMPLER(LightmapPass, SamplerNearest) SamplerState sampler_nearest;
 DECLARE_SAMPLER(LightmapPass, SamplerLinear) SamplerState sampler_linear;
