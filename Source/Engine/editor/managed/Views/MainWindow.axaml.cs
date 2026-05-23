@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using System;
 using System.Linq;
+using Hyperion;
 using Hyperion.Editor.ViewModels;
 using Hyperion.Editor.Services;
 
@@ -29,9 +30,16 @@ namespace Hyperion.Editor
         private bool _consoleExpanded = true;
 
         private const string NodeViewModelDragFormat = "application/x-hyperion-nodeviewmodel";
+        private const string AssetDragFormat = "application/x-hyperion-asset";
         private NodeViewModel? _dragCandidate;
         private Point _dragStartPoint;
         private bool _isDragging;
+
+        // Content browser drag tracking
+        private ListBox? _contentBrowserAssetList;
+        private AssetObjectViewModel? _assetDragCandidate;
+        private Point _assetDragStartPoint;
+        private bool _isDraggingAsset;
 
         // Drop-indicator tracking and auto-scroll
         private TreeView? _sceneTree;
@@ -75,6 +83,7 @@ namespace Hyperion.Editor
             if (expandConsole != null) expandConsole.Click += OnExpandConsole;
 
             SetupSceneHierarchyDragDrop();
+            SetupContentBrowserDragDrop();
 
             AddHandler(InputElement.LostFocusEvent, OnInspectorTextBoxLostFocus, RoutingStrategies.Bubble);
             AddHandler(InputElement.KeyDownEvent, OnInspectorTextBoxKeyDown, RoutingStrategies.Bubble);
@@ -218,13 +227,25 @@ namespace Hyperion.Editor
 
         private void OnSceneTreeDragOver(object? sender, DragEventArgs e)
         {
+            if (e.Data.Contains(AssetDragFormat))
+            {
+                var t = FindNodeViewModelInEventSource(e.Source);
+                e.DragEffects = t != null ? DragDropEffects.Copy : DragDropEffects.None;
+
+                var vm = DataContext as MainWindowViewModel;
+                vm?.SceneHierarchy.SetDropTarget(t);
+                UpdateAutoScroll(e.GetPosition(_sceneTree));
+                e.Handled = true;
+                return;
+            }
+
             if (!e.Data.Contains(NodeViewModelDragFormat))
             {
                 e.DragEffects = DragDropEffects.None;
                 return;
             }
 
-            var vm = DataContext as MainWindowViewModel;
+            var vm_node = DataContext as MainWindowViewModel;
             var dragged = e.Data.Get(NodeViewModelDragFormat) as NodeViewModel;
             var target = FindNodeViewModelInEventSource(e.Source);
 
@@ -235,7 +256,7 @@ namespace Hyperion.Editor
 
             e.DragEffects = valid ? DragDropEffects.Move : DragDropEffects.None;
 
-            vm?.SceneHierarchy.SetDropTarget(valid ? target : null);
+            vm_node?.SceneHierarchy.SetDropTarget(valid ? target : null);
 
             UpdateAutoScroll(e.GetPosition(_sceneTree));
 
@@ -249,6 +270,29 @@ namespace Hyperion.Editor
 
         private void OnSceneTreeDrop(object? sender, DragEventArgs e)
         {
+            if (e.Data.Contains(AssetDragFormat))
+            {
+                var t = FindNodeViewModelInEventSource(e.Source);
+                EndDrag();
+
+                var vm = DataContext as MainWindowViewModel;
+                if (vm != null)
+                {
+                    var assetData = e.Data.Get(AssetDragFormat) as string;
+                    if (!string.IsNullOrEmpty(assetData))
+                    {
+                        var parts = assetData.Split('|');
+                        if (parts.Length == 2 && uint.TryParse(parts[0], out uint bucketIndex))
+                        {
+                            vm.AddAssetToScene(bucketIndex, new Name(parts[1]));
+                        }
+                    }
+                }
+
+                e.Handled = true;
+                return;
+            }
+
             if (!e.Data.Contains(NodeViewModelDragFormat))
                 return;
 
@@ -260,8 +304,8 @@ namespace Hyperion.Editor
             if (dragged == null || target == null)
                 return;
 
-            var vm = DataContext as MainWindowViewModel;
-            vm?.SceneHierarchy.ReparentNode(dragged, target);
+            var vm_node = DataContext as MainWindowViewModel;
+            vm_node?.SceneHierarchy.ReparentNode(dragged, target);
 
             e.Handled = true;
         }
@@ -344,6 +388,79 @@ namespace Hyperion.Editor
             {
                 if (control.DataContext is NodeViewModel nvm)
                     return nvm;
+                control = control.Parent as Control;
+            }
+            return null;
+        }
+
+        private void SetupContentBrowserDragDrop()
+        {
+            _contentBrowserAssetList = this.FindControl<ListBox>("ContentBrowserAssetList");
+            if (_contentBrowserAssetList == null)
+                return;
+
+            DragDrop.SetAllowDrop(_contentBrowserAssetList, true);
+
+            _contentBrowserAssetList.AddHandler(InputElement.PointerPressedEvent, OnContentBrowserPointerPressed, RoutingStrategies.Tunnel);
+            _contentBrowserAssetList.AddHandler(InputElement.PointerMovedEvent, OnContentBrowserPointerMoved, RoutingStrategies.Tunnel);
+        }
+
+        private void OnContentBrowserPointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            var point = e.GetCurrentPoint(sender as Visual);
+
+            if (point.Properties.IsLeftButtonPressed)
+            {
+                _assetDragCandidate = FindAssetViewModelInEventSource(e.Source);
+                _assetDragStartPoint = e.GetPosition(sender as Visual);
+                _isDraggingAsset = false;
+            }
+        }
+
+        private async void OnContentBrowserPointerMoved(object? sender, PointerEventArgs e)
+        {
+            if (_assetDragCandidate == null || _isDraggingAsset)
+                return;
+
+            if (!e.GetCurrentPoint(sender as Visual).Properties.IsLeftButtonPressed)
+            {
+                _assetDragCandidate = null;
+                return;
+            }
+
+            var pos = e.GetPosition(sender as Visual);
+            var delta = pos - _assetDragStartPoint;
+
+            if (Math.Abs(delta.X) < 5 && Math.Abs(delta.Y) < 5)
+                return;
+
+            _isDraggingAsset = true;
+            var candidate = _assetDragCandidate;
+
+            var data = new DataObject();
+            data.Set(AssetDragFormat, $"{candidate.Bucket?.BucketIndex ?? 0}|{candidate.AssetDesc.Name}");
+
+            try
+            {
+                await DragDrop.DoDragDrop(e, data, DragDropEffects.Copy);
+            }
+            catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException)
+            {
+            }
+            finally
+            {
+                _isDraggingAsset = false;
+                _assetDragCandidate = null;
+            }
+        }
+
+        private static AssetObjectViewModel? FindAssetViewModelInEventSource(object? source)
+        {
+            var control = source as Control;
+            while (control != null)
+            {
+                if (control.DataContext is AssetObjectViewModel avm)
+                    return avm;
                 control = control.Parent as Control;
             }
             return null;

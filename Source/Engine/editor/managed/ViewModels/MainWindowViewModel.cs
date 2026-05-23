@@ -1130,5 +1130,25 @@ namespace Hyperion.Editor.ViewModels
                 }
             }
         }
+
+        public void AddAssetToScene(uint bucketIndex, Name assetName)
+        {
+            if (!_isReady)
+                return;
+
+            _ = EngineManager.PostToSimThread(() =>
+            {
+                try
+                {
+                    _editorSubsystem.ExecuteCommandByName(
+                        new Name("EditorCommandAddAsset"),
+                        $"{bucketIndex} {assetName}");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Warning, $"Failed to add asset to scene: {ex.Message}");
+                }
+            });
+        }
     }
 }

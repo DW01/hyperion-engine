@@ -655,11 +655,16 @@
                                                     </DataTemplate>
                                                 </ListBox.ItemTemplate>
                                             </ListBox>
-                                            <ListBox Grid.Column="1" ItemsSource="{Binding ContentBrowser.Assets}" SelectedItem="{Binding ContentBrowser.SelectedAsset, Mode=TwoWay}">
+                                            <ListBox
+                                                x:Name="ContentBrowserAssetList"
+                                                Grid.Column="1"
+                                                ItemsSource="{Binding ContentBrowser.Assets}"
+                                                SelectedItem="{Binding ContentBrowser.SelectedAsset, Mode=TwoWay}">
                                                 <ListBox.ItemTemplate>
                                                     <DataTemplate x:DataType="vm:AssetObjectViewModel">
-                                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                                            <TextBlock Text="{Binding DisplayName}" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="2">
+                                                            <LucideIcon Kind="{Binding IconKind}" Size="14" Opacity="0.7" VerticalAlignment="Center" />
+                                                            <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
                                                         </StackPanel>
                                                     </DataTemplate>
                                                 </ListBox.ItemTemplate>
