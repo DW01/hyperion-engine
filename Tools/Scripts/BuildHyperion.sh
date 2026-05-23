@@ -29,7 +29,7 @@ for arg in "$@"; do
     elif [[ "$arg" == "Xcode" ]]; then
         XCODE=1
     fi
-    
+
     # config mode
     if [[ "$arg" == "Debug" ]]; then
         CONFIG="Debug"
@@ -58,20 +58,22 @@ if [[ $RESP =~ ^[Yy] ]]; then
             exit 1
         fi
 
-        if [[ $IOS_SIMULATOR -eq 1 ]]; then
-            cmake -G Xcode ../../../Source -DHYP_PLATFORM_NAME=iOS -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphonesimulator -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 $HYP_CMAKE_PARAMS
-        else
+        if [[ $XCODE -eq 1 ]]; then
+            printf "Building with Xcode...\n"
             cmake -G Xcode ../../../Source -DHYP_PLATFORM_NAME=iOS -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphoneos -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 $HYP_CMAKE_PARAMS
+        else
+            printf "Building with Ninja...\n"
+            cmake -G Ninja ../../../Source -DHYP_PLATFORM_NAME=iOS -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphoneos -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 $HYP_CMAKE_PARAMS
         fi
     elif [[ $XCODE -eq 1 ]]; then
+        printf "Building with Xcode...\n"
         cmake -G Xcode ../../../Source -DCMAKE_OSX_SYSROOT=macosx -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 $HYP_CMAKE_PARAMS
     else
-        cmake ../../../Source $HYP_CMAKE_PARAMS
+        printf "Building with Ninja...\n"
+        cmake -G Ninja ../../../Source $HYP_CMAKE_PARAMS
     fi
 fi
 
 cmake --build . --parallel 8
 
 popd
-
-

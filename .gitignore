@@ -39,7 +39,7 @@ ipch/
 CMakeFiles/**/*
 
 # VS Code
-.vscode/**/*
+.vscode/settings.json
 
 # JetBrains Rider
 **/.idea/**/*
