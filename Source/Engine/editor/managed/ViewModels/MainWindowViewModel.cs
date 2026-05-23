@@ -29,12 +29,10 @@ namespace Hyperion.Editor.ViewModels
         public EditorCommand SaveProjectAs => new EditorCommand("SaveProjectAs");
         public ICommand Exit { get; } = new RelayCommand(() =>
         {
-            try
+            if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime lifetime)
             {
-                EngineManager.Shutdown();
+                lifetime.MainWindow?.Close();
             }
-            catch { }
-            Environment.Exit(0);
         });
         public EditorCommand Undo => new EditorCommand("Undo");
         public EditorCommand Redo => new EditorCommand("Redo");
@@ -1129,6 +1127,46 @@ namespace Hyperion.Editor.ViewModels
                     });
                 }
             }
+        }
+
+        public void AddAssetToScene(uint bucketIndex, Name assetName)
+        {
+            if (!_isReady)
+                return;
+
+            _ = EngineManager.PostToSimThread(() =>
+            {
+                try
+                {
+                    _editorSubsystem.ExecuteCommandByName(
+                        new Name("EditorCommandAddAsset"),
+                        $"{bucketIndex} {assetName}");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Warning, $"Failed to add asset to scene: {ex.Message}");
+                }
+            });
+        }
+
+        public void AddAssetToSceneAtViewport(uint bucketIndex, Name assetName, float nx, float ny)
+        {
+            if (!_isReady)
+                return;
+
+            _ = EngineManager.PostToSimThread(() =>
+            {
+                try
+                {
+                    _editorSubsystem.ExecuteCommandByName(
+                        new Name("EditorCommandAddAsset"),
+                        $"{bucketIndex} {assetName} {nx} {ny}");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Warning, $"Failed to add asset to scene at viewport: {ex.Message}");
+                }
+            });
         }
     }
 }

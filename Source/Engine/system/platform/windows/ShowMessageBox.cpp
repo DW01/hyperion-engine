@@ -2,72 +2,123 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <CommCtrl.h>
 
-#include <cstring>
-
-static int FindNextButtonID(int startIndex, int buttons, const char* buttonTexts[3])
+static void ToWideString(const char* utf8, wchar_t*& outWide)
 {
-    if (startIndex >= buttons)
+    int len = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, nullptr, 0);
+    outWide = new wchar_t[len];
+    MultiByteToWideChar(CP_UTF8, 0, utf8, -1, outWide, len);
+}
+
+typedef HRESULT(WINAPI* TaskDialogIndirectProc)(const TASKDIALOGCONFIG*, int*, int*, BOOL*);
+
+static HMODULE LoadComctl32v6()
+{
+    HMODULE hComCtl = GetModuleHandleW(L"comctl32.dll");
+
+    if (hComCtl)
     {
-        return -1;
+        if (GetProcAddress(hComCtl, "TaskDialogIndirect"))
+        {
+            return hComCtl;
+        }
     }
 
-    if (strcmp("OK", buttonTexts[startIndex]) == 0)
+    wchar_t tempPath[MAX_PATH];
+
+    if (GetTempPathW(MAX_PATH, tempPath) == 0)
     {
-        return IDOK;
+        return nullptr;
     }
 
-    if (strcmp("Cancel", buttonTexts[startIndex]) == 0)
+    wchar_t tempFile[MAX_PATH];
+
+    if (GetTempFileNameW(tempPath, L"TD", 0, tempFile) == 0)
     {
-        return IDCANCEL;
+        return nullptr;
     }
 
-    if (strcmp("Abort", buttonTexts[startIndex]) == 0)
+    const char* manifestXml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+        "<assembly xmlns=\"urn:schemas-microsoft-com:asm.v1\" manifestVersion=\"1.0\">"
+        "<dependency>"
+        "<dependentAssembly>"
+        "<assemblyIdentity type=\"win32\" name=\"Microsoft.Windows.Common-Controls\" "
+        "version=\"6.0.0.0\" processorArchitecture=\"*\" "
+        "publicKeyToken=\"6595b64144ccf1df\" language=\"*\" />"
+        "</dependentAssembly>"
+        "</dependency>"
+        "</assembly>";
+
+    HANDLE hFile = CreateFileW(
+        tempFile,
+        GENERIC_WRITE,
+        0,
+        nullptr,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_TEMPORARY,
+        nullptr
+    );
+
+    if (hFile == INVALID_HANDLE_VALUE)
     {
-        return IDABORT;
+        return nullptr;
     }
 
-    if (strcmp("Retry", buttonTexts[startIndex]) == 0)
+    DWORD written = 0;
+    WriteFile(hFile, manifestXml, (DWORD)strlen(manifestXml), &written, nullptr);
+    CloseHandle(hFile);
+
+    ACTCTXW actCtx = {};
+    actCtx.cbSize = sizeof(actCtx);
+    actCtx.lpSource = tempFile;
+
+    HANDLE hActCtx = CreateActCtxW(&actCtx);
+
+    DeleteFileW(tempFile);
+
+    if (hActCtx == INVALID_HANDLE_VALUE)
     {
-        return IDRETRY;
+        return nullptr;
     }
 
-    if (strcmp("Ignore", buttonTexts[startIndex]) == 0)
+    ULONG_PTR cookie = 0;
+
+    if (!ActivateActCtx(hActCtx, &cookie))
     {
-        return IDIGNORE;
+        ReleaseActCtx(hActCtx);
+
+        return nullptr;
     }
 
-    if (strcmp("Yes", buttonTexts[startIndex]) == 0)
+    hComCtl = LoadLibraryW(L"comctl32.dll");
+
+    DeactivateActCtx(0, cookie);
+    ReleaseActCtx(hActCtx);
+
+    return hComCtl;
+}
+
+static TaskDialogIndirectProc GetTaskDialogIndirect()
+{
+    static TaskDialogIndirectProc pfn = (TaskDialogIndirectProc)-1;
+
+    if (pfn == (TaskDialogIndirectProc)-1)
     {
-        return IDYES;
+        HMODULE hComCtl = LoadComctl32v6();
+
+        if (hComCtl)
+        {
+            pfn = (TaskDialogIndirectProc)GetProcAddress(hComCtl, "TaskDialogIndirect");
+        }
+        else
+        {
+            pfn = nullptr;
+        }
     }
 
-    if (strcmp("No", buttonTexts[startIndex]) == 0)
-    {
-        return IDNO;
-    }
-
-    if (strcmp("Try Again", buttonTexts[startIndex]) == 0)
-    {
-        return IDTRYAGAIN;
-    }
-
-    if (strcmp("Continue", buttonTexts[startIndex]) == 0)
-    {
-        return IDCONTINUE;
-    }
-
-    if (strcmp("Close", buttonTexts[startIndex]) == 0)
-    {
-        return IDCLOSE;
-    }
-
-    if (strcmp("Help", buttonTexts[startIndex]) == 0)
-    {
-        return IDHELP;
-    }
-
-    return -1;
+    return pfn;
 }
 
 extern "C"
@@ -75,96 +126,73 @@ extern "C"
 
     int ShowMessageBox(int type, const char* title, const char* message, int buttons, const char* buttonTexts[3])
     {
-        int buttonIndices[16] = { -1 };
-        int startIndex = 0;
-        int buttonId = -1;
+        TaskDialogIndirectProc pTaskDialogIndirect = GetTaskDialogIndirect();
 
-        while (startIndex < buttons && (buttonId = FindNextButtonID(startIndex, buttons, buttonTexts)) != -1)
-        {
-            buttonIndices[buttonId] = startIndex++;
-        }
+        wchar_t* wideTitle = nullptr;
+        wchar_t* wideMessage = nullptr;
+        ToWideString(title, wideTitle);
+        ToWideString(message, wideMessage);
 
-        int titleLength = MultiByteToWideChar(CP_UTF8, 0, title, -1, nullptr, 0);
-        int messageLength = MultiByteToWideChar(CP_UTF8, 0, message, -1, nullptr, 0);
-
-        wchar_t* wideTitle = new wchar_t[titleLength];
-        wchar_t* wideMessage = new wchar_t[messageLength];
-
-        MultiByteToWideChar(CP_UTF8, 0, title, -1, wideTitle, titleLength);
-        MultiByteToWideChar(CP_UTF8, 0, message, -1, wideMessage, messageLength);
-
-        wchar_t* wideButtonTexts[3] = {};
+        const int MaxButtons = 3;
+        wchar_t* wideButtonTexts[MaxButtons] = {};
+        TASKDIALOG_BUTTON taskDialogButtons[MaxButtons] = {};
 
         for (int i = 0; i < buttons; i++)
         {
-            int buttonTextLength = MultiByteToWideChar(CP_UTF8, 0, buttonTexts[i], -1, nullptr, 0);
-            wideButtonTexts[i] = new wchar_t[buttonTextLength];
-            MultiByteToWideChar(CP_UTF8, 0, buttonTexts[i], -1, wideButtonTexts[i], buttonTextLength);
+            ToWideString(buttonTexts[i], wideButtonTexts[i]);
+
+            taskDialogButtons[i].nButtonID = 100 + i;
+            taskDialogButtons[i].pszButtonText = wideButtonTexts[i];
         }
 
-        UINT typeFlags = 0;
+        TASKDIALOGCONFIG config = {};
+        config.cbSize = sizeof(config);
+        config.hwndParent = nullptr;
+        config.pszWindowTitle = wideTitle;
 
         switch (type)
         {
         case 0:
-            typeFlags = MB_ICONINFORMATION;
+            config.pszMainIcon = TD_INFORMATION_ICON;
             break;
         case 1:
-            typeFlags = MB_ICONWARNING;
+            config.pszMainIcon = TD_WARNING_ICON;
             break;
         case 2:
-            typeFlags = MB_ICONERROR;
+            config.pszMainIcon = TD_ERROR_ICON;
             break;
         }
 
-        if (buttonIndices[IDOK] != -1)
-        {
-            typeFlags |= MB_OK;
-        }
+        config.pszMainInstruction = wideTitle;
+        config.pszContent = wideMessage;
 
-        if (buttonIndices[IDCANCEL] != -1)
+        if (buttons > 0)
         {
-            if (buttonIndices[IDOK] != -1)
-            {
-                typeFlags |= MB_OKCANCEL;
-            }
-            else if (buttonIndices[IDRETRY] != -1)
-            {
-                typeFlags |= MB_RETRYCANCEL;
-            }
-            else if (buttonIndices[IDTRYAGAIN] != -1 && buttonIndices[IDCONTINUE] != -1)
-            {
-                typeFlags |= MB_CANCELTRYCONTINUE;
-            }
-        }
-
-        if (buttonIndices[IDYES] != -1 && buttonIndices[IDNO] == -1)
-        {
-            if (buttonIndices[IDCANCEL] != -1)
-            {
-                typeFlags |= MB_YESNOCANCEL;
-            }
-            else
-            {
-                typeFlags |= MB_YESNO;
-            }
-        }
-
-        if (buttonIndices[IDHELP] != -1)
-        {
-            typeFlags |= MB_HELP;
-        }
-
-        int result = MessageBoxW(NULL, wideMessage, wideTitle, typeFlags);
-        int buttonIndex;
-
-        if (result < 16)
-        {
-            buttonIndex = buttonIndices[result];
+            config.cButtons = buttons;
+            config.pButtons = taskDialogButtons;
+            config.nDefaultButton = taskDialogButtons[0].nButtonID;
         }
         else
         {
-            buttonIndex = -1;
+            config.dwCommonButtons = TDCBF_OK_BUTTON;
+        }
+
+        int clickedButtonId = 0;
+        HRESULT hr = pTaskDialogIndirect(&config, &clickedButtonId, nullptr, nullptr);
+
+        int buttonIndex = -1;
+
+        if (SUCCEEDED(hr))
+        {
+            if (buttons > 0)
+            {
+                buttonIndex = clickedButtonId - 100;
+
+                if (buttonIndex < 0 || buttonIndex >= buttons)
+                {
+                    buttonIndex = -1;
+                }
+            }
         }
 
         delete[] wideTitle;

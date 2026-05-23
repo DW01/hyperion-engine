@@ -17,6 +17,7 @@
 
 #include <Lang/compiler/emit/BytecodeChunk.hpp>
 #include <Lang/compiler/emit/BytecodeUtil.hpp>
+#include <Lang/compiler/emit/StorageOperation.hpp>
 
 #include <Lang/Instructions.hpp>
 #include <Core/debug/Debug.hpp>
@@ -38,7 +39,8 @@ AstMember::AstMember(
       m_heldType(nullptr),
       m_foundIndex(~0u),
       m_isStaticField(false),
-      m_isStaticMethod(false)
+      m_isStaticMethod(false),
+      m_isConst(false)
 {
 }
 
@@ -46,8 +48,22 @@ void AstMember::Visit(AstVisitor* visitor, Module* mod)
 {
     m_symbolType = BuiltinTypes::s_errorType;
 
-    Assert(m_target != nullptr);
-    m_target->Visit(visitor, mod);
+    {
+        // For STORE operation we should load a reference into register.
+        if (m_accessMode == ACCESS_MODE_STORE)
+        {
+            mod->scopeTree.Open(SCOPE_TYPE_NORMAL, REF_VARIABLE_FLAG);
+        }
+
+        Assert(m_target != nullptr);
+        m_target->Visit(visitor, mod);
+
+        // Reference scope ends
+        if (m_accessMode == ACCESS_MODE_STORE)
+        {
+            mod->scopeTree.Close();
+        }
+    }
 
     bool isProxyClass = false;
 
@@ -59,9 +75,6 @@ void AstMember::Visit(AstVisitor* visitor, Module* mod)
     {
         // static member access
         m_targetType = heldType;
-
-        // disable store access for static member access since we don't support it currently
-        m_accessOptions &= ~ACCESS_MODE_STORE;
 
         isStaticMemberAccess = true;
     }
@@ -82,15 +95,6 @@ void AstMember::Visit(AstVisitor* visitor, Module* mod)
     resolvedType->Register(visitor->GetCompilationUnit());
 
     m_targetType = resolvedType;
-
-    if (mod->IsInScopeOfType(SCOPE_TYPE_NORMAL, REF_VARIABLE_FLAG, /* thisScopeOnly */ false))
-    {
-        // TODO: implement
-        visitor->GetCompilationUnit()->GetErrorList().AddError(CompilerError(
-            LEVEL_ERROR,
-            Msg_internal_error,
-            m_location));
-    }
 
     const SymbolType* originalType = m_targetType;
 
@@ -167,6 +171,8 @@ void AstMember::Visit(AstVisitor* visitor, Module* mod)
                     }
                 }
 
+                m_isConst = member.IsConst();
+
                 // only set m_foundIndex if found in first level.
                 // for members from base objects,
                 // we load based on hash.
@@ -198,12 +204,24 @@ void AstMember::Visit(AstVisitor* visitor, Module* mod)
     }
 
     Assert(m_targetType != nullptr);
-    
+
     const bool isStaticMember = m_isStaticField || m_isStaticMethod;
     if (!m_typeRef && (isStaticMember || m_targetType->IsClassType()))
     {
+        // Same as above for targetType. Do the same for static members.
+        // For STORE operation we should load a reference into register.
+        if (m_accessMode == ACCESS_MODE_STORE)
+        {
+            mod->scopeTree.Open(SCOPE_TYPE_NORMAL, REF_VARIABLE_FLAG);
+        }
+
         m_typeRef.Reset(new AstTypeRef(m_targetType, m_location));
         m_typeRef->Visit(visitor, mod);
+
+        if (m_accessMode == ACCESS_MODE_STORE)
+        {
+            mod->scopeTree.Close();
+        }
     }
 
     if (fieldType != nullptr)
@@ -241,7 +259,21 @@ UniquePtr<Buildable> AstMember::Build(AstVisitor* visitor, Module* mod)
 
     const bool isStaticMember = m_isStaticField || m_isStaticMethod;
 
-    if (m_typeRef != nullptr)
+    AstMember* targetAsMember = nullptr;
+    if (m_accessMode == ACCESS_MODE_STORE && m_target != nullptr)
+    {
+        targetAsMember = dynamic_cast<AstMember*>(m_target.Get());
+    }
+
+    const bool needsWriteback = targetAsMember != nullptr;
+
+    if (needsWriteback)
+    {
+        // Skip normal target build – we will generate custom bytecode below
+        // that preserves the base object or ClassRef in rp while loading the
+        // target member value into rp+1, enabling a writeback after the store.
+    }
+    else if (m_typeRef != nullptr)
     {
         chunk->Append(m_typeRef->Build(visitor, mod));
     }
@@ -260,7 +292,47 @@ UniquePtr<Buildable> AstMember::Build(AstVisitor* visitor, Module* mod)
         break;
     case ACCESS_MODE_STORE:
         chunk->Append(BytecodeUtil::Make<Comment>((isStaticMember ? "Store static member " : "Store member ") + m_fieldName));
-        chunk->Append(Compiler::StoreMemberFromHash(visitor, mod, hash));
+
+        if (needsWriteback)
+        {
+            uint8 rp = visitor->GetCompilationUnit()->GetInstructionStream().GetCurrentRegister();
+
+            Assert(rp > 0); // rp-1 must hold the source value from the binary assignment
+
+            const HashCode::ValueType targetFieldHash = HashCode::GetHashCode(targetAsMember->m_fieldName.Data()).Value();
+
+            // Step 1: Load the base (ClassRef for static, object for instance) into rp
+            if (targetAsMember->m_typeRef != nullptr)
+            {
+                chunk->Append(targetAsMember->m_typeRef->Build(visitor, mod));
+            }
+            else if (targetAsMember->m_target != nullptr)
+            {
+                chunk->Append(targetAsMember->m_target->Build(visitor, mod));
+            }
+
+            // Step 2: Load the target member value into rp+1 (preserving the base in rp)
+            chunk->Append(BytecodeUtil::Make<Comment>("Load member " + targetAsMember->m_fieldName + " for writeback"));
+            auto instrLoadTargetMember = BytecodeUtil::Make<StorageOperation>();
+            instrLoadTargetMember->GetBuilder().Load(rp + 1).Member(rp).ByHash(targetFieldHash);
+            chunk->Append(std::move(instrLoadTargetMember));
+
+            // Step 3: Store into this member's field on the loaded value in rp+1
+            auto instrStoreMember = BytecodeUtil::Make<StorageOperation>();
+            instrStoreMember->GetBuilder().Store(rp - 1).Member(rp + 1).ByHash(hash);
+            chunk->Append(std::move(instrStoreMember));
+
+            // Step 4: Write back the modified value to the target member via the base in rp
+            chunk->Append(BytecodeUtil::Make<Comment>("Writeback to member " + targetAsMember->m_fieldName));
+            auto instrWriteback = BytecodeUtil::Make<StorageOperation>();
+            instrWriteback->GetBuilder().Store(rp + 1).Member(rp).ByHash(targetFieldHash);
+            chunk->Append(std::move(instrWriteback));
+        }
+        else
+        {
+            chunk->Append(Compiler::StoreMemberFromHash(visitor, mod, hash));
+        }
+
         break;
     default:
         HYP_UNREACHABLE();
@@ -348,20 +420,19 @@ AstExpression* AstMember::GetTarget() const
 
 bool AstMember::IsMutable() const
 {
-    if (m_typeRef != nullptr && !m_typeRef->IsMutable())
-    {
-        return false;
-    }
-
     Assert(m_target != nullptr);
-    Assert(m_symbolType != nullptr);
 
-    if (!m_target->IsMutable())
+    if (m_isConst)
     {
         return false;
     }
 
-    return true;
+    if (m_isStaticField)
+    {
+        return true;
+    }
+
+    return m_target->IsMutable();
 }
 
 } // namespace Hyperion

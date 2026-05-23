@@ -8,6 +8,7 @@
 
 #include <Core/reflection/BoxedValue.hpp>
 #include <Core/reflection/Class.hpp>
+#include <Core/reflection/Struct.hpp>
 #include <Core/reflection/MemberVariant.hpp>
 #include <Core/reflection/Field.hpp>
 #include <Core/reflection/Property.hpp>
@@ -254,11 +255,6 @@ BoxedValue ShallowCopy(BoxedValue& refValue, GarbageCollector* gc)
 
 bool ShouldValuePassByRef(const BoxedValue& value)
 {
-    if (!value.IsValid())
-    {
-        return false;
-    }
-
     return PASS_AS_REF(value);
 }
 
@@ -513,12 +509,20 @@ String ValueToString(const BoxedValue& value, int currDepth)
 
 Script_RegisterMemory::Script_RegisterMemory()
 {
+    for (uint8 i = 0; i < NumRegisters; i++)
+    {
+        new (values.GetPointer() + i) BoxedValue;
+    }
 }
 
 Script_RegisterMemory::~Script_RegisterMemory()
 {
-    for (BoxedValue& value : regs)
+    for (uint8 i = 0; i < NumRegisters; i++)
     {
+        BoxedValue& value = values.GetPointer()[i];
+
+        AssertDebug(!IsGarbage(value));
+
         value.~BoxedValue();
         value.extData.gcIndex = INVALID_GC_INDEX;
     }
@@ -800,7 +804,7 @@ public:
 
     SCRIPT_INLINE void OpLoadNull(RegisterIndex reg)
     {
-        instance->thread.m_regs[reg] = BoxedValue();
+        instance->thread.m_regs[reg] = BoxedValue(Handle<ObjectBase>());
     }
 
     SCRIPT_INLINE void OpLoadTrue(RegisterIndex reg)
@@ -997,36 +1001,59 @@ public:
 
     SCRIPT_INLINE void OpSetField(RegisterIndex dstReg, uint64 hash, RegisterIndex srcReg)
     {
-        BoxedValue* pValue = Deref(instance->thread.m_regs[dstReg]);
+        BoxedValue& srcValue = *Deref(instance->thread.m_regs[srcReg]);
+        BoxedValue newValue = PASS_AS_REF(srcValue)
+            ? MakeTrackedRef(&srcValue, vm->GetGC())
+            : ShallowCopy(srcValue, vm->GetGC());
 
         const Class* cls = nullptr;
+        
+        BoxedValue* pValue = Deref(instance->thread.m_regs[dstReg]);
 
-        if (const Handle<ObjectBase>& object = GetObject(*pValue))
+        if (pValue->Is<ClassRef>())
         {
-            cls = object.ptr->InstanceClass();
+            cls = pValue->Get<ClassRef>().cls;
+
+            StaticField* staticField = cls->GetStaticField(StringHash(NameID(hash)));
+
+            if (!staticField)
+            {
+                vm->ThrowException(instance, Exception::MemberNotFoundException(pValue, hash));
+
+                return;
+            }
+
+            staticField->SetValue(std::move(newValue));
         }
         else
         {
-            cls = GetClass(pValue->GetTypeId());
+            if (const Handle<ObjectBase>& object = GetObject(*pValue))
+            {
+                cls = object.ptr->InstanceClass();
+            }
+            else
+            {
+                cls = GetClass(pValue->GetTypeId());
+            }
+
+            if (!cls)
+            {
+                vm->ThrowException(instance, Exception::InvalidMemberAccessException(pValue));
+
+                return;
+            }
+
+            Field* field = cls->GetField(StringHash(NameID(hash)));
+
+            if (!field)
+            {
+                vm->ThrowException(instance, Exception::MemberNotFoundException(pValue, hash));
+
+                return;
+            }
+
+            field->Set(*pValue, std::move(newValue));
         }
-
-        if (!cls)
-        {
-            vm->ThrowException(instance, Exception::InvalidMemberAccessException(pValue));
-
-            return;
-        }
-
-        Field* field = cls->GetField(StringHash(NameID(hash)));
-
-        if (!field)
-        {
-            vm->ThrowException(instance, Exception::MemberNotFoundException(pValue, hash));
-
-            return;
-        }
-
-        field->Set(*pValue, *Deref(instance->thread.m_regs[srcReg]));
     }
 
     SCRIPT_INLINE void OpGetMember(RegisterIndex dstReg, RegisterIndex srcReg, uint64 hash)
@@ -1549,7 +1576,8 @@ public:
 
         const Class* parentClass = nullptr;
 
-        if (parentClassValue.IsValid())
+        // Check if value in register is non-null
+        if (parentClassValue.ToRef().GetPointer() != nullptr)
         {
             parentClass = parentClassValue.Get<ClassRef>();
             Assert(parentClass != nullptr);
@@ -1558,13 +1586,86 @@ public:
         // some type needs to be set
         Assert((flags & (ClassFlags::CLASS_TYPE | ClassFlags::STRUCT_TYPE | ClassFlags::ENUM_TYPE)));
 
-        DynamicClassInstance* newClass = new DynamicClassInstance(
-            TypeId(typeIdValue),
-            className,
-            parentClass,
-            Span<const ClassAttribute>(), // @TODO
-            flags,
-            members.ToSpan());
+        Class* newClass = nullptr;
+
+        if (flags & (ClassFlags::CLASS_TYPE | ClassFlags::ENUM_TYPE)) // enum is here temporarily
+        {
+            newClass = new DynamicClassInstance(
+                TypeId(typeIdValue),
+                className,
+                parentClass,
+                Span<const ClassAttribute>(), // @TODO
+                flags,
+                members.ToSpan());
+        }
+        else if (flags & ClassFlags::STRUCT_TYPE)
+        {
+            DynamicStructInstanceFunctions functions {};
+            functions.construct = [](void* ctx, void* dest) -> void
+            {
+                ubyte* ptrRaw = reinterpret_cast<ubyte*>(dest);
+
+                const DynamicStructInstance* pStruct = static_cast<const DynamicStructInstance*>(ctx);
+
+                for (const Field* field : pStruct->GetFields())
+                {
+                    if (field->GetTypeId().Value() == BoxedValueTypeId)
+                    {
+                        new (ptrRaw + field->GetOffset()) BoxedValue;
+                    }
+                }
+            };
+            functions.copy = [](void* ctx, const void* src) -> void*
+            {
+                const DynamicStructInstance* pStruct = static_cast<const DynamicStructInstance*>(ctx);
+                
+                void* dest = GetDefaultAllocatorInstance<DynamicAllocator>()->Allocate(pStruct->GetSize(), pStruct->GetAlignment());
+
+                const ubyte* srcRaw = reinterpret_cast<const ubyte*>(src);
+                ubyte* destRaw = reinterpret_cast<ubyte*>(dest);
+
+                for (const Field* field : pStruct->GetFields())
+                {
+                    if (field->GetTypeId().Value() == BoxedValueTypeId)
+                    {
+                        const auto* srcBoxed = reinterpret_cast<const BoxedValue*>(srcRaw + field->GetOffset());
+                        new (destRaw + field->GetOffset()) BoxedValue(*srcBoxed);
+                    }
+                    else
+                    {
+                        Memory::Copy(destRaw + field->GetOffset(), srcRaw + field->GetOffset(), field->GetSize());
+                    }
+                }
+
+                return dest;
+            };
+            functions.destruct = [](void* ctx, void* ptr) -> void
+            {
+                const DynamicStructInstance* pStruct = static_cast<const DynamicStructInstance*>(ctx);
+
+                ubyte* ptrRaw = reinterpret_cast<ubyte*>(ptr);
+
+                for (const Field* field : pStruct->GetFields())
+                {
+                    if (field->GetTypeId().Value() == BoxedValueTypeId)
+                    {
+                        reinterpret_cast<BoxedValue*>(ptrRaw + field->GetOffset())->~BoxedValue();
+                    }
+                }
+            };
+
+            newClass = new DynamicStructInstance(
+                TypeId(typeIdValue),
+                className,
+                Span<const ClassAttribute>(), // @TODO
+                flags,
+                members.ToSpan(),
+                functions);
+        }
+        else
+        {
+            HYP_NOT_IMPLEMENTED();
+        }
 
         // Only register if not anonymous
         if (!(flags & ClassFlags::ANONYMOUS))
@@ -2481,22 +2582,25 @@ public:
         // load value from register
         BoxedValue& value = *Deref(instance->thread.m_regs[src]);
 
-        const Class* cls = nullptr;
-
-        if (const Handle<ObjectBase>& object = GetObject(value))
+        if (value.ToRef().GetPointer() != nullptr)
         {
-            cls = object.ptr->InstanceClass();
-        }
-        else
-        {
-            cls = GetClass(value.GetTypeId());
-        }
+            const Class* cls = nullptr;
 
-        if (!cls || !cls->IsDerivedFrom(classRef))
-        {
-            vm->ThrowException(instance, Exception::InvalidCastException(GetTypeString(value), classRef->GetName().LookupString()));
+            if (const Handle<ObjectBase>& object = GetObject(value))
+            {
+                cls = object.ptr->InstanceClass();
+            }
+            else
+            {
+                cls = GetClass(value.GetTypeId());
+            }
 
-            return;
+            if (!cls || !cls->IsDerivedFrom(classRef))
+            {
+                vm->ThrowException(instance, Exception::InvalidCastException(GetTypeString(value), classRef->GetName().LookupString()));
+
+                return;
+            }
         }
 
         instance->thread.m_regs[dst] = ShallowCopy(value, vm->GetGC());
@@ -3556,7 +3660,7 @@ void VirtualMachine::CollectGarbage(Span<ScriptInstance*> instances)
         m_gc->MarkReachable(Span<BoxedValue>(stack.GetData(), stack.GetStackPointer()));
 
         Script_RegisterMemory& regs = instance->thread.GetRegisters();
-        m_gc->MarkReachable(Span<BoxedValue>(regs.regs, Script_RegisterMemory::NumRegisters));
+        m_gc->MarkReachable(Span<BoxedValue>(regs.values.GetPointer(), Script_RegisterMemory::NumRegisters));
     }
 
     m_gc->Collect();
@@ -3637,10 +3741,8 @@ void VirtualMachine::Invoke(ScriptInstance* instance, BoxedValue&& value, uint8 
                 }
             }
 
-            BoxedValue result = data->nativeFunc->Invoke(Span<BoxedValue*>(argsBoxed, nargs));
-
             // set register 0 to the result
-            instance->thread.GetRegisters()[0] = MakeValue(std::move(result));
+            instance->thread.GetRegisters()[0] = data->nativeFunc->Invoke(Span<BoxedValue*>(argsBoxed, nargs));
 
             // re-enable auto gc
             //            enableAutoGc = ENABLE_GC;

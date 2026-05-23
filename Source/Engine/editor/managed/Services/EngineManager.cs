@@ -11,6 +11,8 @@ namespace Hyperion.Editor
     {
 
         public static bool IsInitialized { get; private set; }
+        public static bool DisableMainLoop { get; set; } = false;
+
         public static HyperionEditorGame? EditorGame { get; private set; }
         public static Game? GameInstance { get; private set; } // Local copy of EngineDriver.Instance.GameInstance
 

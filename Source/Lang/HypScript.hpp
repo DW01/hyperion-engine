@@ -31,10 +31,7 @@ struct HypScriptCompileParams
 namespace HypScript
 {
 
-using ArgCount = uint16;
-
 VirtualMachine* GetVM();
-ScriptInstance* GetGlobalInstance();
 
 void Initialize();
 void Shutdown();
@@ -68,7 +65,7 @@ static inline auto CreateArguments(Args&&... args) -> FixedArray<BoxedValue, siz
     return FixedArray<BoxedValue, sizeof...(Args)> { CreateArgument(args)... };
 }
 
-BoxedValue CallFunctionArgV(ScriptInstance* instance, const BoxedValue& value, BoxedValue* args, ArgCount numArgs);
+BoxedValue CallFunctionArgV(ScriptInstance* instance, const BoxedValue& value, BoxedValue* args, uint8 numArgs);
 
 bool GetFunctionHandle(ScriptInstance* instance, const char* name, BoxedValue& outValue);
 bool GetExportedValue(ScriptInstance* instance, const char* name, BoxedValue& outValue, bool getReference);

@@ -58,7 +58,7 @@ DECLARE_SRV(LightmapPass, GBufferMaterialTexture) Texture2D<uint4> gbuffer_mater
 DECLARE_SRV(LightmapPass, GBufferVelocityTexture) Texture2D gbuffer_velocity_texture;
 DECLARE_SRV(LightmapPass, GBufferDepthTexture) Texture2D gbuffer_depth_texture;
 
-DECLARE_SRV(DeferredPass, GBufferMipChain) Texture2D gbuffer_mip_chain;
+DECLARE_SRV(LightmapPass, GBufferMipChain) Texture2D gbuffer_mip_chain;
 
 DECLARE_SAMPLER(LightmapPass, SamplerNearest) SamplerState sampler_nearest;
 DECLARE_SAMPLER(LightmapPass, SamplerLinear) SamplerState sampler_linear;
@@ -150,6 +150,8 @@ PSOutput PSMain(PSInput input)
     ao = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, SSAOResultTexture, texcoord, 0).r;
 
     float2 lightmapUV = UV1;
+    // lightmapUV.x = 1.0 - lightmapUV.x;
+    // lightmapUV.y = 1.0 - lightmapUV.y;
 
     float4 irradiance = SAMPLE_TEXTURE_2D_LOD(LightmapSampler, IrradianceTexture, lightmapUV, 0) * irradianceWeight;
 

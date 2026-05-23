@@ -144,7 +144,10 @@ PSOutput PSMain(PSInput input)
 
     float2 texcoord = input.texcoord;
 
-    const uint2 pixelCoord = uint2(texcoord * camera.dimensions.xy);
+    uint2 gbufferDimensions;
+    gbuffer_albedo_texture.GetDimensions(gbufferDimensions.x, gbufferDimensions.y);
+
+    const uint2 pixelCoord = uint2(texcoord * gbufferDimensions);
 
     float4 albedo = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, gbuffer_albedo_texture, texcoord, 0);
     float4 normalSample = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, gbuffer_normals_texture, texcoord, 0);

@@ -23,8 +23,8 @@ extern "C"
         const TypeId* pTypeId,
         const char* pTypeName,
         uint32 size,
-        DynamicStructInstance_CopyFunction copyFunction,
-        DynamicStructInstance_DestructFunction destructFunction)
+        decltype(DynamicStructInstanceFunctions::copy) copyFunction,
+        decltype(DynamicStructInstanceFunctions::destruct) destructFunction)
     {
         Assert(pTypeId != nullptr);
         Assert(pTypeName != nullptr);
@@ -37,6 +37,11 @@ extern "C"
 
             return nullptr;
         }
+        
+        DynamicStructInstanceFunctions functions {};
+        functions.construct = nullptr; // not needed when initializing from C#.
+        functions.copy = copyFunction;
+        functions.destruct = destructFunction;
 
         return new DynamicStructInstance(
             *pTypeId,
@@ -45,15 +50,14 @@ extern "C"
             Span<const ClassAttribute>(),
             ClassFlags::STRUCT_TYPE | ClassFlags::DYNAMIC,
             Span<MemberVariant>(),
-            copyFunction,
-            destructFunction);
+            functions);
     }
 
     HYP_EXPORT void Struct_DestroyDynamicStruct(Struct* pStruct)
     {
         Assert(pStruct != nullptr);
 
-        delete pStruct;
+        static_cast<DynamicStructInstance*>(pStruct)->Release();
     }
 
 } // extern "C"

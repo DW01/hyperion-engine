@@ -397,10 +397,14 @@ void AstClass::Visit(AstVisitor* visitor, Module* mod)
                 const SymbolType* memberType = decl->GetIdentifier()->GetSymbolType();
                 Assert(memberType != nullptr);
 
+                const bool isConst = bool(decl->GetIdentifierFlags() & IdentifierFlags::CONSTANT);
+
                 m_symbolType->GetStaticMembers().PushBack(SymbolTypeMember {
                     memberName,
                     const_cast<SymbolType*>(memberType),
-                    decl->GetRealAssignment() });
+                    decl->GetRealAssignment(),
+                    isConst
+                });
             }
         }
 #if 0
@@ -456,10 +460,13 @@ void AstClass::Visit(AstVisitor* visitor, Module* mod)
                 const SymbolType* memberType = decl->GetIdentifier()->GetSymbolType();
                 Assert(memberType != nullptr);
 
+                const bool isConst = bool(decl->GetIdentifierFlags() & IdentifierFlags::CONSTANT);
+
                 m_symbolType->GetMembers().PushBack(SymbolTypeMember {
                     memberName,
                     const_cast<SymbolType*>(memberType),
-                    decl->GetRealAssignment()
+                    decl->GetRealAssignment(),
+                    isConst
                 });
             }
 
@@ -752,32 +759,33 @@ UniquePtr<Buildable> AstClass::Build(AstVisitor* visitor, Module* mod)
 
     Array<ClassTable::FieldInfo> fields;
 
-    size_t fieldOffset = sizeof(ObjectBase); // start after base object
+    size_t fieldOffset = 0;
 
-    // reserve space for `class` field to hold reference to the class this object is an instance of
-    fieldOffset = ByteUtil::AlignAs(fieldOffset, alignof(ClassRef));
-    fieldOffset += sizeof(ClassRef);
-
-    if (!IsEnum())
+    if (!IsStruct())
     {
-        // iterate through parent types and add up their fields to get offset
-        const SymbolType* base = m_symbolType->GetBaseType();
+        fieldOffset = sizeof(ObjectBase); // start after base object for class types (enum temporarily too)
 
-        while (base != nullptr && !base->TypeEqual(*BuiltinTypes::s_objectType))
+        if (!IsEnum())
         {
-            for (const SymbolTypeMember& member : base->GetMembers())
+            // iterate through parent types and add up their fields to get offset
+            const SymbolType* base = m_symbolType->GetBaseType();
+
+            while (base != nullptr && !base->TypeEqual(*BuiltinTypes::s_objectType))
             {
-                Assert(member.GetType() != nullptr);
-
-                if (!member.GetType()->IsOrHasBase(*BuiltinTypes::s_functionBaseType)) // skip methods, they don't take up space on the instance
+                for (const SymbolTypeMember& member : base->GetMembers())
                 {
-                    // align field offset
-                    fieldOffset = ByteUtil::AlignAs(fieldOffset, alignof(BoxedValue));
-                    fieldOffset += sizeof(BoxedValue);
-                }
-            }
+                    Assert(member.GetType() != nullptr);
 
-            base = base->GetBaseType();
+                    if (!member.GetType()->IsOrHasBase(*BuiltinTypes::s_functionBaseType)) // skip methods, they don't take up space on the instance
+                    {
+                        // align field offset
+                        fieldOffset = ByteUtil::AlignAs(fieldOffset, alignof(BoxedValue));
+                        fieldOffset += sizeof(BoxedValue);
+                    }
+                }
+
+                base = base->GetBaseType();
+            }
         }
     }
 
@@ -809,17 +817,21 @@ UniquePtr<Buildable> AstClass::Build(AstVisitor* visitor, Module* mod)
     // get active register
     uint8 rp = visitor->GetCompilationUnit()->GetInstructionStream().GetCurrentRegister();
 
+    String typeString = "class";
     if (IsEnum())
-    {
-        chunk->Append(BytecodeUtil::Make<Comment>("Begin enum " + m_symbolType->GetName()));
+        typeString = "enum";
+    else if (IsStruct())
+        typeString = "struct";
+    
+    chunk->Append(BytecodeUtil::Make<Comment>("Begin " + typeString + " " + m_symbolType->GetName() + (IsProxyClass() ? " <Proxy>" : "")));
 
+    if (IsEnum() || IsStruct())
+    {
         // no base type
         chunk->Append(BytecodeUtil::Make<ConstNull>(rp));
     }
     else
     {
-        chunk->Append(BytecodeUtil::Make<Comment>("Begin class " + m_symbolType->GetName() + (IsProxyClass() ? " <Proxy>" : "")));
-
         if (m_baseTypeRef != nullptr)
         {
             const SymbolType* baseType = m_baseTypeRef->GetHeldType();
@@ -980,14 +992,7 @@ UniquePtr<Buildable> AstClass::Build(AstVisitor* visitor, Module* mod)
     }
 #endif
 
-    if (IsEnum())
-    {
-        chunk->Append(BytecodeUtil::Make<Comment>("End enum " + m_symbolType->GetName()));
-    }
-    else
-    {
-        chunk->Append(BytecodeUtil::Make<Comment>("End class " + m_symbolType->GetName()));
-    }
+    chunk->Append(BytecodeUtil::Make<Comment>("End " + typeString + " " + m_symbolType->GetName()));
 
     // Move ClassRef to local
     const int stackSize = visitor->GetCompilationUnit()->GetInstructionStream().GetStackSize();

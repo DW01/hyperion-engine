@@ -51,14 +51,13 @@ Pool* g_scriptPool = &s_scriptPoolInstance;
 
 struct HypScriptImpl
 {
-    CompilationUnit globalCompilationUnit;
+    CompilationUnit* globalCompilationUnit;
     VirtualMachine* vm;
-    ScriptInstance* globalInstance;
     Array<ScriptInstance*> aliveInstances;
 
     HypScriptImpl()
-        : vm(nullptr),
-          globalInstance(nullptr)
+        : globalCompilationUnit(nullptr),
+          vm(nullptr)
     {
     }
 
@@ -67,26 +66,21 @@ struct HypScriptImpl
 
     void Initialize()
     {
-        if (vm)
+        if (!globalCompilationUnit)
         {
-            return;
+            globalCompilationUnit = new CompilationUnit();
         }
 
-        vm = new VirtualMachine();
+        if (!vm)
+        {
+            vm = new VirtualMachine();
+        }
     }
 
     void Shutdown()
     {
-        if (!vm)
-        {
-            return;
-        }
-
-        if (globalInstance)
-        {
-            delete globalInstance;
-            globalInstance = nullptr;
-        }
+        delete globalCompilationUnit;
+        globalCompilationUnit = nullptr;
 
         delete vm;
         vm = nullptr;
@@ -139,16 +133,12 @@ VirtualMachine* GetVM()
     return s_impl.vm;
 }
 
-ScriptInstance* GetGlobalInstance()
-{
-    return s_impl.globalInstance;
-}
-
 void Initialize()
 {
     s_impl.Initialize();
 
-    BuiltinTypes::Initialize(&s_impl.globalCompilationUnit);
+    Assert(s_impl.globalCompilationUnit != nullptr);
+    BuiltinTypes::Initialize(s_impl.globalCompilationUnit);
 }
 
 void Shutdown()
@@ -167,11 +157,6 @@ void DestroyScript(ScriptInstance* instance)
     if (it != s_impl.aliveInstances.End())
     {
         s_impl.aliveInstances.Erase(it);
-    }
-
-    if (instance == s_impl.globalInstance)
-    {
-        s_impl.globalInstance = nullptr;
     }
 
     delete instance;
@@ -350,7 +335,7 @@ InstructionStream* Decompile(ScriptInstance* instance, std::ostream* os)
     return DecompilationUnit().Decompile(instance->stream, os);
 }
 
-BoxedValue CallFunctionArgV(ScriptInstance* instance, const BoxedValue& value, BoxedValue* args, ArgCount numArgs)
+BoxedValue CallFunctionArgV(ScriptInstance* instance, const BoxedValue& value, BoxedValue* args, uint8 numArgs)
 {
     Assert(instance != nullptr);
     Assert(IsFunction(value));
@@ -359,7 +344,7 @@ BoxedValue CallFunctionArgV(ScriptInstance* instance, const BoxedValue& value, B
     {
         Assert(args != nullptr);
 
-        for (ArgCount i = 0; i < numArgs; i++)
+        for (uint8 i = 0; i < numArgs; i++)
         {
             instance->thread.m_stack.Push(std::move(args[i]));
         }

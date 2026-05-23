@@ -68,14 +68,22 @@ namespace Hyperion.Editor.ViewModels
         // ─────────────────────────────────────────────────────────────────────
 
         private DelegateHandler? _onSelectedBucketChangedHandler;
+        private uint _pendingFocusBucket;
+        private string? _pendingFocusNameHint;
 
         public ICommand ImportCommand { get; }
+        public ICommand NewScriptCommand { get; }
 
         public ContentBrowserViewModel(EditorSubsystem editorSubsystem)
         {
             _editorSubsystem = editorSubsystem ?? throw new ArgumentNullException(nameof(editorSubsystem));
 
             ImportCommand = new EditorCommand("ImportContent");
+            NewScriptCommand = new RelayCommand(() =>
+            {
+                _editorSubsystem.ExecuteCommandByName(new Name("EditorCommandNewScript"));
+                FocusAsset(AssetBucket.Scripts.Value, "NewScript");
+            });
 
             Instance = this;
         }
@@ -144,6 +152,21 @@ namespace Hyperion.Editor.ViewModels
                     }
 
                     ApplySort();
+
+                    // Handle pending focus after asset creation
+                    if (_pendingFocusBucket == bucketIndex)
+                    {
+                        _pendingFocusBucket = 0;
+
+                        if (_pendingFocusNameHint != null)
+                        {
+                            SelectedAsset = Assets.FirstOrDefault(a =>
+                                a.DisplayName.StartsWith(_pendingFocusNameHint, StringComparison.OrdinalIgnoreCase));
+                            _pendingFocusNameHint = null;
+                        }
+
+                        SelectedAsset ??= Assets.FirstOrDefault();
+                    }
 
                     OnPropertyChanged(nameof(Assets));
                     OnPropertyChanged(nameof(CurrentBucket));
@@ -229,6 +252,19 @@ namespace Hyperion.Editor.ViewModels
         {
             _onSelectedBucketChangedHandler?.Remove();
             _onSelectedBucketChangedHandler?.Dispose();
+        }
+
+        /// <summary>Switches to the given bucket and focuses the named asset once loaded.</summary>
+        public void FocusAsset(uint bucketIndex, string? nameHint = null)
+        {
+            Dispatcher.UIThread.VerifyAccess();
+
+            if (bucketIndex == 0)
+                return;
+
+            _pendingFocusBucket = bucketIndex;
+            _pendingFocusNameHint = nameHint;
+            _editorSubsystem.SetSelectedBucket(bucketIndex);
         }
     }
 }

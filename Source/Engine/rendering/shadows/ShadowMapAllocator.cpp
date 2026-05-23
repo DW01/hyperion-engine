@@ -153,6 +153,11 @@ ShadowMap* ShadowMapAllocator::AllocateShadowMap(ShadowMapType shadowMapType, Sh
 
     if (shadowMapType == SMT_OMNI)
     {
+        if (!m_pointLightTextureArray)
+        {
+            return nullptr;
+        }
+
         const uint32 pointLightIndex = m_pointLightShadowMapIdGenerator.Next() - 1;
 
         // Cannot allocate if we ran out of IDs
@@ -193,6 +198,11 @@ ShadowMap* ShadowMapAllocator::AllocateShadowMap(ShadowMapType shadowMapType, Sh
             atlasImageView);
 
         return shadowMap;
+    }
+
+    if (!m_atlasTextureArray)
+    {
+        return nullptr;
     }
 
     for (ShadowMapAtlas& atlas : m_atlases)

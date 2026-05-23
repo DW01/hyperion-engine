@@ -181,16 +181,13 @@ ObjectBase::~ObjectBase()
         {
             const Class* cls = m_header->cls;
 
+            AssertDebug(cls->IsClassType());
+
             const bool isScriptObj = (m_scriptObjectResource->GetScriptLanguageMask() & (1u << uint32(ScriptLanguage::HypScript))) != 0;
 
             if (isScriptObj)
             {
                 size_t fieldOffset = sizeof(ObjectBase);
-
-                // `class` field
-                fieldOffset = ByteUtil::AlignAs(fieldOffset, alignof(ClassRef));
-                ClassRef* classFieldPtr = (ClassRef*)(UIntPtr(this) + fieldOffset);
-                fieldOffset += sizeof(ClassRef);
 
                 while (cls != nullptr && cls->IsDynamic())
                 {
@@ -213,9 +210,6 @@ ObjectBase::~ObjectBase()
 
                     cls = cls->GetParent();
                 }
-
-                // destruct the `class` field last:
-                classFieldPtr->~ClassRef();
             }
         }
 #endif

@@ -30,10 +30,9 @@
 
 #include <asset/AssetRegistry.hpp>
 
-#include <engine/EngineStats.hpp>
-#include <engine/Game.hpp>
-
 #include <system/DirectoryInitializer.hpp>
+
+#include <engine/Game.hpp>
 
 #include <HyperionEngine.hpp>
 
@@ -45,76 +44,11 @@
 
 namespace Hyperion {
 
-EngineStatTimer g_statScriptUpdate("CPU/Script/Update");
-
 #if HYP_EDITOR
 constexpr bool EnableScriptReloading = true;
 #else
 constexpr bool EnableScriptReloading = false;
 #endif
-
-template <class ReturnType, class... ArgTypes>
-static void InvokeScriptMethodT(ReturnType* outReturnValue, ScriptObjectResource* sor, const char* methodName, ArgTypes&&... args)
-{
-    Assert(sor != nullptr);
-
-    const uint32 mask = sor->GetScriptLanguageMask();
-
-#ifdef HYP_DOTNET
-    if (mask & (1u << uint32(ScriptLanguage::CSharp)))
-    {
-        AssertDebug(sor->GetManagedObject() != nullptr);
-
-        if (dotnet::ManagedClass* managedClass = sor->GetManagedObject()->GetClass())
-        {
-            if (dotnet::ManagedMethod* managedMethod = managedClass->GetMethod(methodName))
-            {
-                if (!managedMethod->GetAttributes().HasAttribute("ScriptMethodStub"))
-                {
-                    if constexpr (!std::is_void_v<ReturnType>)
-                    {
-                        AssertDebug(outReturnValue != nullptr);
-                        new (outReturnValue) ReturnType(sor->GetManagedObject()->InvokeMethod<ReturnType>(managedMethod, std::forward<ArgTypes>(args)...));
-                    }
-                    else
-                    {
-                        sor->GetManagedObject()->InvokeMethod<void>(managedMethod, std::forward<ArgTypes>(args)...);
-                    }
-                }
-            }
-        }
-    }
-#endif
-#ifdef HYP_SCRIPT
-    if (mask & (1u << uint32(ScriptLanguage::HypScript)))
-    {
-        auto* data = sor->GetScriptObjectData_HypScript();
-        Assert(data != nullptr);
-
-        BoxedValue functionValue;
-        
-        namespace HS = HypScript;
-
-        if (HS::GetFunctionHandle(data->instance, methodName, functionValue)
-            && IsFunction(functionValue))
-        {
-            BoxedValue returnValue = HS::CallFunction(data->instance, functionValue, std::forward<ArgTypes>(args)...);
-
-            if constexpr (!std::is_void_v<ReturnType>)
-            {
-                Assert(returnValue.IsValid());
-                Assert(returnValue.Is<ReturnType>());
-
-                AssertDebug(outReturnValue != nullptr);
-
-                new (outReturnValue) ReturnType(std::move(returnValue.Get<ReturnType>()));
-            }
-        }
-    }
-#endif
-
-    /// \todo add native script support here
-}
 
 #pragma region ScriptTracker
 
@@ -208,6 +142,21 @@ ScriptSystem::ScriptSystem()
 }
 
 ScriptSystem::~ScriptSystem() = default;
+
+bool ScriptSystem::AllowParallelExecution() const
+{
+    return false;
+}
+
+bool ScriptSystem::RequiresSimThread() const
+{
+    return true;
+}
+
+bool ScriptSystem::AllowUpdate() const
+{
+    return EnableScriptReloading;
+}
 
 void ScriptSystem::OnAddedToWorld(World* world)
 {
@@ -393,51 +342,6 @@ void ScriptSystem::Process(float delta, Span<Handle<Scene>> scenes)
             m_scriptTracker->InvokeUpdate();
         }
     }
-
-    World* world = GetWorld();
-
-    if (!world)
-    {
-        return;
-    }
-
-    // Only update scripts if we're in simulation mode
-    if (world->GetGameState().mode != GameStateMode::SIMULATING)
-    {
-        return;
-    }
-
-    ENGINE_STAT_SCOPE(&g_statScriptUpdate);
-
-    for (Scene* scene : scenes)
-    {
-        if (!ShouldProcessScene(scene))
-        {
-            continue;
-        }
-
-        for (auto [entity, scriptComponent] : scene->GetEntityManager()->GetEntitySet<ScriptComponent>().GetScopedView(GetComponentInfos()))
-        {
-            if (!(scriptComponent.flags & ScriptComponentFlags::ACTIVATED))
-            {
-                continue;
-            }
-
-            InvokeScriptMethodT<void>(nullptr, scriptComponent.scriptObjectResource, "Update", float(delta));
-        }
-    }
-}
-
-template <class T>
-static void QueryScriptedEntities(World* world, T&& function)
-{
-    for (Scene* scene : world->GetScenes())
-    {
-        for (auto [entity, scriptComponent] : scene->GetEntityManager()->GetEntitySet<ScriptComponent>())
-        {
-            function(entity, scriptComponent);
-        }
-    }
 }
 
 void ScriptSystem::HandleGameStateChanged(GameStateMode gameStateMode, GameStateMode previousGameStateMode)
@@ -453,7 +357,7 @@ void ScriptSystem::HandleGameStateChanged(GameStateMode gameStateMode, GameState
 
     if (gameStateMode == GameStateMode::STOPPED)
     {
-        QueryScriptedEntities(world, [&gameState](Entity* entity, ScriptComponent& scriptComponent)
+        EntityScripting::QueryScriptedEntities(*world, [&gameState](Entity* entity, ScriptComponent& scriptComponent)
             {
                 EntityScripting::ShutdownEntityScript(entity, scriptComponent, gameState);
             });
@@ -463,47 +367,13 @@ void ScriptSystem::HandleGameStateChanged(GameStateMode gameStateMode, GameState
 
     if (previousGameStateMode == GameStateMode::STOPPED)
     {
-        QueryScriptedEntities(world, [&gameState](Entity* entity, ScriptComponent& scriptComponent)
+        EntityScripting::QueryScriptedEntities(*world, [&gameState](Entity* entity, ScriptComponent& scriptComponent)
             {
                 EntityScripting::InitializeEntityScript(entity, scriptComponent, gameState);
             });
 
         return;
     }
-}
-
-void ScriptSystem::CallScriptMethod(UTF8StringView methodName)
-{
-    World* world = GetWorld();
-    AssertDebug(world != nullptr);
-
-    if (!world)
-    {
-        return;
-    }
-
-    for (Scene* scene : world->GetScenes())
-    {
-        for (auto [entity, scriptComponent] : scene->GetEntityManager()->GetEntitySet<ScriptComponent>().GetScopedView(GetComponentInfos()))
-        {
-            if (!(scriptComponent.flags & ScriptComponentFlags::INITIALIZED))
-            {
-                continue;
-            }
-
-            InvokeScriptMethodT<void>(nullptr, scriptComponent.scriptObjectResource, *methodName);
-        }
-    }
-}
-
-void ScriptSystem::CallScriptMethod(UTF8StringView methodName, ScriptComponent& target)
-{
-    if (!(target.flags & ScriptComponentFlags::INITIALIZED))
-    {
-        return;
-    }
-
-    InvokeScriptMethodT<void>(nullptr, target.scriptObjectResource, *methodName);
 }
 
 #pragma endregion ScriptSystem

@@ -68,12 +68,7 @@ void AstBinaryExpression::Visit(AstVisitor* visitor, Module* mod)
     // ensure we can modify the left hand side
     if (m_op->ModifiesValue())
     {
-        visitor->AddErrorIfFalse(
-            m_left->IsMutable(),
-            CompilerError(
-                LEVEL_ERROR,
-                Msg_expression_cannot_be_modified,
-                m_location));
+        visitor->AddErrorIfFalse(m_left->IsMutable(), CompilerError(LEVEL_ERROR, Msg_expression_cannot_be_modified, m_location));
     }
 
     // operator overloading

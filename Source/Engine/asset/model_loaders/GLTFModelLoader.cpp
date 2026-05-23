@@ -67,7 +67,7 @@ extern FilePath GetExecutablePath();
 
 namespace {
 
-using FatVertex = TVertex<VT_Simple | VT_Skeletal>;
+using FatVertex = TVertex<VT_Simple | VT_UV1 | VT_Skeletal>;
 
 static constexpr bool SeparateMetalnessRoughnessTextures = true;
 
@@ -930,7 +930,7 @@ bool BuildPrimitive(GltfLoadContext& ctx,
     }
 
     MeshDesc meshDesc;
-    meshDesc.meshAttributes.inputLayout = VertexInputLayoutDesc { VT_Simple | VT_Skeletal };
+    meshDesc.meshAttributes.inputLayout = VertexInputLayoutDesc { VT_Simple | VT_UV1 | VT_Skeletal };
     meshDesc.meshAttributes.topology = topology;
     meshDesc.meshAttributes.indexBufferElemType = GET_UNSIGNED_INT;
     meshDesc.numVertices = uint32(vertices.Size());

@@ -290,17 +290,19 @@ bool HandleWindowEvent(
 
 static LRESULT CALLBACK EngineWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-    Win32ApplicationWindow* window = reinterpret_cast<Win32ApplicationWindow*>(GetWindowLongPtrW(hWnd, GWLP_USERDATA));
-    AssertDebug(window != nullptr);
+    ObjId<Win32ApplicationWindow> windowId;
+    windowId.value = static_cast<decltype(ObjId<Win32ApplicationWindow>::value)>(GetWindowLongPtrW(hWnd, GWLP_USERDATA));
+
+    Handle<Win32ApplicationWindow> windowHandle { windowId };
 
     Event event;
-    if (HandleWindowEvent(window, event, hWnd, msg, wParam, lParam))
+    if (HandleWindowEvent(windowHandle.Get(), event, hWnd, msg, wParam, lParam))
     {
         const EventType eventType = event.GetType();
 
         if (eventType != EventType::INVALID)
         {
-            window->GetInputManager()->ProcessEvent(std::move(event));
+            windowHandle->GetInputManager()->ProcessEvent(std::move(event));
 
             return 0;
         }
@@ -530,18 +532,22 @@ LRESULT CALLBACK Win32ApplicationWindow::StaticWndProc(HWND hWnd, UINT msg, WPAR
     case WM_NCCREATE:
     {
         CREATESTRUCTW* cs = reinterpret_cast<CREATESTRUCTW*>(lParam);
-        Win32ApplicationWindow* self = static_cast<Win32ApplicationWindow*>(cs->lpCreateParams);
 
-        SetWindowLongPtrW(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
+        Win32ApplicationWindow* self = static_cast<Win32ApplicationWindow*>(cs->lpCreateParams);
+        ObjId<Win32ApplicationWindow> windowId = self->Id();
+
+        SetWindowLongPtrW(hWnd, GWLP_USERDATA, static_cast<LONG_PTR>(windowId.Value()));
 
         return DefWindowProcW(hWnd, msg, wParam, lParam);
     }
     case WM_NCDESTROY:
     {
-        Win32ApplicationWindow* window = reinterpret_cast<Win32ApplicationWindow*>(GetWindowLongPtrW(hWnd, GWLP_USERDATA));
-        Assert(window != nullptr);
+        ObjId<Win32ApplicationWindow> windowId;
+        windowId.value = static_cast<decltype(ObjId<Win32ApplicationWindow>::value)>(GetWindowLongPtrW(hWnd, GWLP_USERDATA));
 
-        LRESULT result = window->WndProc(hWnd, msg, wParam, lParam);
+        Handle<Win32ApplicationWindow> windowHandle { windowId };
+
+        LRESULT result = windowHandle->WndProc(hWnd, msg, wParam, lParam);
 
         SetWindowLongPtrW(hWnd, GWLP_USERDATA, 0);
 
@@ -549,11 +555,13 @@ LRESULT CALLBACK Win32ApplicationWindow::StaticWndProc(HWND hWnd, UINT msg, WPAR
     }
     default:
     {
-        Win32ApplicationWindow* window = reinterpret_cast<Win32ApplicationWindow*>(GetWindowLongPtrW(hWnd, GWLP_USERDATA));
+        ObjId<Win32ApplicationWindow> windowId;
+        windowId.value = static_cast<decltype(ObjId<Win32ApplicationWindow>::value)>(GetWindowLongPtrW(hWnd, GWLP_USERDATA));
 
-        if (window != nullptr)
+        if (windowId.IsValid())
         {
-            return window->WndProc(hWnd, msg, wParam, lParam);
+            Handle<Win32ApplicationWindow> windowHandle { windowId };
+            return windowHandle->WndProc(hWnd, msg, wParam, lParam);
         }
 
         return DefWindowProcW(hWnd, msg, wParam, lParam);

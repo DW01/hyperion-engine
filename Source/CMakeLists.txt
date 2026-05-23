@@ -1089,6 +1089,7 @@ endif()
 
 if (CMAKE_GENERATOR MATCHES "Ninja")
   # Copy compile_commands.json to workspace root for clangd/LSP support in editors like VSCode, Zed, etc.
+  message(STATUS "Syncing compile_commands.json to workspace root")
   add_custom_target(sync_compile_commands ALL
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
           ${CMAKE_BINARY_DIR}/compile_commands.json

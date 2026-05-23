@@ -47,7 +47,6 @@ public:
         uint16 numArgs);
 
     static UniquePtr<Buildable> LoadMemberFromHash(AstVisitor* visitor, Module* mod, HashCode::ValueType hash);
-
     static UniquePtr<Buildable> StoreMemberFromHash(AstVisitor* visitor, Module* mod, HashCode::ValueType hash);
 
     /** Compiler a standard if-then-else statement into the program.

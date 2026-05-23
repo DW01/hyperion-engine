@@ -591,6 +591,7 @@
 
                     <Grid Grid.Column="2" RowDefinitions="*, 2, 240">
                         <Border
+                            x:Name="ViewportDropTarget"
                             Grid.Row="0"
                             Background="{DynamicResource Brush.Panel}"
                             BorderBrush="{DynamicResource Brush.Border}"
@@ -610,7 +611,7 @@
                                 <Grid Grid.Column="0">
                                     <DockPanel x:Name="ContentBrowserPanel">
                                         <Border Classes="panel-header" DockPanel.Dock="Top" Height="36">
-                                            <Grid VerticalAlignment="Center" ColumnDefinitions="Auto, *, Auto, Auto">
+                                            <Grid VerticalAlignment="Center" ColumnDefinitions="Auto, *, Auto, Auto, Auto">
                                                 <Button
                                                     x:Name="CollapseContentBrowser"
                                                     Grid.Column="0"
@@ -642,6 +643,17 @@
                                                     Command="{Binding ContentBrowser.ImportCommand}"
                                                     Content="Import"
                                                     ToolTip.Tip="Import external content into the asset registry." />
+                                                <Button
+                                                    Grid.Column="4"
+                                                    Padding="8,2"
+                                                    VerticalAlignment="Center"
+                                                    Content="Add New...">
+                                                    <Button.Flyout>
+                                                        <MenuFlyout>
+                                                            <MenuItem Command="{Binding ContentBrowser.NewScriptCommand}" Header="New Script" />
+                                                        </MenuFlyout>
+                                                    </Button.Flyout>
+                                                </Button>
                                             </Grid>
                                         </Border>
                                         <Grid ColumnDefinitions="220, *">
@@ -655,12 +667,38 @@
                                                     </DataTemplate>
                                                 </ListBox.ItemTemplate>
                                             </ListBox>
-                                            <ListBox Grid.Column="1" ItemsSource="{Binding ContentBrowser.Assets}" SelectedItem="{Binding ContentBrowser.SelectedAsset, Mode=TwoWay}">
+                                            <ListBox
+                                                x:Name="ContentBrowserAssetList"
+                                                Grid.Column="1"
+                                                ItemsSource="{Binding ContentBrowser.Assets}"
+                                                SelectedItem="{Binding ContentBrowser.SelectedAsset, Mode=TwoWay}"
+                                                ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                                <ListBox.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ListBox.ItemsPanel>
                                                 <ListBox.ItemTemplate>
                                                     <DataTemplate x:DataType="vm:AssetObjectViewModel">
-                                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                                            <TextBlock Text="{Binding DisplayName}" />
-                                                        </StackPanel>
+                                                        <Border
+                                                            Width="80"
+                                                            Height="80"
+                                                            Margin="4"
+                                                            Padding="4"
+                                                            Background="Transparent"
+                                                            CornerRadius="4">
+                                                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="2">
+                                                                <LucideIcon Kind="{Binding IconKind}" Size="28" Opacity="0.85" HorizontalAlignment="Center" />
+                                                                <TextBlock
+                                                                    Text="{Binding DisplayName}"
+                                                                    FontSize="10"
+                                                                    HorizontalAlignment="Center"
+                                                                    TextAlignment="Center"
+                                                                    TextWrapping="Wrap"
+                                                                    TextTrimming="CharacterEllipsis"
+                                                                    MaxWidth="72" />
+                                                            </StackPanel>
+                                                        </Border>
                                                     </DataTemplate>
                                                 </ListBox.ItemTemplate>
                                             </ListBox>

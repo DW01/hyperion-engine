@@ -121,7 +121,6 @@ static bool BuildElementTextures(
     const BakeData<LightmapVolume>& bakeData,
     LightmapElementId elementId)
 {
-    HYP_SCOPE;
     AssertOnThread(g_simThread);
 
     uint16 atlasIndex;
@@ -238,8 +237,6 @@ void Baker<LightmapVolume>::Initialize_Internal()
 
 void Baker<LightmapVolume>::Build()
 {
-    HYP_SCOPE;
-
     EntityManager& mgr = *m_scene->GetEntityManager();
 
     m_bakeEntities.Clear();
@@ -260,8 +257,7 @@ void Baker<LightmapVolume>::Build()
         }
 
         if (meshComponent.material->GetBucket() != RenderBucket::Opaque
-            && meshComponent.material->GetBucket() != RenderBucket::Lightmapped
-            && meshComponent.material->GetBucket() != RenderBucket::Translucent)
+            && meshComponent.material->GetBucket() != RenderBucket::Lightmapped)
         {
             continue;
         }
@@ -315,8 +311,6 @@ void Baker<LightmapVolume>::Build()
 
 void Baker<LightmapVolume>::OnCompleted_Internal()
 {
-    HYP_SCOPE;
-
     AssertDebug(m_lightmapElementId != InvalidLightmapElementId);
 
     m_bakeData.Blur();
@@ -351,28 +345,43 @@ void Baker<LightmapVolume>::OnCompleted_Internal()
             BakeMesh& bakeMesh = m_bakeData.GetMeshData()[bakeEntityIndex];
             Assert(bakeMesh.mesh == mesh);
 
+            const VertexInputLayoutDesc prevInputLayout = mesh->GetMeshDesc().meshAttributes.inputLayout;
+            VertexInputLayoutDesc newInputLayout { uint8(prevInputLayout.mask | VT_UV1) };
+
+            const size_t vertexStrideFloats = newInputLayout.VertexSize() / sizeof(float);
+
             MeshDesc newMeshDesc;
             newMeshDesc.meshAttributes = mesh->GetMeshAttributes();
-            newMeshDesc.meshAttributes.inputLayout = { VT_Simple | VT_UV1 };
-            newMeshDesc.numVertices = uint32(bakeMesh.vertices.Size());
+            newMeshDesc.meshAttributes.inputLayout = newInputLayout;
+            newMeshDesc.numVertices = uint32(bakeMesh.vertices.Size() / vertexStrideFloats);
             newMeshDesc.numIndices = uint32(bakeMesh.indices.Size());
 
-            for (size_t i = 0; i < bakeMesh.vertices.Size(); i++)
-            {
-                BakeVertex& inVertex = bakeMesh.vertices[i];
+            size_t uv1Offset = 0;
+            uv1Offset += (prevInputLayout.mask & VT_Position) ? (sizeof(TVertexPacket<VT_Position>) / sizeof(float)) : 0;
+            uv1Offset += (prevInputLayout.mask & VT_Normal) ? (sizeof(TVertexPacket<VT_Normal>) / sizeof(float)) : 0;
+            uv1Offset += (prevInputLayout.mask & VT_UV0) ? (sizeof(TVertexPacket<VT_UV0>) / sizeof(float)) : 0;
 
-                Vec2f uv1 = inVertex.GetUV1();
-                //uv1.y = 1.0f - uv1.y; // Invert Y coordinate for lightmaps
+            for (size_t i = 0; i < bakeMesh.vertices.Size(); i += vertexStrideFloats)
+            {
+                float* vertexDataFloat = bakeMesh.vertices.Data() + i;
+
+                TVertexPacket<VT_UV1>* packet = reinterpret_cast<TVertexPacket<VT_UV1>*>(vertexDataFloat + uv1Offset);
+
+                // Scale UV1 to atlas section
+                Vec2f uv1 = packet->GetUV1();
                 uv1 *= lightmapElement->scale;
                 uv1 += Vec2f(lightmapElement->offsetUV.x, lightmapElement->offsetUV.y);
+                packet->SetUV1(uv1);
             }
 
             VertexArrayView vertexArrayView {};
             vertexArrayView.floatData = reinterpret_cast<const float*>(bakeMesh.vertices.Data());
             vertexArrayView.layoutDesc = newMeshDesc.meshAttributes.inputLayout;
-            vertexArrayView.vertexCount = bakeMesh.vertices.Size();
+            vertexArrayView.vertexCount = bakeMesh.vertices.Size() / vertexStrideFloats;
 
             mesh->SetMeshData(newMeshDesc, vertexArrayView, bakeMesh.indices.ToByteView());
+
+            GetCurrentAssetRegistry()->PutAssetUnique(mesh);
         };
 
         UpdateMeshData();
@@ -444,8 +453,6 @@ void Baker<LightmapVolume>::OnCompleted_Internal()
 
                 if (isNewMaterial)
                 {
-                    GetCurrentAssetRegistry()->PutAssetUnique(bakeEntity.material);
-
                     EnqueueDeletion(std::move(meshComponent.material));
 
                     meshComponent.material = bakeEntity.material;

@@ -12,6 +12,8 @@
 #include <scene/LightmapVolume.hpp>
 #include <scene/InstancedMeshProxy.hpp>
 
+#include <scene/camera/Camera.hpp>
+
 #include <scene/ParticleVolume.hpp>
 #include <scene/FogVolume.hpp>
 
@@ -20,6 +22,8 @@
 #include <scripting/asset/ScriptAsset.hpp>
 
 #include <Core/reflection/ClassUtils.hpp>
+
+#include <Core/utilities/StringUtil.hpp>
 
 #include <Core/logging/Logger.hpp>
 
@@ -1811,6 +1815,154 @@ public:
 DEFINE_EDITOR_COMMAND(NewScript);
 
 #pragma endregion NewScript
+
+#pragma region AddAsset
+
+class HYP_API EditorCommandAddAsset final : public EditorCommandBase
+{
+    HYP_OBJECT_BODY(EditorCommandAddAsset);
+
+public:
+    virtual ~EditorCommandAddAsset() override = default;
+
+    virtual String GetText() const override
+    {
+        return "Add Asset";
+    }
+
+    virtual void Execute(EditorSubsystem* subsystem) override
+    {
+        AssertOnThread(g_simThread);
+
+        if (NumArguments() < 2)
+        {
+            HYP_LOG(Editor, Warning, "EditorCommandAddAsset requires bucket index and asset name");
+            return;
+        }
+
+        uint32 bucketIndex = 0;
+        if (!StringUtil::Parse(GetArgument(0).Data(), &bucketIndex) || bucketIndex == AssetBuckets::None.GetIndex())
+        {
+            HYP_LOG(Editor, Warning, "EditorCommandAddAsset: invalid bucket index '{}'", GetArgument(0));
+            return;
+        }
+
+        const String& assetName = GetArgument(1);
+
+        const Handle<EditorProject>& currentProject = subsystem->GetCurrentProject();
+        if (!currentProject.IsValid())
+        {
+            HYP_LOG(Editor, Error, "EditorCommandAddAsset: no project loaded");
+            return;
+        }
+
+        Handle<Scene> activeScene = subsystem->GetActiveScene();
+        if (!activeScene.IsValid())
+        {
+            HYP_LOG(Editor, Error, "EditorCommandAddAsset: no active scene");
+            return;
+        }
+
+        Handle<AssetObject> asset = GetCurrentAssetRegistry()->GetAsset(*AssetBuckets::AllBuckets[bucketIndex], CreateNameFromDynamicString(assetName));
+        if (!asset.IsValid())
+        {
+            HYP_LOG(Editor, Warning, "EditorCommandAddAsset: asset '{}' in bucket {} is not valid", assetName, GetAssetBucketName(bucketIndex));
+            return;
+        }
+
+        Handle<Node> assetNode = DynamicCast<Node>(asset);
+        if (!assetNode.IsValid())
+        {
+            HYP_LOG(Editor, Warning, "EditorCommandAddAsset: asset '{}' in bucket {} is not valid", assetName, GetAssetBucketName(bucketIndex));
+            return;
+        }
+
+        Handle<Node> clonedNode = assetNode->Clone();
+        if (!clonedNode.IsValid())
+        {
+            HYP_LOG(Editor, Error, "EditorCommandAddAsset: failed to clone asset '{}'", assetName);
+            return;
+        }
+
+        Handle<Node> parentNode;
+        if (Handle<Node> focusedNode = subsystem->GetFocusedNode(); focusedNode.IsValid())
+        {
+            parentNode = focusedNode;
+        }
+        else
+        {
+            parentNode = MakeStrongRef(activeScene->GetRoot());
+        }
+
+        if (!parentNode.IsValid())
+        {
+            HYP_LOG(Editor, Error, "EditorCommandAddAsset: no parent node to attach to");
+            return;
+        }
+
+        Vec3f insertionPoint = subsystem->CalculateSceneInsertionPoint();
+
+        // If viewport coordinates are provided, try raycasting from the camera
+        if (NumArguments() >= 4)
+        {
+            float nx = 0.5f, ny = 0.5f;
+            StringUtil::Parse(GetArgument(2), &nx);
+            StringUtil::Parse(GetArgument(3), &ny);
+
+            if (EditorViewport* activeViewport = subsystem->GetActiveViewport())
+            {
+                if (Camera* camera = activeViewport->GetCamera())
+                {
+                    const Vec4f worldPos = camera->TransformScreenToWorld(Vec2f(nx, ny));
+                    const Vec3f rayDir = worldPos.GetXYZ().Normalize();
+                    const Ray ray { camera->GetWorldTranslation(), rayDir };
+
+                    if (activeScene->GetSceneFlags() & SceneFlags::HAS_OCTREE)
+                    {
+                        RayTestResults results;
+                        if (activeScene->GetOctree().TestRay(ray, results, RayTestFlags::TestBVH))
+                        {
+                            insertionPoint = results.Front().hitpoint;
+                        }
+                    }
+                }
+            }
+        }
+
+        clonedNode->SetWorldTranslation(insertionPoint);
+
+        WeakHandle<Node> previousFocusedNode = subsystem->GetFocusedNode();
+
+        Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
+            HYP_FORMAT("Add {}", assetName),
+            Proc<EditorActionFunctions()>([clonedNode, parentNode, previousFocusedNode]() -> EditorActionFunctions
+                {
+                    return EditorActionFunctions {
+                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([clonedNode, parentNode](EditorSubsystem* editorSubsystem, EditorProject*)
+                            {
+                                parentNode->AddChild(clonedNode);
+                                editorSubsystem->SetFocusedNode(clonedNode, true);
+                            }),
+                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([clonedNode, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject*)
+                            {
+                                clonedNode->Remove();
+
+                                if (Handle<Node> focusedNode = previousFocusedNode.Lock(); focusedNode.IsValid())
+                                {
+                                    editorSubsystem->SetFocusedNode(focusedNode, true);
+                                }
+                            })
+                    };
+                }));
+
+        InitObject(action);
+        currentProject->GetActionStack()->PushAction(action);
+    }
+};
+
+DEFINE_EDITOR_COMMAND(AddAsset);
+
+#pragma endregion AddAsset
 
 #undef DEFINE_EDITOR_COMMAND
 

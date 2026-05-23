@@ -98,11 +98,11 @@ BakeData<LightmapVolume>::BakeData(Span<const BakeEntity> bakeEntities, Lightmap
             Vec3f position;
             Vec3f normal;
             Vec2f uv0;
-            
+
             if (vertexData.layoutDesc.mask & VT_Position)
             {
                 const TVertexPacket<VT_Position>* packet = reinterpret_cast<const TVertexPacket<VT_Position>*>(srcVertexOffset + offset);
-                position = modelMatrix * packet->GetPosition();
+                position = modelMatrix.TransformVector(packet->GetPosition());
 
                 offset += sizeof(TVertexPacket<VT_Position>) / sizeof(float);
             }
@@ -110,7 +110,7 @@ BakeData<LightmapVolume>::BakeData(Span<const BakeEntity> bakeEntities, Lightmap
             if (vertexData.layoutDesc.mask & VT_Normal)
             {
                 const TVertexPacket<VT_Normal>* packet = reinterpret_cast<const TVertexPacket<VT_Normal>*>(srcVertexOffset + offset);
-                normal = (normalMatrix * Vec4f(packet->GetNormal(), 0.0f)).GetXYZ().Normalize();
+                normal = (normalMatrix.TransformVector(Vec4f(packet->GetNormal(), 0.0f))).GetXYZ().Normalize();
 
                 offset += sizeof(TVertexPacket<VT_Normal>) / sizeof(float);
             }
@@ -155,7 +155,7 @@ Result BakeData<LightmapVolume>::Build()
     //        int sprintfResult = snprintf(buffer, 1024, str, args);
 
     //        HYP_LOG(Lightmap, Debug, "{}", buffer);
-    //            
+    //
     //        va_end(args);
 
     //        return sprintfResult;
@@ -299,16 +299,16 @@ Result BakeData<LightmapVolume>::Build()
                     };
 
                     const Vec3f vertexNormals[3] = {
-                        (inverseNormalMatrix * Vec4f(Vec3f(m_meshVertexNormals[meshIndex][triangleIndices[0] * 3], m_meshVertexNormals[meshIndex][triangleIndices[0] * 3 + 1], m_meshVertexNormals[meshIndex][triangleIndices[0] * 3 + 2]), 0.0f)).GetXYZ(),
-                        (inverseNormalMatrix * Vec4f(Vec3f(m_meshVertexNormals[meshIndex][triangleIndices[0] * 3], m_meshVertexNormals[meshIndex][triangleIndices[0] * 3 + 1], m_meshVertexNormals[meshIndex][triangleIndices[0] * 3 + 2]), 0.0f)).GetXYZ(),
-                        (inverseNormalMatrix * Vec4f(Vec3f(m_meshVertexNormals[meshIndex][triangleIndices[0] * 3], m_meshVertexNormals[meshIndex][triangleIndices[0] * 3 + 1], m_meshVertexNormals[meshIndex][triangleIndices[0] * 3 + 2]), 0.0f)).GetXYZ(),
+                        (inverseNormalMatrix.TransformVector(Vec4f(Vec3f(m_meshVertexNormals[meshIndex][triangleIndices[0] * 3], m_meshVertexNormals[meshIndex][triangleIndices[0] * 3 + 1], m_meshVertexNormals[meshIndex][triangleIndices[0] * 3 + 2]), 0.0f))).GetXYZ(),
+                        (inverseNormalMatrix.TransformVector(Vec4f(Vec3f(m_meshVertexNormals[meshIndex][triangleIndices[0] * 3], m_meshVertexNormals[meshIndex][triangleIndices[0] * 3 + 1], m_meshVertexNormals[meshIndex][triangleIndices[0] * 3 + 2]), 0.0f))).GetXYZ(),
+                        (inverseNormalMatrix.TransformVector(Vec4f(Vec3f(m_meshVertexNormals[meshIndex][triangleIndices[0] * 3], m_meshVertexNormals[meshIndex][triangleIndices[0] * 3 + 1], m_meshVertexNormals[meshIndex][triangleIndices[0] * 3 + 2]), 0.0f))).GetXYZ(),
                     };
 
                     const Vec3f position = vertexPositions[0] * barycentricCoords.x
                         + vertexPositions[1] * barycentricCoords.y
                         + vertexPositions[2] * barycentricCoords.z;
 
-                    const Vec3f normal = (normalMatrix * Vec4f((vertexNormals[0] * barycentricCoords.x + vertexNormals[1] * barycentricCoords.y + vertexNormals[2] * barycentricCoords.z), 0.0f)).GetXYZ().Normalize();
+                    const Vec3f normal = (normalMatrix.TransformVector(Vec4f((vertexNormals[0] * barycentricCoords.x + vertexNormals[1] * barycentricCoords.y + vertexNormals[2] * barycentricCoords.z), 0.0f))).GetXYZ().Normalize();
 
                     const uint32 texelIdx = (point.x + atlas->width) % atlas->width
                         + (atlas->height - point.y + atlas->height) % atlas->height * atlas->width;
@@ -333,7 +333,14 @@ Result BakeData<LightmapVolume>::Build()
     for (size_t meshIndex = 0; meshIndex < m_meshData.Size(); meshIndex++)
     {
         BakeMesh& bakeMesh = m_meshData[meshIndex];
-        bakeMesh.vertices.Resize(atlas->meshes[meshIndex].vertexCount);
+
+        const VertexInputLayoutDesc prevInputLayout = bakeMesh.mesh->GetMeshDesc().meshAttributes.inputLayout;
+        VertexInputLayoutDesc newInputLayout { uint8(prevInputLayout.mask | VT_UV1) };
+
+        const size_t prevVertexStrideFloats = prevInputLayout.VertexSize() / sizeof(float);
+        const size_t newVertexStrideFloats = newInputLayout.VertexSize() / sizeof(float);
+
+        bakeMesh.vertices.Resize(atlas->meshes[meshIndex].vertexCount * newVertexStrideFloats);
         bakeMesh.indices.Resize(atlas->meshes[meshIndex].indexCount);
 
         const Mat4f inverseTransform = bakeMesh.transformMatrix.Inverse();
@@ -350,12 +357,42 @@ Result BakeData<LightmapVolume>::Build()
                 atlas->meshes[meshIndex].vertexArray[atlas->meshes[meshIndex].indexArray[j]].uv[1]
             };
 
-            BakeVertex& vertex = bakeMesh.vertices[bakeMesh.indices[j]];
+            const size_t vertexDataOffsetFloats = bakeMesh.indices[j] * newVertexStrideFloats;
 
-            vertex.SetPosition(inverseTransform * Vec3f(m_meshVertexPositions[meshIndex][vertexIndex * 3], m_meshVertexPositions[meshIndex][vertexIndex * 3 + 1], m_meshVertexPositions[meshIndex][vertexIndex * 3 + 2]));
-            vertex.SetNormal((inverseNormalMatrix * Vec4f(m_meshVertexNormals[meshIndex][vertexIndex * 3], m_meshVertexNormals[meshIndex][vertexIndex * 3 + 1], m_meshVertexNormals[meshIndex][vertexIndex * 3 + 2], 0.0f)).GetXYZ());
-            vertex.SetUV0(Vec2f(m_meshVertexUvs[meshIndex][vertexIndex * 2], m_meshVertexUvs[meshIndex][vertexIndex * 2 + 1]));
-            vertex.SetUV1(uv / (Vec2f { float(atlas->width), float(atlas->height) } + Vec2f(0.5f)));
+            float* vertexDataFloat = bakeMesh.vertices.Data() + vertexDataOffsetFloats;
+
+            if (prevInputLayout.mask & VT_Position)
+            {
+                TVertexPacket<VT_Position>* packet = reinterpret_cast<TVertexPacket<VT_Position>*>(vertexDataFloat);
+                packet->SetPosition(inverseTransform.TransformVector(Vec3f(m_meshVertexPositions[meshIndex][vertexIndex * 3], m_meshVertexPositions[meshIndex][vertexIndex * 3 + 1], m_meshVertexPositions[meshIndex][vertexIndex * 3 + 2])));
+
+                vertexDataFloat += sizeof(TVertexPacket<VT_Position>) / sizeof(float);
+            }
+
+            if (prevInputLayout.mask & VT_Normal)
+            {
+                TVertexPacket<VT_Normal>* packet = reinterpret_cast<TVertexPacket<VT_Normal>*>(vertexDataFloat);
+                packet->SetNormal((inverseNormalMatrix.TransformVector(Vec4f(m_meshVertexNormals[meshIndex][vertexIndex * 3], m_meshVertexNormals[meshIndex][vertexIndex * 3 + 1], m_meshVertexNormals[meshIndex][vertexIndex * 3 + 2], 0.0f))).GetXYZ());
+
+                vertexDataFloat += sizeof(TVertexPacket<VT_Normal>) / sizeof(float);
+            }
+
+            if (prevInputLayout.mask & VT_UV0)
+            {
+                TVertexPacket<VT_UV0>* packet = reinterpret_cast<TVertexPacket<VT_UV0>*>(vertexDataFloat);
+                packet->SetUV0(Vec2f(m_meshVertexUvs[meshIndex][vertexIndex * 2], m_meshVertexUvs[meshIndex][vertexIndex * 2 + 1]));
+
+                vertexDataFloat += sizeof(TVertexPacket<VT_UV0>) / sizeof(float);
+            }
+
+            { // UV1
+                TVertexPacket<VT_UV1>* packet = reinterpret_cast<TVertexPacket<VT_UV1>*>(vertexDataFloat);
+                packet->SetUV1(uv / (Vec2f { float(atlas->width), float(atlas->height) } + Vec2f(0.5f)));
+
+                vertexDataFloat += sizeof(TVertexPacket<VT_UV1>) / sizeof(float);
+            }
+
+            // @TODO Handle other vertex data fields -- may need to read from the prev mesh data again in order to do that
         }
 
         // Deallocate memory for data that is no longer needed.
@@ -631,6 +668,8 @@ auto BakeData<LightmapVolume>::ToBitmapIrradiance() const -> BitmapType
             color /= color.w;
 
             AssertDebug(!MathUtil::IsNaN(color));
+
+            color = MathUtil::Clamp(color, Vec4f::Zero(), Vec4f::One());
 
             bitmap.GetPixelReference(x, y).SetRGBA(color);
         }

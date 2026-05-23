@@ -32,14 +32,16 @@ class SymbolTypeMember final
 {
 public:
     SymbolTypeMember()
-        : m_type(nullptr)
+        : m_type(nullptr),
+          m_isConst(false)
     {
     }
 
-    SymbolTypeMember(const String& name, SymbolType* type, const RC<AstExpression>& expr = nullptr)
+    SymbolTypeMember(const String& name, SymbolType* type, const RC<AstExpression>& expr = nullptr, bool isConst = false)
         : m_name(name),
           m_type(type),
-          m_expr(expr)
+          m_expr(expr),
+          m_isConst(isConst)
     {
     }
 
@@ -83,10 +85,21 @@ public:
         m_expr = std::move(expr);
     }
 
+    HYP_FORCE_INLINE bool IsConst() const
+    {
+        return m_isConst;
+    }
+
+    HYP_FORCE_INLINE void SetIsConst(bool isConst)
+    {
+        m_isConst = isConst;
+    }
+
 private:
     String m_name;
     SymbolType* m_type;
     RC<AstExpression> m_expr;
+    bool m_isConst : 1;
 };
 
 enum SymbolTypeClass : uint8

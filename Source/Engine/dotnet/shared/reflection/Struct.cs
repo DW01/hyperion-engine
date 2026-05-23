@@ -29,8 +29,8 @@ namespace Hyperion
         }
     }
 
-    public delegate IntPtr CopyDynamicStructDelegate(IntPtr ptr);
-    public delegate void DestructDynamicStructDelegate(IntPtr ptr);
+    public delegate IntPtr CopyDynamicStructDelegate(IntPtr ctx, IntPtr ptr);
+    public delegate void DestructDynamicStructDelegate(IntPtr ctx, IntPtr ptr);
 
     public class DynamicStruct : IDisposable
     {
@@ -185,7 +185,7 @@ namespace Hyperion
 
         private static unsafe DestructDynamicStructDelegate GetDestructFunction(Type type)
         {
-            return (ptr) =>
+            return (ctx, ptr) =>
             {
                 // IntPtr to an instance of the type
 
@@ -199,7 +199,7 @@ namespace Hyperion
 
         public static unsafe CopyDynamicStructDelegate GetCopyFunction(Type type)
         {
-            return (ptr) =>
+            return (ctx, ptr) =>
             {
                 IntPtr newPtr = Marshal.AllocHGlobal(Marshal.SizeOf(type));
 

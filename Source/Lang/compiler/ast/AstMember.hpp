@@ -66,6 +66,7 @@ protected:
     uint32 m_foundIndex;
     bool m_isStaticField : 1;
     bool m_isStaticMethod : 1;
+    bool m_isConst : 1;
 
     RC<AstMember> CloneImpl() const
     {

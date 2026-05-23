@@ -14,6 +14,7 @@
 #include <engine/Game.hpp>
 
 #include <Core/threading/Threads.hpp>
+#include <Core/threading/Task.hpp>
 #include <Core/threading/ThreadSignal.hpp>
 
 #include <Core/math/MathUtil.hpp>
@@ -46,7 +47,7 @@ namespace Hyperion {
 
 HYP_DEFINE_LOG_CHANNEL(SimThread);
 
-EngineStatTimer g_statSimUpdate("CPU/SimThread");
+EngineStatTimer g_statSimUpdate("SimThread");
 
 namespace CoreApi {
 extern const CommandLineArguments& GetCommandLineArguments();
@@ -68,6 +69,13 @@ struct LaunchGameAsync
 
     void operator()()
     {
+        if (!g_renderInitSignal.IsSignalled())
+        {
+            // Wait until signalled
+            g_simThreadInstance->GetScheduler().Enqueue(std::move(*this), TaskEnqueueFlags::FIRE_AND_FORGET);
+            return;
+        }
+
         InitObject(gameInstance);
 
         if (!gameInstance->m_isLaunched.Get(MemoryOrder::RELAXED))

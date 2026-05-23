@@ -190,7 +190,7 @@ void DefaultGame::OnLaunch_Impl()
     scene->GetRoot()->AddChild(pointLight);
 
     // temp: add test script component
-    Handle<ScriptAsset> scriptAsset = MakeHandle<ScriptAsset>(NAME("NewScript"), ScriptDesc());
+    Handle<ScriptAsset> scriptAsset = MakeHandle<ScriptAsset>(NAME("FPSCounter"), ScriptDesc());
 
     // register the package
     GetCurrentAssetRegistry()->PutAsset(scriptAsset);
@@ -199,7 +199,6 @@ void DefaultGame::OnLaunch_Impl()
     scriptDesc.language = ScriptLanguage::HypScript;
     Memory::StrCpy(scriptDesc.path.Data(), "FPSCounter.hyp", ArraySize(scriptDesc.path));
     Memory::StrCpy(scriptDesc.className.Data(), "MyClass", ArraySize(scriptDesc.className));
-
 
     Handle<Entity> cubeEnt = MakeHandle<Entity>();
     cubeEnt->SetName(NAME("Cube"));

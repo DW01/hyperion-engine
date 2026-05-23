@@ -47,7 +47,7 @@ public:
     virtual void Process(float delta, Span<Handle<Scene>> scenes) override;
 
 private:
-    virtual void Init() override;
+    void InitializeSky();
 
     virtual SystemComponentDescriptors GetComponentDescriptors() const override
     {

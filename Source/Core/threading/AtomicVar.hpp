@@ -97,12 +97,12 @@ public:
 
     HYP_FORCE_INLINE bool CompareExchangeWeak(T& expected, T desired, MemoryOrder order)
     {
-        return m_value.compareExchangeWeak(expected, desired, ToCxxMemoryOrder(order));
+        return m_value.compare_exchange_weak(expected, desired, ToCxxMemoryOrder(order));
     }
 
     HYP_FORCE_INLINE bool CompareExchangeStrong(T& expected, T desired, MemoryOrder order)
     {
-        return m_value.compareExchangeStrong(expected, desired, ToCxxMemoryOrder(order));
+        return m_value.compare_exchange_strong(expected, desired, ToCxxMemoryOrder(order));
     }
 
     HYP_FORCE_INLINE T Increment(T amount, MemoryOrder order)

@@ -14,6 +14,8 @@
 #include <scene/SystemExecutionGroup.hpp>
 #include <scene/Subsystem.hpp>
 
+#include <scene/util/EntityScripting.hpp>
+
 #include <scene/systems/VisibilityStateUpdaterSystem.hpp>
 #include <scene/systems/LightmapSystem.hpp>
 #include <scene/systems/AnimationSystem.hpp>
@@ -45,6 +47,7 @@
 
 #include <engine/Game.hpp>
 #include <engine/EngineDriver.hpp>
+#include <Engine/EngineStats.hpp>
 #include <engine/CVarManager.hpp>
 
 #include <asset/Assets.hpp>
@@ -60,7 +63,6 @@ namespace Hyperion {
 #define HYP_WORLD_ASYNC_SUBSYSTEM_UPDATES
 #define HYP_WORLD_ASYNC_VIEW_COLLECTION
 
-#define HYP_SYSTEMS_PARALLEL_EXECUTION
 // #define HYP_SYSTEMS_LAG_SPIKE_DETECTION
 // #define HYP_SYSTEM_LOG_PERFORMANCE
 
@@ -68,6 +70,9 @@ namespace Hyperion {
 static constexpr double SystemExecutionGroupLagSpikeThreshold = 50.0;
 
 extern CVar<bool> cvRayTracingEnabled;
+
+EngineStatTimer g_statScriptUpdate("Script/Update");
+static EngineStatTimer s_statPhysicsUpdate("Physics/Update");
 
 static const Name s_nameStreamingLayerScenes = NAME("Scenes_Layer");
 static const Name s_nameUnnamedWorld = NAME("<unnamed world>");
@@ -209,27 +214,6 @@ void World::Initialize()
         m_physicsWorld->Initialize();
     }
 
-    for (const Handle<SystemBase>& system : m_systems)
-    {
-        AssertDebug(system != nullptr);
-
-        if (!system)
-        {
-            continue;
-        }
-
-        system->InitComponentInfos_Internal();
-
-        const bool wasAddedToExecutionGroup = AddSystemToExecutionGroup(system);
-
-        system->m_world = this;
-
-        InitObject(system);
-    }
-
-    // Needs to be before AddSystem() calls.
-    m_isInitialized = true;
-
     if (!HasSystem<VisibilityStateUpdaterSystem>())
         AddSystem(MakeHandle<VisibilityStateUpdaterSystem>());
 
@@ -254,8 +238,16 @@ void World::Initialize()
     if (!HasSystem<MeshSystem>())
         AddSystem(MakeHandle<MeshSystem>());
 
+    m_isInitialized = true;
+
     for (SystemBase* system : m_systems)
     {
+        system->InitComponentInfos_Internal();
+
+        const bool wasAddedToExecutionGroup = AddSystemToExecutionGroup(system);
+
+        system->m_world = this;
+
         system->OnAddedToWorld(this);
 
         for (const Handle<Scene>& scene : m_scenes)
@@ -506,12 +498,20 @@ void World::BeginUpdate(TaskBatch& inBatch, float delta)
 
     UpdateCSMState();
 
-    if (m_physicsWorld != nullptr && GetGameState().IsSimulating())
+    if (GetGameState().IsSimulating())
     {
-        m_physicsWorld->Tick(delta);
+        if (m_physicsWorld != nullptr)
+        {
+            ENGINE_STAT_SCOPE(&s_statPhysicsUpdate);
 
-        // must be called before entity managers are locked.
-        SyncPhysicsToEntities();
+            m_physicsWorld->Tick(delta);
+
+            // must be called before entity managers are locked.
+            SyncPhysicsToEntities();
+        }
+
+        ENGINE_STAT_SCOPE(&g_statScriptUpdate);
+        EntityScripting::UpdateScriptedEntities(*this, delta);
     }
 
     for (Scene* scene : m_scenes)
@@ -1477,7 +1477,9 @@ void World::DeserializeSystems(const Array<Handle<SystemBase>>& systems)
     for (const Handle<SystemBase>& system : systems)
     {
         if (!system)
+        {
             continue;
+        }
 
         AddSystem(system);
     }
@@ -1492,7 +1494,9 @@ Array<Handle<SystemBase>> World::SerializeSystems() const
     {
         // Skip systems with `Serialize` attr as false
         if (!system->InstanceClass()->GetAttribute(Attributes::g_attrSerialize).GetBool(true))
+        {
             continue;
+        }
 
         systemsToSerialize.PushBack(system);
     }
@@ -1512,7 +1516,9 @@ SystemBase* World::AddSystem(const Handle<SystemBase>& system)
 
     if (it != m_systems.End())
     {
-        // cannot add system if one already exists
+        // cannot add system of this type if one already exists!
+        HYP_LOG(Scene, Warning, "Attempted to add already existant System type {}", it->GetTypeInfo()->name);
+
         return *it;
     }
 
@@ -1527,7 +1533,12 @@ SystemBase* World::AddSystem(const Handle<SystemBase>& system)
 
         system->m_world = this;
 
-        InitObject(system);
+        system->OnAddedToWorld(this);
+
+        for (const Handle<Scene>& scene : m_scenes)
+        {
+            scene->GetEntityManager()->NotifySystemOfExistingEntities(system);
+        }
     }
 
     return system;
