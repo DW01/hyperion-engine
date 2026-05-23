@@ -17,7 +17,7 @@ namespace Hyperion {
 
 class Skeleton;
 
-HYP_CLASS()
+HYP_CLASS(AssetBucket = "Bones")
 class HYP_API Bone : public Node
 {
     friend class Skeleton;

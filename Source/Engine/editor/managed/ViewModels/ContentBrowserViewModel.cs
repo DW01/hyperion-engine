@@ -70,12 +70,14 @@ namespace Hyperion.Editor.ViewModels
         private DelegateHandler? _onSelectedBucketChangedHandler;
 
         public ICommand ImportCommand { get; }
+        public ICommand NewScriptCommand { get; }
 
         public ContentBrowserViewModel(EditorSubsystem editorSubsystem)
         {
             _editorSubsystem = editorSubsystem ?? throw new ArgumentNullException(nameof(editorSubsystem));
 
             ImportCommand = new EditorCommand("ImportContent");
+            NewScriptCommand = new EditorCommand("NewScript");
 
             Instance = this;
         }
