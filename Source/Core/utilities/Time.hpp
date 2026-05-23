@@ -103,17 +103,13 @@ struct TimeDiff
     int64 milliseconds;
 };
 
-HYP_STRUCT(Serialize = "bitwise")
 struct Time
 {
-    HYP_STRUCT_BODY(Time);
-
-    HYP_FIELD()
     uint64 m_value;
 
     Time();
     Time(uint64 timestamp);
-    
+
     Time(const Time& other) = default;
     Time& operator=(const Time& other) = default;
 

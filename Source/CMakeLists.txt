@@ -220,7 +220,7 @@ if(HYP_MSVC)
   add_definitions("/DNOMINMAX")
 
   if(HYP_DEBUG_MODE)
-    set(CMAKE_CXX_FLAGS "/Zc:preprocessor /Zc:__cplusplus /O2 /Oi /MD /Z7 /constexpr:depth1024 /bigobj /arch:AVX2 /fp:fast")
+    set(CMAKE_CXX_FLAGS "/Zc:preprocessor /Zc:__cplusplus /O2 /Oi /MD /Z7 /MP /constexpr:depth1024 /bigobj /arch:AVX2 /fp:fast")
 
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG /NATVIS:${CMAKE_SOURCE_DIR}/Engine/Hyperion.natvis")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DEBUG /INCREMENTAL /OPT:REF /OPT:ICF")

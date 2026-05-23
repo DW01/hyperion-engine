@@ -1,43 +1,52 @@
 cmake_minimum_required(VERSION 3.10)
 
 function(add_commandlet_target COMMANDLET_NAME)
-    set(TARGET_NAME "hyperion-commandlet-${COMMANDLET_NAME}")
+  set(TARGET_NAME "hyperion-commandlet-${COMMANDLET_NAME}")
 
-    set(COMMANDLET_MAIN_CPP "${CMAKE_SOURCE_DIR}/Engine/engine/commandlet/CommandletMain.cpp")
+  set(COMMANDLET_MAIN_CPP "${CMAKE_SOURCE_DIR}/Engine/engine/commandlet/CommandletMain.cpp")
 
-    add_executable(${TARGET_NAME} ${COMMANDLET_MAIN_CPP})
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${COMMANDLET_NAME}.cpp")
+    set(COMMANDLET_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/${COMMANDLET_NAME}.cpp")
+  else()
+    set(COMMANDLET_SOURCE "")
+  endif()
 
-    set_target_properties(${TARGET_NAME} PROPERTIES OUTPUT_NAME "${COMMANDLET_NAME}")
+  add_executable(${TARGET_NAME} ${COMMANDLET_MAIN_CPP} ${COMMANDLET_SOURCE})
 
-    target_compile_definitions(${TARGET_NAME} PRIVATE
+  set_target_properties(${TARGET_NAME} PROPERTIES OUTPUT_NAME "${COMMANDLET_NAME}")
+
+  target_compile_definitions(${TARGET_NAME} PRIVATE
         HYP_COMMANDLET_NAME=${COMMANDLET_NAME}
         HYP_COMMANDLET=1
     )
 
-    target_include_directories(${TARGET_NAME} PRIVATE
+  target_include_directories(${TARGET_NAME} PRIVATE
         ${HYP_GENERATED_DIR}
         ${CMAKE_SOURCE_DIR}/../
         ${CMAKE_SOURCE_DIR}/../Engine
     )
 
-    add_dependencies(${TARGET_NAME} hyperion)
-    target_link_libraries(${TARGET_NAME} hyperion)
+  add_dependencies(${TARGET_NAME} hyperion)
+  target_link_libraries(${TARGET_NAME} hyperion)
 
-    if(MSVC)
-        set_property(TARGET ${TARGET_NAME} APPEND PROPERTY LINK_FLAGS /DEBUG)
-    endif()
+  if(MSVC)
+    set_property(TARGET ${TARGET_NAME} APPEND PROPERTY LINK_FLAGS /DEBUG)
+  endif()
 
-    if(CMAKE_GENERATOR MATCHES "Xcode")
-        set_target_properties(${TARGET_NAME} PROPERTIES
+  if(CMAKE_GENERATOR MATCHES "Xcode")
+    set_target_properties(${TARGET_NAME} PROPERTIES
             XCODE_GENERATE_SCHEME ON
             XCODE_SCHEME_ENABLE_GPU_API_VALIDATION OFF
             XCODE_SCHEME_LAUNCH_CONFIGURATION_NAME "${HYP_BUILD_TYPE}"
             XCODE_SCHEME_HIDE_BUILDABLE_NAME OFF
         )
-    endif()
+  endif()
 
-    message(STATUS "Registered commandlet target ${COMMANDLET_NAME}")
+  message(STATUS "Registered commandlet target ${COMMANDLET_NAME}")
 endfunction()
 
 # add all following commandlets here.
 add_commandlet_target(PrecompileShaders)
+add_commandlet_target(GenerateBlueNoiseBlob)
+add_commandlet_target(BuildGizmosCommandlet)
+add_commandlet_target(LogMemoryPools)

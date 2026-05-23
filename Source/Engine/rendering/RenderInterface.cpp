@@ -90,7 +90,7 @@
 // for EnumToString
 #include <Core/reflection/Enum.hpp>
 
-#include <util/BlueNoise.hpp>
+#include <Core/io/ByteReader.hpp>
 
 #include <engine/EngineStats.hpp>
 #include <engine/EngineDriver.hpp>
@@ -434,7 +434,6 @@ IRenderProxy* GetRenderProxy(const ObjectBase* resource)
 
 void UpdateGpuData(const ObjectBase* resource)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     AssertDebug(resource != nullptr);
@@ -1292,7 +1291,6 @@ void RenderInterface::WriteCommandBuffer()
 
 void RenderInterface::AddPass(NamedPass passName, PassBase* pass)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     AssertDebug(passName < NumNamedPasses);
@@ -1305,7 +1303,6 @@ void RenderInterface::AddPass(NamedPass passName, PassBase* pass)
 
 void RenderInterface::RemovePass(NamedPass passName, PassBase* pass)
 {
-    HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
     AssertDebug(passName < NumNamedPasses);
@@ -1998,40 +1995,36 @@ void RenderInterface::DeferFlushBuffer(RawBuffer* buffer)
 
 void RenderInterface::CreateBlueNoiseBuffer()
 {
-    HYP_SCOPE;
+    const FilePath blobPath = GetDataDirectory() / "Noise" / "BlueNoise.blob";
 
-    static_assert(sizeof(BlueNoiseBuffer::sobol256spp256d) == sizeof(BlueNoise::sobol256spp256d));
-    static_assert(sizeof(BlueNoiseBuffer::scramblingTile) == sizeof(BlueNoise::scramblingTile));
-    static_assert(sizeof(BlueNoiseBuffer::rankingTile) == sizeof(BlueNoise::rankingTile));
+    FileByteReader reader(blobPath);
+    if (reader.Eof())
+    {
+        HYP_FAIL("Failed to load BlueNoise blob from {}", blobPath);
+        return;
+    }
 
-    constexpr size_t blueNoiseBufferSize = sizeof(BlueNoiseBuffer);
+    ByteBuffer blobData = reader.Read(reader.Max());
 
-    constexpr size_t sobol256spp256dOffset = offsetof(BlueNoiseBuffer, sobol256spp256d);
-    constexpr size_t sobol256spp256dSize = sizeof(BlueNoise::sobol256spp256d);
-    constexpr size_t scramblingTileOffset = offsetof(BlueNoiseBuffer, scramblingTile);
-    constexpr size_t scramblingTileSize = sizeof(BlueNoise::scramblingTile);
-    constexpr size_t rankingTileOffset = offsetof(BlueNoiseBuffer, rankingTile);
-    constexpr size_t rankingTileSize = sizeof(BlueNoise::rankingTile);
+    constexpr size_t ExpectedSize = (sizeof(uint32) * 256 * 256)
+        + (sizeof(uint32) * 128 * 128 * 8)
+        + (sizeof(uint32) * 128 * 128 * 8);
 
-    static_assert(blueNoiseBufferSize
-        == (sobol256spp256dOffset + sobol256spp256dSize)
-            + ((scramblingTileOffset - (sobol256spp256dOffset + sobol256spp256dSize)) + scramblingTileSize)
-            + ((rankingTileOffset - (scramblingTileOffset + scramblingTileSize)) + rankingTileSize));
+    if (blobData.Size() != ExpectedSize)
+    {
+        HYP_FAIL("BlueNoise blob size mismatch: expected {} bytes, got {} bytes",
+            ExpectedSize, blobData.Size());
+        return;
+    }
 
-    blueNoiseBuffer = StructuredBuffer(1, sizeof(BlueNoiseBuffer));
+    blueNoiseBuffer = StructuredBuffer(ExpectedSize / sizeof(Vec4i), sizeof(Vec4i));
     blueNoiseBuffer.Initialize();
-
-    blueNoiseBuffer.Write(sobol256spp256dOffset, sobol256spp256dSize, &BlueNoise::sobol256spp256d[0]);
-    blueNoiseBuffer.Write(scramblingTileOffset, scramblingTileSize, &BlueNoise::scramblingTile[0]);
-    blueNoiseBuffer.Write(rankingTileOffset, rankingTileSize, &BlueNoise::rankingTile[0]);
-
+    blueNoiseBuffer.Write(0, ExpectedSize, blobData.Data());
     blueNoiseBuffer.Flush();
 }
 
 void RenderInterface::CreateSphereSamplesBuffer()
 {
-    HYP_SCOPE;
-
     sphereSamplesBuffer = StructuredBuffer(4096, sizeof(Vec4f));
     sphereSamplesBuffer.Initialize();
 

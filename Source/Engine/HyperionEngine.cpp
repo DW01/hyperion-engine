@@ -106,14 +106,14 @@ namespace PlatformUtils {
 extern PlatformString GetExecutableAbsolutePath();
 } // namespace PlatformUtils
 
-Handle<EngineDriver> g_engineDriver;
-Handle<AssetManager> g_assetManager;
-Handle<AudioManager> g_audioManager;
-Handle<AppContextBase> g_appContext;
-Handle<StreamingManager> g_streamingManager;
-Handle<EngineStats> g_engineStats;
-MaterialInstanceCache* g_materialInstanceCache;
-ShaderCompiler* g_shaderCompiler;
+HYP_API Handle<EngineDriver> g_engineDriver;
+HYP_API Handle<AssetManager> g_assetManager;
+HYP_API Handle<AudioManager> g_audioManager;
+HYP_API Handle<AppContextBase> g_appContext;
+HYP_API Handle<StreamingManager> g_streamingManager;
+HYP_API Handle<EngineStats> g_engineStats;
+HYP_API MaterialInstanceCache* g_materialInstanceCache;
+HYP_API ShaderCompiler* g_shaderCompiler;
 
 #if HYP_EDITOR
 Handle<EditorState> g_editorState;

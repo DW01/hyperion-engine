@@ -86,13 +86,6 @@ struct VoxelUniforms
 
 static_assert(sizeof(VoxelUniforms) == 64);
 
-struct BlueNoiseBuffer
-{
-    Vec4i sobol256spp256d[256 * 256 / 4];
-    Vec4i scramblingTile[128 * 128 * 8 / 4];
-    Vec4i rankingTile[128 * 128 * 8 / 4];
-};
-
 struct RayTracingConstants
 {
     uint32 numBoundLights;

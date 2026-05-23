@@ -12,6 +12,8 @@
 #include <rendering/RenderMemory.hpp>
 #include <rendering/Shared.hpp>
 #include <rendering/Buffers.hpp>
+#include <rendering/Mesh.hpp>
+#include <rendering/Texture.hpp>
 
 #include <engine/EngineGlobals.hpp>
 #include <engine/EngineMemory.hpp>

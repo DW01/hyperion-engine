@@ -1,4 +1,13 @@
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
+
 #include <Core/utilities/Time.hpp>
+
+#include <Core/reflection/ClassUtils.hpp>
+#include <Core/reflection/ObjectMacros.hpp>
 
 #ifdef HYP_UNIX
 #include <sys/time.h>
@@ -7,12 +16,10 @@
 #include "windows.h"
 #endif
 
-#ifndef HYP_TOOL
-#include <Time.generated.inl>
-#endif
-
 namespace Hyperion {
 namespace utilities {
+
+HYP_API const Class* g_clsTime = nullptr;
 
 #pragma region TimeDiff
 
@@ -73,3 +80,17 @@ Time Time::Now()
 
 } // namespace utilities
 } // namespace Hyperion
+
+using namespace Hyperion;
+
+using Time = Hyperion::utilities::Time;
+using Hyperion::Class;
+
+static const Class*& g_clsTime = Hyperion::utilities::g_clsTime;
+
+// clang-format off
+HYP_BEGIN_STRUCT(Time, -1, 0, {})
+    Field(NAME(HYP_STR(m_value)), &Type::m_value, HYP_OFFSET_OF(Type, m_value))
+HYP_END_STRUCT
+
+HYP_REGISTER_STATIC_CLASS(Time);

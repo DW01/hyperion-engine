@@ -12,6 +12,10 @@
 
 #include <Core/memory/pool/Pool.hpp>
 
+#include <scene/Node.hpp>
+#include <scene/EntityManager.hpp>
+#include <scene/World.hpp>
+
 #include <engine/EngineGlobals.hpp>
 #include <engine/EngineMemory.hpp>
 
