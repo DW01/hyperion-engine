@@ -26,7 +26,6 @@ BakeJob<LightmapVolume>::BakeJob(BakeJobParams&& params, const Handle<LightmapVo
 
 BakeJob<LightmapVolume>::~BakeJob()
 {
-    // m_lightmapElement is now managed externally or not used in the same way
 }
 
 void BakeJob<LightmapVolume>::Start_Internal()
