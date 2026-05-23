@@ -591,6 +591,7 @@
 
                     <Grid Grid.Column="2" RowDefinitions="*, 2, 240">
                         <Border
+                            x:Name="ViewportDropTarget"
                             Grid.Row="0"
                             Background="{DynamicResource Brush.Panel}"
                             BorderBrush="{DynamicResource Brush.Border}"

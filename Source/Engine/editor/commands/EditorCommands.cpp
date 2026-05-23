@@ -12,6 +12,8 @@
 #include <scene/LightmapVolume.hpp>
 #include <scene/InstancedMeshProxy.hpp>
 
+#include <scene/camera/Camera.hpp>
+
 #include <scene/ParticleVolume.hpp>
 #include <scene/FogVolume.hpp>
 
@@ -1899,6 +1901,34 @@ public:
         }
 
         Vec3f insertionPoint = subsystem->CalculateSceneInsertionPoint();
+
+        // If viewport coordinates are provided, try raycasting from the camera
+        if (NumArguments() >= 4)
+        {
+            float nx = 0.5f, ny = 0.5f;
+            StringUtil::Parse(GetArgument(2), &nx);
+            StringUtil::Parse(GetArgument(3), &ny);
+
+            if (EditorViewport* activeViewport = subsystem->GetActiveViewport())
+            {
+                if (Camera* camera = activeViewport->GetCamera())
+                {
+                    const Vec4f worldPos = camera->TransformScreenToWorld(Vec2f(nx, ny));
+                    const Vec3f rayDir = worldPos.GetXYZ().Normalize();
+                    const Ray ray { camera->GetWorldTranslation(), rayDir };
+
+                    if (activeScene->GetSceneFlags() & SceneFlags::HAS_OCTREE)
+                    {
+                        RayTestResults results;
+                        if (activeScene->GetOctree().TestRay(ray, results, RayTestFlags::TestBVH))
+                        {
+                            insertionPoint = results.Front().hitpoint;
+                        }
+                    }
+                }
+            }
+        }
+
         clonedNode->SetWorldTranslation(insertionPoint);
 
         WeakHandle<Node> previousFocusedNode = subsystem->GetFocusedNode();

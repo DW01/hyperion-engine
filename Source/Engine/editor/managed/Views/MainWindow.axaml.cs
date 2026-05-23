@@ -41,6 +41,9 @@ namespace Hyperion.Editor
         private Point _assetDragStartPoint;
         private bool _isDraggingAsset;
 
+        // Viewport drop tracking
+        private Border? _viewportDropTarget;
+
         // Drop-indicator tracking and auto-scroll
         private TreeView? _sceneTree;
         private ScrollViewer? _sceneTreeScrollViewer;
@@ -84,6 +87,7 @@ namespace Hyperion.Editor
 
             SetupSceneHierarchyDragDrop();
             SetupContentBrowserDragDrop();
+            SetupViewportDropTarget();
 
             AddHandler(InputElement.LostFocusEvent, OnInspectorTextBoxLostFocus, RoutingStrategies.Bubble);
             AddHandler(InputElement.KeyDownEvent, OnInspectorTextBoxKeyDown, RoutingStrategies.Bubble);
@@ -464,6 +468,50 @@ namespace Hyperion.Editor
                 control = control.Parent as Control;
             }
             return null;
+        }
+
+        private void SetupViewportDropTarget()
+        {
+            _viewportDropTarget = this.FindControl<Border>("ViewportDropTarget");
+            if (_viewportDropTarget == null)
+                return;
+
+            DragDrop.SetAllowDrop(_viewportDropTarget, true);
+            _viewportDropTarget.AddHandler(DragDrop.DragOverEvent, OnViewportDragOver);
+            _viewportDropTarget.AddHandler(DragDrop.DropEvent, OnViewportDrop);
+        }
+
+        private void OnViewportDragOver(object? sender, DragEventArgs e)
+        {
+            if (e.Data.Contains(AssetDragFormat))
+            {
+                e.DragEffects = DragDropEffects.Copy;
+                e.Handled = true;
+            }
+        }
+
+        private void OnViewportDrop(object? sender, DragEventArgs e)
+        {
+            if (!e.Data.Contains(AssetDragFormat))
+                return;
+
+            var assetData = e.Data.Get(AssetDragFormat) as string;
+            if (string.IsNullOrEmpty(assetData))
+                return;
+
+            var parts = assetData.Split('|');
+            if (parts.Length != 2 || !uint.TryParse(parts[0], out uint bucketIndex))
+                return;
+
+            // Calculate normalized drop position within the viewport
+            var pos = e.GetPosition(_viewportDropTarget);
+            double nx = Math.Clamp(pos.X / _viewportDropTarget.Bounds.Width, 0.0, 1.0);
+            double ny = Math.Clamp(pos.Y / _viewportDropTarget.Bounds.Height, 0.0, 1.0);
+
+            var vm = DataContext as MainWindowViewModel;
+            vm?.AddAssetToSceneAtViewport(bucketIndex, new Name(parts[1]), (float)nx, (float)ny);
+
+            e.Handled = true;
         }
 
         private void OnCollapseContentBrowser(object? sender, RoutedEventArgs e) { _contentBrowserExpanded = false; UpdateBottomPanelLayout(); }
