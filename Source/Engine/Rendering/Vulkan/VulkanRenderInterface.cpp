@@ -66,6 +66,7 @@ static constexpr uint32 MaxDescriptorPools = 32;
 static EngineStatTimer s_statVulkanFrameSync("Rendering/Vulkan/FrameSync");
 
 extern EngineStatGpuTimer g_statGpuFrameTime;
+extern EngineStatTimer g_statStalling;
 
 enum VulkanDescriptorPoolRequirements : uint8
 {
@@ -817,6 +818,7 @@ void VulkanRenderInterface::PrepareFrame(VulkanFrame* frame)
 
     {
         ENGINE_STAT_SCOPE(&s_statVulkanFrameSync);
+        ENGINE_STAT_SCOPE(&g_statStalling);
 
         if (frame->IsUsingTimelineSemaphore())
         {
@@ -904,6 +906,7 @@ void VulkanRenderInterface::PrepareFrame(VulkanFrame* frame)
         if (fence.isSubmitted)
         {
             ENGINE_STAT_SCOPE(&s_statVulkanFrameSync);
+            ENGINE_STAT_SCOPE(&g_statStalling);
 
             fence.Wait(true);
 

@@ -83,6 +83,11 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
 #ifdef MODE_CLEAR
     const uint2 sample_index = uint2(dispatchThreadID.xy);
 
+    if (any(sample_index >= uint2(NUM_SAMPLES_X, NUM_SAMPLES_Y)))
+    {
+        return;
+    }
+
     for (int i = 0; i < 9; i++)
     {
         CURRENT_TILE.coeffs_weights[i] = (float4)0.0;
@@ -97,6 +102,11 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
     }
 #elif defined(MODE_BUILD_COEFFICIENTS)
     const uint2 sample_index = uint2(dispatchThreadID.xy);
+
+    if (any(sample_index >= uint2(NUM_SAMPLES_X, NUM_SAMPLES_Y)))
+    {
+        return;
+    }
 
     const float2 uv = (float2(sample_index) + 0.5) / float2(NUM_SAMPLES_X, NUM_SAMPLES_Y);
     const float2 sample_point = uv * 2.0 - 1.0;
@@ -150,13 +160,16 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
         return;
     }
 
+    const uint input_face_offset = (face_index * prev_dimensions.x * prev_dimensions.y);
+    const uint output_face_offset = (face_index * next_dimensions.x * next_dimensions.y);
+
     for (int i = 0; i < 9; i++)
     {
-        sh_tiles_output[(face_index * next_dimensions.x * next_dimensions.y) + (output_index.x * next_dimensions.y) + output_index.y].coeffs_weights[i] =
-            sh_tiles[(face_index * prev_dimensions.x * prev_dimensions.y) + (input_index.x * prev_dimensions.y) + input_index.y].coeffs_weights[i]
-            + sh_tiles[(face_index * prev_dimensions.x * prev_dimensions.y) + ((input_index.x + 1) * prev_dimensions.y) + input_index.y].coeffs_weights[i]
-            + sh_tiles[(face_index * prev_dimensions.x * prev_dimensions.y) + ((input_index.x + 1) * prev_dimensions.y) + (input_index.y + 1)].coeffs_weights[i]
-            + sh_tiles[(face_index * prev_dimensions.x * prev_dimensions.y) + (input_index.x * prev_dimensions.y) + (input_index.y + 1)].coeffs_weights[i];
+        sh_tiles_output[output_face_offset + (output_index.x * next_dimensions.y) + output_index.y].coeffs_weights[i] =
+            sh_tiles[input_face_offset + (input_index.x * prev_dimensions.y) + input_index.y].coeffs_weights[i]
+            + sh_tiles[input_face_offset + ((input_index.x + 1) * prev_dimensions.y) + input_index.y].coeffs_weights[i]
+            + sh_tiles[input_face_offset + ((input_index.x + 1) * prev_dimensions.y) + (input_index.y + 1)].coeffs_weights[i]
+            + sh_tiles[input_face_offset + (input_index.x * prev_dimensions.y) + (input_index.y + 1)].coeffs_weights[i];
     }
 #elif defined(MODE_FINALIZE)
 
@@ -167,6 +180,7 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
     };
 
 #ifdef PARALLEL_REDUCE
+    // PARALLEL_REDUCE expects 6 faces * 9 tiles per face = 54 tiles in sh_tiles
     for (int face_index = 0; face_index < 6; face_index++)
     {
         for (int i = 0; i < 9; i++)
@@ -177,8 +191,8 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
 
     for (int i = 0; i < 9; i++)
     {
-        float weight = OutSHBuffer[i].a;
-        float normFactor = (4.0 * HYP_FMATH_PI) / max(weight, 0.0001);
+        float weight = max(OutSHBuffer[i].a, 0.0001);
+        float normFactor = (4.0 * HYP_FMATH_PI) / weight;
         OutSHBuffer[i] = float4(OutSHBuffer[i].rgb * normFactor * s_aOverPi[i], 1.0);
     }
 #else
@@ -203,6 +217,8 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
             }
         }
     }
+
+    total_weight = max(total_weight, 0.0001);
 
     for (int i = 0; i < 9; i++)
     {

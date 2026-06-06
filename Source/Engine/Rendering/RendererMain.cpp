@@ -75,6 +75,10 @@ extern EngineStatCounter<uint32> g_statInstancedDrawCalls;
 extern EngineStatCounter<uint32> g_statTriangles;
 extern EngineStatCounter<uint32> g_statRenderGroups;
 
+extern EngineStatTimer g_statStalling;
+
+static EngineStatTimer s_statProxyListReadWait("Rendering/CPU/ProxyListReadWait");
+
 extern CVar<bool> cvDepthPrepass;
 extern CVar<bool> cvPathTracing;
 
@@ -114,7 +118,7 @@ struct ParallelRenderingState_Shared
     {
         // we have to free up the memory for each local queue on individual threads,
         // due to the use of ThreadAllocator.
-        auto DestructCommandRecorders = [this]() mutable -> void
+        auto destructCommandRecorders = [this]() mutable -> void
         {
             const uint32 renderThreadIndex = CurrentRenderThreadIndex();
             Assert(renderThreadIndex < MaxBatches);
@@ -126,7 +130,7 @@ struct ParallelRenderingState_Shared
         AssertOnThread(g_renderThread);
 
         // Render thread == 0
-        DestructCommandRecorders();
+        destructCommandRecorders();
 
         Array<Task<void>> tasks;
         tasks.Reserve(ParallelRenderingState::MaxBatches);
@@ -137,10 +141,12 @@ struct ParallelRenderingState_Shared
         {
             AssertDebug(poolThreads[i] != nullptr);
 
-            tasks.EmplaceBack(poolThreads[i]->GetScheduler().Enqueue([&DestructCommandRecorders] { DestructCommandRecorders(); }));
+            tasks.EmplaceBack(poolThreads[i]->GetScheduler().Enqueue([&] { destructCommandRecorders(); }));
         }
 
         AwaitAll(tasks.ToSpan());
+
+        // @FIXME Why is this sometimes crashing (s_innerAllocator is nullptr in ThreadAllocator)
     }
 
     void Reset()
@@ -677,25 +683,30 @@ void RenderProxyList::BeginRead(bool* pOutSuccess)
     bool lockAcquired = false;
     uint32 numSpins = 0;
 
-    while (!lockAcquired)
     {
-        while (!(lockAcquired = m_lock.TryLockReader()) && numSpins++ < MaxSpinsBeforeFail)
-            ;
+        ENGINE_STAT_SCOPE(&g_statStalling);
+        ENGINE_STAT_SCOPE(&s_statProxyListReadWait);
 
-        if (!lockAcquired && numSpins >= MaxSpinsBeforeFail)
+        while (!lockAcquired)
         {
-            HYP_LOG(Rendering, Verbose, "Failed to acquire read lock. "
-                                        "If this is occurring frequently, the View that owns this RenderProxyList should have double / triple buffering enabled");
+            while (!(lockAcquired = m_lock.TryLockReader()) && numSpins++ < MaxSpinsBeforeFail)
+                ;
 
-            if (pOutSuccess != nullptr)
+            if (!lockAcquired && numSpins >= MaxSpinsBeforeFail)
             {
-                *pOutSuccess = false;
+                HYP_LOG(Rendering, Verbose, "Failed to acquire read lock. "
+                                            "If this is occurring frequently, the View that owns this RenderProxyList should have double / triple buffering enabled");
 
-                return;
+                if (pOutSuccess != nullptr)
+                {
+                    *pOutSuccess = false;
+
+                    return;
+                }
+
+                // continue and try again, if no pOutSuccess
+                ThreadSleep(0);
             }
-
-            // continue and try again, if no pOutSuccess
-            ThreadSleep(0);
         }
     }
 

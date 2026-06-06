@@ -122,7 +122,11 @@ static_assert(MaxFramesBeforeDiscard >= MinSafeDeleteCycles,
 // iterations per frame for cleaning up unused resources for passes
 static constexpr int FrameCleanupBudget = 16;
 
-EngineStatTimer g_statRenderThreadSync("SemWait");
+EngineStatTimer g_statRenderThreadSync("Rendering/CPU/RenderThreadSync");
+EngineStatTimer g_statSimThreadSync("Rendering/CPU/SimThreadSync");
+
+EngineStatTimer g_statStalling("Rendering/CPU/TotalStallTime");
+
 EngineStatGpuTimer g_statGpuFrameTime("Rendering/GPU/FrameTime");
 
 static EngineStatTimer s_statViewDataAllocTime { "Rendering/ViewData/AllocTime", /* resetPerFrame */ false };
@@ -350,7 +354,7 @@ static BufferedViewData* GetBufferedViewData(View* view, uint32 slot)
     bufferedViewData->rplShared->BeginWrite();
     bufferedViewData->rplShared->ClearAll();
     bufferedViewData->rplShared->EndWrite();
-    
+
     AssertDebug(bufferedViewData->rplShared->GetMeshEntities().NumCurrent() == 0);
 
     bufferedData.perViewData[view] = bufferedViewData;
@@ -544,14 +548,19 @@ void BeginFrameSim(AtomicFlag* pCancelFlag)
 {
     Framework::s_threadFrameIndex = &Framework::s_frameIndex[Framework::TT_FrameDataProducer];
 
-    while (!Framework::s_freeSemaphore.try_acquire())
     {
-        if (pCancelFlag != nullptr && pCancelFlag->Load())
-        {
-            return;
-        }
+        ENGINE_STAT_SCOPE(&g_statSimThreadSync);
+        ENGINE_STAT_SCOPE(&g_statStalling);
 
-        ThreadSleep(0);
+        while (!Framework::s_freeSemaphore.try_acquire())
+        {
+            if (pCancelFlag != nullptr && pCancelFlag->Load())
+            {
+                return;
+            }
+
+            ThreadSleep(0);
+        }
     }
 }
 
@@ -909,6 +918,7 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
 
     {
         ENGINE_STAT_SCOPE(&g_statRenderThreadSync);
+        ENGINE_STAT_SCOPE(&g_statStalling);
 
         while (!Framework::s_fullSemaphore.try_acquire())
         {
@@ -1369,7 +1379,7 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
     } deferredBindCommandMemory;
 
     void (*executeBindCmdFunction)(CmdBase*, CommandBuffer*) = nullptr;
-    
+
     GraphicsPipelineCacheHandle cacheHandle;
 
     switch (psoType)
@@ -1552,7 +1562,7 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
         for (const ShaderInputSet& setDecl : tableDecl->elements)
         {
             const ShaderInputSet* pSetDecl = &setDecl;
-            
+
             // If this assertion fires, likely the Shader was destroyed from underneath us
             // likely due to shader recompilation and invalidation of cached pipelines for that shader not properly removing the cached pipelines...
             // This is a bug seen on mac sometimes (especially when switching selected node).

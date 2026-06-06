@@ -24,6 +24,7 @@ static const String s_stringClassName = "String";
 static const String s_mapClassName = "ScriptMap";
 static const String s_nameClassName = "Name";
 static const String s_classRefClassName = "ClassRef";
+static const String s_mathClassName = "Math";
 
 const SymbolType* BuiltinTypes::s_primitiveType = new SymbolType(
     "<primitive>",
@@ -428,6 +429,13 @@ const SymbolType* BuiltinTypes::s_mapType = SymbolType::Generic(
         }
     });
 
+const SymbolType* BuiltinTypes::s_mathType = new SymbolType(
+    "Math",
+    TYPE_BUILTIN,
+    nullptr,
+    nullptr,
+    {}, {});
+
 void BuiltinTypes::Initialize(CompilationUnit* globalCompilationUnit)
 {
     Assert(globalCompilationUnit != nullptr);
@@ -742,6 +750,384 @@ void BuiltinTypes::Initialize(CompilationUnit* globalCompilationUnit)
         });
 #pragma endregion Class
 
+#pragma region Math
+    SymbolType* mathTypeNonConst = const_cast<SymbolType*>(BuiltinTypes::s_mathType);
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Sin",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "x", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Cos",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "x", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Tan",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "x", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Arcsin",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "x", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Arccos",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "x", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Arctan",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "x", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "RadToDeg",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "rad", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "DegToRad",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "deg", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Sqrt",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "value", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Pow",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "value", BuiltinTypes::s_floatType },
+                    { "exponent", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Abs",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "value", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Min",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "a", BuiltinTypes::s_floatType },
+                    { "b", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Max",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "a", BuiltinTypes::s_floatType },
+                    { "b", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Clamp",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "val", BuiltinTypes::s_floatType },
+                    { "min", BuiltinTypes::s_floatType },
+                    { "max", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Floor",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "value", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Ceil",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "value", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Trunc",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "value", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Round",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "value", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Fract",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "value", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Sign",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "value", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Lerp",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "from", BuiltinTypes::s_floatType },
+                    { "to", BuiltinTypes::s_floatType },
+                    { "amt", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Step",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "edge", BuiltinTypes::s_floatType },
+                    { "x", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Exp",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "value", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Mod",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "a", BuiltinTypes::s_floatType },
+                    { "b", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "IsNaN",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_boolType },
+                    { "value", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "IsFinite",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_boolType },
+                    { "value", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "ApproxEqual",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_boolType },
+                    { "a", BuiltinTypes::s_floatType },
+                    { "b", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+
+    mathTypeNonConst->GetStaticMembers().PushBack(SymbolTypeMember {
+        "Factorial",
+        SymbolType::GenericInstance(
+            BuiltinTypes::s_functionType,
+            {}, {},
+            GenericInstanceTypeInfo {
+                {
+                    { "@return", BuiltinTypes::s_floatType },
+                    { "value", BuiltinTypes::s_floatType }
+                }
+            })
+        });
+#pragma endregion Math
+
 #define REGISTER_GLOBAL_TYPE(type)                                      \
     do                                                                  \
     {                                                                   \
@@ -779,6 +1165,7 @@ void BuiltinTypes::Initialize(CompilationUnit* globalCompilationUnit)
     REGISTER_GLOBAL_TYPE(BuiltinTypes::s_arrayType);
     REGISTER_GLOBAL_TYPE(BuiltinTypes::s_mapType);
     REGISTER_GLOBAL_TYPE(BuiltinTypes::s_classType);
+    REGISTER_GLOBAL_TYPE(BuiltinTypes::s_mathType);
 
 #undef REGISTER_GLOBAL_TYPE
 }
@@ -944,6 +1331,7 @@ void BuiltinTypes::RegisterTypes(CompilationUnit* compilationUnit)
         BuiltinTypes::s_arrayType,
         BuiltinTypes::s_mapType,
         BuiltinTypes::s_classType,
+        BuiltinTypes::s_mathType,
         sbyteType,
         byteType,
         shortType,
@@ -998,6 +1386,11 @@ const String& BuiltinTypes::GetNativeClassNameForType(const SymbolType* type)
     if (type->IsClassType())
     {
         return s_classRefClassName;
+    }
+
+    if (type == BuiltinTypes::s_mathType)
+    {
+        return s_mathClassName;
     }
 
     return type->GetName();

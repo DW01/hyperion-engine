@@ -1176,18 +1176,18 @@ static void ForEachPermutation(
 
     if (parallel)
     {
-        auto CallbackWrapper = [&callback](const ShaderVariantPerms& perm, uint32)
+        auto callbackWrapper = [&callback](const ShaderVariantPerms& perm, uint32)
         {
             callback(perm);
         };
 
         if (s_precompileShadersPool)
         {
-            TaskSystem::GetInstance().ParallelForEach(*s_precompileShadersPool, *currentCombinations, CallbackWrapper);
+            TaskSystem::GetInstance().ParallelForEach(*s_precompileShadersPool, *currentCombinations, callbackWrapper);
         }
         else
         {
-            TaskSystem::GetInstance().ParallelForEach(*currentCombinations, CallbackWrapper);
+            TaskSystem::GetInstance().ParallelForEach(*currentCombinations, callbackWrapper);
         }
     }
     else
@@ -1726,7 +1726,7 @@ bool ShaderCompiler::LoadBundle(
     const INIFile::Section& section = m_definitions->GetSection(nameString);
     ParseDefinitionSection(section, decl);
 
-    auto ForceRecompile = [&](const AssetPath& path)
+    auto forceRecompile = [&](const AssetPath& path)
     {
         if (CanCompileShaders())
         {
@@ -1755,7 +1755,7 @@ bool ShaderCompiler::LoadBundle(
 
     if (!LoadBundleFromAssetPath(bundleAssetPath, outBundle))
     {
-        if (!ForceRecompile(bundleAssetPath))
+        if (!forceRecompile(bundleAssetPath))
         {
             HYP_LOG(ShaderCompiler, Error, "Failed to recompile bundle {}", bundleAssetPath.ToString());
 
@@ -1947,21 +1947,21 @@ static TResult<Tuple<ShaderInputType, ShaderResourceCategory, GpuBufferType>> Pa
     const String trimmed = declaration.TrimmedLeft();
     const String firstToken = ExtractFirstToken(trimmed);
 
-    auto MakeCBVType = [flags]() -> ShaderInputType
+    auto makeCBVType = [flags]() -> ShaderInputType
     {
         return (flags & DescriptorUsageFlags::DYNAMIC)
             ? ShaderInputType::CBV_Dynamic
             : ShaderInputType::CBV;
     };
 
-    auto MakeSRVType = [flags]() -> ShaderInputType
+    auto makeSRVType = [flags]() -> ShaderInputType
     {
         return (flags & DescriptorUsageFlags::DYNAMIC)
             ? ShaderInputType::SRV_Dynamic
             : ShaderInputType::SRV;
     };
 
-    auto MakeUAVType = [flags]() -> ShaderInputType
+    auto makeUAVType = [flags]() -> ShaderInputType
     {
         return (flags & DescriptorUsageFlags::DYNAMIC)
             ? ShaderInputType::UAV_Dynamic
@@ -1972,7 +1972,7 @@ static TResult<Tuple<ShaderInputType, ShaderResourceCategory, GpuBufferType>> Pa
     {
         if (MatchesAnyToken(firstToken, { "cbuffer" }))
         {
-            return Tuple<ShaderInputType, ShaderResourceCategory, GpuBufferType> { MakeCBVType(), ShaderResourceCategory::Buffer, GpuBufferType::ConstantBuffer };
+            return Tuple<ShaderInputType, ShaderResourceCategory, GpuBufferType> { makeCBVType(), ShaderResourceCategory::Buffer, GpuBufferType::ConstantBuffer };
         }
 
         if (MatchesAnyToken(firstToken, { "StructuredBuffer", "ByteAddressBuffer", "Buffer" }))
@@ -1984,7 +1984,7 @@ static TResult<Tuple<ShaderInputType, ShaderResourceCategory, GpuBufferType>> Pa
                 bufferType = GpuBufferType::ByteAddressBuffer;
             }
 
-            return Tuple<ShaderInputType, ShaderResourceCategory, GpuBufferType> { MakeSRVType(), ShaderResourceCategory::Buffer, bufferType };
+            return Tuple<ShaderInputType, ShaderResourceCategory, GpuBufferType> { makeSRVType(), ShaderResourceCategory::Buffer, bufferType };
         }
 
         if (MatchesAnyToken(firstToken, { "RWStructuredBuffer", "RWByteAddressBuffer", "AppendStructuredBuffer", "ConsumeStructuredBuffer", "RWBuffer" }))
@@ -1994,7 +1994,7 @@ static TResult<Tuple<ShaderInputType, ShaderResourceCategory, GpuBufferType>> Pa
             {
                 bufferType = GpuBufferType::RWByteAddressBuffer;
             }
-            return Tuple<ShaderInputType, ShaderResourceCategory, GpuBufferType> { MakeUAVType(), ShaderResourceCategory::Buffer, bufferType };
+            return Tuple<ShaderInputType, ShaderResourceCategory, GpuBufferType> { makeUAVType(), ShaderResourceCategory::Buffer, bufferType };
         }
 
         if (MatchesAnyToken(firstToken, { "RWTexture1D", "RWTexture2D", "RWTexture3D", "RWTexture1DArray", "RWTexture2DArray" }))
@@ -2102,7 +2102,7 @@ ShaderCompiler::ProcessResult ShaderCompiler::ProcessShaderSource(
         String remaining;
     };
 
-    auto ParseCustomStatement = [](const String& start, const String& line) -> ParseCustomStatementResult
+    auto parseCustomStatement = [](const String& start, const String& line) -> ParseCustomStatementResult
     {
         const String substr = line.Substr(start.Length());
 
@@ -2144,8 +2144,6 @@ ShaderCompiler::ProcessResult ShaderCompiler::ProcessShaderSource(
 
         return { std::move(args), substr.Substr(index + 1) };
     };
-
-    int lastAttributeLocation = -1;
 
     for (uint32 lineIndex = 0; lineIndex < lines.Size();)
     {
@@ -2201,14 +2199,14 @@ ShaderCompiler::ProcessResult ShaderCompiler::ProcessShaderSource(
 
                 const String remaining = line.Substr(attrStringIndex);
 
-                auto IsIdentiferChar = [](utf::Char32 ch)
+                auto isIdentiferChar = [](utf::Char32 ch)
                 {
                     return std::isalnum(utf::Char32(ch)) || ch == utf::Char32('_');
                 };
 
                 VertexAttributeDefinition attributeDefinition {};
-                attributeDefinition.name = StringUtil::TakeWhile(parts[2], IsIdentiferChar);
-                attributeDefinition.typeClass = StringUtil::TakeWhile(parts[1], IsIdentiferChar);
+                attributeDefinition.name = StringUtil::TakeWhile(parts[2], isIdentiferChar);
+                attributeDefinition.typeClass = StringUtil::TakeWhile(parts[1], isIdentiferChar);
 
                 if (optional)
                 {
@@ -2262,7 +2260,7 @@ ShaderCompiler::ProcessResult ShaderCompiler::ProcessShaderSource(
                     break;
                 }
 
-                auto parseResult = ParseCustomStatement(commandStr, line);
+                auto parseResult = parseCustomStatement(commandStr, line);
 
                 if (parseResult.args.Empty() || parseResult.args[0].Empty())
                 {
@@ -2427,7 +2425,7 @@ ShaderCompiler::ProcessResult ShaderCompiler::ProcessShaderSource(
 
                 TMap<String, String> params;
 
-                auto parseResult = ParseCustomStatement(commandStr, line);
+                auto parseResult = parseCustomStatement(commandStr, line);
 
                 if (parseResult.args.Size() < 2)
                 {
@@ -3028,7 +3026,7 @@ bool ShaderCompiler::CompileBundle(
 
         return {};
     };
-    
+
     TSet<Shader*> newShaders;
 
     auto CompilePermFunctor = [&](const ShaderVariantPerms& perm)
@@ -3288,7 +3286,7 @@ bool ShaderCompiler::CompileBundle(
 
             shader->properties.Add(propertyId);
         }
-            
+
         shader->propertySetHashCode = perm.GetPropertySetHashCode();
 
         numCompiledPermutations += (numErrored == 0 && numCompiled > 0 ? 1 : 0);
@@ -3309,7 +3307,7 @@ bool ShaderCompiler::CompileBundle(
 
             AssertDebug(!usedNames.Contains(shader->GetName()));
             usedNames.Add(shader->GetName());
-            
+
             newShaders.Add(shader);
 
             auto existingIt = outBundle->compiledShaders.FindIf([name = shader->GetName()](const Handle<Shader>& existing)
@@ -3368,7 +3366,7 @@ bool ShaderCompiler::CompileBundle(
 
         existingShadersToRemove.Clear();
     }
-    
+
     for (Shader* shader : newShaders)
     {
         GetEngineAssetRegistry()->PutAsset(MakeStrongRef(shader));
@@ -3427,7 +3425,7 @@ bool ShaderCompiler::CompileBundle(
 
     GetEngineAssetRegistry()->PutAssetsDeep(MakeStrongRef(outBundle));
     GetEngineAssetRegistry()->SaveDirtyAssets();
-    
+
 #ifdef HYP_SHADER_COMPILER_LOGGING
     if (numCompiledPermutations.Get(MemoryOrder::RELAXED) != 0)
     {
@@ -3555,12 +3553,12 @@ bool ShaderCompiler::IsShaderBundleOutdated(Name name) const
     {
         return false;
     }
-    
+
     const AssetPath bundleAssetPath = AssetPath(AssetRegistryId::Engine, AssetBuckets::ShaderBundles, name);
     const FilePath bundleManifestFilePath = GetEngineAssetRegistry()->GetManifestPath(bundleAssetPath);
-    
+
     const Time bundleManifestModifiedTimestamp = bundleManifestFilePath.LastModifiedTimestamp();
-    
+
     Time sourceFileModifiedTimestamp = Time(0);
 
     for (const auto& sourceFile : foundDecl->sources)
