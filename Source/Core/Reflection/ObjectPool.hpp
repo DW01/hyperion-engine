@@ -144,7 +144,7 @@ struct ObjectHeader
     bool TryIncRefStrong()
     {
         // Snapshot the generation to detect ABA (header freed and reallocated by the time CAS succeeds)
-        const uint32 gen = generation;
+        const uint32 currGeneration = generation;
 
         int32 count = AtomicAdd(&refCountStrong, 0);
 
@@ -152,9 +152,7 @@ struct ObjectHeader
         {
             if (AtomicCompareExchange(&refCountStrong, count, count + 1))
             {
-                // Re-read generation after the barrier provided by CAS.
-                // If it changed, this header was recycled — roll back the increment.
-                if (generation != gen)
+                if (generation != currGeneration)
                 {
                     AtomicDecrement(&refCountStrong);
 

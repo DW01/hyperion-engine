@@ -64,7 +64,6 @@ struct ParallelRenderingState
 
     static constexpr uint32 MaxBatches = NumAsyncCommandBuffers;
 
-
     TaskBatch* taskBatch = nullptr;
 
     uint32 numBatches = 0;
@@ -77,10 +76,8 @@ struct ParallelRenderingState
 
     // per-thread CommandRecorder
     using ThreadedCommandRecorder = TCommandRecorder<ThreadAllocator>;
-    FixedArray<ThreadedCommandRecorder*, MaxBatches> threadedCommandRecorders {};
 
     FixedArray<EngineStatsValueSet, MaxBatches> statValues {};
-
 
     ParallelRenderingState* next = nullptr;
 

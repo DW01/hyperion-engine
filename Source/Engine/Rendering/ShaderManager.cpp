@@ -44,7 +44,7 @@ ENGINE_API HYP_DECLARE_LOG_CHANNEL(Shader);
 ENGINE_API HYP_DECLARE_LOG_CHANNEL(ShaderCompiler);
 #endif
 
-static EngineStatTimer s_statShaderCompilation { "Rendering/ShaderCompilation", /* resetPerFrame */ false };
+static EngineStatTimer s_statShaderCompilation("TotalShaderCompilationTime", /* resetPerFrame */ false);
 
 static const Name s_nameFallbackShader = NAME("Fallback");
 

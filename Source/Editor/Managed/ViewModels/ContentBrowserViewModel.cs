@@ -205,6 +205,8 @@ namespace Hyperion.Editor.ViewModels
         /// <summary>
         /// Quick-reads a manifest JSON file and extracts the value of the "$Class" key
         /// without fully parsing the document. Returns null if not found or on any error.
+        ///
+        /// @FIXME: THIS IS A TEMP HACK! It's currently used to extract the class name from manifest files, shouldn't really need to parse or read the json files for this.
         /// </summary>
         private static string? ExtractClassFromManifest(string filePath)
         {

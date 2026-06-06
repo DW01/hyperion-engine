@@ -4,7 +4,6 @@
  *  @licence MIT
 */
 
-#include "Core/Threading/Threads.hpp"
 #include <RenderingPch.hpp>
 
 #include <Rendering/Util/ShaderCompiler.hpp>
@@ -30,6 +29,8 @@
 #include <Core/Utilities/ByteUtil.hpp>
 #include <Core/Utilities/ForEach.hpp>
 #include <Core/Utilities/Time.hpp>
+
+#include <Core/Threading/Threads.hpp>
 
 #include <Core/Reflection/Enum.hpp>
 

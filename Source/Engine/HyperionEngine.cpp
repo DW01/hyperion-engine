@@ -112,6 +112,7 @@ EDITOR_API extern void InitializeModule_Editor();
 // defined in PlatformUtils.[cpp|mm]
 namespace PlatformUtils {
 ENGINE_API extern PlatformString GetExecutableAbsolutePath();
+ENGINE_API extern bool IsOnBatteryPower();
 } // namespace PlatformUtils
 
 ENGINE_API Handle<EngineDriver> g_engineDriver;

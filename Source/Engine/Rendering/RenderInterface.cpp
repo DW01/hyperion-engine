@@ -125,11 +125,11 @@ static constexpr int FrameCleanupBudget = 16;
 EngineStatTimer g_statRenderThreadSync("Rendering/CPU/RenderThreadSync");
 EngineStatTimer g_statSimThreadSync("Rendering/CPU/SimThreadSync");
 
-EngineStatTimer g_statStalling("Rendering/CPU/TotalStallTime");
+EngineStatTimer g_statTotalStallTime("Rendering/CPU/TotalStallTime");
 
 EngineStatGpuTimer g_statGpuFrameTime("Rendering/GPU/FrameTime");
 
-static EngineStatTimer s_statViewDataAllocTime { "Rendering/ViewData/AllocTime", /* resetPerFrame */ false };
+static EngineStatTimer s_statViewDataAllocTime("Rendering/ViewData/AllocTime", /* resetPerFrame */ false);
 
 /// ===== Memory pools =====
 ENGINE_API Pool* g_renderPool;
@@ -550,7 +550,7 @@ void BeginFrameSim(AtomicFlag* pCancelFlag)
 
     {
         ENGINE_STAT_SCOPE(&g_statSimThreadSync);
-        ENGINE_STAT_SCOPE(&g_statStalling);
+        ENGINE_STAT_SCOPE(&g_statTotalStallTime);
 
         while (!Framework::s_freeSemaphore.try_acquire())
         {
@@ -918,7 +918,7 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
 
     {
         ENGINE_STAT_SCOPE(&g_statRenderThreadSync);
-        ENGINE_STAT_SCOPE(&g_statStalling);
+        ENGINE_STAT_SCOPE(&g_statTotalStallTime);
 
         while (!Framework::s_fullSemaphore.try_acquire())
         {
