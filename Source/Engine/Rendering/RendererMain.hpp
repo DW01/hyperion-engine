@@ -77,8 +77,6 @@ struct ParallelRenderingState
     // per-thread CommandRecorder
     using ThreadedCommandRecorder = TCommandRecorder<ThreadAllocator>;
 
-    FixedArray<EngineStatsValueSet, MaxBatches> statValues {};
-
     ParallelRenderingState* next = nullptr;
 
     ParallelRenderingState(ParallelRenderingState_Shared* sharedData, bool ownsSharedData);

@@ -1483,7 +1483,6 @@ HYP_NODISCARD ParallelRenderingState* RenderCollector::AcquireNextParallelRender
             taskBatch->pool = &pool;
 
             parallelRenderingStateHead->taskBatch = taskBatch;
-            parallelRenderingStateHead->numBatches = ParallelRenderingState::MaxBatches;
         }
 
         curr = parallelRenderingStateHead;
@@ -1504,7 +1503,6 @@ HYP_NODISCARD ParallelRenderingState* RenderCollector::AcquireNextParallelRender
             taskBatch->pool = &pool;
 
             newParallelRenderingState->taskBatch = taskBatch;
-            newParallelRenderingState->numBatches = ParallelRenderingState::MaxBatches;
 
             next = newParallelRenderingState;
         }
@@ -1580,14 +1578,6 @@ void RenderCollector::Commit(CommandRecorder& cr, uint8 index)
         cr << SetDepthBias(0, 0.0f);
         cr << SetDepthClamp(false);
         cr << SetStencilTest(false);
-
-        // Add render stats counts to the engine's render stats
-        for (EngineStatsValueSet& valueSet : state->statValues)
-        {
-            g_engineStats->RecordValueSet(valueSet);
-
-            valueSet = {}; // Reset counts after adding for next use
-        }
 
         state->sharedData->Reset();
         state->taskBatch->ResetState();

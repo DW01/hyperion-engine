@@ -15,7 +15,7 @@
     "IndirectRendering": true,
     "DepthPrepass": true,
     "ParallelCollection": true,
-    "TargetFrameRate": 120,
+    "TargetFrameRate": 0,
     "SSR": {
       "Enabled": true,
       "Quality": 2,
