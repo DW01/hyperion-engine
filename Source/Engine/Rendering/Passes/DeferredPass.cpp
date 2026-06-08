@@ -300,10 +300,10 @@ void FillShadowMapData(
 
 } // namespace DeferredRendererHelpers
 
-static const TypeId s_envProbeTypeToTypeId[EPT_MAX] = {
+static constexpr TypeId EnvProbeTypeToTypeId[EPT_MAX] = {
     TypeId::ForType<SkyProbe>(),        // EPT_SKY
     TypeId::ForType<ReflectionProbe>(), // EPT_REFLECTION
-    TypeId::ForType<EnvProbe>()         // EPT_AMBIENT (fixme when derived class)
+    TypeId::ForType<IrradianceProbe>()  // EPT_AMBIENT (fixme when derived class)
 };
 
 #pragma region LightingPass
@@ -1351,7 +1351,7 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
     {
         const EnvProbeType envProbeType = EnvProbeTypes[cubemapType];
 
-        for (EnvProbe* envProbe : rpl.GetEnvProbes().GetElements(s_envProbeTypeToTypeId[envProbeType]))
+        for (EnvProbe* envProbe : rpl.GetEnvProbes().GetElements(EnvProbeTypeToTypeId[envProbeType]))
         {
             probesPerCubemapType[cubemapType].PushBack(envProbe);
         }
@@ -2618,8 +2618,8 @@ void DeferredPass::RenderFrame(Frame* frame, const RenderSetup& rs)
 
         if (envProbes.Any())
         {
-            // check for dynamic env probes to render
-            for (uint32 envProbeType = 0; envProbeType <= EPT_REFLECTION; envProbeType++)
+            // check for dynamic probes to render
+            for (uint32 envProbeType = 0; envProbeType < EPT_MAX; envProbeType++)
             {
                 if (PassBase* pass = RI.namedPasses[NamedPass::EnvProbe][envProbeType])
                 {
@@ -2638,26 +2638,8 @@ void DeferredPass::RenderFrame(Frame* frame, const RenderSetup& rs)
                 }
                 else
                 {
-                    HYP_LOG(Rendering, Warning, "No EnvProbePass found for EnvProbeType {}! Skipping rendering of env probes of this type.", EPT_REFLECTION);
+                    HYP_LOG_ONCE(Rendering, Warning, "No EnvProbePass found for EnvProbeType {}!", EnumToString(EnvProbeType(envProbeType)));
                 }
-            }
-        }
-
-        if (envGrids.Any())
-        {
-            for (EnvGrid* envGrid : envGrids)
-            {
-                RenderSetup envGridSetup = envProbeSetup.Fork();
-
-                // Set global directional light as fallback
-                if (envGridLights.Contains(envGrid))
-                {
-                    envGridSetup.light = envGridLights[envGrid];
-                }
-
-                envGridSetup.envGrid = envGrid;
-
-                RI.namedPasses[NamedPass::EnvGrid][0]->RenderFrame(frame, envGridSetup);
             }
         }
     }

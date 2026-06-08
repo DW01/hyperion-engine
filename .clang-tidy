@@ -4,7 +4,7 @@ CheckOptions:
   - { key: readability-implicit-bool-conversion.AllowPointerConditions,   value: true }
   - { key: readability-inconsistent-declaration-parameter-name.Strict,    value: true }
   - { key: readability-identifier-naming.FunctionIgnoredRegexp,           value: "(.*_.*)|(.*_Impl)|(.*_Internal)|(.*_KeyByFunction)|(.*_Proc)|(^get$)" }
-  - { key: readability-identifier-naming.GlobalVariableIgnoredRegexp,     value: "(HYP_DECLARE_LOG_CHANNEL.*)|(RENDER_COMMAND.*)$" }
+  - { key: readability-identifier-naming.GlobalVariableIgnoredRegexp,     value: "(HYP_DECLARE_LOG_CHANNEL.*)|(^g_(.*)$)" }
   - { key: readability-identifier-naming.LocalVariableCase,               value: camelBack }
   - { key: readability-identifier-naming.LocalVariableIgnoredRegexp,      value: "^_(.*)$" }
   - { key: readability-identifier-naming.LocalConstantCase,               value: camelBack }
@@ -13,12 +13,11 @@ CheckOptions:
   - { key: readability-identifier-naming.ClassCase,                       value: CamelCase }
   - { key: readability-identifier-naming.ClassIgnoredRegexp,              value: "(.*_.*)|(^float16$)" }
   - { key: readability-identifier-naming.AbstractClassSuffix,             value: Base }
-  - { key: readability-identifier-naming.AbstractClassIgnoredRegexp,      value: "^(I(.*))|(HypEnum)|(HypClass)|(HypStruct)$" }
+  - { key: readability-identifier-naming.AbstractClassIgnoredRegexp,      value: "^(I(.*))|(Enum)|(Class)|(Struct)$" }
   - { key: readability-identifier-naming.StructCase,                      value: CamelCase }
   - { key: readability-identifier-naming.StructIgnoredRegexp,             value: "(.*_.*)|(^float16$)" }
   - { key: readability-identifier-naming.EnumCase,                        value: CamelCase }
-  - { key: readability-identifier-naming.EnumConstantCase,                value: UPPER_CASE }
-  - { key: readability-identifier-naming.EnumConstantIgnoredRegexp,       value: "^((.*)_$)|(Info)|(Warn)|(Error)|(Fatal)|(Debug)|(RenInfo)|(RenWarn)|(RenError)|(RenDebug)|(^UUIDv.*$)|(^value$)" }
+  - { key: readability-identifier-naming.EnumConstantCase,                value: CamelCase }
   - { key: readability-identifier-naming.NamespaceCase,                   value: CamelCase }
   - { key: readability-identifier-naming.ParameterCase,                   value: camelBack }
   - { key: readability-identifier-naming.ParameterIgnoredRegexp,          value: "^_(.*)$" }
@@ -27,7 +26,6 @@ CheckOptions:
   - { key: readability-identifier-naming.GlobalConstantCase,              value: camelBack }
   - { key: readability-identifier-naming.GlobalConstantPrefix,            value: "g_" }
   - { key: readability-identifier-naming.PublicMemberCase,                value: camelBack }
-  - { key: readability-identifier-naming.PublicMemberIgnoredRegexp,       value: "(^[A-Z].*$)|(^On(.*))|(.*Callback.*)|(^_.*)|(Span)|(Pair)|(NotNullPtr)$" } # Span, Pair etc types are breaking with clang-tidy when used as a parameter
   - { key: readability-identifier-naming.ProtectedMemberCase,             value: camelBack }
   - { key: readability-identifier-naming.ProtectedMemberPrefix,           value: m_ }
   - { key: readability-identifier-naming.ProtectedMemberIgnoredRegexp,    value: "(^On(.*))|(.*Callback.*)|(^_.*)" }
@@ -49,6 +47,9 @@ CheckOptions:
   - { key: readability-identifier-naming.StaticConstantPrefix,            value: "s_" }
   - { key: readability-identifier-naming.StaticVariableCase,              value: camelBack }
   - { key: readability-identifier-naming.StaticVariablePrefix,            value: "s_" }
+  - { key: readability-identifier-naming.StaticMemberCase,                value: camelBack }
+  - { key: readability-identifier-naming.StaticMemberPrefix,              value: "s_" }
+  - { key: readability-identifier-naming.StaticMemberIgnoredRegexp,       value: "^g_(.*)$" }
   - { key: readability-identifier-naming.TemplateParameterCase,           value: CamelCase }
   - { key: readability-identifier-naming.TemplateParameterIgnoredRegexp,  value: "^(string_type)|(.*_.*)$" }
   - { key: readability-identifier-naming.TemplateTypeCase,                value: CamelCase }

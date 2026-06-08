@@ -44,4 +44,12 @@ namespace Hyperion
         {
         }
     }
+
+    [ClassBinding(Name = "IrradianceProbe")]
+    public class IrradianceProbe : EnvProbe
+    {
+        public IrradianceProbe()
+        {
+        }
+    }
 }

@@ -267,6 +267,8 @@ void SimThread::operator()()
     // Handle -SimulateOnMainThread
     if (m_id != g_mainThread)
     {
+        g_renderInitSignal.Wait();
+        
         while (!m_stopRequested.Load())
         {
             HYP_PROFILE_BEGIN;
