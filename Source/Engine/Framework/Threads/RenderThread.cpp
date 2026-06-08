@@ -161,27 +161,6 @@ void RenderThread::Update()
         }
     }
 
-    if (targetFrameRate > 0.0f)
-    {
-        s_frameLimiter.SetTargetFPS(static_cast<int>(targetFrameRate));
-        s_frameLimiter.Wait();
-
-        // const float elapsed = s_throttleTimer.Interval(ClockTimer::Now());
-        // const float targetInterval = 1.0f / targetFrameRate;
-
-        // if (elapsed < targetInterval)
-        // {
-        //     FastSleep(targetInterval - elapsed);
-
-        //     s_throttleTimer.lastTimePoint += std::chrono::duration_cast<ClockTimer::Clock::duration>(
-        //         std::chrono::duration<float>(targetInterval));
-        // }
-        // else
-        // {
-        //     s_throttleTimer.NextTick();
-        // }
-    }
-
     Queue<Scheduler::ScheduledTask> tasks;
     if (uint32 numEnqueued = m_scheduler->NumEnqueued())
     {
@@ -318,6 +297,14 @@ void RenderThread::Update()
     RI.EndFrame();
 
     g_renderArena->Reset();
+    
+    // Wait AFTER the frame is rendered to allow sim thread to catch up,
+    // as we want buffered data to keep being written even as we wait.
+    if (targetFrameRate > 0.0f)
+    {
+        s_frameLimiter.SetTargetFPS(static_cast<int>(targetFrameRate));
+        s_frameLimiter.Wait();
+    }
 }
 
 void RenderThread::operator()()

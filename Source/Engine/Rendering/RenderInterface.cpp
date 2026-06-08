@@ -553,15 +553,13 @@ void BeginFrameSim(AtomicFlag* pCancelFlag)
         ENGINE_STAT_SCOPE(&g_statSimThreadSync);
         ENGINE_STAT_SCOPE(&g_statTotalStallTime);
 
-        while (!Framework::s_freeSemaphore.try_acquire())
-        {
-            if (pCancelFlag != nullptr && pCancelFlag->Load())
-            {
-                return;
-            }
-
-            ThreadSleep(0);
-        }
+       while (!Framework::s_freeSemaphore.try_acquire_for(std::chrono::milliseconds(100)))
+       {
+           if (pCancelFlag != nullptr && pCancelFlag->Load())
+           {
+               return;
+           }
+       }
     }
 }
 
@@ -922,14 +920,12 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
         ENGINE_STAT_SCOPE(&g_statRenderThreadSync);
         ENGINE_STAT_SCOPE(&g_statTotalStallTime);
 
-        while (!Framework::s_fullSemaphore.try_acquire())
+        while (!Framework::s_fullSemaphore.try_acquire_for(std::chrono::milliseconds(100)))
         {
             if (pCancelFlag != nullptr && pCancelFlag->Load())
             {
                 return;
             }
-
-            ThreadSleep(0);
         }
     }
 
