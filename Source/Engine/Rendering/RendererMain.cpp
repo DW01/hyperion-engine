@@ -132,11 +132,13 @@ struct ParallelRenderingState_Shared
         destructCommandRecorders(0);
 
         Array<Task<void>> tasks;
-        tasks.Reserve(ParallelRenderingState::MaxBatches);
+        tasks.Reserve(ParallelRenderingState::MaxBatches - 1);
 
         auto& poolThreads = TaskSystem::GetInstance().GetPool(TaskThreadPoolName::THREAD_POOL_RENDER).GetThreads();
 
-        for (uint32 threadIndex = 0; threadIndex < NumRendererWorkerThreads; threadIndex++)
+        const uint32 numWorkerBatches = MathUtil::Min(uint32(poolThreads.Size()), MaxBatches - 1);
+
+        for (uint32 threadIndex = 0; threadIndex < numWorkerBatches; threadIndex++)
         {
             AssertDebug(poolThreads[threadIndex] != nullptr);
 
@@ -146,7 +148,7 @@ struct ParallelRenderingState_Shared
                 }));
         }
 
-        AssertDebug(tasks.Size() == NumRendererWorkerThreads);
+        AssertDebug(tasks.Size() == numWorkerBatches);
 
         AwaitAll(tasks.ToSpan());
     }
@@ -1368,7 +1370,7 @@ RenderCollector::~RenderCollector()
                 {
                     ParallelRenderingState* state = list.head;
 
-                    Array<ParallelRenderingState*> toDelete = { state };
+                    Array<ParallelRenderingState*> toDelete;
 
                     while (state != nullptr)
                     {
@@ -1380,6 +1382,8 @@ RenderCollector::~RenderCollector()
                         }
 
                         ParallelRenderingState* nextState = state->next;
+
+                        AssertDebug(!toDelete.Contains(state));
 
                         toDelete.PushBack(state);
 
