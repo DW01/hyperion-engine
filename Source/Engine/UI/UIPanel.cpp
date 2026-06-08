@@ -22,7 +22,7 @@ UIPanel::UIPanel()
     SetBackgroundColor(Color(0.01f, 0.01f, 0.012f, 1.0f));
     SetTextColor(Color(0xFFFFFFFFu));
 
-    m_onScrollHandler = OnScroll.Bind([this](const MouseEvent& eventData) -> UIEventHandlerResult
+    m_onScrollHandler = OnScroll.Bind(this, [this](const MouseEvent& eventData) -> UIEventHandlerResult
         {
             return HandleScroll(eventData);
         });
@@ -296,35 +296,30 @@ void UIPanel::UpdateScrollbarSize(ScrollAxis axis)
         thumb->SetBackgroundColor(Color(0.1f, 0.15f, 0.22f, 0.75f));
         thumb->SetPadding(0);
 
-        thumb->OnMouseDown
-            .Bind([this, axis, thumbWeak = thumb.ToWeak()](const MouseEvent& eventData) -> UIEventHandlerResult
-                {
-                    if (Handle<UIObject> thumb = thumbWeak.Lock(); thumb.IsValid())
-                    {
-                        const int i = ScrollAxisToIndex(axis);
-                        Assert(i != -1);
-
-                        m_initialDragPosition[i] = Vec2i(eventData.relativePos * Vec2f(thumb->GetActualSize()));
-                    }
-
-                    return UIEventHandlerResult::STOP_BUBBLING;
-                })
-            .Detach();
-
-        thumb->OnMouseUp
-            .Bind([this, axis](const MouseEvent& eventData) -> UIEventHandlerResult
+        OnMouseDown.Bind(thumb, [this, axis, thumbWeak = thumb.ToWeak()](const MouseEvent& eventData) -> UIEventHandlerResult
+            {
+                if (Handle<UIObject> thumb = thumbWeak.Lock(); thumb.IsValid())
                 {
                     const int i = ScrollAxisToIndex(axis);
                     Assert(i != -1);
 
-                    m_initialDragPosition[i] = Vec2i::Zero();
+                    m_initialDragPosition[i] = Vec2i(eventData.relativePos * Vec2f(thumb->GetActualSize()));
+                }
 
-                    return UIEventHandlerResult::STOP_BUBBLING;
-                })
-            .Detach();
+                return UIEventHandlerResult::STOP_BUBBLING;
+            }).Detach();
 
-        thumb->OnMouseDrag
-            .Bind([this, axis, scrollbarWeak = scrollbar.ToWeak(), thumbWeak = thumb.ToWeak()](const MouseEvent& eventData) -> UIEventHandlerResult
+        OnMouseUp.Bind(thumb, [this, axis](const MouseEvent& eventData) -> UIEventHandlerResult
+            {
+                const int i = ScrollAxisToIndex(axis);
+                Assert(i != -1);
+
+                m_initialDragPosition[i] = Vec2i::Zero();
+
+                return UIEventHandlerResult::STOP_BUBBLING;
+            }).Detach();
+
+        OnMouseDrag.Bind(thumb, [this, axis, scrollbarWeak = scrollbar.ToWeak(), thumbWeak = thumb.ToWeak()](const MouseEvent& eventData) -> UIEventHandlerResult
                 {
                     if (CanScrollOnAxis(axis))
                     {

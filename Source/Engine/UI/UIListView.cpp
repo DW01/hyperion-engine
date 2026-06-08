@@ -30,7 +30,7 @@ UIListViewItem::UIListViewItem()
     SetSize(UIObjectSize({ 0, UIObjectSize::AUTO }, { 0, UIObjectSize::AUTO }));
 
     OnClick
-        .Bind([this](...)
+        .Bind(this, [this](...)
             {
                 if (HasSubItems())
                 {
@@ -192,7 +192,7 @@ UIListView::UIListView()
 {
     SetInnerSize(UIObjectSize({ 100, UIObjectSize::PERCENT }, { 0, UIObjectSize::AUTO }));
 
-    OnClick.Bind([this](...)
+    OnClick.Bind(this, [this](...)
                {
                    return UIEventHandlerResult::STOP_BUBBLING;
                })
@@ -494,21 +494,19 @@ void UIListView::AddDataSourceElement(UIDataSourceBase* dataSource, UIDataSource
     listViewItem->SetNodeTag(NodeTag(NAME("DataSourceElementUUID"), element->GetUUID()));
     listViewItem->SetDataSourceElementUUID(element->GetUUID());
 
-    listViewItem->OnClick
-        .Bind([this, listViewItemWeak = listViewItem.ToWeak()](const MouseEvent& event) -> UIEventHandlerResult
+    OnClick.Bind(listViewItem, [this, listViewItemWeak = listViewItem.ToWeak()](const MouseEvent& event) -> UIEventHandlerResult
+        {
+            Handle<UIListViewItem> listViewItem = listViewItemWeak.Lock();
+
+            if (!listViewItem)
             {
-                Handle<UIListViewItem> listViewItem = listViewItemWeak.Lock();
+                return UIEventHandlerResult::ERR;
+            }
 
-                if (!listViewItem)
-                {
-                    return UIEventHandlerResult::ERR;
-                }
+            SetSelectedItem(listViewItem.Get());
 
-                SetSelectedItem(listViewItem.Get());
-
-                return UIEventHandlerResult::STOP_BUBBLING;
-            })
-        .Detach();
+            return UIEventHandlerResult::STOP_BUBBLING;
+        }).Detach();
 
     // create UIObject for the element and add it to the list view
     listViewItem->AddChildUIObject(dataSource->CreateUIObject(listViewItem, element->GetValue(), {}));

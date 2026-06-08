@@ -92,7 +92,7 @@ struct LaunchGameAsync
 
             g_engineDriver->AddWorld(world);
 
-            gameInstance->OnLaunched();
+            Game::OnLaunched.Fire(gameInstance);
         }
 
         g_simThreadInstance->m_gameInstance = gameInstance;

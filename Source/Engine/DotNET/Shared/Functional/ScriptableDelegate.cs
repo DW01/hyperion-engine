@@ -133,7 +133,8 @@ namespace Hyperion
                 }
 #endif
 
-                IntPtr delegateHandlerPtr = ScriptableDelegate_Bind(_ptr, pClass, objectReferencePtr);
+                IntPtr targetPtr = (_target is ObjectBase objBase) ? objBase.NativeAddress : IntPtr.Zero;
+                IntPtr delegateHandlerPtr = ScriptableDelegate_Bind(_ptr, targetPtr, pClass, objectReferencePtr);
 
                 return new DelegateHandler(delegateHandlerPtr)
                 {
@@ -172,7 +173,7 @@ namespace Hyperion
         }
 
         [DllImport("hyperion", EntryPoint = "ScriptableDelegate_Bind")]
-        private static extern IntPtr ScriptableDelegate_Bind([In] IntPtr ptr, [In] IntPtr pClass, [In] IntPtr objectReferencePtr);
+        private static extern IntPtr ScriptableDelegate_Bind([In] IntPtr ptr, [In] IntPtr targetPtr, [In] IntPtr pClass, [In] IntPtr objectReferencePtr);
 
         [DllImport("hyperion", EntryPoint = "ScriptableDelegate_RemoveAllDetached")]
         private static extern int ScriptableDelegate_RemoveAllDetached([In] IntPtr ptr);

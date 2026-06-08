@@ -28,6 +28,9 @@
 
 namespace Hyperion {
 
+ScriptableDelegate<void, Handle<Node>, Handle<Node>> Scene::OnRootNodeChanged;
+
+
 static const Name s_nameUnnamedScene = NAME("<unnamed scene>");
 static const Name s_nameSceneRoot = NAME("<ROOT>");
 
@@ -241,7 +244,7 @@ void Scene::SetRoot(const Handle<Node>& root)
         m_root->SetScene(this);
     }
 
-    OnRootNodeChanged(m_root, prevRoot);
+    OnRootNodeChanged.Fire(this, m_root, prevRoot);
 }
 
 bool Scene::AddToWorld(World* world)

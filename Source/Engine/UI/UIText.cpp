@@ -248,7 +248,7 @@ UIText::UIText()
     : UIObject()
 {
     OnComputedVisibilityChange
-        .Bind([this]()
+        .Bind(this, [this]()
             {
                 if (GetComputedVisibility())
                 {
@@ -262,7 +262,7 @@ UIText::UIText()
         .Detach();
 
     OnEnabled
-        .Bind([this]()
+        .Bind(this, [this]()
             {
                 UpdateMaterial(false);
 
@@ -271,7 +271,7 @@ UIText::UIText()
         .Detach();
 
     OnDisabled
-        .Bind([this]()
+        .Bind(this, [this]()
             {
                 UpdateMaterial(false);
 

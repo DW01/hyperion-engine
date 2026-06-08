@@ -1242,76 +1242,76 @@ public:
 
     // Events
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult> OnInit;
+    static ScriptableDelegate<UIEventHandlerResult> OnInit;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult> OnAttached;
+    static ScriptableDelegate<UIEventHandlerResult> OnAttached;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult> OnRemoved;
+    static ScriptableDelegate<UIEventHandlerResult> OnRemoved;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, UIObject*> OnChildAttached;
+    static ScriptableDelegate<UIEventHandlerResult, UIObject*> OnChildAttached;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, UIObject*> OnChildRemoved;
+    static ScriptableDelegate<UIEventHandlerResult, UIObject*> OnChildRemoved;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnMouseDown;
+    static ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnMouseDown;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnMouseUp;
+    static ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnMouseUp;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnMouseDrag;
+    static ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnMouseDrag;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnMouseHover;
+    static ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnMouseHover;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnMouseLeave;
+    static ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnMouseLeave;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnMouseMove;
+    static ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnMouseMove;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnGainFocus;
+    static ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnGainFocus;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnLoseFocus;
+    static ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnLoseFocus;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnScroll;
+    static ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnScroll;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnClick;
+    static ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnClick;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnRightClick;
+    static ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> OnRightClick;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const KeyboardEvent&> OnKeyDown;
+    static ScriptableDelegate<UIEventHandlerResult, const KeyboardEvent&> OnKeyDown;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const KeyboardEvent&> OnKeyUp;
+    static ScriptableDelegate<UIEventHandlerResult, const KeyboardEvent&> OnKeyUp;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const String&> OnTextChange;
+    static ScriptableDelegate<UIEventHandlerResult, const String&> OnTextChange;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult> OnSizeChange;
+    static ScriptableDelegate<UIEventHandlerResult> OnSizeChange;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult> OnComputedVisibilityChange;
+    static ScriptableDelegate<UIEventHandlerResult> OnComputedVisibilityChange;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult> OnEnabled;
+    static ScriptableDelegate<UIEventHandlerResult> OnEnabled;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult> OnDisabled;
+    static ScriptableDelegate<UIEventHandlerResult> OnDisabled;
 
     HYP_FIELD()
-    ScriptableDelegate<UIEventHandlerResult, const BoxedValue&> OnValueChange;
+    static ScriptableDelegate<UIEventHandlerResult, const BoxedValue&> OnValueChange;
 
 protected:
     HYP_METHOD()

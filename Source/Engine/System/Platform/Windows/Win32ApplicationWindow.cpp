@@ -769,15 +769,13 @@ void Win32ApplicationWindow::Close()
         m_hwnd = nullptr;
     }
 
-    auto onClose = std::move(OnClose);
-
     m_isOpen = false;
 
     lock.Reset();
 
     g_appContext->RemoveWindow(this);
 
-    onClose();
+    OnClose.Fire(this);
 }
 
 } // namespace Hyperion

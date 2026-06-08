@@ -19,6 +19,8 @@
 #include <DotNET/ManagedClass.hpp>
 #endif
 
+#include <Core/Reflection/StaticField.hpp>
+
 #include <UI/UIStage.hpp>
 #include <UI/UIObject.hpp>
 #include <UI/UIText.hpp>
@@ -567,9 +569,12 @@ public:
                 if (attributeNameUpper.StartsWith("ON"))
                 {
                     // Find a ScriptableDelegate field with the name, bind C# function
-                    ClassMemberList memberList = cls->GetMembers(MemberType::Field);
+                    IScriptableDelegate* scriptableDelegate = nullptr;
 
-                    auto memberIt = FindIf(memberList.Begin(), memberList.End(), [&attributeNameUpper](const IMember& member)
+                    // Check StaticFields first (static ScriptableDelegate fields)
+                    ClassMemberList staticMemberList = cls->GetMembers(MemberType::StaticField);
+
+                    auto staticMemberIt = FindIf(staticMemberList.Begin(), staticMemberList.End(), [&attributeNameUpper](const IMember& member)
                         {
                             const ClassAttributeValue& attr = member.GetAttribute(Attributes::g_attrScriptableDelegate);
 
@@ -585,6 +590,52 @@ public:
 
                             return false;
                         });
+
+                    if (staticMemberIt != staticMemberList.End())
+                    {
+                        const StaticField& staticField = static_cast<const StaticField&>(*staticMemberIt);
+
+                        scriptableDelegate = reinterpret_cast<IScriptableDelegate*>(staticField.GetDataPointer());
+                    }
+
+                    if (!scriptableDelegate)
+                    {
+                        // Fallback: check instance Fields (legacy)
+                        ClassMemberList memberList = cls->GetMembers(MemberType::Field);
+
+                        auto memberIt = FindIf(memberList.Begin(), memberList.End(), [&attributeNameUpper](const IMember& member)
+                            {
+                                const ClassAttributeValue& attr = member.GetAttribute(Attributes::g_attrScriptableDelegate);
+
+                                if (!attr.GetBool())
+                                {
+                                    return false;
+                                }
+
+                                if (String(member.GetName().LookupString()).ToUpper() == attributeNameUpper)
+                                {
+                                    return true;
+                                }
+
+                                return false;
+                            });
+
+                        if (memberIt != memberList.End())
+                        {
+                            const Field& field = static_cast<const Field&>(*memberIt);
+
+                            const UIntPtr fieldAddress = UIntPtr(static_cast<ObjectBase*>(uiObject.Get())) + UIntPtr(field.GetOffset());
+
+                            scriptableDelegate = reinterpret_cast<IScriptableDelegate*>(fieldAddress);
+                        }
+                    }
+
+                    if (!scriptableDelegate)
+                    {
+                        HYP_LOG(Assets, Warning, "Unknown event attribute: {}", attribute.first);
+
+                        continue;
+                    }
 
                     ScriptComponent* scriptComponent = uiObject->GetScriptComponent(true);
 
@@ -606,43 +657,33 @@ public:
                         continue;
                     }
 
-                    if (memberIt != memberList.End())
-                    {
-                        const Field& field = static_cast<const Field&>(*memberIt);
+                    const ANSIString attributeValue = ANSIString(attribute.second);
 
-                        const UIntPtr fieldAddress = UIntPtr(static_cast<ObjectBase*>(uiObject.Get())) + UIntPtr(field.GetOffset());
+                    scriptableDelegate
+                        ->BindMethod(
+                            uiObject.Get(),
+                            attributeValue,
+                            [uiObjectWeak = MakeWeakRef(uiObject)]() -> ScriptObjectResource*
+                            {
+                                Handle<UIObject> uiObject = uiObjectWeak.Lock();
 
-                        IScriptableDelegate* scriptableDelegate = reinterpret_cast<IScriptableDelegate*>(fieldAddress);
-
-                        const ANSIString attributeValue = ANSIString(attribute.second);
-
-                        scriptableDelegate
-                            ->BindMethod(
-                                attributeValue,
-                                [uiObjectWeak = MakeWeakRef(uiObject)]() -> ScriptObjectResource*
+                                if (!uiObject)
                                 {
-                                    Handle<UIObject> uiObject = uiObjectWeak.Lock();
+                                    return nullptr;
+                                }
 
-                                    if (!uiObject)
-                                    {
-                                        return nullptr;
-                                    }
+                                ScriptComponent* scriptComponent = uiObject->GetScriptComponent(true);
 
-                                    ScriptComponent* scriptComponent = uiObject->GetScriptComponent(true);
+                                if (!scriptComponent)
+                                {
+                                    return nullptr;
+                                }
 
-                                    if (!scriptComponent)
-                                    {
-                                        return nullptr;
-                                    }
+                                return scriptComponent->scriptObjectResource;
+                            })
+                        .Detach();
 
-                                    return scriptComponent->scriptObjectResource;
-                                })
-                            .Detach();
-
-                        continue;
-                    }
-
-                    HYP_LOG(Assets, Warning, "Unknown event attribute: {}", attribute.first);
+                    continue;
                 }
 
                 const String attributeNameLower = attribute.first.ToLower();

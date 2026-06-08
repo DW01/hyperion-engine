@@ -30,7 +30,7 @@ UIMenuItem::UIMenuItem()
     SetBackgroundColor(Color::Transparent());
 
     OnEnabled
-        .Bind([this]()
+        .Bind(this, [this]()
             {
                 UpdateMaterial(false);
 
@@ -39,7 +39,7 @@ UIMenuItem::UIMenuItem()
         .Detach();
 
     OnDisabled
-        .Bind([this]()
+        .Bind(this, [this]()
             {
                 UpdateMaterial(false);
 
@@ -107,31 +107,29 @@ void UIMenuItem::AddChildUIObject(const Handle<UIObject>& uiObject)
 
     if (Handle<UIMenuItem> menuItem = DynamicCast<UIMenuItem>(uiObject))
     {
-        menuItem->OnMouseHover
-            .Bind([weakThis = WeakHandleFromThis(), subMenuItemWeak = menuItem.ToWeak()](const MouseEvent& event) -> UIEventHandlerResult
+        OnMouseHover.Bind(menuItem, [weakThis = WeakHandleFromThis(), subMenuItemWeak = menuItem.ToWeak()](const MouseEvent& event) -> UIEventHandlerResult
+            {
+                Handle<UIMenuItem> menuItem = weakThis.Lock();
+                Handle<UIMenuItem> subMenuItem = subMenuItemWeak.Lock();
+
+                if (!menuItem || !subMenuItem)
                 {
-                    Handle<UIMenuItem> menuItem = weakThis.Lock();
-                    Handle<UIMenuItem> subMenuItem = subMenuItemWeak.Lock();
+                    menuItem->SetSelectedSubItem(nullptr);
 
-                    if (!menuItem || !subMenuItem)
-                    {
-                        menuItem->SetSelectedSubItem(nullptr);
+                    return UIEventHandlerResult::OK;
+                }
 
-                        return UIEventHandlerResult::OK;
-                    }
+                if (!subMenuItem->GetDropDownMenuElement() || !subMenuItem->GetDropDownMenuElement()->HasChildUIObjects())
+                {
+                    menuItem->SetSelectedSubItem(nullptr);
 
-                    if (!subMenuItem->GetDropDownMenuElement() || !subMenuItem->GetDropDownMenuElement()->HasChildUIObjects())
-                    {
-                        menuItem->SetSelectedSubItem(nullptr);
+                    return UIEventHandlerResult::OK;
+                }
 
-                        return UIEventHandlerResult::OK;
-                    }
+                menuItem->SetSelectedSubItem(subMenuItem);
 
-                    menuItem->SetSelectedSubItem(subMenuItem);
-
-                    return UIEventHandlerResult::STOP_BUBBLING;
-                })
-            .Detach();
+                return UIEventHandlerResult::STOP_BUBBLING;
+            }).Detach();
     }
 }
 
@@ -268,29 +266,27 @@ void UIMenuItem::UpdateSubItemsDropDownMenu()
 
     m_subItemsDropDownMenu->SetIsVisible(true);
 
-    m_subItemsDropDownMenu->OnClick.RemoveAllDetached();
-    m_subItemsDropDownMenu->OnClick
-        .Bind([weakThis = WeakHandleFromThis()](const MouseEvent& data) -> UIEventHandlerResult
+    OnClick.RemoveAllDetached();
+    OnClick.Bind(m_subItemsDropDownMenu, [weakThis = WeakHandleFromThis()](const MouseEvent& data) -> UIEventHandlerResult
+        {
+            Handle<UIMenuItem> menuItem = weakThis.Lock();
+
+            if (!menuItem)
             {
-                Handle<UIMenuItem> menuItem = weakThis.Lock();
+                return UIEventHandlerResult::OK;
+            }
 
-                if (!menuItem)
-                {
-                    return UIEventHandlerResult::OK;
-                }
+            Handle<UIMenuBar> menuBar = menuItem->GetClosestSpawnParent<UIMenuBar>();
 
-                Handle<UIMenuBar> menuBar = menuItem->GetClosestSpawnParent<UIMenuBar>();
+            if (!menuBar)
+            {
+                return UIEventHandlerResult::OK;
+            }
 
-                if (!menuBar)
-                {
-                    return UIEventHandlerResult::OK;
-                }
+            menuBar->SetSelectedMenuItemIndex(~0u);
 
-                menuBar->SetSelectedMenuItemIndex(~0u);
-
-                return UIEventHandlerResult::STOP_BUBBLING;
-            })
-        .Detach();
+            return UIEventHandlerResult::STOP_BUBBLING;
+        }).Detach();
 
     if (m_stage != nullptr)
     {
@@ -402,17 +398,15 @@ void UIMenuBar::Init()
 
     /// \todo : OnRemoved_Internal() , remove m_container from stage
 
-    m_container->OnClick
-        .Bind([this](const MouseEvent& data) -> UIEventHandlerResult
-            {
-                // Hide container on any item clicked
-                SetSelectedMenuItemIndex(~0u);
-                // Lose focus of the container (otherwise hovering over other menu items will cause the menu strips to reappear)
-                Blur();
+    OnClick.Bind(m_container, [this](const MouseEvent& data) -> UIEventHandlerResult
+        {
+            // Hide container on any item clicked
+            SetSelectedMenuItemIndex(~0u);
+            // Lose focus of the container (otherwise hovering over other menu items will cause the menu strips to reappear)
+            Blur();
 
-                return UIEventHandlerResult::STOP_BUBBLING;
-            })
-        .Detach();
+            return UIEventHandlerResult::STOP_BUBBLING;
+        }).Detach();
 
     // m_container->OnLoseFocus.Bind([this](const MouseEvent &data) -> UIEventHandlerResult
     // {
@@ -580,52 +574,48 @@ void UIMenuBar::AddChildUIObject(const Handle<UIObject>& uiObject)
 
         // Mouse hover: set selected menu item index if this menu bar has focus
         menuItem->OnMouseHover.RemoveAllDetached();
-        menuItem->OnMouseHover
-            .Bind([this, name](const MouseEvent& data) -> UIEventHandlerResult
+        OnMouseHover.Bind(menuItem, [this, name](const MouseEvent& data) -> UIEventHandlerResult
+            {
+                if (m_container->HasFocus(true))
                 {
-                    if (m_container->HasFocus(true))
-                    {
-                        const uint32 menuItemIndex = GetMenuItemIndex(name);
+                    const uint32 menuItemIndex = GetMenuItemIndex(name);
 
-                        SetSelectedMenuItemIndex(menuItemIndex);
-                    }
+                    SetSelectedMenuItemIndex(menuItemIndex);
+                }
 
-                    return UIEventHandlerResult::STOP_BUBBLING;
-                })
-            .Detach();
+                return UIEventHandlerResult::STOP_BUBBLING;
+            }).Detach();
 
         // Mouse click: toggle selected menu item index
         // menuItem->OnClick.RemoveAllDetached();
 
-        menuItem->OnClick
-            .Bind([weakThis = WeakHandleFromThis(), name](const MouseEvent& data) -> UIEventHandlerResult
+        OnClick.Bind(menuItem, [weakThis = WeakHandleFromThis(), name](const MouseEvent& data) -> UIEventHandlerResult
+            {
+                Handle<UIMenuBar> menuBar = weakThis.Lock();
+
+                if (!menuBar)
                 {
-                    Handle<UIMenuBar> menuBar = weakThis.Lock();
+                    return UIEventHandlerResult::OK;
+                }
 
-                    if (!menuBar)
+                if (data.mouseButtons == MouseButtonState::LEFT)
+                {
+                    const uint32 menuItemIndex = menuBar->GetMenuItemIndex(name);
+
+                    if (menuBar->GetSelectedMenuItemIndex() == menuItemIndex)
                     {
-                        return UIEventHandlerResult::OK;
-                    }
+                        menuBar->SetSelectedMenuItemIndex(~0u);
 
-                    if (data.mouseButtons == MouseButtonState::LEFT)
+                        menuBar->m_container->Blur();
+                    }
+                    else
                     {
-                        const uint32 menuItemIndex = menuBar->GetMenuItemIndex(name);
-
-                        if (menuBar->GetSelectedMenuItemIndex() == menuItemIndex)
-                        {
-                            menuBar->SetSelectedMenuItemIndex(~0u);
-
-                            menuBar->m_container->Blur();
-                        }
-                        else
-                        {
-                            menuBar->SetSelectedMenuItemIndex(menuItemIndex);
-                        }
+                        menuBar->SetSelectedMenuItemIndex(menuItemIndex);
                     }
+                }
 
-                    return UIEventHandlerResult::STOP_BUBBLING;
-                })
-            .Detach();
+                return UIEventHandlerResult::STOP_BUBBLING;
+            }).Detach();
 
         m_menuItems.PushBack(menuItem);
     }

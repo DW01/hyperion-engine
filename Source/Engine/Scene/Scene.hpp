@@ -214,7 +214,7 @@ public:
     void Update(float delta);
 
     HYP_FIELD()
-    ScriptableDelegate<void, Handle<Node>, Handle<Node>> OnRootNodeChanged;
+    static ScriptableDelegate<void, Handle<Node>, Handle<Node>> OnRootNodeChanged;
 
 private:
     template <class SystemType>

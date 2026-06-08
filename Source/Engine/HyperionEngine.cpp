@@ -523,7 +523,7 @@ extern "C"
             Handle<ApplicationWindow> window = g_appContext->CreateSystemWindow({ "Hyperion Engine", resolution, windowFlags });
 
             window->OnClose
-                .Bind([]()
+                .Bind(window, []()
                 {
                     // shut down application on main window close.
                     Hyp_Shutdown();

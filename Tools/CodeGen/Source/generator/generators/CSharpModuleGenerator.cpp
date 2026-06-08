@@ -323,8 +323,17 @@ Result CSharpModuleGenerator::Generate(const Analyzer& analyzer, const Module& m
                 writer.WriteString(HYP_FORMAT("        public static ScriptableDelegate Get{}Delegate(this {} obj)\n", managedName, cls.name));
                 writer.WriteString("        {\n");
 
-                writer.WriteString(HYP_FORMAT("            Field field = (Field)obj.Class.GetField(new Name({}));\n", uint64(CreateStringHashFromDynamicString(member.friendlyName.Data()))));
-                writer.WriteString("            IntPtr fieldAddress = obj.NativeAddress + ((IntPtr)((Field)field).Offset);\n\n");
+                if (member.cxxType->isStatic)
+                {
+                    writer.WriteString(HYP_FORMAT("            StaticField field = (StaticField)obj.Class.GetStaticField(new Name({}));\n", uint64(CreateStringHashFromDynamicString(member.friendlyName.Data()))));
+                    writer.WriteString("            IntPtr fieldAddress = field.DataPointer;\n\n");
+                }
+                else
+                {
+                    writer.WriteString(HYP_FORMAT("            Field field = (Field)obj.Class.GetField(new Name({}));\n", uint64(CreateStringHashFromDynamicString(member.friendlyName.Data()))));
+                    writer.WriteString("            IntPtr fieldAddress = obj.NativeAddress + ((IntPtr)((Field)field).Offset);\n\n");
+                }
+
                 writer.WriteString("            return new ScriptableDelegate(obj, fieldAddress);\n");
 
                 writer.WriteString("        }\n");

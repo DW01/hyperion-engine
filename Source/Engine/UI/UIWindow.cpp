@@ -53,52 +53,47 @@ void UIWindow::Init()
         titleBarText->SetText(GetText());
         m_titleBar->AddChildUIObject(titleBarText);
 
-        m_titleBar->OnMouseDown
-            .Bind([this](const MouseEvent& event)
+        OnMouseDown.Bind(m_titleBar, [this](const MouseEvent& event)
+        {
+            if (m_windowFlags & UIWindowFlags::ALLOW_DRAG)
+            {
+                m_mouseDragStart = Vec2i(event.absolutePos);
+
+                return UIEventHandlerResult::STOP_BUBBLING;
+            }
+
+            return UIEventHandlerResult::OK;
+        }).Detach();
+
+        OnMouseUp.Bind(m_titleBar, [this](const MouseEvent& event)
+        {
+            if (m_windowFlags & UIWindowFlags::ALLOW_DRAG)
+            {
+                m_mouseDragStart.Unset();
+
+                return UIEventHandlerResult::STOP_BUBBLING;
+            }
+
+            return UIEventHandlerResult::OK;
+        }).Detach();
+
+        OnMouseDrag.Bind(m_titleBar, [this](const MouseEvent& event)
+        {
+            if (m_windowFlags & UIWindowFlags::ALLOW_DRAG)
+            {
+                if (m_mouseDragStart.HasValue())
                 {
-                    if (m_windowFlags & UIWindowFlags::ALLOW_DRAG)
-                    {
-                        m_mouseDragStart = Vec2i(event.absolutePos);
+                    Vec2i delta = Vec2i(event.absolutePos) - *m_mouseDragStart;
+                    SetPosition(GetPosition() + delta);
 
-                        return UIEventHandlerResult::STOP_BUBBLING;
-                    }
+                    m_mouseDragStart = Vec2i(event.absolutePos);
+                }
 
-                    return UIEventHandlerResult::OK;
-                })
-            .Detach();
+                return UIEventHandlerResult::STOP_BUBBLING;
+            }
 
-        m_titleBar->OnMouseUp
-            .Bind([this](const MouseEvent& event)
-                {
-                    if (m_windowFlags & UIWindowFlags::ALLOW_DRAG)
-                    {
-                        m_mouseDragStart.Unset();
-
-                        return UIEventHandlerResult::STOP_BUBBLING;
-                    }
-
-                    return UIEventHandlerResult::OK;
-                })
-            .Detach();
-
-        m_titleBar->OnMouseDrag.Bind([this](const MouseEvent& event)
-                                   {
-                                       if (m_windowFlags & UIWindowFlags::ALLOW_DRAG)
-                                       {
-                                           if (m_mouseDragStart.HasValue())
-                                           {
-                                               Vec2i delta = Vec2i(event.absolutePos) - *m_mouseDragStart;
-                                               SetPosition(GetPosition() + delta);
-
-                                               m_mouseDragStart = Vec2i(event.absolutePos);
-                                           }
-
-                                           return UIEventHandlerResult::STOP_BUBBLING;
-                                       }
-
-                                       return UIEventHandlerResult::OK;
-                                   })
-            .Detach();
+            return UIEventHandlerResult::OK;
+        }).Detach();
 
         if (m_windowFlags & UIWindowFlags::TITLE_BAR)
         {
@@ -114,47 +109,47 @@ void UIWindow::Init()
     m_content->SetPadding(Vec2i { 5, 5 });
     m_content->SetBackgroundColor(Vec4f::Zero()); // Transparent
 
-    OnMouseDown.Bind([](...)
+    OnMouseDown.Bind(this, [](...)
                    {
                        return UIEventHandlerResult::STOP_BUBBLING;
                    })
         .Detach();
-    OnMouseUp.Bind([](...)
+    OnMouseUp.Bind(this, [](...)
                  {
                      return UIEventHandlerResult::STOP_BUBBLING;
                  })
         .Detach();
-    OnMouseDrag.Bind([](...)
+    OnMouseDrag.Bind(this, [](...)
                    {
                        return UIEventHandlerResult::STOP_BUBBLING;
                    })
         .Detach();
-    OnMouseHover.Bind([](...)
+    OnMouseHover.Bind(this, [](...)
                     {
                         return UIEventHandlerResult::STOP_BUBBLING;
                     })
         .Detach();
-    OnMouseLeave.Bind([](...)
+    OnMouseLeave.Bind(this, [](...)
                     {
                         return UIEventHandlerResult::STOP_BUBBLING;
                     })
         .Detach();
-    OnScroll.Bind([](...)
+    OnScroll.Bind(this, [](...)
                 {
                     return UIEventHandlerResult::STOP_BUBBLING;
                 })
         .Detach();
-    OnClick.Bind([](...)
+    OnClick.Bind(this, [](...)
                {
                    return UIEventHandlerResult::STOP_BUBBLING;
                })
         .Detach();
-    OnKeyDown.Bind([](...)
+    OnKeyDown.Bind(this, [](...)
                  {
                      return UIEventHandlerResult::STOP_BUBBLING;
                  })
         .Detach();
-    OnKeyUp.Bind([](...)
+    OnKeyUp.Bind(this, [](...)
                {
                    return UIEventHandlerResult::STOP_BUBBLING;
                })

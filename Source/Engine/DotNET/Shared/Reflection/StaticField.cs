@@ -34,6 +34,14 @@ namespace Hyperion
             }
         }
 
+        public IntPtr DataPointer
+        {
+            get
+            {
+                return StaticField_GetDataPointer(_ptr);
+            }
+        }
+
         public object? ReadObject()
         {
             if (_ptr == IntPtr.Zero)
@@ -67,5 +75,8 @@ namespace Hyperion
 
         [DllImport("hyperion", EntryPoint = "StaticField_Get")]
         private static extern bool StaticField_Get([In] IntPtr staticFieldPtr, out BoxedValueInternal outData);
+
+        [DllImport("hyperion", EntryPoint = "StaticField_GetDataPointer")]
+        private static extern IntPtr StaticField_GetDataPointer([In] IntPtr staticFieldPtr);
     }
 }

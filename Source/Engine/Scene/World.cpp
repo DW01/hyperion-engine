@@ -60,6 +60,9 @@
 
 namespace Hyperion {
 
+ScriptableDelegate<void, World*, const Handle<Scene>&> World::OnSceneAdded;
+ScriptableDelegate<void, World*, Scene*> World::OnSceneRemoved;
+
 #define HYP_WORLD_ASYNC_SUBSYSTEM_UPDATES
 #define HYP_WORLD_ASYNC_VIEW_COLLECTION
 
@@ -171,7 +174,7 @@ void World::Initialize()
 
         scene->Initialize();
 
-        OnSceneAdded(this, scene);
+        OnSceneAdded.Fire(this, this, scene);
 
         for (Subsystem* subsystem : m_subsystemsArray)
         {
@@ -295,7 +298,7 @@ void World::Shutdown()
 
         scene->SetOwnerThreadId(CurrentThreadId());
 
-        OnSceneRemoved(this, scene);
+        OnSceneRemoved.Fire(this, this, scene);
 
         for (Subsystem* subsystem : m_subsystemsArray)
         {
@@ -1037,7 +1040,7 @@ void World::AddScene(const Handle<Scene>& scene, bool addToStreamingLayer)
     {
         scene->Initialize();
 
-        OnSceneAdded(this, scene);
+        OnSceneAdded.Fire(this, this, scene);
 
         for (Subsystem* subsystem : m_subsystemsArray)
         {
@@ -1094,7 +1097,7 @@ bool World::RemoveScene(Scene* scene, bool removeFromStreamingLayer)
                 scenesStreamingLayer->RemoveStreamingObject(scene);
             }
 
-            OnSceneRemoved(this, scene);
+            OnSceneRemoved.Fire(this, this, scene);
 
             for (Subsystem* subsystem : m_subsystemsArray)
             {
@@ -1257,7 +1260,7 @@ void World::DeserializeNonStreamingScenes(const Array<Handle<Scene>>& scenes)
 
         if (m_isInitialized)
         {
-            OnSceneRemoved(this, scene);
+            OnSceneRemoved.Fire(this, this, scene);
 
             for (Subsystem* subsystem : m_subsystemsArray)
             {
@@ -1293,7 +1296,7 @@ void World::DeserializeNonStreamingScenes(const Array<Handle<Scene>>& scenes)
         {
             scene->Initialize();
 
-            OnSceneAdded(this, scene);
+            OnSceneAdded.Fire(this, this, scene);
 
             for (Subsystem* subsystem : m_subsystemsArray)
             {

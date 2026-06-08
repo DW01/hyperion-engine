@@ -34,7 +34,7 @@ UITextbox::UITextbox()
     SetIsScrollEnabled(SA_ALL, false);
 
     OnKeyDown
-        .Bind([this](const KeyboardEvent& eventData) -> UIEventHandlerResult
+        .Bind(this, [this](const KeyboardEvent& eventData) -> UIEventHandlerResult
             {
                 // disable cursor blinking when typing
                 m_cursorBlinkBlendVar.SetValue(1.0f);
@@ -137,14 +137,14 @@ UITextbox::UITextbox()
         .Detach();
 
     OnKeyUp
-        .Bind([this](const KeyboardEvent& eventData) -> UIEventHandlerResult
+        .Bind(this, [this](const KeyboardEvent& eventData) -> UIEventHandlerResult
             {
                 return UIEventHandlerResult::STOP_BUBBLING;
             })
         .Detach();
 
     OnEnabled
-        .Bind([this]()
+        .Bind(this, [this]()
             {
                 SetAcceptsFocus(true);
                 UpdateMaterial(false);
@@ -154,7 +154,7 @@ UITextbox::UITextbox()
         .Detach();
 
     OnDisabled
-        .Bind([this]()
+        .Bind(this, [this]()
             {
                 SetAcceptsFocus(false);
                 UpdateMaterial(false);
@@ -349,7 +349,7 @@ void UITextbox::SubmitTextChange()
 
     if (m_prevText != text)
     {
-        OnTextChange(text);
+        OnTextChange.Fire(this, text);
 
         m_prevText = text;
 

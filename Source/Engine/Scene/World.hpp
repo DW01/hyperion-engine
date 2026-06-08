@@ -354,10 +354,10 @@ public:
     void EndUpdate();
 
     HYP_FIELD()
-    ScriptableDelegate<void, World*, const Handle<Scene>& /* scene */> OnSceneAdded;
+    static ScriptableDelegate<void, World*, const Handle<Scene>& /* scene */> OnSceneAdded;
 
     HYP_FIELD()
-    ScriptableDelegate<void, World*, Scene* /* scene */> OnSceneRemoved;
+    static ScriptableDelegate<void, World*, Scene* /* scene */> OnSceneRemoved;
 
 private:
     void UpdateCSMState();

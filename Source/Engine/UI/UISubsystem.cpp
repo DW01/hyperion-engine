@@ -183,10 +183,11 @@ void UISubsystem::Init()
     {
         windowSize = Vec2u(g_appContext->GetMainWindow()->GetSize());
 
-        m_onWindowResizedHandle = g_appContext->GetMainWindow()->OnWindowSizeChanged.BindThreaded(HandleWindowResize, g_simThread);
+        m_onWindowResizedHandle = g_appContext->GetMainWindow()->OnWindowSizeChanged.BindThreaded(g_appContext->GetMainWindow(), HandleWindowResize, g_simThread);
     }
 
     m_onCurrentWindowChangedHandle = g_appContext->OnCurrentWindowChanged.BindThreaded(
+        g_appContext,
         [this, weakThis = MakeWeakRef(this), HandleWindowResize](ApplicationWindow* window)
         {
             Handle<UISubsystem> strongThis = weakThis.Lock();
@@ -204,7 +205,7 @@ void UISubsystem::Init()
 
             if (window != nullptr)
             {
-                m_onWindowResizedHandle = window->OnWindowSizeChanged.BindThreaded(HandleWindowResize, g_simThread);
+                m_onWindowResizedHandle = window->OnWindowSizeChanged.BindThreaded(window, HandleWindowResize, g_simThread);
 
                 HandleWindowResize(Vec2i(window->GetSize()));
             }

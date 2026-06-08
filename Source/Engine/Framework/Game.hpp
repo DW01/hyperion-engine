@@ -99,10 +99,10 @@ public:
     void PauseSimulation();
 
     HYP_FIELD()
-    ScriptableDelegate<void> OnLaunched;
+    static ScriptableDelegate<void> OnLaunched;
 
     HYP_FIELD()
-    ScriptableDelegate<void, Game*, GameStateMode, GameStateMode> OnGameStateChange;
+    static ScriptableDelegate<void, Game*, GameStateMode, GameStateMode> OnGameStateChange;
 
 protected:
     virtual void Logic(float delta)
