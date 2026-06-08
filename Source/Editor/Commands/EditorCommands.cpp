@@ -6,18 +6,18 @@
 
 #include <Scene/Scene.hpp>
 #include <Scene/World.hpp>
+#include <Scene/EnvGrid.hpp>
 #include <Scene/EntityManager.hpp>
 #include <Scene/Light.hpp>
 #include <Scene/EnvProbe.hpp>
 #include <Scene/LightmapVolume.hpp>
 #include <Scene/InstancedMeshProxy.hpp>
-
-#include <Scene/Camera/Camera.hpp>
-
 #include <Scene/ParticleVolume.hpp>
 #include <Scene/FogVolume.hpp>
 #include <Scene/Sprite.hpp>
 #include <Scene/TextSprite.hpp>
+
+#include <Scene/Camera/Camera.hpp>
 
 #include <Scene/Components/BoundingBoxComponent.hpp>
 
@@ -277,7 +277,7 @@ public:
             }
 
             dir.MkDir();
-            
+
             String projectName = *project->GetName();
 
             ShowSelectFolderDialog(
@@ -297,7 +297,7 @@ public:
                         HYP_LOG(Editor, Warning, "No save path selected.");
                         return;
                     }
-                    
+
                     if (selectedPath.EndsWith(projectName))
                     {
                         // IF the path we receive ends with the project name (ie. Projects/Project1) we want to chop off that part,
@@ -519,6 +519,102 @@ public:
 DEFINE_EDITOR_COMMAND(AddReflectionProbe);
 
 #pragma endregion AddReflectionProbe
+
+#pragma region AddIrradianceProbeVolume
+
+class EditorCommandAddIrradianceProbeVolume final : public EditorCommandBase
+{
+    HYP_OBJECT_BODY(EditorCommandAddIrradianceProbeVolume);
+
+public:
+    virtual ~EditorCommandAddIrradianceProbeVolume() override = default;
+
+    virtual String GetText() const override
+    {
+        return "Add Irradiance Probe Volume";
+    }
+
+    virtual void Execute(EditorSubsystem* subsystem) override
+    {
+        const Handle<EditorProject>& currentProject = subsystem->GetCurrentProject();
+        if (!currentProject.IsValid())
+        {
+            HYP_LOG(Editor, Error, "No project loaded; cannot add irradiance probe volume!");
+
+            return;
+        }
+
+        Handle<Scene> activeScene = subsystem->GetActiveScene();
+        if (!activeScene.IsValid())
+        {
+            HYP_LOG(Editor, Error, "No active scene; cannot add irradiance probe volume!");
+
+            return;
+        }
+
+        static const BoundingBox s_probeBounds[4] = {
+            BoundingBox(Vec3f(-10.0f, -10.0f, -10.0f), Vec3f(0.0f, 0.0f, 0.0f)),
+            BoundingBox(Vec3f(0.0f, -10.0f, -10.0f), Vec3f(10.0f, 0.0f, 0.0f)),
+            BoundingBox(Vec3f(0.0f, 0.0f, -10.0f), Vec3f(10.0f, 10.0f, 0.0f)),
+            BoundingBox(Vec3f(0.0f, 0.0f, 0.0f), Vec3f(10.0f, 10.0f, 10.0f))
+        };
+
+        Handle<EnvGrid> volume = MakeHandle<EnvGrid>(BoundingBox(Vec3f(-10.0f), Vec3f(10.0f)));
+
+        for (uint32 i = 0; i < 4; i++)
+        {
+            Handle<IrradianceProbe> probe = MakeHandle<IrradianceProbe>();
+            probe->SetLocalBounds(s_probeBounds[i]);
+
+            InitObject(probe);
+
+            GetCurrentAssetRegistry()->PutAsset(probe);
+
+            volume->probes[i] = AssetReference(probe);
+        }
+
+        InitObject(volume);
+
+        WeakHandle<Node> previousFocusedNode = subsystem->GetFocusedNode();
+
+        Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
+            GetText(),
+            Proc<EditorActionFunctions()>([volume, previousFocusedNode, activeScene]() -> EditorActionFunctions
+                {
+                    return EditorActionFunctions {
+                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([volume, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
+                            {
+                                activeScene->GetRoot()->AddChild(volume);
+
+                                editorSubsystem->SetFocusedNode(volume, true);
+                            }),
+                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([volume, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
+                            {
+                                volume->Remove();
+
+                                if (editorSubsystem->GetFocusedNode() == volume)
+                                {
+                                    editorSubsystem->SetFocusedNode(nullptr, true);
+
+                                    Handle<Node> focusedNode = previousFocusedNode.Lock();
+                                    if (focusedNode.IsValid())
+                                    {
+                                        editorSubsystem->SetFocusedNode(focusedNode, true);
+                                    }
+                                }
+                            })
+                    };
+                }));
+
+        InitObject(action);
+
+        currentProject->GetActionStack()->PushAction(action);
+    }
+};
+
+DEFINE_EDITOR_COMMAND(AddIrradianceProbeVolume);
+
+#pragma endregion AddIrradianceProbeVolume
 
 #pragma region AddParticleVolume
 

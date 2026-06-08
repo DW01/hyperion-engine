@@ -146,6 +146,7 @@ public:
 
     EnvProbe(const EnvProbe& other) = delete;
     EnvProbe& operator=(const EnvProbe& other) = delete;
+
     ~EnvProbe();
 
     HYP_METHOD()
@@ -228,12 +229,7 @@ public:
             return false;
         }
 
-        if (IsReflectionProbe() || IsSkyProbe())
-        {
-            return m_dimensions.Volume() > 1;
-        }
-
-        return false;
+        return m_dimensions.Volume() > 1;
     }
 
     HYP_METHOD()
@@ -409,6 +405,7 @@ public:
 
     SkyProbe(const SkyProbe& other) = delete;
     SkyProbe& operator=(const SkyProbe& other) = delete;
+
     ~SkyProbe() override = default;
 
     HYP_METHOD()
@@ -419,6 +416,28 @@ public:
 
 private:
     void Init() override;
+};
+
+HYP_CLASS()
+class ENGINE_API IrradianceProbe : public EnvProbe
+{
+    HYP_OBJECT_BODY(IrradianceProbe);
+
+public:
+    IrradianceProbe()
+        : EnvProbe(EPT_AMBIENT)
+    {
+    }
+
+    IrradianceProbe(const BoundingBox& aabb, const Vec2u& dimensions)
+        : EnvProbe(EPT_AMBIENT, aabb, dimensions)
+    {
+    }
+
+    IrradianceProbe(const IrradianceProbe& other) = delete;
+    IrradianceProbe& operator=(const IrradianceProbe& other) = delete;
+
+    ~IrradianceProbe() override = default;
 };
 
 } // namespace Hyperion

@@ -14,28 +14,37 @@
 
 #include <Core/Math/BoundingBox.hpp>
 
-#include <Scene/Entity.hpp>
+#include <Asset/AssetReference.hpp>
 
-#include <Rendering/RenderCommand.hpp>
+#include <Scene/Volume.hpp>
 
 namespace Hyperion {
 
 class RenderProxyEnvGrid;
 
 HYP_CLASS()
-class ENGINE_API EnvGrid : public Entity
+class ENGINE_API EnvGrid : public VolumeBase
 {
     HYP_OBJECT_BODY(EnvGrid);
 
 public:
     EnvGrid();
+    
+    explicit EnvGrid(Name name, const BoundingBox& localBounds = {});
+    explicit EnvGrid(const BoundingBox& localBounds);
 
     EnvGrid(const EnvGrid& other) = delete;
     EnvGrid& operator=(const EnvGrid& other) = delete;
 
     ~EnvGrid() override;
 
-    virtual void UpdateRenderProxy(RenderProxyEnvGrid* proxy) = 0;
+    void OnAddedToWorld(World* world) override;
+    void OnRemovedFromWorld(World* world) override;
+
+    void UpdateRenderProxy(RenderProxyEnvGrid* proxy);
+
+    HYP_FIELD()
+    FixedArray<AssetReference, 4> probes;
 };
 
 } // namespace Hyperion

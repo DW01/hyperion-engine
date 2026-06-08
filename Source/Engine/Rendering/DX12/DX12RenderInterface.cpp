@@ -60,7 +60,7 @@ ENGINE_API HYP_DECLARE_LOG_CHANNEL(RenderingBackend);
 extern EngineStatGpuTimer g_statGpuFrameTime;
 
 extern EngineStatTimer g_statTotalStallTime;
-static EngineStatTimer s_statWaitOnTransientFence("Rendering/CPU/WaitOnTransientFence");
+EngineStatTimer g_statWaitOnTransientFence("Rendering/CPU/WaitOnTransientFence");
 
 // @TODO Make these flags configurable
 //#define HYP_DX12_ENABLE_DEBUG_LAYER
@@ -726,11 +726,10 @@ void DX12RenderInterface::PrepareFrame(DX12Frame* frame)
     for (auto it = fences.Begin(); it != fences.End();)
     {
         DX12Fence& fence = *it;
-        //HYP_LOG_TEMP("Waiting on transient command buffer {}, wait for fence value {} on frame {}", fence.GetDebugName(), fence.GetValue(), frameIndex);
 
         {
             ENGINE_STAT_SCOPE(&g_statTotalStallTime);
-            ENGINE_STAT_SCOPE(&s_statWaitOnTransientFence);
+            ENGINE_STAT_SCOPE(&g_statWaitOnTransientFence);
 
             fence.Wait(true);
         }

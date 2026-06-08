@@ -45,6 +45,7 @@
 #include <Rendering/ScratchImageAllocator.hpp>
 #include <Rendering/RenderGroupCache.hpp>
 #include <Rendering/GpuTimerBackend.hpp>
+#include <Rendering/RenderCommand.hpp>
 
 #include <Framework/Resources/ResourceTracker.hpp>
 #include <Framework/Resources/ResourceBinder.hpp>
@@ -758,6 +759,7 @@ RendererResult RenderInterface::Initialize()
     namedPasses[NamedPass::EnvProbe].ResizeZeroed(EPT_MAX);
     namedPasses[NamedPass::EnvProbe][EPT_REFLECTION] = new ReflectionProbePass;
     namedPasses[NamedPass::EnvProbe][EPT_SKY] = new ReflectionProbePass;
+    namedPasses[NamedPass::EnvProbe][EPT_AMBIENT] = new IrradianceProbePass;
 
     namedPasses[NamedPass::ShadowMap].ResizeZeroed(NumLightTypes); // 1 ShadowMapRenderer per LightType
     namedPasses[NamedPass::ShadowMap][uint32(LightType::Point)] = new PointLightShadowsPass;
@@ -2130,6 +2132,7 @@ DECLARE_RENDER_DATA_CONTAINER(EnvGrid, RenderProxyEnvGrid, NamedBuffer::EnvGrids
 DECLARE_RENDER_DATA_CONTAINER(EnvProbe, RenderProxyEnvProbe, NamedBuffer::EnvProbes, &WriteBufferData_EnvProbe, &s_envProbeBinder);
 DECLARE_RENDER_DATA_CONTAINER(ReflectionProbe, RenderProxyEnvProbe, NamedBuffer::EnvProbes, &WriteBufferData_EnvProbe, &s_envProbeBinder, &s_reflectionProbeTextureBinder);
 DECLARE_RENDER_DATA_CONTAINER(SkyProbe, RenderProxyEnvProbe, NamedBuffer::EnvProbes, &WriteBufferData_EnvProbe, &s_envProbeBinder, &s_reflectionProbeTextureBinder);
+DECLARE_RENDER_DATA_CONTAINER(IrradianceProbe, RenderProxyEnvProbe, NamedBuffer::EnvProbes, &WriteBufferData_EnvProbe, &s_envProbeBinder);
 
 DECLARE_RENDER_DATA_CONTAINER(Light, RenderProxyLight, NamedBuffer::Lights, &WriteBufferData_Light, &s_lightBinder);
 DECLARE_RENDER_DATA_CONTAINER(DirectionalLight, RenderProxyLight, NamedBuffer::Lights, &WriteBufferData_Light, &s_lightBinder);

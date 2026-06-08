@@ -2029,6 +2029,8 @@ extern class EnvProbe : VolumeBase
     EnvProbeFlags : EnvProbeFlags
     ShData : EnvProbeSphericalHarmonics
 end
+extern class IrradianceProbe : EnvProbe
+end
 extern class SkyProbe : EnvProbe
     GetSkyboxCubemap() -> Texture
 end
@@ -2046,6 +2048,8 @@ extern enum EnvProbeFlags : uint32
     EPF_NONE = 0x0,
     EPF_PARALLAX_CORRECTED = 0x1,
     EPF_BAKED = 0x2
+end
+extern class EnvGrid : VolumeBase
 end
 extern class Sprite : Entity
 end
@@ -2133,8 +2137,6 @@ extern enum LightFlags : uint32
     CacheStaticShadowMaps = 0x10,
     BakeStaticShadows = 0x20,
     Default = (ShadowCaster | ShadowPCF)
-end
-extern class EnvGrid : Entity
 end
 extern struct ShaderInputGroup
     Elements : Array<ShaderInputSet>
