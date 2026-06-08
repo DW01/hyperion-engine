@@ -1333,6 +1333,16 @@ void View::CollectEnvGrids(RenderProxyList& rpl)
                 continue;
             }
 
+            for (const Handle<IrradianceProbe>& probe : envGrid->probes)
+            {
+                if (!probe)
+                {
+                    continue;
+                }
+
+                rpl.GetEnvProbes().Track(probe->Id(), probe, GET_RESOURCE_VERSION(probe));
+            }
+
             rpl.GetEnvGrids().Track(envGrid->Id(), envGrid, GET_RESOURCE_VERSION(envGrid));
         }
     }

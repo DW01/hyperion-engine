@@ -14,12 +14,11 @@
 
 #include <Core/Math/BoundingBox.hpp>
 
-#include <Asset/AssetReference.hpp>
-
 #include <Scene/Volume.hpp>
 
 namespace Hyperion {
 
+class IrradianceProbe;
 class RenderProxyEnvGrid;
 
 HYP_CLASS()
@@ -44,7 +43,7 @@ public:
     void UpdateRenderProxy(RenderProxyEnvGrid* proxy);
 
     HYP_FIELD()
-    FixedArray<AssetReference, 4> probes;
+    FixedArray<Handle<IrradianceProbe>, 4> probes;
 };
 
 } // namespace Hyperion

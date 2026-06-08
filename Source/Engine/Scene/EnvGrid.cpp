@@ -40,33 +40,17 @@ EnvGrid::~EnvGrid()
 
 void EnvGrid::OnAddedToWorld(World* world)
 {
-    for (AssetReference& probeAssetReference : probes)
+    for (const Handle<IrradianceProbe>& probe : probes)
     {
-        if (probeAssetReference.IsValid())
-        {
-            Handle<IrradianceProbe> probe = DynamicCast<IrradianceProbe>(probeAssetReference.Resolve());
-
-            if (!probe.IsValid())
-            {
-                HYP_LOG(Scene, Warning, "Failed to load irradiance probe at path: {}", probeAssetReference.GetAssetPath().ToString());
-
-                continue;
-            }
-
-            AddChild(probe);
-        }
+        AddChild(probe);
     }
 }
 
 void EnvGrid::OnRemovedFromWorld(World* world)
 {
-    auto childNodes = GetChildren();
-    for (Node* node : childNodes)
+    for (const Handle<IrradianceProbe>& probe : probes)
     {
-        if (node && node->IsA(IrradianceProbe::StaticClass()))
-        {
-            RemoveChild(node, /* moveToDetached */ false);
-        }
+        RemoveChild(probe, /* moveToDetached */ false);
     }
 }
 

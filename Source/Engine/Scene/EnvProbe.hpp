@@ -427,11 +427,17 @@ public:
     IrradianceProbe()
         : EnvProbe(EPT_AMBIENT)
     {
+#if HYP_EDITOR
+        useVolumeEditTool = false;
+#endif // HYP_EDITOR
     }
 
     IrradianceProbe(const BoundingBox& aabb, const Vec2u& dimensions)
         : EnvProbe(EPT_AMBIENT, aabb, dimensions)
     {
+#if HYP_EDITOR
+        useVolumeEditTool = false;
+#endif // HYP_EDITOR
     }
 
     IrradianceProbe(const IrradianceProbe& other) = delete;

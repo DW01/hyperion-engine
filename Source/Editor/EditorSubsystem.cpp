@@ -3476,7 +3476,7 @@ void EditorSubsystem::SetFocusedNode(const Handle<Node>& focusedNode, bool shoul
         // HYP_LOG(Editor, Verbose, "Set focused node: {}\t{}", m_focusedNode->GetName(), m_focusedNode->GetWorldTranslation());
         // HYP_LOG(Editor, Verbose, "Set highlight node translation: {}", m_highlightNode->GetWorldTranslation());
 
-        if (focusedNode->IsA(VolumeBase::StaticClass()))
+        if (focusedNode->IsA<VolumeBase>() && StaticCast<VolumeBase>(focusedNode)->useVolumeEditTool)
             //|| (focusedNode->IsA(Light::StaticClass()) && !focusedNode->IsA(DirectionalLight::StaticClass())))
         {
             SetSelectedManipulationMode(EditorManipulationMode::VOLUME_EDIT);

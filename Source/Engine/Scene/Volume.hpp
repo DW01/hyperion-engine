@@ -37,6 +37,10 @@ public:
     }
 
     virtual ~VolumeBase() override = default;
+
+#if HYP_EDITOR
+    bool useVolumeEditTool : 1 = true;
+#endif // HYP_EDITOR
 };
 
 } // namespace Hyperion

@@ -552,25 +552,30 @@ public:
             return;
         }
 
-        static const BoundingBox s_probeBounds[4] = {
-            BoundingBox(Vec3f(-10.0f, -10.0f, -10.0f), Vec3f(0.0f, 0.0f, 0.0f)),
-            BoundingBox(Vec3f(0.0f, -10.0f, -10.0f), Vec3f(10.0f, 0.0f, 0.0f)),
-            BoundingBox(Vec3f(0.0f, 0.0f, -10.0f), Vec3f(10.0f, 10.0f, 0.0f)),
-            BoundingBox(Vec3f(0.0f, 0.0f, 0.0f), Vec3f(10.0f, 10.0f, 10.0f))
+        const BoundingBox probeGridBounds = BoundingBox(Vec3f(-10.0f), Vec3f(10.0f));
+
+        // Probe cage is made up of 4 probes (tetrahedron)
+        const Vec3f probeGridMin = probeGridBounds.GetMin();
+        const Vec3f probeGridMax = probeGridBounds.GetMax();
+        const Vec3f probeGridCenter = (probeGridMin + probeGridMax) * 0.5f;
+
+        const BoundingBox probeBoundingBoxes[4] = {
+            BoundingBox(Vec3f(probeGridMin.x, probeGridMin.y, probeGridMin.z), Vec3f(probeGridCenter.x, probeGridCenter.y, probeGridMax.z)),
+            BoundingBox(Vec3f(probeGridCenter.x, probeGridMin.y, probeGridMin.z), Vec3f(probeGridMax.x, probeGridCenter.y, probeGridMax.z)),
+            BoundingBox(Vec3f(probeGridMin.x, probeGridCenter.y, probeGridMin.z), Vec3f(probeGridCenter.x, probeGridMax.y, probeGridMax.z)),
+            BoundingBox(Vec3f(probeGridCenter.x, probeGridCenter.y, probeGridMin.z), Vec3f(probeGridMax.x, probeGridMax.y, probeGridMax.z)),
         };
 
-        Handle<EnvGrid> volume = MakeHandle<EnvGrid>(BoundingBox(Vec3f(-10.0f), Vec3f(10.0f)));
+        Handle<EnvGrid> volume = MakeHandle<EnvGrid>(probeGridBounds);
 
         for (uint32 i = 0; i < 4; i++)
         {
             Handle<IrradianceProbe> probe = MakeHandle<IrradianceProbe>();
-            probe->SetLocalBounds(s_probeBounds[i]);
+            probe->SetLocalBounds(probeBoundingBoxes[i]);
 
             InitObject(probe);
 
-            GetCurrentAssetRegistry()->PutAsset(probe);
-
-            volume->probes[i] = AssetReference(probe);
+            volume->probes[i] = probe;
         }
 
         InitObject(volume);
