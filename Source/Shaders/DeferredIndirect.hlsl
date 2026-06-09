@@ -62,7 +62,7 @@ DECLARE_SAMPLER(DeferredPass, SamplerLinear) SamplerState sampler_linear;
 
 DECLARE_SRV(DeferredPass, GBufferAlbedoTexture) Texture2D gbuffer_albedo_texture;
 DECLARE_SRV(DeferredPass, GBufferNormalsTexture) Texture2D gbuffer_normals_texture;
-DECLARE_SRV(DeferredPass, GBufferMaterialTexture) Texture2D<uint4> gbuffer_material_texture;
+DECLARE_SRV(DeferredPass, GBufferMaterialTexture) Texture2D<uint> gbuffer_material_texture;
 DECLARE_SRV(DeferredPass, GBufferVelocityTexture) Texture2D gbuffer_velocity_texture;
 
 DECLARE_SRV(DeferredPass, GBufferMipChain) Texture2D gbuffer_mip_chain;
@@ -160,10 +160,8 @@ PSOutput PSMain(PSInput input)
     float4 positionWS = mul(camera.invViewMat, positionVS);
     positionWS /= positionWS.w;
 
-    uint2 materialData = gbuffer_material_texture.Load(int3(pixelCoord, 0)).xy;
-
     GBufferMaterialParams materialParams;
-    GBufferUnpackMaterialParams(normalSample.x, materialData.x, materialParams);
+    GBufferUnpackMaterialParams(normalSample.x, gbuffer_material_texture.Load(int3(pixelCoord, 0)) >> 25u, materialParams);
 
     const float roughness = materialParams.roughness;
     const float metalness = materialParams.metalness;

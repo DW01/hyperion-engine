@@ -54,7 +54,7 @@ struct PSOutput
 
 DECLARE_SRV(DeferredPass, GBufferAlbedoTexture) Texture2D gbuffer_albedo_texture;
 DECLARE_SRV(DeferredPass, GBufferNormalsTexture) Texture2D gbuffer_normals_texture;
-DECLARE_SRV(DeferredPass, GBufferMaterialTexture) Texture2D<uint4> gbuffer_material_texture;
+DECLARE_SRV(DeferredPass, GBufferMaterialTexture) Texture2D<uint> gbuffer_material_texture;
 DECLARE_SRV(DeferredPass, GBufferVelocityTexture) Texture2D gbuffer_velocity_texture;
 
 DECLARE_SRV(DeferredPass, GBufferDepthTexture) Texture2D gbuffer_depth_texture;
@@ -181,14 +181,11 @@ PSOutput PSMain(PSInput input)
     float4 position = mul(camera.invViewMat, positionVS);
     position /= position.w;
 
-    uint2 materialData = gbuffer_material_texture.Load(int3(pixelCoord, 0)).xy;
-
     GBufferMaterialParams materialParams;
-    GBufferUnpackMaterialParams(normalSample.x, materialData.x, materialParams);
+    GBufferUnpackMaterialParams(normalSample.x, 0 /* don't need mask */, materialParams);
 
     const float roughness = materialParams.roughness;
     const float metalness = materialParams.metalness;
-    const uint mask = materialParams.mask;
 
     const float perceptualRoughness = sqrt(roughness);
 

@@ -7,7 +7,7 @@
 
 DECLARE_SRV(PathTracer, GBufferAlbedoTexture) Texture2D gbuffer_albedo_texture;
 DECLARE_SRV(PathTracer, GBufferNormalsTexture) Texture2D gbuffer_normals_texture;
-DECLARE_SRV(PathTracer, GBufferMaterialTexture) Texture2D<uint2> gbuffer_material_texture;
+DECLARE_SRV(PathTracer, GBufferMaterialTexture) Texture2D<uint> gbuffer_material_texture;
 DECLARE_SRV(PathTracer, GBufferVelocityTexture) Texture2D gbuffer_velocity_texture;
 
 DECLARE_SRV(PathTracer, GBufferMipChain) Texture2D gbuffer_mip_chain;
@@ -102,10 +102,9 @@ void RayGenMain()
     gbuffer_albedo_texture.GetDimensions(gbufferDimensions.x, gbufferDimensions.y);
 
     const uint2 gbufferCoord = uint2(uv * max(0, int2(gbufferDimensions) - 1));
-    uint2 materialData = gbuffer_material_texture.Load(int3(gbufferCoord, 0)).xy;
 
     GBufferMaterialParams materialParams;
-    GBufferUnpackMaterialParams(normalSample.x, materialData.x, materialParams);
+    GBufferUnpackMaterialParams(normalSample.x, 0 /* don't need mask */, materialParams);
 
     const float roughness = materialParams.roughness; // alpha (perceptualRoughness^2)
     const float perceptualRoughness = sqrt(roughness);

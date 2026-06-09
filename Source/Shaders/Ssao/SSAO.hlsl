@@ -51,7 +51,7 @@ struct PSOutput
 };
 
 DECLARE_SRV(RenderSSAO, GBufferNormalsTexture) Texture2D gbuffer_normals_texture;
-DECLARE_SRV(RenderSSAO, GBufferMaterialTexture) Texture2D<uint4> gbuffer_material_texture;
+DECLARE_SRV(RenderSSAO, GBufferMaterialTexture) Texture2D<uint2> gbuffer_material_texture;
 DECLARE_SRV(RenderSSAO, GBufferVelocityTexture) Texture2D gbuffer_velocity_texture;
 DECLARE_SRV(RenderSSAO, GBufferMipChain) Texture2D gbuffer_mip_chain;
 DECLARE_SRV(RenderSSAO, GBufferDepthTexture) Texture2D gbuffer_depth_texture;
@@ -87,12 +87,10 @@ PSOutput PSMain(PSInput input)
 
     uint2 pixelCoord = uint2(texcoord * max(0, int2(gbufferDimensions) - 1));
 
-    uint2 materialData = gbuffer_material_texture.Load(int3(pixelCoord, 0)).xy;
-    
     const float4 normalSample = SAMPLE_TEXTURE_2D(sampler_nearest, gbuffer_normals_texture, texcoord);
 
     GBufferMaterialParams materialParams;
-    GBufferUnpackMaterialParams(normalSample.x, materialData.x, materialParams);
+    GBufferUnpackMaterialParams(normalSample.x, 0 /* don't need mask */, materialParams);
 
     const float roughness = materialParams.roughness;
 

@@ -5,7 +5,7 @@
 
 DECLARE_SRV(RTReflections, GBufferAlbedoTexture) Texture2D gbuffer_albedo_texture;
 DECLARE_SRV(RTReflections, GBufferNormalsTexture) Texture2D gbuffer_normals_texture;
-DECLARE_SRV(RTReflections, GBufferMaterialTexture) Texture2D<uint2> gbuffer_material_texture;
+DECLARE_SRV(RTReflections, GBufferMaterialTexture) Texture2D<uint> gbuffer_material_texture;
 DECLARE_SRV(RTReflections, GBufferDepthTexture) Texture2D gbuffer_depth_texture;
 
 DECLARE_SAMPLER(RTReflections, SamplerNearest) SamplerState sampler_nearest;
@@ -83,10 +83,9 @@ void RayGenMain()
     gbuffer_normals_texture.GetDimensions(gbufferDimensions.x, gbufferDimensions.y);
 
     const uint2 gbufferCoord = uint2(uv * max(0, int2(gbufferDimensions) - 1));
-    const uint2 materialData = gbuffer_material_texture.Load(int3(gbufferCoord, 0)).xy;
 
     GBufferMaterialParams materialParams;
-    GBufferUnpackMaterialParams(normalSample.x, materialData.x, materialParams);
+    GBufferUnpackMaterialParams(normalSample.x, 0 /* don't need mask */, materialParams);
 
     const float roughness = materialParams.roughness;
     const float perceptualRoughness = sqrt(roughness);

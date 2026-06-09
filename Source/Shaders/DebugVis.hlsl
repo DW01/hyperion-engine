@@ -159,7 +159,7 @@ struct PSOutput
 {
     float4 gbuffer_albedo : SV_Target0;
     float4 gbuffer_normals : SV_Target1;
-    uint4 gbuffer_material : SV_Target2;
+    uint gbuffer_material : SV_Target2;
     float2 gbuffer_velocity : SV_Target3;
 };
 
@@ -274,10 +274,7 @@ PSOutput PSMain(PSInput input)
 
     output.gbuffer_normals.x = roughnessAndMetalPacked;
 
-    output.gbuffer_material.x = maskPacked;
-    output.gbuffer_material.z = 0u;
-    output.gbuffer_material.w = 0u;
-    output.gbuffer_material.y = 0u;
+    output.gbuffer_material = (maskPacked << 25u);
 
     output.gbuffer_velocity = velocity;
 

@@ -54,7 +54,7 @@ struct PSOutput
 
 DECLARE_SRV(LightmapPass, GBufferAlbedoTexture) Texture2D gbuffer_albedo_texture;
 DECLARE_SRV(LightmapPass, GBufferNormalsTexture) Texture2D gbuffer_normals_texture;
-DECLARE_SRV(LightmapPass, GBufferMaterialTexture) Texture2D<uint4> gbuffer_material_texture;
+DECLARE_SRV(LightmapPass, GBufferMaterialTexture) Texture2D<uint> gbuffer_material_texture;
 DECLARE_SRV(LightmapPass, GBufferVelocityTexture) Texture2D gbuffer_velocity_texture;
 DECLARE_SRV(LightmapPass, GBufferDepthTexture) Texture2D gbuffer_depth_texture;
 
@@ -124,10 +124,10 @@ PSOutput PSMain(PSInput input)
     const float4 albedo = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, gbuffer_albedo_texture, texcoord, 0);
     const float4 normalSample = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, gbuffer_normals_texture, texcoord, 0);
 
-    const uint4 materialData = gbuffer_material_texture.Load(int3(pixelCoord, 0));
+    const uint materialData = gbuffer_material_texture.Load(int3(pixelCoord, 0));
 
     GBufferMaterialParams materialParams;
-    GBufferUnpackMaterialParams(normalSample.x, materialData.x, materialParams);
+    GBufferUnpackMaterialParams(normalSample.x, materialData >> 25u, materialParams);
 
     const float roughness = materialParams.roughness;
     const float metalness = materialParams.metalness;
@@ -140,7 +140,7 @@ PSOutput PSMain(PSInput input)
     const float4x4 inverse_view = camera.invViewMat;
 
     float3 N = GBufferUnpackNormal(SAMPLE_TEXTURE_2D_LOD(sampler_nearest, gbuffer_normals_texture, texcoord, 0));
-    float2 UV1 = float2(asfloat(materialData.z), asfloat(materialData.w));
+    float2 UV1 = (float2((float)(materialData & 0xFFFu), (float)((materialData >> 12) & 0xFFFu)) + 0.5) / 4096.0;
 
     const float depth = SAMPLE_TEXTURE_2D_LOD(sampler_nearest, gbuffer_depth_texture, texcoord, 0).r;
     const float3 P = ReconstructWorldSpacePositionFromDepth(inverse_proj, inverse_view, texcoord, depth).xyz;

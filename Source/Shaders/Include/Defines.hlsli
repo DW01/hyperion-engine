@@ -159,12 +159,12 @@
 #define HYP_OBJECT_BUCKET_SKY 3
 #define HYP_OBJECT_BUCKET_DEBUG 4
 
-// Masking - can use up to 10 bits (stored in R channel of gbuffer normal texture)
-#define OBJECT_MASK_OPAQUE (0x01)
-#define OBJECT_MASK_LIGHTMAPPED (0x02)
-#define OBJECT_MASK_TRANSLUCENT (0x04)
-#define OBJECT_MASK_SKY (0x08)
-#define OBJECT_MASK_DEBUG (0x10)
+// Mask - 7 bits
+#define OBJECT_MASK_OPAQUE (0x01u)
+#define OBJECT_MASK_LIGHTMAPPED (0x02u)
+#define OBJECT_MASK_TRANSLUCENT (0x04u)
+#define OBJECT_MASK_SKY (0x08u)
+#define OBJECT_MASK_DEBUG (0x10u)
 
 // Helper to map bucket to mask.
 #define GET_OBJECT_BUCKET_MASK(obj) (1u << (obj).bucket)

@@ -49,7 +49,7 @@ DECLARE_BUFFER_DYNAMIC(SSGI, CBuffer) cbuffer CBuffer
 
 DECLARE_SRV(SSGI, GBufferAlbedoTexture) Texture2D gbuffer_albedo_texture;
 DECLARE_SRV(SSGI, GBufferNormalsTexture) Texture2D gbuffer_normals_texture;
-DECLARE_SRV(SSGI, GBufferMaterialTexture) Texture2D<uint4> gbuffer_material_texture;
+DECLARE_SRV(SSGI, GBufferMaterialTexture) Texture2D<uint> gbuffer_material_texture;
 DECLARE_SRV(SSGI, GBufferVelocityTexture) Texture2D gbuffer_velocity_texture;
 
 DECLARE_SRV(SSGI, GBufferDepthTexture) Texture2D gbuffer_depth_texture;
@@ -174,7 +174,7 @@ float CalculateAlpha(
 
     // Fade ray hits that approach the maximum iterations
     alpha *= 1.0 - (maxIterations / ssgiConstants.maxIterations);
-    
+
     // Fade ray hits that approach the screen edge
     float2 uvNDC = hit_uv * 2.0 - 1.0;
     float maxDimension = saturate(max(abs(uvNDC.x), abs(uvNDC.y)));
@@ -224,7 +224,7 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
     float4 hit_view_space_position;
     float hit_depth;
     float maxIterations;
-    
+
     float4 accum_result = (float4)0.0;
 
     float3 tangent;
@@ -240,7 +240,7 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
     for (uint rayIndex = 0; rayIndex < numRaySamples; rayIndex++)
     {
         const uint sampleIndex = temporalSampleIndex * numRaySamples + rayIndex;
-        
+
         const float2 rnd = (float2)SampleBlueNoise(int(coord.x), int(coord.y), sampleIndex, numSamplesTotal);
 
         const float3 d = SampleCosineWeightedHemisphere(rnd);
@@ -266,7 +266,7 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
 
         // sample environment
         float3 rayDirWorld = normalize(mul(camera.invViewMat, float4(ray_direction, 0.0)).xyz);
-        
+
         float4 environmentRadiance = (float4)0.0;
 
         for (uint envProbeIdx = 0; envProbeIdx < ssgiConstants.numBoundEnvProbes && environmentRadiance.a < 1.0; envProbeIdx++)
@@ -277,12 +277,12 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
             {
                 continue;
             }
-            
+
             environmentRadiance += EnvProbeSample(sampler_linear, envProbesTexture, envProbe.texture_index, rayDirWorld, 6.0)
                 * ENVIRONMENT_INTENSITY
                 * (1.0 - environmentRadiance.a);
         }
-        
+
         // use 0 for alpha, so we can blend with other GI if available.
         accum_result += float4(environmentRadiance.rgb, 0.0);
     }
@@ -312,12 +312,12 @@ float4 SampleSky(float3 dir)
         {
             continue;
         }
-        
+
         environmentRadiance += EnvProbeSample(sampler_linear, envProbesTexture, envProbe.texture_index, dir, 6.0)
             * ENVIRONMENT_INTENSITY
             * (1.0 - environmentRadiance.a);
     }
-    
+
     return float4(environmentRadiance.rgb, 0.0);
 }
 
@@ -598,7 +598,7 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
 
                 beta /= p;
             }
-            
+
             float3 hit_N_view = normalize(mul(camera.view, float4(hit_N_world, 0.0)).xyz);
             float3 hit_diffuse_color = hit_albedo.rgb * (1.0 - hit_metalness);
 

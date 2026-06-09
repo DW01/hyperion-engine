@@ -74,7 +74,7 @@ struct PSOutput
 {
     float4 gbuffer_albedo : SV_Target0;
     float4 gbuffer_normals : SV_Target1;
-    uint4 gbuffer_material : SV_Target2;
+    uint gbuffer_material : SV_Target2;
     float2 gbuffer_velocity : SV_Target3;
 };
 
@@ -332,9 +332,9 @@ PSOutput PSMain(PSInput input)
     float4 fogColor = RayMarch(camera.position.xyz, rayDir, tNear, tFar, 0.25);
 
     output.gbuffer_albedo = fogColor;
-    output.gbuffer_normals = float4(0.0, 0.0, 0.0, 0.0);
-    output.gbuffer_material = uint4(0, 0, 0, 0);
-    output.gbuffer_velocity = float2(0.0, 0.0);
+    output.gbuffer_normals = (float4)0;
+    output.gbuffer_material = 0;
+    output.gbuffer_velocity = (float2)0;
 
     return output;
 }
