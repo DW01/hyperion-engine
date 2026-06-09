@@ -2049,8 +2049,16 @@ extern enum EnvProbeFlags : uint32
     EPF_PARALLAX_CORRECTED = 0x1,
     EPF_BAKED = 0x2
 end
+extern struct Tetrahedron
+    ProbeIndices : Array<uint32>
+end
 extern class EnvGrid : VolumeBase
+    GetGridSize() -> Vec3u
+    SetGridSize(gridSize : Vec3u) -> void
+    BakeTetrahedra() -> void
+    GridSize : Vec3u
     Probes : Array<IrradianceProbe>
+    Tetrahedra : Array<Tetrahedron>
 end
 extern class Sprite : Entity
 end

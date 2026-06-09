@@ -331,6 +331,8 @@ LRESULT CALLBACK Win32ApplicationWindow::ParentSubclassProc(HWND hWnd, UINT msg,
 
         bool isActive = (LOWORD(wParam) != WA_INACTIVE);
 
+        // FIXME: Crash when closing editor!
+
         Event event(isActive ? EventType::WINDOW_FOCUS_GAINED : EventType::WINDOW_FOCUS_LOST, self, platformEvent);
 
         self->GetInputManager()->ProcessEvent(std::move(event));

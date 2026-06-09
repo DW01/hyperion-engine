@@ -49,6 +49,8 @@ struct TThreadAllocator : Allocator<TThreadAllocator<InnerAllocator, InitInnerAl
                     {
                         static_cast<InnerAllocator*>(*ppCurrentThreadAllocator)->~InnerAllocator();
 
+                        Memory::FreeAligned(*ppCurrentThreadAllocator);
+
                         *ppCurrentThreadAllocator = nullptr;
                     }
                 });
@@ -78,7 +80,7 @@ private:
         TThreadBase* currentThread = reinterpret_cast<TThreadBase*>(threading::CurrentThreadObject());
         HYP_CORE_ASSERT(currentThread != nullptr);
 
-        T* ptr = ThreadLocalAlloc2<TThreadBase, threading::ThreadLocalStorage, T>(currentThread);
+        T* ptr = static_cast<T*>(Memory::AllocateAligned(sizeof(T), alignof(T)));
 
         if (ptr)
         {
@@ -91,12 +93,6 @@ private:
         }
 
         return nullptr;
-    }
-
-    template <class TThreadBase, class TThreadLocalStorage, class T>
-    static T* ThreadLocalAlloc2(TThreadBase* currentThread)
-    {
-        return reinterpret_cast<TThreadLocalStorage&>(currentThread->GetTLS()).template Allocate<T>();
     }
 };
 

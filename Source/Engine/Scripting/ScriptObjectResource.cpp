@@ -299,6 +299,11 @@ void ScriptObjectResource::Destroy()
 
 ENGINE_API void Object_IncScriptObjectRef(ObjectBase* ptr)
 {
+    if (!ptr)
+    {
+        return;
+    }
+
     AssertDebug(ptr->GetObjectHeader_Internal()->GetRefCountStrong() > 1);
 
     if (ScriptObjectResource* scriptObjectResource = ptr->GetScriptObjectResource();
@@ -310,6 +315,11 @@ ENGINE_API void Object_IncScriptObjectRef(ObjectBase* ptr)
 
 ENGINE_API void Object_DecScriptObjectRef(ObjectBase* ptr)
 {
+    if (!ptr)
+    {
+        return;
+    }
+
     if (ScriptObjectResource* scriptObjectResource = ptr->GetScriptObjectResource();
         scriptObjectResource && scriptObjectResource->GetScriptLanguageMask() & (1u << uint32(ScriptLanguage::CSharp)))
     {

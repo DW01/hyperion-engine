@@ -1920,11 +1920,22 @@ public:
         // Start env probes
         ENGINE_STAT_SCOPE(&s_statClusterEnvProbes);
 
-        Array<Tuple<EnvProbe*, EnvProbeShaderData*, uint32>, RenderAllocator> envProbes;
+        Array<Tuple<EnvProbe*, EnvProbeShaderData*, uint32>, RenderTempAllocator> envProbes;
         envProbes.Reserve(rpl.GetEnvProbes().NumCurrent());
 
         for (EnvProbe* envProbe : rpl.GetEnvProbes())
         {
+            static constexpr auto ReflectionProbeTypeId = CONSTEXPR_TYPE_ID(ReflectionProbe);
+            static constexpr auto SkyProbeTypeId = CONSTEXPR_TYPE_ID(SkyProbe);
+
+            const auto envProbeTypeId = envProbe->InstanceClass()->GetTypeId().Value();
+
+            if (envProbeTypeId != ReflectionProbeTypeId && envProbeTypeId != SkyProbeTypeId)
+            {
+                // skip; we only want ReflectionProbe or SkyProbe
+                continue;
+            }
+
             const uint32 envProbeBindingIndex = Resources::GetBinding(envProbe);
 
             if (envProbeBindingIndex == ~0u)

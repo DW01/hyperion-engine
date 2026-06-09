@@ -51,7 +51,6 @@ DECLARE_BUFFER_DYNAMIC(Default, CBuffer) cbuffer CBuffer
     float4x4 vpMatrix;
 };
 
-
 #ifdef SKINNING
 DECLARE_SRV_DYNAMIC(Default, SkeletonsBuffer) StructuredBuffer<float4x4> SkeletonsBuffer;
 #include "include/Skinning.hlsli"

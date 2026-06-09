@@ -35,7 +35,7 @@ EDITOR_API HYP_DECLARE_LOG_CHANNEL(Editor);
 static constexpr EnumFlags<EnvProbeFlags> DefaultEnvProbeFlags[EPT_MAX] = {
     EPF_NONE,               // sky
     EPF_PARALLAX_CORRECTED, // reflection
-    EPF_BAKED               // ambient
+    EPF_NONE                // ambient
 };
 
 static FixedArray<Mat4f, 6> CreateCubemapMatrices(const Vec3f& origin)
@@ -285,26 +285,23 @@ void EnvProbe::CreateViews()
 
     uint32 attachmentIndex = 0;
 
-    if (IsReflectionProbe() || IsSkyProbe())
-    {
-        // color
-        AttachmentDesc& colorDesc = attachmentDescs.PushBack(AttachmentDesc {
-            TextureType::Cubemap,
-            TextureFormat::RGBA8,
-            LoadOperation::CLEAR,
-            StoreOperation::STORE
-        });
-        attachmentImages.PushBack(RI.MakeImage(TextureDesc {
-            colorDesc.imageType,
-            colorDesc.format,
-            Vec3u(framebufferDesc.extent, 1),
-            TFM_NEAREST,
-            TFM_NEAREST,
-            TWM_CLAMP_TO_EDGE,
-            1,
-            IU_SAMPLED | IU_ATTACHMENT
-        }));
-    }
+    // color
+    AttachmentDesc& colorDesc = attachmentDescs.PushBack(AttachmentDesc {
+        TextureType::Cubemap,
+        TextureFormat::RGBA8,
+        LoadOperation::CLEAR,
+        StoreOperation::STORE
+    });
+    attachmentImages.PushBack(RI.MakeImage(TextureDesc {
+        colorDesc.imageType,
+        colorDesc.format,
+        Vec3u(framebufferDesc.extent, 1),
+        TFM_NEAREST,
+        TFM_NEAREST,
+        TWM_CLAMP_TO_EDGE,
+        1,
+        IU_SAMPLED | IU_ATTACHMENT
+    }));
 
     // Depth
     AttachmentDesc& depthDesc = attachmentDescs.PushBack(AttachmentDesc {
@@ -331,13 +328,13 @@ void EnvProbe::CreateViews()
 
     ShaderDesc shaderDesc;
 
-    if (IsReflectionProbe())
-    {
-        shaderDesc.name = NAME("DrawCubemap");
-    }
-    else if (IsSkyProbe())
+    if (IsSkyProbe())
     {
         shaderDesc.name = NAME("RenderSky");
+    }
+    else
+    {
+        shaderDesc.name = NAME("DrawCubemap");
     }
 
     AssertDebug(shaderDesc.name.IsValid());
@@ -363,14 +360,12 @@ void EnvProbe::CreateViews()
 
         ViewDesc viewDesc {};
         viewDesc.flags = (OnlyCollectStaticEntities() ? ViewFlags::COLLECT_STATIC_ENTITIES : ViewFlags::COLLECT_ALL_ENTITIES)
-            | ViewFlags::NO_FRUSTUM_CULLING
-            | ViewFlags::CUBEMAP_FACE_VIEW
+            | ViewFlags::CUBEMAP_FACE_VIEW | ViewFlags::ENV_PROBE_VIEW
             | ViewFlags::SKIP_ENV_PROBES
             | ViewFlags::SKIP_ENV_GRIDS
             | ViewFlags::NO_PARALLEL_DRAW_CALL_COLLECTION
             | ViewFlags::EXTERNAL_RENDERTARGET;
-        viewDesc.viewIndex = static_cast<uint8>(viewIndex);
-        viewDesc.camera = m_camera;
+
         viewDesc.overrideAttributes = RenderableAttributeSet(
             MeshAttributes {},
             MaterialAttributes {
@@ -380,8 +375,16 @@ void EnvProbe::CreateViews()
                 .cullFaces = FCM_NONE
             });
 
+        viewDesc.viewIndex = static_cast<uint8>(viewIndex);
+        viewDesc.camera = m_camera;
+
+        if (m_scene != nullptr)
+        {
+            viewDesc.scenes = { m_scene };
+        }
+
         Handle<View> view = MakeHandle<View>(viewDesc);
-        view->SetName(NAME_FMT("EnvProbe_{}_View{}", GetName(), viewIndex));
+        view->SetName(NAME_FMT("{}_{}_View{}", InstanceClass()->GetName(), GetName(), viewIndex));
         InitObject(view);
 
         m_views[viewIndex] = std::move(view);
@@ -411,6 +414,14 @@ void EnvProbe::SetOrigin(const Vec3f& origin)
     SetLocalBounds(localBounds);
 }
 
+void EnvProbe::SetSphericalHarmonicsData(const EnvProbeSphericalHarmonics& shData)
+{
+    m_shData = shData;
+
+    MarkDirty();
+    SetNeedsRenderProxyUpdate();
+}
+
 void EnvProbe::Update(float delta)
 {
     HYP_SCOPE;
@@ -433,7 +444,7 @@ void EnvProbe::Update(float delta)
         cacheKeysToRemove.PushBack(kvp.first);
     }
 
-    FixedArray<Mat4f, 6> matrices = CreateCubemapMatrices(worldAabb.GetCenter());
+    FixedArray<Mat4f, 6> matrices = CreateCubemapMatrices(GetWorldTranslation());
 
     TSet<Scene*, SceneTempAllocator> allScenes;
     for (uint32 viewIndex = 0; viewIndex < 6; viewIndex++)

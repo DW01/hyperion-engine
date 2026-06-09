@@ -293,14 +293,7 @@ public:
         return m_shData;
     }
 
-    HYP_FORCE_INLINE void SetSphericalHarmonicsData(const EnvProbeSphericalHarmonics& shData)
-    {
-        m_shData = shData;
-
-        MarkDirty();
-
-        SetNeedsRenderProxyUpdate();
-    }
+    void SetSphericalHarmonicsData(const EnvProbeSphericalHarmonics& shData);
 
     virtual void Update(float delta) override;
 

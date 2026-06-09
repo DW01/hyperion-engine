@@ -92,7 +92,9 @@ void IDebugDrawShape::UpdateBufferData(DebugDrawCommand* cmd, ImmediateDrawShade
 {
     *bufferData = ImmediateDrawShaderData {
         cmd->transformMatrix,
-        cmd->color.Packed()
+        cmd->color.Packed(),
+        0,
+        ~0u
     };
 }
 
@@ -461,6 +463,141 @@ void PlaneDebugDrawShape::operator()(const FixedArray<Vec3f, 4>& points, const C
 
 #pragma endregion PlaneDebugDrawShape
 
+#pragma region TetrahedronLineDebugDrawShape
+
+TetrahedronLineDebugDrawShape::TetrahedronLineDebugDrawShape(DebugDrawCommandList& list)
+    : MeshDebugDrawShapeBase(list)
+{
+    static const int s_shapeId = NextShapeId();
+    shapeId = s_shapeId;
+
+    (void)GetMesh(); // hack to preload mesh so it doesn't try to load during render pass
+}
+
+Mesh* TetrahedronLineDebugDrawShape::GetMesh_Internal() const
+{
+    static struct MeshInitializer
+    {
+        Handle<Mesh> mesh;
+        DelegateHandler onShutdownHandle;
+
+        MeshInitializer()
+        {
+            const Vec3f v0(0.0f, 0.0f, 0.0f);
+            const Vec3f v1(1.0f, 0.0f, 0.0f);
+            const Vec3f v2(0.0f, 1.0f, 0.0f);
+            const Vec3f v3(0.0f, 0.0f, 1.0f);
+
+            const Vec3f n0(0.0f, 0.0f, 0.0f);
+
+            FixedArray<SimpleVertex, 4> vertices = {
+                SimpleVertex { v0, n0, Vec2f(0.0f, 0.0f) },
+                SimpleVertex { v1, n0, Vec2f(0.0f, 0.0f) },
+                SimpleVertex { v2, n0, Vec2f(0.0f, 0.0f) },
+                SimpleVertex { v3, n0, Vec2f(0.0f, 0.0f) }
+            };
+
+            FixedArray<uint32, 12> indices = {
+                0, 1,
+                0, 2,
+                0, 3,
+                1, 2,
+                1, 3,
+                2, 3
+            };
+
+            MeshDesc meshDesc {};
+            meshDesc.meshAttributes.inputLayout = { VT_Simple };
+            meshDesc.numIndices = uint32(indices.Size());
+            meshDesc.numVertices = uint32(vertices.Size());
+
+            mesh = MakeHandle<Mesh>();
+            mesh->SetFlags(MeshFlags::ViewIndependent);
+            mesh->SetName(NAME("TetrahedronLineDebugDrawShape"));
+
+            VertexArrayView vertexArrayView {};
+            vertexArrayView.floatData = reinterpret_cast<const float*>(vertices.Data());
+            vertexArrayView.vertexCount = vertices.Size();
+            vertexArrayView.layoutDesc = { VT_Simple };
+
+            ConstByteView indicesByteView(
+                reinterpret_cast<const ubyte*>(indices.Data()),
+                indices.Size() * sizeof(uint32));
+
+            mesh->SetMeshData(meshDesc, vertexArrayView, indicesByteView);
+            mesh->UploadGpuData();
+
+            GetEngineAssetRegistry()->PutAsset(mesh);
+
+            onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind([m = &mesh]()
+            {
+                m->Reset();
+            });
+        }
+    } s_initializer;
+
+    return s_initializer.mesh;
+}
+
+void TetrahedronLineDebugDrawShape::operator()(const Vec3f& p0, const Vec3f& p1, const Vec3f& p2, const Vec3f& p3, const Color& color)
+{
+    (*this)(p0, p1, p2, p3, color, GetRenderableAttributes());
+}
+
+void TetrahedronLineDebugDrawShape::operator()(const Vec3f& p0, const Vec3f& p1, const Vec3f& p2, const Vec3f& p3, const Color& color, const RenderableAttributeSet& attributes)
+{
+    if (!list.GetDebugDrawer()->IsEnabled())
+    {
+        return;
+    }
+
+    const Vec3f x = p1 - p0;
+    const Vec3f y = p2 - p0;
+    const Vec3f z = p3 - p0;
+
+    Mat4f transformMatrix;
+
+    transformMatrix.rows[0][0] = x.x;
+    transformMatrix.rows[0][1] = x.y;
+    transformMatrix.rows[0][2] = x.z;
+    transformMatrix.rows[0][3] = 0.0f;
+
+    transformMatrix.rows[1][0] = y.x;
+    transformMatrix.rows[1][1] = y.y;
+    transformMatrix.rows[1][2] = y.z;
+    transformMatrix.rows[1][3] = 0.0f;
+
+    transformMatrix.rows[2][0] = z.x;
+    transformMatrix.rows[2][1] = z.y;
+    transformMatrix.rows[2][2] = z.z;
+    transformMatrix.rows[2][3] = 0.0f;
+
+    transformMatrix.rows[3][0] = p0.x;
+    transformMatrix.rows[3][1] = p0.y;
+    transformMatrix.rows[3][2] = p0.z;
+    transformMatrix.rows[3][3] = 1.0f;
+
+    DebugDrawCommandHeader header;
+
+    DebugDrawCommand* ptr = reinterpret_cast<DebugDrawCommand*>(list.Alloc(sizeof(DebugDrawCommand), alignof(DebugDrawCommand), header));
+    new (ptr) DebugDrawCommand {
+        this,
+        transformMatrix,
+        color,
+        attributes
+    };
+
+    header.destructFn = &Memory::Destruct<DebugDrawCommand>;
+    header.moveFn = [](void* dst, void* src)
+    {
+        new (dst) DebugDrawCommand(std::move(*reinterpret_cast<DebugDrawCommand*>(src)));
+    };
+
+    list.Push(header);
+}
+
+#pragma endregion TetrahedronLineDebugDrawShape
+
 #pragma region DebugDrawer
 
 static FixedArray<ByteBuffer, RingBufferDepth> CreateDebugDrawBuffers()
@@ -647,6 +784,8 @@ void DebugDrawer::Update()
         it.m_bufferOffset = 0;
     }
 }
+
+HYP_DISABLE_OPTIMIZATION;
 
 void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
 {
@@ -839,19 +978,20 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
             uint32 size = m_headers[idx][drawCommandIdx].size;
             AssertDebug(offset + size <= m_buffers[idx].Size());
 
-            numToDraw++;
-
             DebugDrawCommand* drawCommand = reinterpret_cast<DebugDrawCommand*>(m_buffers[idx].Data() + offset);
 
             if (attributes != drawCommand->attributes)
             {
-                attributes = drawCommand->attributes;
-
-                if (i != 0)
+                // commit current pending draws if we'll be changing attributes
+                if (numToDraw != 0)
                 {
                     CommitCurrentDraws();
                 }
+                
+                attributes = drawCommand->attributes;
             }
+
+            numToDraw++;
         }
 
         if (numToDraw != 0)
@@ -860,7 +1000,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
         }
     }
 
-    instanceBuffer.Flush();
+    instanceBuffer.FlushBatched();
 
     ClearCommands(idx);
 }
@@ -927,6 +1067,7 @@ DebugDrawCommandList::DebugDrawCommandList(DebugDrawer* debugDrawer)
       reflectionProbe(*this),
       box(*this),
       plane(*this),
+      tetrahedronLine(*this),
       m_bufferOffset(0)
 {
 }

@@ -811,7 +811,9 @@ void World::CollectViews(Array<View*, SceneAllocator>& outViews)
         const size_t offset = m_views.Size();
         for (size_t i = 0; i < m_processViews.Size(); i++)
         {
-            m_viewsPerFrame[slot][offset + i] = m_processViews[i];
+            View& view = *m_processViews[i];
+
+            m_viewsPerFrame[slot][offset + i] = &view;
         }
     }
 

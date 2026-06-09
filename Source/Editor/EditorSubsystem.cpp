@@ -26,6 +26,7 @@
 #include <Scene/View.hpp>
 #include <Scene/Light.hpp>
 #include <Scene/EnvProbe.hpp>
+#include <Scene/EnvGrid.hpp>
 #include <Scene/FogVolume.hpp>
 #include <Scene/EntityManager.hpp>
 
@@ -2330,7 +2331,7 @@ void EditorSubsystem::Update(float delta)
 
 
     // Debug draw probes
-    for (Scene* scene : GetWorld()->GetScenes())
+    for (Scene* scene : GetCurrentProject()->GetWorld()->GetScenes())
     {
         for (auto [probe, _] : scene->GetEntityManager()->GetEntitySet<EntityType<EnvProbe>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
         {
@@ -2352,6 +2353,32 @@ void EditorSubsystem::Update(float delta)
             default:
                 HYP_LOG_ONCE(Editor, Warning, "Unknown probe type class: {}", probe->InstanceClass()->GetName());
                 break;
+            }
+        }
+    }
+
+    for (Scene* scene : GetCurrentProject()->GetWorld()->GetScenes())
+    {
+        for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<EnvGrid>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
+        {
+            EnvGrid* envGrid = static_cast<EnvGrid*>(entity);
+
+            const Span<const Tetrahedron> tets = envGrid->GetTetrahedra();
+            const Span<IrradianceProbe* const> probes = envGrid->GetProbes();
+
+            if (tets.Size() == 0 || probes.Size() == 0)
+            {
+                continue;
+            }
+
+            for (const Tetrahedron& tet : tets)
+            {
+                const Vec3f p0 = probes[tet.probeIndices[0]]->GetWorldTranslation();
+                const Vec3f p1 = probes[tet.probeIndices[1]]->GetWorldTranslation();
+                const Vec3f p2 = probes[tet.probeIndices[2]]->GetWorldTranslation();
+                const Vec3f p3 = probes[tet.probeIndices[3]]->GetWorldTranslation();
+
+                dbg.tetrahedronLine(p0, p1, p2, p3, Color::Magenta());
             }
         }
     }

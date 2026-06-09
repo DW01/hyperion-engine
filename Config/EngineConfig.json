@@ -36,9 +36,9 @@
       "Normals": false,
       "AO": false
     },
-    "VSync": false,
+    "VSync": true,
     "Vulkan": {
-      "DebugLayers": true,
+      "DebugLayers": false,
       "TimelineSemaphores": true
     }
   },

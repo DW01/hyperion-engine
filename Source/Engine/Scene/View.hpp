@@ -89,7 +89,8 @@ enum class ViewFlags : uint32
     SHADOW_VIEW = 0x400000,             //!< This View is for a rendering a shadow map slice or cascade
     BAKER_VIEW = 0x800000,              //!< This View is for baking lightmaps or shadow maps, not for rendering to the screen (see: Baker.cpp)
     UI_VIEW = 0x1000000,                //!< This View is for rendering UI elements. See UISubsystem.
-    CUBEMAP_FACE_VIEW = 0x2000000,           //!< This View corresponds to a face in a cubemap - will not automatically update sub-frustum
+    ENV_PROBE_VIEW = 0x2000000,         //!< Used by an EnvProbe for rendering a cubemap face - skips shadows and other fancy things that normally allocate per-view.
+    CUBEMAP_FACE_VIEW = 0x4000000,      //!< This View corresponds to a face in a cubemap - will not automatically update sub-frustum
 
     EXTERNAL_RENDERTARGET = 0x10000000,
 

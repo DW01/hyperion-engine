@@ -20,7 +20,7 @@ TlsfAllocator::TlsfAllocator()
 {
     const size_t poolSize = tlsf_size();
 
-    m_mem = std::malloc(tlsf_size());
+    m_mem = Memory::AllocateAligned(ByteUtil::AlignAs(tlsf_size(), 16), 16);
     HYP_CORE_ASSERT(m_mem != nullptr, "Failed to allocate memory for TLSF allocator");
 
     m_tlsf = tlsf_create(m_mem);
@@ -37,7 +37,7 @@ TlsfAllocator::~TlsfAllocator()
 
     if (m_mem != nullptr)
     {
-        std::free(m_mem);
+        Memory::FreeAligned(m_mem);
         m_mem = nullptr;
     }
 }

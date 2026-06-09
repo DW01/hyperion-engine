@@ -62,8 +62,6 @@ struct ParallelRenderingState
 {
     HYP_DEF_POOL_NEW_DELETE(g_renderPool);
 
-    static constexpr uint32 MaxBatches = NumAsyncCommandBuffers;
-
     TaskBatch* taskBatch = nullptr;
 
     uint32 numBatches = 0;
@@ -73,9 +71,6 @@ struct ParallelRenderingState
 
     // Non-async rendering command list - used for binding state at the start of the pass before async stuff (can only be written to from render thread)
     CommandRecorder renderThreadRecorder;
-
-    // per-thread CommandRecorder
-    using ThreadedCommandRecorder = TCommandRecorder<ThreadAllocator>;
 
     ParallelRenderingState* next = nullptr;
 

@@ -4,6 +4,11 @@
 PERMUTE(IMMEDIATE_MODE);
 PERMUTE(INSTANCING);
 
+#define EPT_SKY 0
+#define EPT_REFLECTION 1
+#define EPT_AMBIENT 2
+#define EPT_INVALID (~0u)
+
 #ifdef VERTEX_SHADER
 
 struct VSInput
@@ -68,7 +73,7 @@ DECLARE_SRV(DebugDrawerDescriptorSet, EntitiesBuffer) StructuredBuffer<Entity> e
 #if !defined(INSTANCING) || defined(IMMEDIATE_MODE)
 DECLARE_BUFFER_DYNAMIC(DebugDrawerDescriptorSet, CBuffer) cbuffer CBuffer
 {
-#ifndef INSTANCING
+#if !defined(IMMEDIATE_MODE) && !defined(INSTANCING)
     // To match CBuffer in RendererMain:
     Entity entity;
 #endif // INSTANCING
@@ -107,21 +112,6 @@ VSOutput VSMain(VSInput input, uint instanceId : SV_InstanceID)
 
     output.env_probe_type = immediateDraw.env_probe_type;
     output.env_probe_index = immediateDraw.env_probe_index;
-
-    // Temporarily disabled.
-#if 0
-    if (immediateDraw.env_probe_index != ~0u)
-    {
-        SH9 sh9;
-
-        for (int i = 0; i < 9; i++)
-        {
-            sh9.values[i] = env_probes[immediateDraw.env_probe_index].sh[i].rgb;
-        }
-
-        output.color = float4(SphericalHarmonicsSample(sh9, input.a_normal), 1.0);
-    }
-#endif
 #elif defined(INSTANCING)
     output.object_index = OBJECT_INDEX;
 #else
@@ -245,30 +235,35 @@ PSOutput PSMain(PSInput input)
 
     materialParams.mask = OBJECT_MASK_TRANSLUCENT | OBJECT_MASK_DEBUG;
 
-    // Temporarily disabled.
-#if 0
     if (input.env_probe_index != ~0u)
     {
-        const float3 N = normal;
-        const float3 V = normalize(camera.position.xyz - input.position.xyz);
+        if (input.env_probe_type == EPT_REFLECTION)
+        {
+            const float3 N = normal;
+            const float3 V = normalize(camera.position.xyz - input.position.xyz);
+            const float3 R = reflect(-V, N);
 
-        float4 ibl = float4(0.0, 0.0, 0.0, 0.0);
+            float4 ibl = float4(0.0, 0.0, 0.0, 0.0);
 
-        const float3 R = reflect(-V, N);
+            ApplyReflectionProbe(
+                env_probes[input.env_probe_index].texture_index,
+                env_probes[input.env_probe_index].world_position.xyz,
+                env_probes[input.env_probe_index].aabb_min.xyz,
+                env_probes[input.env_probe_index].aabb_max.xyz,
+                input.position.xyz,
+                R,
+                0.0,
+                ibl);
 
-        ApplyReflectionProbe(
-            env_probes[input.env_probe_index].texture_index,
-            env_probes[input.env_probe_index].world_position.xyz,
-            env_probes[input.env_probe_index].aabb_min.xyz,
-            env_probes[input.env_probe_index].aabb_max.xyz,
-            input.position.xyz,
-            R,
-            0.0,
-            ibl);
+            output.gbuffer_albedo.rgb = ibl.rgb;
+        }
+        else
+        {
+            const float3 shColor = EnvProbeSH(env_probes[input.env_probe_index], normal);
 
-        output.gbuffer_albedo.rgb = ibl.rgb;
+            output.gbuffer_albedo.rgb = shColor;
+        }
     }
-#endif
 #else
     materialParams.mask = GET_OBJECT_BUCKET_MASK(entity);
 #endif

@@ -1333,7 +1333,7 @@ void View::CollectEnvGrids(RenderProxyList& rpl)
                 continue;
             }
 
-            for (const Handle<IrradianceProbe>& probe : envGrid->probes)
+            for (IrradianceProbe* probe : envGrid->GetProbes())
             {
                 if (!probe)
                 {
