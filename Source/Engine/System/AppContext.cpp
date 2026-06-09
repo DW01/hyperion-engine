@@ -119,7 +119,11 @@ ApplicationWindow::ApplicationWindow(ANSIString title, Vec2i size)
 {
 }
 
-ApplicationWindow::~ApplicationWindow() = default;
+ApplicationWindow::~ApplicationWindow()
+{
+    OnWindowSizeChanged.RemoveAllForTarget(this);
+    OnClose.RemoveAllForTarget(this);
+}
 
 void ApplicationWindow::HandleResize(Vec2i newSize)
 {
@@ -285,7 +289,10 @@ AppContextBase::AppContextBase(ANSIString name, const CommandLineArguments& argu
     }
 }
 
-AppContextBase::~AppContextBase() = default;
+AppContextBase::~AppContextBase()
+{
+    OnCurrentWindowChanged.RemoveAllForTarget(this);
+}
 
 void AppContextBase::SetMainWindow(const Handle<ApplicationWindow>& window)
 {

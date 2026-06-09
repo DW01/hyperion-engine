@@ -115,6 +115,10 @@ Node::~Node()
 
         child.Reset();
     }
+
+    OnChildAdded.RemoveAllForTarget(this);
+    OnChildRemoved.RemoveAllForTarget(this);
+    TransformUpdated.RemoveAllForTarget(this);
 }
 
 Handle<Node> Node::Clone() const

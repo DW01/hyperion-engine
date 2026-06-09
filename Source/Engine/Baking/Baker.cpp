@@ -59,6 +59,8 @@
 
 #include <Core/Math/Triangle.hpp>
 
+#include <Rendering/RenderProxyList.hpp>
+
 #include <Rendering/Util/MeshBuilder.hpp>
 
 #include <System/AppContext.hpp>
@@ -254,6 +256,15 @@ void BakerBase::Initialize()
     {
         m_threadPool = new BakerThreadPool(GetInnerType(), NumThreads());
         m_threadPool->Start();
+    }
+}
+
+void BakerBase::Shutdown()
+{
+    if (m_camera.IsValid())
+    {
+        m_camera->Remove(/* moveToDetached */ false);
+        m_camera.Reset();
     }
 }
 

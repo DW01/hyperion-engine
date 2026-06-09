@@ -2325,11 +2325,39 @@ void EditorSubsystem::Update(float delta)
     AssertOnThread(g_simThread);
 
     m_editorDelegates->Update();
+    
+    DebugDrawCommandList& dbg = DebugDrawer::GetInstance().CreateCommandList();
+
+
+    // Debug draw probes
+    for (Scene* scene : GetWorld()->GetScenes())
+    {
+        for (auto [probe, _] : scene->GetEntityManager()->GetEntitySet<EntityType<EnvProbe>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
+        {
+            static constexpr auto ReflectionProbeTypeId = CONSTEXPR_TYPE_ID(ReflectionProbe);
+            static constexpr auto SkyProbeTypeId = CONSTEXPR_TYPE_ID(SkyProbe);
+            static constexpr auto IrradianceProbeTypeId = CONSTEXPR_TYPE_ID(IrradianceProbe);
+
+            switch (probe->InstanceClass()->GetTypeId().Value())
+            {
+            case ReflectionProbeTypeId:
+                dbg.reflectionProbe(probe->GetWorldTranslation(), 1.0f, static_cast<EnvProbe&>(*probe));
+                break;
+            case SkyProbeTypeId:
+                dbg.reflectionProbe(probe->GetWorldTranslation(), 1.0f, static_cast<EnvProbe&>(*probe));
+                break;
+            case IrradianceProbeTypeId:
+                dbg.ambientProbe(probe->GetWorldTranslation(), 1.0f, static_cast<EnvProbe&>(*probe));
+                break;
+            default:
+                HYP_LOG_ONCE(Editor, Warning, "Unknown probe type class: {}", probe->InstanceClass()->GetName());
+                break;
+            }
+        }
+    }
 
     if (!m_selectedNodes.Empty())
     {
-        DebugDrawCommandList& dbg = DebugDrawer::GetInstance().CreateCommandList();
-
         for (const Handle<Node>& node : m_selectedNodes)
         {
             if (node.IsValid())

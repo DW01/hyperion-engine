@@ -189,6 +189,8 @@ void LightmapRenderer_GpuPathTracing::CreateAccelerationStructures()
     rpl.BeginRead();
     HYP_DEFER({ rpl.EndRead(); });
 
+    AssertDebug(rpl.GetMeshEntities().NumCurrent() != 0);
+
     for (Entity* entity : rpl.GetMeshEntities())
     {
         AssertDebug(entity != nullptr);
@@ -235,6 +237,9 @@ void LightmapRenderer_GpuPathTracing::CreateAccelerationStructures()
     if (!hasBlas)
     {
         HYP_LOG(Lightmap, Warning, "No bottom-level acceleration structures found. Skipping top-level acceleration structure creation.");
+
+        HYP_BREAKPOINT;
+
         return;
     }
 
@@ -257,6 +262,8 @@ void LightmapRenderer_GpuPathTracing::UpdatePipelineState(Frame* frame, BakeJobB
     jd.isCreated = true;
 }
 
+HYP_DISABLE_OPTIMIZATION;
+
 void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(
     Frame* frame,
     BakeJobBase* job,
@@ -269,7 +276,14 @@ void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(
         return;
     }
 
-    Assert(m_jobData.Contains(job));
+    if (!m_jobData.Contains(job))
+    {
+        HYP_LOG(Lightmap, Warning, "Job data missing");
+
+        callback({});
+        
+        return;
+    }
 
     JobData& jd = m_jobData[job];
     Assert(jd.isCreated);
@@ -345,18 +359,24 @@ void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(
     cr.Done();
 }
 
-void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& renderSetup, BakeJobBase* job, Span<const LightmapRay> rays, uint32 rayOffset)
+bool LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& renderSetup, BakeJobBase* job, Span<const LightmapRay> rays, uint32 rayOffset)
 {
     AssertOnThread(g_renderThread);
 
     if (rays.Size() == 0)
     {
-        return;
+        return false;
     }
 
     Assert(CanRender());
 
     AssertDebug(renderSetup.world);
+    
+    RenderProxyList& rpl = *renderSetup.view->GetRenderProxyList(GetRingIndex()); // GetConsumerProxyList(renderSetup.view);
+    rpl.BeginRead();
+    HYP_DEFER({ rpl.EndRead(); });
+
+    AssertDebug(rpl.isShared);
 
     const uint32 frameIndex = frame->GetFrameIndex();
     const uint32 previousFrameIndex = (frame->GetFrameIndex() + NumFramesInFlight - 1) % NumFramesInFlight;
@@ -367,7 +387,7 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
     {
         // no GpuBlas to process if TLAS not created
         HYP_LOG(Lightmap, Error, "No top level acceleration structure created, cannot bake lightmap");
-        return;
+        return false;
     }
 
     UpdatePipelineState(frame, job);
@@ -378,9 +398,6 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
     Assert(cbuffer != nullptr);
 
     { // Fill constants buffer
-        RenderProxyList& rpl = GetConsumerProxyList(renderSetup.view);
-        rpl.BeginRead();
-        HYP_DEFER({ rpl.EndRead(); });
 
         RayTracingConstants constants {};
         constants.rayOffset = rayOffset;
@@ -582,6 +599,8 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
     cr << TraceRays(Vec3u { uint32(rays.Size()), 1, 1 });
 
     cr.Done();
+
+    return true;
 }
 
 #pragma endregion LightmapRenderer_GpuPathTracing

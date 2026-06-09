@@ -65,13 +65,13 @@ struct Proc_Impl<ReturnType(Args...), MemoryType>
         else
         {
             ptr = other.ptr;
-
-            deleteFn = other.deleteFn;
-            other.deleteFn = nullptr;
         }
 
         invokeFn = other.invokeFn;
         other.invokeFn = nullptr;
+        
+        deleteFn = other.deleteFn;
+        other.deleteFn = nullptr;
 
         other.ptr = nullptr;
     }
@@ -100,13 +100,13 @@ struct Proc_Impl<ReturnType(Args...), MemoryType>
         else
         {
             ptr = other.ptr;
-
-            deleteFn = other.deleteFn;
-            other.deleteFn = nullptr;
         }
 
         invokeFn = other.invokeFn;
         other.invokeFn = nullptr;
+        
+        deleteFn = other.deleteFn;
+        other.deleteFn = nullptr;
 
         other.ptr = nullptr;
 

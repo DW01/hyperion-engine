@@ -224,26 +224,30 @@ UIObject::UIObject()
 
 UIObject::~UIObject()
 {
-    OnInit.RemoveAllDetached();
-    OnAttached.RemoveAllDetached();
-    OnRemoved.RemoveAllDetached();
-    OnChildAttached.RemoveAllDetached();
-    OnChildRemoved.RemoveAllDetached();
-    OnMouseDown.RemoveAllDetached();
-    OnMouseUp.RemoveAllDetached();
-    OnMouseDrag.RemoveAllDetached();
-    OnMouseHover.RemoveAllDetached();
-    OnMouseLeave.RemoveAllDetached();
-    OnMouseMove.RemoveAllDetached();
-    OnGainFocus.RemoveAllDetached();
-    OnLoseFocus.RemoveAllDetached();
-    OnScroll.RemoveAllDetached();
-    OnClick.RemoveAllDetached();
-    OnKeyDown.RemoveAllDetached();
-    OnKeyUp.RemoveAllDetached();
-    OnComputedVisibilityChange.RemoveAllDetached();
-    OnEnabled.RemoveAllDetached();
-    OnDisabled.RemoveAllDetached();
+    OnInit.RemoveAllForTarget(this);
+    OnAttached.RemoveAllForTarget(this);
+    OnRemoved.RemoveAllForTarget(this);
+    OnChildAttached.RemoveAllForTarget(this);
+    OnChildRemoved.RemoveAllForTarget(this);
+    OnMouseDown.RemoveAllForTarget(this);
+    OnMouseUp.RemoveAllForTarget(this);
+    OnMouseDrag.RemoveAllForTarget(this);
+    OnMouseHover.RemoveAllForTarget(this);
+    OnMouseLeave.RemoveAllForTarget(this);
+    OnMouseMove.RemoveAllForTarget(this);
+    OnGainFocus.RemoveAllForTarget(this);
+    OnLoseFocus.RemoveAllForTarget(this);
+    OnScroll.RemoveAllForTarget(this);
+    OnClick.RemoveAllForTarget(this);
+    OnRightClick.RemoveAllForTarget(this);
+    OnKeyDown.RemoveAllForTarget(this);
+    OnKeyUp.RemoveAllForTarget(this);
+    OnTextChange.RemoveAllForTarget(this);
+    OnSizeChange.RemoveAllForTarget(this);
+    OnComputedVisibilityChange.RemoveAllForTarget(this);
+    OnEnabled.RemoveAllForTarget(this);
+    OnDisabled.RemoveAllForTarget(this);
+    OnValueChange.RemoveAllForTarget(this);
 }
 
 void UIObject::Init()

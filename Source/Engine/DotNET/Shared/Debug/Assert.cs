@@ -5,6 +5,8 @@ namespace Hyperion
 {
     public class Assert
     {
+        // @TODO Refactor to use [CallerMemberName] and friends.
+
         public static void Throw(bool condition, string? message = null, params object[] args)
         {
             if (!condition)

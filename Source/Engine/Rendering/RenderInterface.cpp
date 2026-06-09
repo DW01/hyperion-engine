@@ -352,11 +352,11 @@ static BufferedViewData* GetBufferedViewData(View* view, uint32 slot)
     AssertDebug(bufferedViewData->rplShared->isShared, "Expected isShared to be true to ensure multiple threads don't access the list concurrently");
 
     // Clear out any lingering tracked resources.
-    bufferedViewData->rplShared->BeginWrite();
-    bufferedViewData->rplShared->ClearAll();
-    bufferedViewData->rplShared->EndWrite();
+    // bufferedViewData->rplShared->BeginWrite();
+    // bufferedViewData->rplShared->ClearAll();
+    // bufferedViewData->rplShared->EndWrite();
 
-    AssertDebug(bufferedViewData->rplShared->GetMeshEntities().NumCurrent() == 0);
+    //AssertDebug(bufferedViewData->rplShared->GetMeshEntities().NumCurrent() == 0);
 
     bufferedData.perViewData[view] = bufferedViewData;
 

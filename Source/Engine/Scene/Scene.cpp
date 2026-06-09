@@ -76,6 +76,8 @@ Scene::Scene(Name name, ThreadId ownerThreadId, EnumFlags<SceneFlags> flags)
 Scene::~Scene()
 {
     Shutdown();
+
+    OnRootNodeChanged.RemoveAllForTarget(this);
 }
 
 void Scene::Initialize()

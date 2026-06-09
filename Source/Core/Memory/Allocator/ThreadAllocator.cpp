@@ -15,6 +15,13 @@ namespace memory {
 
 static constexpr size_t ThreadAllocatorPoolSize = 1024 * 1024 * 4; // 4 MB per thread for thread allocator pool
 
+static thread_local void* s_currentThreadAllocatorRaw;
+
+CORE_API void** CurrentThreadAllocatorRaw()
+{
+    return &s_currentThreadAllocatorRaw;
+}
+
 void InitThreadAllocatorPool(void* p)
 {
     new (p) Pool(ThreadAllocatorPoolSize, PF_NONE, ThreadId::Current());

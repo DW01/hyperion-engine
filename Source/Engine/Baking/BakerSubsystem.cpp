@@ -58,7 +58,8 @@ void BakerSubsystem::OnRemovedFromWorld()
 
     for (auto& it : m_bakers)
     {
-        GetWorld()->RemoveView(it.second->GetView());
+        Handle<BakerBase>& baker = it.second;
+        baker->Shutdown();
     }
 
     m_bakers.Clear();
@@ -79,9 +80,13 @@ void BakerSubsystem::Update(float delta)
 
         if (baker->IsComplete())
         {
-            GetWorld()->RemoveView(baker->GetView());
+            baker->Shutdown();
 
             keysToRemove.PushBack(it.first);
+        }
+        else
+        {
+            GetWorld()->ProcessViewAsync(baker->GetView());
         }
     }
 
@@ -146,8 +151,8 @@ Task<void> BakerSubsystem::EnqueueBake_Internal(const Handle<T>& source, Args&&.
         .Detach();
 
     baker->Initialize();
-
-    GetWorld()->AddView(baker->GetView());
+    
+    GetWorld()->ProcessViewAsync(baker->GetView());
 
     m_bakers.Insert(source.Get(), std::move(baker));
 

@@ -1147,7 +1147,7 @@ public:
             cls = *classRef;
         }
         // special case for arrays
-        else if (GenericArrayWrapper* array = src.TryGet<GenericArrayWrapper>().TryGet())
+        else if (src.Is<GenericArrayWrapper>())
         {
             cls = GetClass(TypeId::ForType<GenericArrayWrapper>());
         }
@@ -2250,7 +2250,7 @@ public:
     SCRIPT_INLINE void OpThrow(RegisterIndex reg)
     {
         // load value from register
-        BoxedValue* value = Deref(instance->thread.m_regs[reg]);
+        [[maybe_unused]] BoxedValue* value = Deref(instance->thread.m_regs[reg]);
 
         /// \todo Allow throwing the arugment
 
@@ -3909,7 +3909,6 @@ void VirtualMachine::ThrowException(ScriptInstance* instance, const Exception& e
 
 void VirtualMachine::Invoke(ScriptInstance* instance, BoxedValue&& value, uint8 nargs)
 {
-    Script_ExecutionThread* thread = &instance->thread;
     BytecodeStream* bs = &instance->stream;
 
     BoxedValue& deref = *Deref(value);
@@ -4029,7 +4028,6 @@ void VirtualMachine::Invoke(ScriptInstance* instance, BoxedValue&& value, uint8 
 
 void VirtualMachine::InvokeImmediate(ScriptInstance* instance, BoxedValue&& value, uint8 nargs)
 {
-    Script_ExecutionThread* thread = &instance->thread;
     BytecodeStream* bs = &instance->stream;
 
     const size_t positionBefore = bs->Position();
@@ -4112,9 +4110,6 @@ void VirtualMachine::CreateTrace(ScriptInstance* instance, Script_Trace* outTrac
 
 bool VirtualMachine::HandleException(ScriptInstance* instance)
 {
-    Script_ExecutionThread* thread = &instance->thread;
-    BytecodeStream* bs = &instance->stream;
-
     if (instance->thread.m_exceptionState.m_tryCounter != 0)
     {
         // handle exception

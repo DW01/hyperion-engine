@@ -67,6 +67,9 @@ Game::~Game()
     {
         m_assetRegistry->Shutdown();
     }
+
+    OnLaunched.RemoveAllForTarget(this);
+    OnGameStateChange.RemoveAllForTarget(this);
 }
 
 void Game::Initialize()
@@ -128,7 +131,7 @@ void Game::Shutdown(bool shutdownWorld)
         m_world->m_gameInstance = nullptr;
 
         g_engineDriver->RemoveWorld(m_world);
-        
+
         if (shutdownWorld)
         {
             m_world->Shutdown();
@@ -195,7 +198,7 @@ void Game::SetWorld(const Handle<World>& world)
             {
                 g_engineDriver->RemoveWorld(m_world);
             }
-            
+
             m_world->Shutdown();
         }
     }

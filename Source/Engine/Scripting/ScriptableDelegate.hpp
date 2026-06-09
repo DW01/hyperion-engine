@@ -53,6 +53,8 @@ public:
 
     virtual int RemoveAllDetached() = 0;
 
+    virtual int RemoveAllForTarget(void* target) = 0;
+
     virtual bool Remove(DelegateHandler&& handle) = 0;
 
     virtual int RemoveAllFromSet(DelegateHandlerSet& handlerSet) const = 0;
@@ -367,6 +369,22 @@ public:
         return count;
     }
 
+    virtual int RemoveAllForTarget(void* target) override
+    {
+        TUniqueLock guard(m_targetMutex);
+
+        auto it = m_perTargetDelegates.Find(target);
+        if (it == m_perTargetDelegates.End())
+        {
+            return 0;
+        }
+
+        const int count = it->second->RemoveAllDetached();
+        m_perTargetDelegates.Erase(it);
+
+        return count;
+    }
+
     virtual bool Remove(DelegateHandler&& handle) override
     {
         if (!handle.IsValid())
@@ -406,7 +424,8 @@ public:
     template <class... ArgTypes>
     HYP_FORCE_INLINE ReturnType Fire(void* target, ArgTypes&&... args)
     {
-        Delegate<ReturnType, Args...>* perTargetDelegate = FindPerTargetDelegate(target);
+        TSharedLock<SharedMutex> guard;
+        Delegate<ReturnType, Args...>* perTargetDelegate = FindPerTargetDelegate(target, guard);
 
         if (!perTargetDelegate)
         {
@@ -436,9 +455,9 @@ private:
         return *it->second;
     }
 
-    Delegate<ReturnType, Args...>* FindPerTargetDelegate(void* target) const
+    Delegate<ReturnType, Args...>* FindPerTargetDelegate(void* target, TSharedLock<SharedMutex>& guard) const
     {
-        TSharedLock guard(m_targetMutex);
+        guard.Reset(m_targetMutex);
 
         auto it = m_perTargetDelegates.Find(target);
         if (it == m_perTargetDelegates.End())

@@ -49,7 +49,8 @@ public:
     virtual void Create() override;
     virtual void CleanJobData(BakeJobBase* job) override;
     virtual void ReadHitsBuffer(Frame* frame, BakeJobBase* job, size_t count, Proc<void(Span<LightmapHit> hits)>&& callback) override;
-    virtual void Render(Frame* frame, const RenderSetup& renderSetup, BakeJobBase* job, Span<const LightmapRay> rays, uint32 rayOffset) override;
+
+    virtual bool Render(Frame* frame, const RenderSetup& renderSetup, BakeJobBase* job, Span<const LightmapRay> rays, uint32 rayOffset) override;
 
 private:
     struct JobData

@@ -102,6 +102,9 @@ World::World(Name name, EnumFlags<WorldFlags> worldFlags)
 World::~World()
 {
     Shutdown();
+
+    OnSceneAdded.RemoveAllForTarget(this);
+    OnSceneRemoved.RemoveAllForTarget(this);
 }
 
 void World::Initialize()

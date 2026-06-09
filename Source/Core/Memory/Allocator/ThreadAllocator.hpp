@@ -23,43 +23,52 @@ namespace memory {
 
 class Pool;
 
+CORE_API extern void** CurrentThreadAllocatorRaw();
+
 template <class InnerAllocator, void (*InitInnerAllocatorFunction)(void*)>
 struct TThreadAllocator : Allocator<TThreadAllocator<InnerAllocator, InitInnerAllocatorFunction>>
 {
     static constexpr uint32 maxAlign = InnerAllocator::maxAlign;
-
-    static thread_local InnerAllocator* s_innerAllocator;
 
     template <class T>
     struct Allocation : DynamicAllocationBase<T>
     {
     };
 
-    HYP_FORCE_INLINE void* Allocate(size_t size, size_t alignment)
+    HYP_FORCE_INLINE static InnerAllocator* GetThisThreadAllocator()
     {
-        if (HYP_UNLIKELY(!s_innerAllocator))
+        void** ppCurrentThreadAllocator = CurrentThreadAllocatorRaw();
+
+        if (HYP_UNLIKELY(*ppCurrentThreadAllocator == nullptr))
         {
-            s_innerAllocator = ThreadLocalAlloc<threading::ThreadBase, InnerAllocator>([]()
+            *ppCurrentThreadAllocator = ThreadLocalAlloc<threading::ThreadBase, InnerAllocator>([]()
                 {
-                    if (s_innerAllocator != nullptr)
+                    void** ppCurrentThreadAllocator = CurrentThreadAllocatorRaw();
+
+                    if (*ppCurrentThreadAllocator != nullptr)
                     {
-                        s_innerAllocator->~InnerAllocator();
+                        static_cast<InnerAllocator*>(*ppCurrentThreadAllocator)->~InnerAllocator();
+
+                        *ppCurrentThreadAllocator = nullptr;
                     }
                 });
 
-            HYP_CORE_ASSERT(s_innerAllocator != nullptr);
+            HYP_CORE_ASSERT(*ppCurrentThreadAllocator != nullptr);
 
-            InitInnerAllocatorFunction(s_innerAllocator);
+            InitInnerAllocatorFunction(*ppCurrentThreadAllocator);
         }
 
-        return s_innerAllocator->Allocate(size, alignment);
+        return static_cast<InnerAllocator*>(*ppCurrentThreadAllocator);
+    }
+
+    HYP_FORCE_INLINE void* Allocate(size_t size, size_t alignment)
+    {
+        return GetThisThreadAllocator()->Allocate(size, alignment);
     }
 
     HYP_FORCE_INLINE void Free(void* ptr)
     {
-        HYP_CORE_ASSERT(s_innerAllocator != nullptr, "Free from wrong thread or freeing a pointer not allocated from this allocator!!");
-
-        s_innerAllocator->Free(ptr);
+        GetThisThreadAllocator()->Free(ptr);
     }
 
 private:
@@ -91,10 +100,7 @@ private:
     }
 };
 
-template <class InnerAllocator, void (*InitInnerAllocatorFunction)(void*)>
-thread_local InnerAllocator* TThreadAllocator<InnerAllocator, InitInnerAllocatorFunction>::s_innerAllocator = nullptr;
-
-extern CORE_API void InitThreadAllocatorPool(void*);
+CORE_API extern void InitThreadAllocatorPool(void*);
 using ThreadAllocator = TThreadAllocator<memory::Pool, &InitThreadAllocatorPool>;
 
 } // namespace memory

@@ -8,7 +8,7 @@
 #include <Core/FileSystem/FsUtil.hpp>
 #include <Core/FileSystem/FilePath.hpp>
 
-#include <Core/IO/BufferedByteReader.hpp>
+#include <Core/IO/ByteReader.hpp>
 
 namespace Hyperion {
 

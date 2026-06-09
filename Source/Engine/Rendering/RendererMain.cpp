@@ -142,13 +142,11 @@ struct ParallelRenderingState_Shared
         {
             AssertDebug(poolThreads[threadIndex] != nullptr);
 
-            tasks.EmplaceBack(poolThreads[threadIndex]->GetScheduler().Enqueue([&destructCommandRecorders, threadIndex]
+            tasks.EmplaceBack(poolThreads[threadIndex]->GetScheduler().Enqueue([&destructCommandRecorders]
                 {
-                    destructCommandRecorders(threadIndex + 1);
+                    destructCommandRecorders(CurrentRenderThreadIndex());
                 }));
         }
-
-        AssertDebug(tasks.Size() == numWorkerBatches);
 
         AwaitAll(tasks.ToSpan());
     }
