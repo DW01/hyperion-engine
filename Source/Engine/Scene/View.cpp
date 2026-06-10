@@ -997,6 +997,8 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
 
     if (meshesDiff.NeedsUpdate())
     {
+        AssertDebug(desc.entityBatchClass == nullptr || desc.entityBatchClass == MeshEntityInstanceBatch::StaticClass());
+
         Array<Entity*, ThreadAllocator> addedOrChanged;
         rpl.GetMeshEntities().GetAdded(addedOrChanged, /* includeChanged */ true);
 
@@ -1009,68 +1011,12 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
             AssertDebug(meshComponent != nullptr);
 
             if (!meshComponent->mesh || !meshComponent->material)
+            {
                 continue;
+            }
 
             RenderProxyMesh& meshProxy = *rpl.GetMeshEntities().SetProxy(entity->Id(), RenderProxyMesh());
-
-            meshProxy.forceRebind = false;
-            meshProxy.entity = MakeWeakRef(entity);
-            meshProxy.mesh = meshComponent->mesh;
-            meshProxy.material = meshComponent->material;
-            meshProxy.skeleton = meshComponent->skeleton;
-            meshProxy.numIndices = meshComponent->mesh->NumIndices();
-            meshProxy.numInstances = meshComponent->numInstances;
-            meshProxy.enableAutoInstancing = meshComponent->enableAutoInstancing;
-            meshProxy.lightmapVolume = lightmapElementComponent ? lightmapElementComponent->lightmapVolume.GetUnsafe() : nullptr;
-            meshProxy.lightmapElementId = lightmapElementComponent ? lightmapElementComponent->lightmapElementId : InvalidLightmapElementId;
-            meshProxy.attributes = RenderableAttributeSet(meshComponent->mesh->GetMeshAttributes(), meshComponent->material->GetAttributes());
-
-            Memory::Zero(meshProxy.shData, sizeof(meshProxy.shData));
-            // @TODO Evaluate SHs using light probes
-
-            Mat4f transformMatrix = transformComponent->GetMatrix();
-
-            if (meshComponent->enableAutoInstancing || meshComponent->numInstances)
-            {
-                AssertDebug(desc.entityBatchClass == nullptr || desc.entityBatchClass == MeshEntityInstanceBatch::StaticClass());
-
-                AssertDebug(meshComponent->instanceData.IsLoaded());
-
-                const Handle<InstancedMeshData>& imd = DynamicCast<InstancedMeshData>(meshComponent->instanceData.Resolve());
-                AssertDebug(imd.IsValid());
-
-                if (imd.IsValid())
-                {
-                    auto scope = imd->GetReadScope();
-
-                    for (uint32 i = 0; i < uint32(imd->buffers.Size()); i++)
-                    {
-                        if (imd->buffers[i].size == 0)
-                            continue;
-
-                        meshProxy.instanceData.buffers[i].SetSize(imd->buffers[i].size, false);
-
-                        AssertDebug(imd->buffers[i].raw != nullptr);
-                        Memory::Copy(meshProxy.instanceData.buffers[i].Data(), imd->buffers[i].raw, imd->buffers[i].size);
-
-                        meshProxy.instanceData.bufferStructSizes[i] = imd->bufferStructSizes[i];
-                        meshProxy.instanceData.bufferStructAlignments[i] = imd->bufferStructAlignments[i];
-                    }
-                }
-            }
-            else
-            {
-                meshProxy.instanceData = {};
-            }
-
-            const BoundingBox meshWorldBounds = transformMatrix * meshProxy.mesh->GetAABB();
-            meshProxy.bufferData.worldAabbMax = meshWorldBounds.max;
-            meshProxy.bufferData.worldAabbMin = meshWorldBounds.min;
-
-            meshProxy.bufferData.modelMatrix = transformMatrix;
-            meshProxy.bufferData.previousModelMatrix = meshComponent->previousModelMatrix;
-            meshProxy.bufferData.normalMatrix = Mat3f(transformMatrix).Inverse().Transpose();
-            meshProxy.bufferData.bucket = uint32(meshComponent->material->GetAttributes().bucket);
+            entity->UpdateRenderProxy(&meshProxy);
         }
     }
 }

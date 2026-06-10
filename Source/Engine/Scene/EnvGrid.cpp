@@ -11,6 +11,8 @@
 #include <Scene/EnvGrid.hpp>
 #include <Scene/EnvProbe.hpp>
 
+#include <Scene/BakedLighting/SphericalHarmonics.hpp>
+
 #include <Rendering/RenderProxy.hpp>
 
 #include <EnvGrid.generated.inl>
@@ -69,6 +71,14 @@ void EnvGrid::UpdateRenderProxy(RenderProxyEnvGrid* proxy)
     *proxy = {};
     proxy->envGrid = MakeWeakRef(this);
     proxy->bufferData = {};
+}
+
+void EnvGrid::EvaluateSphericalHarmonics(const Entity& inEntity, SphericalHarmonicsData& out) const
+{
+    // @TODO! Implement proper SH evaluation using tetrahedron interpolation a la unity
+    // @TODO When a probe in the grid moves, it needs to notify us and then we need to update all
+    // entities within this grid's aabb which have LightmapElementComponents to update their SH data as well.
+    // also for dynamic entities, we'll need to recalculate their SH data in Entity::UpdateRenderProxy() based on their position and the probes in this grid.
 }
 
 void EnvGrid::RemoveAllProbes(bool freeMemory)

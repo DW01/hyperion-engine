@@ -109,9 +109,8 @@ struct InstanceData
 };
 
 /*! \brief Proxy for a renderable Entity with a valid Mesh and Material assigned */
-class RenderProxyMesh final : public IRenderProxy
+struct RenderProxyMesh final : IRenderProxy
 {
-public:
     WeakHandle<Entity> entity;
 
     Mesh* mesh = nullptr;
@@ -156,9 +155,8 @@ struct EnvProbeShaderData
 
 static_assert(sizeof(EnvProbeShaderData) % 64 == 0);
 
-class RenderProxyEnvProbe final : public IRenderProxy
+struct RenderProxyEnvProbe : IRenderProxy
 {
-public:
     WeakHandle<EnvProbe> envProbe;
     Texture* texture = nullptr; // baked cubemap texture or prefiltered env
     EnvProbeShaderData bufferData {};
@@ -171,9 +169,8 @@ struct EnvGridShaderData
     Vec4f dummy;
 };
 
-class RenderProxyEnvGrid final : public IRenderProxy
+struct RenderProxyEnvGrid : IRenderProxy
 {
-public:
     WeakHandle<EnvGrid> envGrid;
     EnvGridShaderData bufferData {};
 };
@@ -218,9 +215,8 @@ struct LightShaderData
 
 static_assert(sizeof(LightShaderData) % 64 == 0);
 
-class RenderProxyLight final : public IRenderProxy
+struct RenderProxyLight : IRenderProxy
 {
-public:
     WeakHandle<Light> light;
     MaterialInstance* lightMaterial = nullptr; // for textured area lights
     Texture* bakedShadowMap = nullptr;
@@ -243,9 +239,8 @@ struct LightmapVolumeShaderData
 
 static_assert(sizeof(LightmapVolumeShaderData) % 64 == 0);
 
-class RenderProxyLightmapVolume final : public IRenderProxy
+struct RenderProxyLightmapVolume : IRenderProxy
 {
-public:
     WeakHandle<LightmapVolume> lightmapVolume;
     Array<Texture*> atlasIrradianceTextures;
     Array<Texture*> atlasRadianceTextures;
@@ -270,9 +265,8 @@ struct ParticleVolumeShaderData
     Vec4f _pad3;
 };
 
-class RenderProxyParticleVolume final : public IRenderProxy
+struct RenderProxyParticleVolume : IRenderProxy
 {
-public:
     WeakHandle<ParticleVolume> particleVolume;
 
     Texture* particleTexture = nullptr;
@@ -297,9 +291,8 @@ struct FogVolumeShaderData
     Vec4f _pad3;
 };
 
-class RenderProxyFogVolume final : public IRenderProxy
+struct RenderProxyFogVolume : IRenderProxy
 {
-public:
     WeakHandle<FogVolume> fogVolume;
     Texture* volumeTexture = nullptr;
     Texture* noiseTexture = nullptr;
@@ -327,9 +320,8 @@ struct MaterialShaderData
 
 static_assert(sizeof(MaterialShaderData) % 64 == 0);
 
-class RenderProxyMaterial final : public IRenderProxy
+struct RenderProxyMaterial : IRenderProxy
 {
-public:
     RenderProxyMaterial()
     {
         // set all to invalid (~0u) by default
@@ -352,9 +344,8 @@ struct SkeletonShaderData
     Mat4f bones[maxBones];
 };
 
-class RenderProxySkeleton final : public IRenderProxy
+struct RenderProxySkeleton : IRenderProxy
 {
-public:
     RenderProxySkeleton()
     {
         for (size_t i = 0; i < SkeletonShaderData::maxBones; ++i)
@@ -396,9 +387,8 @@ struct CameraShaderData
 
 static_assert(sizeof(CameraShaderData) % 64 == 0);
 
-class RenderProxyCamera final : public IRenderProxy
+struct RenderProxyCamera : IRenderProxy
 {
-public:
     WeakHandle<Camera> camera;
     CameraShaderData bufferData {};
     Frustum viewFrustum;
@@ -417,9 +407,8 @@ struct SpriteShaderData
     Vec4f _pad0;
 };
 
-class RenderProxySprite final : public IRenderProxy
+struct RenderProxySprite : IRenderProxy
 {
-public:
     WeakHandle<class Sprite> sprite;
     Texture* texture = nullptr;
     class FontAtlas* fontAtlas = nullptr;

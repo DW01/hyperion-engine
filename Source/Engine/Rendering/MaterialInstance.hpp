@@ -18,7 +18,7 @@
 namespace Hyperion {
 
 class MaterialDefinition;
-class RenderProxyMaterial;
+struct RenderProxyMaterial;
 
 HYP_CLASS(AssetBucket = "MaterialInstances")
 class ENGINE_API MaterialInstance final : public AssetObject

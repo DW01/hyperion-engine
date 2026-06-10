@@ -14,6 +14,8 @@
 
 #include <Asset/AssetPath.hpp>
 
+#include <Scene/BakedLighting/SphericalHarmonics.hpp>
+
 namespace Hyperion {
 
 class LightmapVolume;
@@ -33,6 +35,10 @@ struct ENGINE_API LightmapElementComponent
 
     HYP_FIELD(Transient)
     WeakHandle<LightmapVolume> lightmapVolume;
+
+    // Include Spherical Harmonics for light probes (computed dynamically)
+    HYP_FIELD(Transient)
+    SphericalHarmonicsData shData;
 
     LightmapElementComponent();
 };

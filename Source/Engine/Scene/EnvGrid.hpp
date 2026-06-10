@@ -21,7 +21,8 @@
 namespace Hyperion {
 
 class IrradianceProbe;
-class RenderProxyEnvGrid;
+struct RenderProxyEnvGrid;
+struct SphericalHarmonicsData;
 
 HYP_STRUCT()
 struct Tetrahedron
@@ -52,6 +53,8 @@ public:
     void OnRemovedFromWorld(World* world) override;
 
     void UpdateRenderProxy(RenderProxyEnvGrid* proxy);
+
+    void EvaluateSphericalHarmonics(const Entity& inEntity, SphericalHarmonicsData& out) const;
 
     Span<IrradianceProbe* const> GetProbes() const
     {

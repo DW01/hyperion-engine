@@ -25,7 +25,7 @@
 namespace Hyperion {
 
 class CameraStreamingVolume;
-class RenderProxyCamera;
+struct RenderProxyCamera;
 class ApplicationWindow;
 
 HYP_ENUM()

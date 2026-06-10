@@ -23,7 +23,7 @@ namespace Hyperion {
 
 class Bone;
 class Animation;
-class RenderProxySkeleton;
+struct RenderProxySkeleton;
 
 HYP_CLASS(AssetBucket = "Skeletons")
 class ENGINE_API Skeleton final : public AssetObject

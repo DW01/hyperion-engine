@@ -84,7 +84,7 @@ protected:
 
     void OnAddedToWorld(World* world) override;
 
-    void UpdateRenderProxy(class RenderProxySprite* proxy) override;
+    void UpdateRenderProxy(struct RenderProxySprite* proxy) override;
 
     String m_text;
     Color m_textColor = Color::White();

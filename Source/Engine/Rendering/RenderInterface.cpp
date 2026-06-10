@@ -1030,11 +1030,7 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
                     AssertDebug(pProxy != nullptr);
 
                     forceRebind = pProxy->forceRebind;
-
-                    if (forceRebind)
-                    {
-                        pProxy->forceRebind = false; // swap
-                    }
+                    pProxy->forceRebind = false;
                 }
 
                 for (ResourceBinderBase** it = subtypeData.resourceBinders; *it; ++it)

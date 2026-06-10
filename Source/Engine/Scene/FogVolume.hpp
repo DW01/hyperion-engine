@@ -40,7 +40,7 @@ public:
         const Handle<Texture>& volumeTexture,
         const Handle<Texture>& noiseTexture);
 
-    void UpdateRenderProxy(class RenderProxyFogVolume* proxy);
+    void UpdateRenderProxy(struct RenderProxyFogVolume* proxy);
 
 #if HYP_EDITOR
     HYP_METHOD(EditorOnly, EditAction = "Rebake")

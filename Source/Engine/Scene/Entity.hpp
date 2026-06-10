@@ -26,6 +26,7 @@ class Node;
 class EntityManager;
 struct Transform;
 struct BoxedValue;
+struct RenderProxyMesh;
 
 struct EntityInitInfo
 {
@@ -91,6 +92,8 @@ public:
 
     HYP_METHOD()
     void SetReceivesUpdate(bool receivesUpdate);
+
+    void UpdateRenderProxy(RenderProxyMesh* proxy);
 
     virtual void LockTransform() override;
     virtual void UnlockTransform() override;

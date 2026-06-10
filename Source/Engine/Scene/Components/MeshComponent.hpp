@@ -21,7 +21,7 @@ class Mesh;
 class MaterialInstance;
 class Skeleton;
 class BVHNode;
-class RenderProxyMesh;
+struct RenderProxyMesh;
 struct MeshRayTracingData;
 class LightmapVolume;
 class InstancedMeshData;

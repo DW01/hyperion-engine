@@ -16,7 +16,7 @@ namespace Hyperion {
 class Texture;
 class Mesh;
 class ParticleVolume;
-class RenderProxyParticleVolume;
+struct RenderProxyParticleVolume;
 
 class ParticlesPass : public PassBase
 {

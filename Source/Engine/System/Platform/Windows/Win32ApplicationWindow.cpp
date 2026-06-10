@@ -77,6 +77,36 @@ struct Win32WindowRegistry
     }
 };
 
+struct AliveWindows
+{
+    TSet<Win32ApplicationWindow*> set;
+    Mutex mutex;
+
+    static AliveWindows& GetInstance()
+    {
+        static AliveWindows s_instance;
+        return s_instance;
+    }
+
+    void Add(Win32ApplicationWindow* window)
+    {
+        Mutex::Guard guard(mutex);
+        set.Add(window);
+    }
+
+    void Remove(Win32ApplicationWindow* window)
+    {
+        Mutex::Guard guard(mutex);
+        set.Erase(window);
+    }
+
+    bool Contains(Win32ApplicationWindow* window)
+    {
+        Mutex::Guard guard(mutex);
+        return set.Contains(window);
+    }
+};
+
 } // namespace
 
 void Win32_RegisterWindowClass(const WideString& className)
@@ -322,6 +352,11 @@ LRESULT CALLBACK Win32ApplicationWindow::ParentSubclassProc(HWND hWnd, UINT msg,
     {
         auto* self = reinterpret_cast<Win32ApplicationWindow*>(dwRefData);
 
+        if (!AliveWindows::GetInstance().Contains(self))
+        {
+            break;
+        }
+
         PlatformEvent platformEvent {};
         platformEvent.win32Event = Win32Event();
         platformEvent.win32Event.hwnd = hWnd;
@@ -330,8 +365,6 @@ LRESULT CALLBACK Win32ApplicationWindow::ParentSubclassProc(HWND hWnd, UINT msg,
         platformEvent.win32Event.lParam = lParam;
 
         bool isActive = (LOWORD(wParam) != WA_INACTIVE);
-
-        // FIXME: Crash when closing editor!
 
         Event event(isActive ? EventType::WINDOW_FOCUS_GAINED : EventType::WINDOW_FOCUS_LOST, self, platformEvent);
 
@@ -360,6 +393,8 @@ Win32ApplicationWindow::Win32ApplicationWindow(ANSIString title, Vec2i size)
 
 Win32ApplicationWindow::~Win32ApplicationWindow()
 {
+    AliveWindows::GetInstance().Remove(this);
+
     if (m_parentHwnd)
     {
         RemoveWindowSubclass(m_parentHwnd, &Win32ApplicationWindow::ParentSubclassProc, reinterpret_cast<UINT_PTR>(this));
@@ -573,6 +608,8 @@ void Win32ApplicationWindow::Initialize(WindowOptions windowOptions)
     {
         m_parentHwnd = GetAncestor(windowOptions.parentHwnd, GA_ROOT);
 
+        AliveWindows::GetInstance().Add(this);
+
         BOOL result = SetWindowSubclass(
             m_parentHwnd,
             &Win32ApplicationWindow::ParentSubclassProc,
@@ -638,6 +675,17 @@ LRESULT Win32ApplicationWindow::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
     switch (msg)
     {
+    case WM_DESTROY:
+    {
+        if (m_parentHwnd)
+        {
+            RemoveWindowSubclass(m_parentHwnd, &Win32ApplicationWindow::ParentSubclassProc, reinterpret_cast<UINT_PTR>(this));
+            AliveWindows::GetInstance().Remove(this);
+            m_parentHwnd = nullptr;
+        }
+
+        break;
+    }
     case WM_SIZE:
     {
         int width = LOWORD(lParam);
@@ -745,6 +793,8 @@ void Win32ApplicationWindow::Close()
     {
         return;
     }
+
+    AliveWindows::GetInstance().Remove(this);
 
     if (m_parentHwnd)
     {

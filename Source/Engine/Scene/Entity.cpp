@@ -23,10 +23,12 @@
 #include <Scene/Components/TransformComponent.hpp>
 #include <Scene/Components/VisibilityStateComponent.hpp>
 #include <Scene/Components/BoundingBoxComponent.hpp>
+#include <Scene/Components/LightmapElementComponent.hpp>
 
 #include <Rendering/Mesh.hpp>
 #include <Rendering/MaterialInstance.hpp>
 #include <Rendering/RenderProxy.hpp>
+#include <Rendering/InstancedMeshData.hpp>
 
 #include <Framework/EngineDriver.hpp>
 
@@ -377,6 +379,83 @@ void Entity::SetScene_Internal(Scene* scene, bool moveToDetached)
     {
         SetEntityManager(m_scene->GetEntityManager());
     }
+}
+
+void Entity::UpdateRenderProxy(RenderProxyMesh* proxy)
+{
+    /// Must have a MeshComponent if this is called.
+    MeshComponent& meshComponent = GetComponent<MeshComponent>();
+    TransformComponent& transformComponent = GetComponent<TransformComponent>();
+
+    LightmapElementComponent* lightmapElementComponent = TryGetComponent<LightmapElementComponent>();
+
+    proxy->forceRebind = false;
+    proxy->entity = MakeWeakRef(this);
+    proxy->mesh = meshComponent.mesh;
+    proxy->material = meshComponent.material;
+    proxy->skeleton = meshComponent.skeleton;
+    proxy->numIndices = meshComponent.mesh->NumIndices();
+    proxy->numInstances = meshComponent.numInstances;
+    proxy->enableAutoInstancing = meshComponent.enableAutoInstancing;
+    proxy->attributes = RenderableAttributeSet(meshComponent.mesh->GetMeshAttributes(), meshComponent.material->GetAttributes());
+
+    if (lightmapElementComponent != nullptr)
+    {
+        static_assert(sizeof(proxy->shData) == sizeof(lightmapElementComponent->shData.values), "SH data size mismatch");
+        Memory::Copy(proxy->shData, lightmapElementComponent->shData.values, sizeof(proxy->shData));
+
+        proxy->lightmapVolume = lightmapElementComponent->lightmapVolume.GetUnsafe();
+        proxy->lightmapElementId = lightmapElementComponent->lightmapElementId;
+    }
+    else
+    {
+        Memory::Zero(proxy->shData, sizeof(proxy->shData));
+
+        proxy->lightmapVolume = nullptr;
+        proxy->lightmapElementId = Invalid<LightmapElementId>;
+    }
+
+    Mat4f transformMatrix = transformComponent.GetMatrix();
+
+    if (meshComponent.enableAutoInstancing || meshComponent.numInstances)
+    {
+        AssertDebug(meshComponent.instanceData.IsLoaded());
+
+        const Handle<InstancedMeshData>& imd = DynamicCast<InstancedMeshData>(meshComponent.instanceData.Resolve());
+        AssertDebug(imd.IsValid());
+
+        if (imd.IsValid())
+        {
+            auto scope = imd->GetReadScope();
+
+            for (uint32 i = 0; i < uint32(imd->buffers.Size()); i++)
+            {
+                if (imd->buffers[i].size == 0)
+                    continue;
+
+                proxy->instanceData.buffers[i].SetSize(imd->buffers[i].size, false);
+
+                AssertDebug(imd->buffers[i].raw != nullptr);
+                Memory::Copy(proxy->instanceData.buffers[i].Data(), imd->buffers[i].raw, imd->buffers[i].size);
+
+                proxy->instanceData.bufferStructSizes[i] = imd->bufferStructSizes[i];
+                proxy->instanceData.bufferStructAlignments[i] = imd->bufferStructAlignments[i];
+            }
+        }
+    }
+    else
+    {
+        proxy->instanceData = {};
+    }
+
+    const BoundingBox meshWorldBounds = transformMatrix * proxy->mesh->GetAABB();
+    proxy->bufferData.worldAabbMax = meshWorldBounds.max;
+    proxy->bufferData.worldAabbMin = meshWorldBounds.min;
+
+    proxy->bufferData.modelMatrix = transformMatrix;
+    proxy->bufferData.previousModelMatrix = meshComponent.previousModelMatrix;
+    proxy->bufferData.normalMatrix = Mat3f(transformMatrix).Inverse().Transpose();
+    proxy->bufferData.bucket = uint32(meshComponent.material->GetAttributes().bucket);
 }
 
 void Entity::LockTransform()

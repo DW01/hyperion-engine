@@ -51,7 +51,7 @@ public:
 
     ~Sprite() override;
 
-    virtual void UpdateRenderProxy(class RenderProxySprite* proxy);
+    virtual void UpdateRenderProxy(struct RenderProxySprite* proxy);
 
     static Handle<Sprite> CreateEnvProbeSprite(Scene* scene, EnvProbe* envProbe);
     static Handle<Sprite> CreateLightmapVolumeSprite(Scene* scene, LightmapVolume* lightmapVolume);
