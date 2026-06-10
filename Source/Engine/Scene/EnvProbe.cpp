@@ -206,8 +206,6 @@ void EnvProbe::OnAddedToWorld(World* world)
 
 void EnvProbe::OnRemovedFromWorld(World* world)
 {
-    Entity::OnRemovedFromWorld(world);
-
     if (m_camera != nullptr)
     {
         for (const Handle<View>& view : m_views)
@@ -218,6 +216,8 @@ void EnvProbe::OnRemovedFromWorld(World* world)
         RemoveChild(m_camera, /* moveToDetached */ false);
         m_camera = nullptr;
     }
+
+    Entity::OnRemovedFromWorld(world);
 
     if (AnyOf(m_views, &Handle<View>::IsValid))
     {

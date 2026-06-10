@@ -997,10 +997,10 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
 
     if (meshesDiff.NeedsUpdate())
     {
-        Array<Entity*> added;
-        rpl.GetMeshEntities().GetAdded(added, /* includeChanged */ true);
+        Array<Entity*, ThreadAllocator> addedOrChanged;
+        rpl.GetMeshEntities().GetAdded(addedOrChanged, /* includeChanged */ true);
 
-        for (Entity* entity : added)
+        for (Entity* entity : addedOrChanged)
         {
             AssertDebug(entity->InstanceClass() == Entity::StaticClass());
 
@@ -1024,6 +1024,9 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
             meshProxy.lightmapVolume = lightmapElementComponent ? lightmapElementComponent->lightmapVolume.GetUnsafe() : nullptr;
             meshProxy.lightmapElementId = lightmapElementComponent ? lightmapElementComponent->lightmapElementId : InvalidLightmapElementId;
             meshProxy.attributes = RenderableAttributeSet(meshComponent->mesh->GetMeshAttributes(), meshComponent->material->GetAttributes());
+
+            Memory::Zero(meshProxy.shData, sizeof(meshProxy.shData));
+            // @TODO Evaluate SHs using light probes
 
             Mat4f transformMatrix = transformComponent->GetMatrix();
 

@@ -420,7 +420,12 @@ void Entity::OnTransformUpdated()
     }
 
     EntityManager* entityManager = GetEntityManager();
-    AssertDebug(entityManager != nullptr);
+
+    if (!entityManager)
+    {
+        return;
+    }
+
     AssertDebug(entityManager == m_scene->GetEntityManager());
 
     if (!m_transformChanged)

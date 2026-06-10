@@ -526,9 +526,13 @@ extern "C"
                 .Bind(window, []()
                 {
                     // shut down application on main window close.
-                    Hyp_Shutdown();
+                    g_mainThreadInstance->GetScheduler().Enqueue([]()
+                        {
+                            Hyp_Shutdown();
 
-                    std::exit(0);
+                            std::exit(0);
+                        },
+                        TaskEnqueueFlags::FIRE_AND_FORGET);
                 })
                 .Detach();
 

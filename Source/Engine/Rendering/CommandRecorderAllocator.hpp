@@ -44,6 +44,10 @@ public:
 
     ~CommandRecorderAllocator();
 
+    /*! \brief Flushes the queue and submits all via transient command buffers.
+     *  if \p isShuttingDown is true, will prevent new entries from being added until after Shutdown() */
+    void Flush(bool isShuttingDown);
+
     void Shutdown();
 
     void UpdateQueue();
@@ -53,11 +57,15 @@ public:
     CommandRecorder root;
 
 private:
+    void UpdateQueue_Internal();
+
     // for calling on another thread than sim thread / render thread.
     Mutex m_mutex;
 
     TList<CommandRecorder> m_tempCommandRecorders;
     volatile int32 m_tempCommandRecordersCount = 0;
+
+    bool m_isShuttingDown : 1;
 };
 
 } // namespace Hyperion

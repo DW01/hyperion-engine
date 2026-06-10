@@ -160,8 +160,15 @@ PSOutput PSMain(PSInput input)
     float4 positionWS = mul(camera.invViewMat, positionVS);
     positionWS /= positionWS.w;
 
+    const uint materialBits = gbuffer_material_texture.Load(int3(pixelCoord, 0));
+
+    const float3 probeLighting = float3(
+        (float)(materialBits & 0xFFu) / 255.0,
+        (float)((materialBits >> 8u) & 0xFFu) / 255.0,
+        (float)((materialBits >> 16u) & 0xFFu) / 255.0);
+
     GBufferMaterialParams materialParams;
-    GBufferUnpackMaterialParams(normalSample.x, gbuffer_material_texture.Load(int3(pixelCoord, 0)) >> 25u, materialParams);
+    GBufferUnpackMaterialParams(normalSample.x, materialBits >> 25u, materialParams);
 
     const float roughness = materialParams.roughness;
     const float metalness = materialParams.metalness;
@@ -196,6 +203,7 @@ PSOutput PSMain(PSInput input)
         /* inout */ reflections,
         /* inout */ irradiance);
 
+    irradiance.rgb += probeLighting; // @NOTE If object is lightmapped, probeLighting will contain lightmap UVs; but the next line will cancel this out anyway
     irradiance *= 1.0 - min(1.0, float(mask & OBJECT_MASK_LIGHTMAPPED));
 
 #ifdef SSR_ENABLED

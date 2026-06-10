@@ -74,7 +74,7 @@ groupshared float4 shared_memory[9][6];
 #if defined(MODE_BUILD_COEFFICIENTS) || defined(MODE_CLEAR)
 [numthreads(NUM_SAMPLES_X, NUM_SAMPLES_Y, 1)]
 #elif defined(MODE_REDUCE)
-[numthreads(6, 4, 4)]
+[numthreads(8, 8, 1)]
 #elif defined(MODE_FINALIZE)
 [numthreads(1, 1, 1)]
 #endif
@@ -113,6 +113,12 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
     const float3 dir = normalize(DecodeOctahedralCoord(sample_point));
 
     float4 albedo = SAMPLE_TEXTURE_CUBE_LOD(sampler_linear, cubemap_color, dir, 0.0);
+
+    if (any(isnan(albedo)) || any(isinf(albedo)))
+    {
+        albedo = float4(0.0, 0.0, 0.0, 1.0);
+    }
+
     float4 color = albedo;
 
     float sh_values[27];
@@ -132,44 +138,21 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
         CURRENT_TILE.coeffs_weights[i] = float4(sh_color * weight, weight);
     }
 #elif defined(MODE_REDUCE)
-    const int face_index = int(dispatchThreadID.x);
-
-    if (face_index >= 6)
-    {
-        return;
-    }
-
-    const int2 input_index = int2(dispatchThreadID.yz * 2);
-    const int2 output_index = int2(dispatchThreadID.yz);
+    const int2 output_index = int2(dispatchThreadID.xy);
+    const int2 input_index = output_index * 2;
 
     const int2 prev_dimensions = int2(level_dimensions.xy);
     const int2 next_dimensions = int2(level_dimensions.zw);
 
-    if (any(input_index >= prev_dimensions))
-    {
-        return;
-    }
-
-    if (any(input_index + 1 >= prev_dimensions))
-    {
-        return;
-    }
-
-    if (any(output_index >= next_dimensions))
-    {
-        return;
-    }
-
-    const uint input_face_offset = (face_index * prev_dimensions.x * prev_dimensions.y);
-    const uint output_face_offset = (face_index * next_dimensions.x * next_dimensions.y);
+    if (any(output_index >= next_dimensions) || any(input_index + 1 >= prev_dimensions)) return;
 
     for (int i = 0; i < 9; i++)
     {
-        sh_tiles_output[output_face_offset + (output_index.x * next_dimensions.y) + output_index.y].coeffs_weights[i] =
-            sh_tiles[input_face_offset + (input_index.x * prev_dimensions.y) + input_index.y].coeffs_weights[i]
-            + sh_tiles[input_face_offset + ((input_index.x + 1) * prev_dimensions.y) + input_index.y].coeffs_weights[i]
-            + sh_tiles[input_face_offset + ((input_index.x + 1) * prev_dimensions.y) + (input_index.y + 1)].coeffs_weights[i]
-            + sh_tiles[input_face_offset + (input_index.x * prev_dimensions.y) + (input_index.y + 1)].coeffs_weights[i];
+        sh_tiles_output[(output_index.x * next_dimensions.y) + output_index.y].coeffs_weights[i] =
+            sh_tiles[(input_index.x * prev_dimensions.y) + input_index.y].coeffs_weights[i]
+            + sh_tiles[((input_index.x + 1) * prev_dimensions.y) + input_index.y].coeffs_weights[i]
+            + sh_tiles[((input_index.x + 1) * prev_dimensions.y) + (input_index.y + 1)].coeffs_weights[i]
+            + sh_tiles[(input_index.x * prev_dimensions.y) + (input_index.y + 1)].coeffs_weights[i];
     }
 #elif defined(MODE_FINALIZE)
 
@@ -180,19 +163,26 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
     };
 
 #ifdef PARALLEL_REDUCE
-    // PARALLEL_REDUCE expects 6 faces * 9 tiles per face = 54 tiles in sh_tiles
-    for (int face_index = 0; face_index < 6; face_index++)
+    const int FINAL_TILE_COUNT = 1; 
+
+    for (int i = 0; i < 9; i++)
+    {
+        OutSHBuffer[i] = (float4)0.0;
+    }
+
+    for (int tile_index = 0; tile_index < FINAL_TILE_COUNT; tile_index++)
     {
         for (int i = 0; i < 9; i++)
         {
-            OutSHBuffer[i] += sh_tiles[face_index * 9 + i].coeffs_weights[i];
+            OutSHBuffer[i] += sh_tiles[tile_index].coeffs_weights[i];
         }
     }
 
     for (int i = 0; i < 9; i++)
     {
-        float weight = max(OutSHBuffer[i].a, 0.0001);
+        float weight = max(OutSHBuffer[i].a + 1e-6f, 0.0001);
         float normFactor = (4.0 * HYP_FMATH_PI) / weight;
+        
         OutSHBuffer[i] = float4(OutSHBuffer[i].rgb * normFactor * s_aOverPi[i], 1.0);
     }
 #else
@@ -218,6 +208,7 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
         }
     }
 
+    total_weight += 1e-6f;
     total_weight = max(total_weight, 0.0001);
 
     for (int i = 0; i < 9; i++)

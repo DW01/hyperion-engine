@@ -54,27 +54,29 @@ extern EngineStatCounter<uint32> g_statDebugDraws;
 
 static const ShaderPropertyId s_propImmediateMode = InternShaderProperty(ShaderProperty(NAME("IMMEDIATE_MODE")));
 
-static RenderableAttributeSet GetRenderableAttributes()
+static RenderableAttributeSet DefaultAttributes()
 {
-    return RenderableAttributeSet(
-        MeshAttributes {
-            .inputLayout = StaticVertexInputLayout<VT_Simple>,
-            .topology = TOP_LINES
-        },
-        MaterialAttributes {
-            .bucket = RenderBucket::Debug,
-            .fillMode = FM_FILL,
-            .blendFunction = BlendFunction::None(),
-            .flags = MAF_DEPTH_TEST | MAF_DEPTH_WRITE
-        });
+    RenderableAttributeSet attributes;
+    
+    MeshAttributes& meshAttributes = attributes.GetMeshAttributes();
+    meshAttributes.inputLayout = StaticVertexInputLayout<VT_Simple>;
+    meshAttributes.topology = TOP_TRIANGLES;
+
+    MaterialAttributes& materialAttributes = attributes.GetMaterialAttributes();
+    materialAttributes.bucket = RenderBucket::Debug;
+    materialAttributes.fillMode = FM_FILL;
+    materialAttributes.blendFunction = BlendFunction::None();
+    materialAttributes.flags = MAF_DEPTH_TEST | MAF_DEPTH_WRITE;
+    
+    return attributes;
 }
 
 struct DebugDrawCommand
 {
-    IDebugDrawShape* shape;
-    Mat4f transformMatrix;
-    Color color;
-    RenderableAttributeSet attributes;
+    IDebugDrawShape* shape = nullptr;
+    Mat4f transformMatrix = Mat4f::Identity();
+    Color color = Color::White();
+    RenderableAttributeSet attributes = DefaultAttributes();
 };
 
 #pragma region DebugDrawCommand_Probe
@@ -162,7 +164,7 @@ Mesh* SphereDebugDrawShape::GetMesh_Internal() const
 
 void SphereDebugDrawShape::operator()(const Vec3f& position, float radius, const Color& color)
 {
-    (*this)(position, radius, color, GetRenderableAttributes());
+    (*this)(position, radius, color, DefaultAttributes());
 }
 
 void SphereDebugDrawShape::operator()(const Vec3f& position, float radius, const Color& color, const RenderableAttributeSet& attributes)
@@ -224,8 +226,8 @@ void AmbientProbeDebugDrawShape::operator()(const Vec3f& position, float radius,
     DebugDrawCommandHeader header;
 
     DebugDrawCommand_Probe* ptr = reinterpret_cast<DebugDrawCommand_Probe*>(list.Alloc(sizeof(DebugDrawCommand_Probe), alignof(DebugDrawCommand_Probe), header));
-
-    new (ptr) DebugDrawCommand();
+    
+    new (ptr) DebugDrawCommand_Probe;
     ptr->shape = this;
     ptr->transformMatrix = Transform(position, radius, Quat4f::Identity()).GetMatrix();
     ptr->color = Color::White();
@@ -273,8 +275,8 @@ void ReflectionProbeDebugDrawShape::operator()(const Vec3f& position, float radi
     DebugDrawCommandHeader header;
 
     DebugDrawCommand_Probe* ptr = reinterpret_cast<DebugDrawCommand_Probe*>(list.Alloc(sizeof(DebugDrawCommand_Probe), alignof(DebugDrawCommand_Probe), header));
-
-    new (ptr) DebugDrawCommand();
+    
+    new (ptr) DebugDrawCommand_Probe;
     ptr->shape = this;
     ptr->transformMatrix = Transform(position, radius, Quat4f::Identity()).GetMatrix();
     ptr->color = Color::White();
@@ -337,7 +339,10 @@ Mesh* BoxDebugDrawShape::GetMesh_Internal() const
 
 void BoxDebugDrawShape::operator()(const Vec3f& position, const Vec3f& size, const Color& color)
 {
-    (*this)(position, size, color, GetRenderableAttributes());
+    RenderableAttributeSet attributes = DefaultAttributes();
+    attributes.GetMeshAttributes().topology = TOP_LINES;
+
+    (*this)(position, size, color, attributes);
 }
 
 void BoxDebugDrawShape::operator()(const Vec3f& position, const Vec3f& size, const Color& color, const RenderableAttributeSet& attributes)
@@ -407,7 +412,7 @@ Mesh* PlaneDebugDrawShape::GetMesh_Internal() const
 
 void PlaneDebugDrawShape::operator()(const FixedArray<Vec3f, 4>& points, const Color& color)
 {
-    (*this)(points, color, GetRenderableAttributes());
+    (*this)(points, color, DefaultAttributes());
 }
 
 void PlaneDebugDrawShape::operator()(const FixedArray<Vec3f, 4>& points, const Color& color, const RenderableAttributeSet& attributes)
@@ -541,7 +546,7 @@ Mesh* TetrahedronLineDebugDrawShape::GetMesh_Internal() const
 
 void TetrahedronLineDebugDrawShape::operator()(const Vec3f& p0, const Vec3f& p1, const Vec3f& p2, const Vec3f& p3, const Color& color)
 {
-    (*this)(p0, p1, p2, p3, color, GetRenderableAttributes());
+    (*this)(p0, p1, p2, p3, color, DefaultAttributes());
 }
 
 void TetrahedronLineDebugDrawShape::operator()(const Vec3f& p0, const Vec3f& p1, const Vec3f& p2, const Vec3f& p3, const Color& color, const RenderableAttributeSet& attributes)
@@ -922,6 +927,8 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
                 {
                 case DebugDrawType::MESH:
                 {
+                    AssertDebug(attributes.GetMeshAttributes().inputLayout.mask != 0);
+
                     cr << SetTopology(attributes.GetMeshAttributes().topology);
                     cr << SetInputLayout(attributes.GetMeshAttributes().inputLayout);
 
@@ -985,9 +992,12 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
                 // commit current pending draws if we'll be changing attributes
                 if (numToDraw != 0)
                 {
+                    AssertDebug(attributes.GetMeshAttributes().inputLayout.mask != 0);
                     CommitCurrentDraws();
                 }
                 
+                AssertDebug(drawCommand->attributes.GetMeshAttributes().inputLayout.mask != 0);
+
                 attributes = drawCommand->attributes;
             }
 
@@ -1092,6 +1102,7 @@ DebugDrawCommandList::~DebugDrawCommandList()
 void* DebugDrawCommandList::Alloc(uint32 size, uint32 alignment, DebugDrawCommandHeader& outHeader)
 {
     HYP_SCOPE;
+
 
     AssertDebug(m_debugDrawer && m_debugDrawer->IsEnabled());
     AssertDebug(alignment <= 16);

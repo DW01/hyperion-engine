@@ -1815,18 +1815,26 @@ void UIObject::SetLocalBounds(const BoundingBox& aabb)
 {
     Mat4f transformMatrix;
 
-    if (Scene* scene = GetScene())
-    {
-        BoundingBoxComponent& boundingBoxComponent = scene->GetEntityManager()->GetComponent<BoundingBoxComponent>(GetEntity());
+    Scene* scene = GetScene();
 
-        if (const Handle<Node>& node = GetNode())
+    if (scene != nullptr)
+    {
+        const Handle<Node>& node = GetNode();
+
+        if (node.IsValid())
         {
             node->SetLocalBounds(aabb);
 
             transformMatrix = node->GetWorldMatrix();
         }
 
-        boundingBoxComponent.worldAabb = transformMatrix * aabb;
+        EntityManager* entityManager = scene->GetEntityManager();
+
+        if (entityManager != nullptr)
+        {
+            BoundingBoxComponent& boundingBoxComponent = entityManager->GetComponent<BoundingBoxComponent>(GetEntity());
+            boundingBoxComponent.worldAabb = transformMatrix * aabb;
+        }
     }
 
     m_aabb = transformMatrix * aabb;

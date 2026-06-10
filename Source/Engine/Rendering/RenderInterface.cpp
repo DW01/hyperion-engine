@@ -1392,6 +1392,9 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
             || state.boundShaderDesc.properties != state.attributes.GetShaderProperties()
             || !state.boundGraphicsPipeline->MatchesSignature(state.attributes, state.framebuffer->GetFramebufferDesc()))
         {
+            AssertDebug(state.attributes.GetMeshAttributes().inputLayout.mask != 0,
+                "Input layout cannot be empty for graphics pipeline");
+
             graphicsPipelineCache->GetOrCreate(
                 state.attributes,
                 state.framebuffer->GetFramebufferDesc(),

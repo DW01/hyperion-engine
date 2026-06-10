@@ -378,9 +378,6 @@ bool LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
 
     AssertDebug(rpl.isShared);
 
-    const uint32 frameIndex = frame->GetFrameIndex();
-    const uint32 previousFrameIndex = (frame->GetFrameIndex() + NumFramesInFlight - 1) % NumFramesInFlight;
-
     CreateAccelerationStructures();
 
     if (!m_tlas || !m_tlas->IsCreated())

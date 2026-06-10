@@ -909,10 +909,16 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
         return;
     }
 
-    const uint32 frameIndex = frame->GetFrameIndex();
-
     const RenderableAttributeSet& ras = drawCallCollection.attributes;
     const MaterialAttributes& mas = ras.GetMaterialAttributes();
+
+    const bool isForwardShading = mas.shaderProperties.Test(s_propShadingTypeForward);
+    
+    const bool shouldWriteSHData = (mas.shaderName == GeometryPass::DefaultShaderName);
+    const bool shouldEvaluateSH = (shouldWriteSHData && prepassStage != DepthPrepass::DPP_InPrepass);
+
+    Vec4f shData[9];
+    shData[0].w = (shouldEvaluateSH ? 1.0f : 0.0f); // shader uses this field to branch on
 
     uint32 numShaderUniforms = 0;
 
@@ -945,9 +951,6 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
         cr << SetShaderUniform(numShaderUniforms++, "CurrentEnvProbe"_sh, RI.namedBuffers[NamedBuffer::EnvProbes], Resources::GetBinding(renderSetup.envProbe));
     else
         cr << SetShaderUniform(numShaderUniforms++, "CurrentEnvProbe"_sh, RI.namedBuffers[NamedBuffer::EnvProbes], 0);
-
-
-    const bool isForwardShading = mas.shaderProperties.Test(s_propShadingTypeForward);
 
     // if (isForwardShading)
     // {
@@ -984,7 +987,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
     bool isDepthWriteEnabled = bool(mas.flags & MAF_DEPTH_WRITE);
 
     // Helper lambda to handle depth prepass logic. Returns true if the draw should be skipped.
-    auto HandleDepthPrepass = [&](const RenderProxyMesh& meshProxy) -> bool
+    auto handleDepthPrepass = [&](const RenderProxyMesh& meshProxy) -> bool
     {
         if (prepassStage == DepthPrepass::DPP_InPrepass)
         {
@@ -1048,7 +1051,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
 
         const RenderProxyMesh& meshProxy = *drawCalls.meshProxies[i];
 
-        if (HandleDepthPrepass(meshProxy))
+        if (handleDepthPrepass(meshProxy))
         {
             continue;
         }
@@ -1067,8 +1070,29 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
             cba.Write(&cameraProxy->bufferData);
             cba.Write(&materialProxy->bufferData);
             cba.Write(&vpMatrix);
+
+            if (shouldWriteSHData)
+            {
+                if (shouldEvaluateSH)
+                {
+                    // Copy SHs from the mesh proxy
+                    const float* inSH = meshProxy.shData;
+                    Vec4f* outSH = shData;
+
+                    for (size_t i = 0; i < 9; ++i)
+                    {
+                        outSH[i].x = *inSH++;
+                        outSH[i].y = *inSH++;
+                        outSH[i].z = *inSH++;
+                    }
+                }
+
+                cba.Write(shData, sizeof(shData), alignof(decltype(shData)));
+            }
+
             cba.Commit(cbuffer, cbufferOffset, cbufferSize);
         }
+
         cr << SetShaderUniform(cbufferBinding, "CBuffer"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
 
         if (meshProxy.skeleton != nullptr)
@@ -1111,7 +1135,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
         if (UseIndirectRendering && drawCalls.drawCommandIndices[i] != ~0u)
         {
             cr << DrawIndexedIndirect(
-                indirectRenderer->GetDrawState().GetIndirectBuffer(frameIndex),
+                indirectRenderer->GetDrawState().GetIndirectBuffer(frame->GetFrameIndex()),
                 drawCalls.drawCommandIndices[i] * uint32(sizeof(IndirectDrawCommand)));
         }
         else
@@ -1136,7 +1160,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
 
         const RenderProxyMesh& meshProxy = *instancedDrawCalls.meshProxies[i];
 
-        if (HandleDepthPrepass(meshProxy))
+        if (handleDepthPrepass(meshProxy))
         {
             continue;
         }
@@ -1155,8 +1179,29 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
             cba.Write(&cameraProxy->bufferData);
             cba.Write(&materialProxy->bufferData);
             cba.Write(&vpMatrix);
+
+            if (shouldWriteSHData)
+            {
+                if (shouldEvaluateSH)
+                {
+                    // Copy SHs from the mesh proxy
+                    const float* inSH = meshProxy.shData;
+                    Vec4f* outSH = shData;
+
+                    for (size_t i = 0; i < 9; ++i)
+                    {
+                        outSH[i].x = *inSH++;
+                        outSH[i].y = *inSH++;
+                        outSH[i].z = *inSH++;
+                    }
+                }
+
+                cba.Write(shData, sizeof(shData), alignof(decltype(shData)));
+            }
+
             cba.Commit(cbuffer, cbufferOffset, cbufferSize);
         }
+
         cr << SetShaderUniform(cbufferBinding, "CBuffer"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
 
         EntityInstanceBatch* entityInstanceBatch = instancedDrawCalls.batches[i];
@@ -1208,7 +1253,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
         if (UseIndirectRendering && instancedDrawCalls.drawCommandIndices[i] != ~0u)
         {
             cr << DrawIndexedIndirect(
-                indirectRenderer->GetDrawState().GetIndirectBuffer(frameIndex),
+                indirectRenderer->GetDrawState().GetIndirectBuffer(frame->GetFrameIndex()),
                 instancedDrawCalls.drawCommandIndices[i] * uint32(sizeof(IndirectDrawCommand)));
         }
         else

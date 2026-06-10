@@ -301,10 +301,10 @@ VulkanDescriptorSetManager::~VulkanDescriptorSetManager() = default;
 
 void VulkanDescriptorSetManager::OnFrameStart()
 {
-    const uint32 frameCounter = GetFrameCounter();
-
     if (!UseResetDescriptorPool)
+    {
         return;
+    }
 
     // Reset descriptor pools for this frame
     for (size_t i = 0; i < m_pools.Size(); i++)
@@ -726,6 +726,8 @@ void VulkanRenderInterface::Shutdown()
 {
     CheckResult(m_instance->GetDevice()->WaitIdle());
 
+    const uint32 frameCounter = GetFrameCounter();
+
     for (VulkanFrameRef& frame : m_frames)
     {
         if (!frame)
@@ -745,6 +747,39 @@ void VulkanRenderInterface::Shutdown()
 
     m_frames.Clear();
     m_commandBuffers.Clear();
+
+    { // Flush transient submits
+        commandRecorderAllocator.Flush(true);
+
+        auto& fences = m_transientCommandBufferFences[frameCounter % NumFramesInFlight];
+        for (auto it = fences.Begin(); it != fences.End(); ++it)
+        {
+            VulkanFence& fence = *it;
+
+            if (fence.isSubmitted)
+            {
+                fence.Wait(true);
+                fence.Reset();
+            }
+        }
+
+        fences.Clear();
+
+        m_recycledTransientCommandBufferFences.Clear();
+        m_recycledTransientCommandBufferSemaphores.Clear();
+
+        for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
+        {
+            m_transientCommandBufferFences[frameIndex].Clear();
+            m_transientCommandBufferSemaphores[frameIndex].Clear();
+
+            for (uint32 threadIndex = 0; threadIndex < NumRendererWorkerThreads + 1; threadIndex++)
+            {
+                m_transientCommandBuffers[threadIndex][frameIndex].Clear();
+                m_pendingTransientCommandBuffers[threadIndex][frameIndex].Clear();
+            }
+        }
+    }
 
     for (VulkanAsyncCompute* ac : m_asyncComputePool)
     {
@@ -767,21 +802,6 @@ void VulkanRenderInterface::Shutdown()
     m_gpuTimerBackend = nullptr;
 
     RenderInterface::Shutdown();
-
-    m_recycledTransientCommandBufferFences.Clear();
-    m_recycledTransientCommandBufferSemaphores.Clear();
-
-    for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
-    {
-        m_transientCommandBufferFences[frameIndex].Clear();
-        m_transientCommandBufferSemaphores[frameIndex].Clear();
-
-        for (uint32 threadIndex = 0; threadIndex < NumRendererWorkerThreads + 1; threadIndex++)
-        {
-            m_transientCommandBuffers[threadIndex][frameIndex].Clear();
-            m_pendingTransientCommandBuffers[threadIndex][frameIndex].Clear();
-        }
-    }
 
     DeletionQueue::GetInstance().Shutdown();
 
@@ -1088,7 +1108,6 @@ void VulkanRenderInterface::SubmitTransientCommandBuffer(VulkanCommandBuffer& co
 {
     const uint32 frameCounter = GetFrameCounter();
     const uint32 frameIndex = frameCounter % NumFramesInFlight;
-    const uint32 renderThreadIndex = CurrentRenderThreadIndex();
 
     if (commandBuffer.IsRecording())
     {
@@ -1123,7 +1142,7 @@ void VulkanRenderInterface::SubmitTransientCommandBuffer(VulkanCommandBuffer& co
 
         if (m_recycledTransientCommandBufferFences.Any())
         {
-            fence = std::move(m_recycledTransientCommandBufferFences.PopFront());
+            fence = m_recycledTransientCommandBufferFences.PopFront();
         }
         else
         {

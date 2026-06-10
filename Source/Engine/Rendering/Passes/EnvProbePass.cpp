@@ -586,7 +586,7 @@ void ComputeEnvProbeSphericalHarmonics(const EnvProbe& envProbe, const Texture& 
     }
     else
     {
-        cr.Done();
+        cr.Submit();
     }
 }
 

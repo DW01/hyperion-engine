@@ -54,6 +54,8 @@ private:
     Handle<Texture> m_resultTexture;
     Handle<Texture> m_historyTexture;
 
+    uint8 m_pingPongIndex : 1;
+
     DelegateHandler m_onGbufferResolutionChanged;
 
     bool m_isInitialized;
