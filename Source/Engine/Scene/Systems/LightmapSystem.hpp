@@ -14,7 +14,7 @@
 namespace Hyperion {
 
 class LightmapVolume;
-class EnvGrid;
+class ProbeVolume;
 
 HYP_CLASS(NoScriptBindings, Serialize=false)
 class LightmapSystem : public SystemBase
@@ -47,7 +47,7 @@ private:
             ComponentDescriptor<EntityType<LightmapVolume>, ComponentAccess::READ, false> {},
 
             // For irradiance probes, computing + assigning SH data to LightmapElementComponents
-            ComponentDescriptor<EntityType<EnvGrid>, ComponentAccess::READ, false> {}
+            ComponentDescriptor<EntityType<ProbeVolume>, ComponentAccess::READ, false> {}
         };
     }
 

@@ -26,7 +26,7 @@ struct EnvProbe
     float4 _pad2;
 };
 
-struct EnvGrid
+struct ProbeVolume
 {
     float4 dummy;
 };

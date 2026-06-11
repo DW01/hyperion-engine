@@ -9,7 +9,7 @@
 #include <Scene/View.hpp>
 #include <Scene/Scene.hpp>
 #include <Scene/Light.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/EnvProbe.hpp>
 #include <Scene/EntityManager.hpp>
 #include <Scene/EntityTag.hpp>
@@ -547,7 +547,7 @@ void View::BeginAsyncCollection(TaskBatch& batch)
             CollectLightmapVolumes(rpl);
             CollectParticleVolumes(rpl);
             CollectFogVolumes(rpl);
-            CollectEnvGrids(rpl);
+            CollectProbeVolumes(rpl);
             CollectEnvProbes(rpl);
             CollectSprites(rpl);
             CollectMeshEntities(rpl);
@@ -1219,7 +1219,7 @@ void View::CollectFogVolumes(RenderProxyList& rpl)
     }
 }
 
-void View::CollectEnvGrids(RenderProxyList& rpl)
+void View::CollectProbeVolumes(RenderProxyList& rpl)
 {
     HYP_SCOPE;
 
@@ -1230,15 +1230,15 @@ void View::CollectEnvGrids(RenderProxyList& rpl)
 
     for (Scene* scene : m_scenes)
     {
-        for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<EnvGrid>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
+        for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<ProbeVolume>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
         {
-            EnvGrid* envGrid = static_cast<EnvGrid*>(entity);
+            ProbeVolume* probeVolume = static_cast<ProbeVolume*>(entity);
 
-            const BoundingBox worldBounds = envGrid->GetWorldBounds();
+            const BoundingBox worldBounds = probeVolume->GetWorldBounds();
 
             if (!worldBounds.IsValid() || !worldBounds.IsFinite())
             {
-                HYP_LOG(Scene, Warning, "EnvGrid {} has an invalid AABB in view {}", envGrid->Id(), Id());
+                HYP_LOG(Scene, Warning, "ProbeVolume {} has an invalid AABB in view {}", probeVolume->Id(), Id());
 
                 continue;
             }
@@ -1250,12 +1250,12 @@ void View::CollectEnvGrids(RenderProxyList& rpl)
 
             if (!cachedFrustum.ContainsAABB(worldBounds))
             {
-                HYP_LOG(Scene, Verbose, "EnvGrid {} is not in frustum of View {}", envGrid->Id(), Id());
+                HYP_LOG(Scene, Verbose, "ProbeVolume {} is not in frustum of View {}", probeVolume->Id(), Id());
 
                 continue;
             }
 
-            for (IrradianceProbe* probe : envGrid->GetProbes())
+            for (IrradianceProbe* probe : probeVolume->GetProbes())
             {
                 if (!probe)
                 {
@@ -1265,7 +1265,7 @@ void View::CollectEnvGrids(RenderProxyList& rpl)
                 rpl.GetEnvProbes().Track(probe->Id(), probe, GET_RESOURCE_VERSION(probe));
             }
 
-            rpl.GetEnvGrids().Track(envGrid->Id(), envGrid, GET_RESOURCE_VERSION(envGrid));
+            rpl.GetProbeVolumes().Track(probeVolume->Id(), probeVolume, GET_RESOURCE_VERSION(probeVolume));
         }
     }
 }

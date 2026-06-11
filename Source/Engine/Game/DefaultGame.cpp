@@ -6,7 +6,7 @@
 
 #include <Scene/World.hpp>
 #include <Scene/Light.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/EnvProbe.hpp>
 #include <Scene/Scene.hpp>
 #include <Scene/View.hpp>

@@ -12,7 +12,7 @@
 #include <Scene/Scene.hpp>
 #include <Scene/World.hpp>
 #include <Scene/Entity.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/LightmapVolume.hpp>
 
 #include <Core/Memory/Allocator/ThreadAllocator.hpp>
@@ -40,7 +40,7 @@ void LightmapSystem::OnEntityAdded(Entity* entity)
         }
     }
 
-    // Update probe lighting if this entity is in an EnvGrid.
+    // Update probe lighting if this entity is in an ProbeVolume.
     World* world = GetWorld();
     Assert(world != nullptr);
 
@@ -52,11 +52,11 @@ void LightmapSystem::OnEntityAdded(Entity* entity)
         {
             if (scene == entity->GetScene())
             {
-                for (auto&& [envGridEntity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<EnvGrid>>().GetScopedView(GetComponentInfos()))
+                for (auto&& [probeVolumeEntity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<ProbeVolume>>().GetScopedView(GetComponentInfos()))
                 {
-                    EnvGrid* envGrid = static_cast<EnvGrid*>(envGridEntity);
+                    ProbeVolume* probeVolume = static_cast<ProbeVolume*>(probeVolumeEntity);
 
-                    EvaluateSphericalHarmonicsResult result = envGrid->EvaluateSphericalHarmonics(*entity, lightmapElementComponent.shData);
+                    EvaluateSphericalHarmonicsResult result = probeVolume->EvaluateSphericalHarmonics(*entity, lightmapElementComponent.shData);
                     
                     if (IsSuccess(result))
                     {
@@ -64,8 +64,8 @@ void LightmapSystem::OnEntityAdded(Entity* entity)
                     }
                     else
                     {
-                        HYP_LOG(Lightmap, Warning, "Failed to evaluate spherical harmonics for Entity {} in EnvGrid {}: {}",
-                            entity->GetName(), envGrid->GetName(), int(result));
+                        HYP_LOG(Lightmap, Warning, "Failed to evaluate spherical harmonics for Entity {} in ProbeVolume {}: {}",
+                            entity->GetName(), probeVolume->GetName(), int(result));
                     }
                 }
             }
@@ -97,18 +97,18 @@ void LightmapSystem::OnEntityRemoved(Entity* entity)
 
 void LightmapSystem::Process(float delta, Span<Handle<Scene>> scenes)
 {
-    // Process sh lighting for dynamic entities in EnvGrids.
-    Array<EnvGrid*, ThreadAllocator> envGrids;
-    envGrids.Reserve(4);
+    // Process sh lighting for dynamic entities in ProbeVolumes.
+    Array<ProbeVolume*, ThreadAllocator> probeVolumes;
+    probeVolumes.Reserve(4);
 
     for (Scene* scene : scenes)
     {
-        for (auto&& [envGridEntity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<EnvGrid>>().GetScopedView(GetComponentInfos()))
+        for (auto&& [probeVolumeEntity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<ProbeVolume>>().GetScopedView(GetComponentInfos()))
         {
-            EnvGrid* envGrid = static_cast<EnvGrid*>(envGridEntity);
-            AssertDebug(!envGrids.Contains(envGrid));
+            ProbeVolume* probeVolume = static_cast<ProbeVolume*>(probeVolumeEntity);
+            AssertDebug(!probeVolumes.Contains(probeVolume));
 
-            envGrids.PushBack(envGrid);
+            probeVolumes.PushBack(probeVolume);
         }
     }
 
@@ -121,14 +121,14 @@ void LightmapSystem::Process(float delta, Span<Handle<Scene>> scenes)
 
             bool updatedSphericalHarmonics = false;
 
-            for (EnvGrid* envGrid : envGrids)
+            for (ProbeVolume* probeVolume : probeVolumes)
             {
-                if (!envGrid->GetWorldBounds().Overlaps(entityWorldBounds))
+                if (!probeVolume->GetWorldBounds().Overlaps(entityWorldBounds))
                 {
                     continue;
                 }
 
-                EvaluateSphericalHarmonicsResult result = envGrid->EvaluateSphericalHarmonics(*entity, lightmapElementComponent.shData);
+                EvaluateSphericalHarmonicsResult result = probeVolume->EvaluateSphericalHarmonics(*entity, lightmapElementComponent.shData);
 
                 if (IsSuccess(result))
                 {
@@ -136,8 +136,8 @@ void LightmapSystem::Process(float delta, Span<Handle<Scene>> scenes)
                 }
                 else
                 {
-                    HYP_LOG(Lightmap, Warning, "Failed to evaluate spherical harmonics for Entity {} in EnvGrid {}: {}",
-                        entity->GetName(), envGrid->GetName(), int(result));
+                    HYP_LOG(Lightmap, Warning, "Failed to evaluate spherical harmonics for Entity {} in ProbeVolume {}: {}",
+                        entity->GetName(), probeVolume->GetName(), int(result));
                 }
             }
 

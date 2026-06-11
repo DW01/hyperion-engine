@@ -26,7 +26,7 @@
 #include <Scene/View.hpp>
 #include <Scene/Light.hpp>
 #include <Scene/EnvProbe.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/FogVolume.hpp>
 #include <Scene/EntityManager.hpp>
 
@@ -2359,12 +2359,12 @@ void EditorSubsystem::Update(float delta)
 
     for (Scene* scene : GetCurrentProject()->GetWorld()->GetScenes())
     {
-        for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<EnvGrid>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
+        for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<ProbeVolume>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
         {
-            EnvGrid* envGrid = static_cast<EnvGrid*>(entity);
+            ProbeVolume* probeVolume = static_cast<ProbeVolume*>(entity);
 
-            const Span<const Tetrahedron> tets = envGrid->GetTetrahedra();
-            const Span<IrradianceProbe* const> probes = envGrid->GetProbes();
+            const Span<const Tetrahedron> tets = probeVolume->GetTetrahedra();
+            const Span<IrradianceProbe* const> probes = probeVolume->GetProbes();
 
             if (tets.Size() == 0 || probes.Size() == 0)
             {

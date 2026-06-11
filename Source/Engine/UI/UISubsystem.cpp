@@ -18,7 +18,7 @@
 #include <Scene/View.hpp>
 
 #include <Scene/EntityManager.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/EnvProbe.hpp>
 #include <Scene/Light.hpp>
 #include <Scene/LightmapVolume.hpp>

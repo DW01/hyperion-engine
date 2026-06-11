@@ -26,7 +26,7 @@ namespace Hyperion {
 class World;
 class Light;
 class EnvProbe;
-class EnvGrid;
+class ProbeVolume;
 class LightmapVolume;
 class ParticleVolume;
 struct CullData;
@@ -51,7 +51,7 @@ struct RenderSetup
     World* world = nullptr;
     View* view = nullptr;
     EnvProbe* envProbe = nullptr;
-    EnvGrid* envGrid = nullptr;
+    ProbeVolume* probeVolume = nullptr;
     Light* light = nullptr;
     VolumeBase* volume = nullptr;
 

@@ -58,7 +58,7 @@
 
 #include <Scene/World.hpp>
 #include <Scene/View.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/EnvProbe.hpp>
 #include <Scene/FogVolume.hpp>
 #include <Scene/ParticleVolume.hpp>
@@ -157,7 +157,7 @@ EngineStatCounter<uint32> g_statLights("Rendering/Lights");
 EngineStatCounter<uint32> g_statLightmapVolumes("Rendering/LightmapVolumes");
 EngineStatCounter<uint32> g_statParticleVolumes("Rendering/ParticleVolumes");
 EngineStatCounter<uint32> g_statEnvProbes("Rendering/EnvProbes");
-EngineStatCounter<uint32> g_statEnvGrids("Rendering/EnvGrids");
+EngineStatCounter<uint32> g_statProbeVolumes("Rendering/ProbeVolumes");
 EngineStatCounter<uint32> g_statDebugDraws("Rendering/DebugDraws");
 
 CVar<int> cvDeferredDebugVis { "Rendering.Deferred.DebugVis", 0 };
@@ -2505,10 +2505,10 @@ void DeferredPass::RenderFrame(Frame* frame, const RenderSetup& rs)
     //// \todo : We could use the existing binning by subclass that ResourceTracker now provides.
     FixedArray<FlatSet<EnvProbe*>, EPT_MAX> envProbes;
     FixedArray<FlatSet<Light*>, NumLightTypes> lights;
-    FlatSet<EnvGrid*> envGrids;
+    FlatSet<ProbeVolume*> probeVolumes;
 
-    // For rendering EnvGrids and EnvProbes, we use a directional light from one of the Views that references it (if found)
-    FlatMap<EnvGrid*, Light*> envGridLights;
+    // For rendering ProbeVolumes and EnvProbes, we use a directional light from one of the Views that references it (if found)
+    FlatMap<ProbeVolume*, Light*> probeVolumeLights;
     FlatMap<EnvProbe*, Light*> envProbeLights;
 
     // init view pass data and collect global rendering resources
@@ -2589,27 +2589,27 @@ void DeferredPass::RenderFrame(Frame* frame, const RenderSetup& rs)
             envProbes[envProbe->GetEnvProbeType()].Insert(envProbe);
         }
 
-        for (EnvGrid* envGrid : rpl.GetEnvGrids())
+        for (ProbeVolume* probeVolume : rpl.GetProbeVolumes())
         {
-            if (envGrids.Contains(envGrid))
+            if (probeVolumes.Contains(probeVolume))
             {
                 continue;
             }
 
-            if (!envGridLights.Contains(envGrid))
+            if (!probeVolumeLights.Contains(probeVolume))
             {
                 for (Light* light : rpl.GetLights())
                 {
                     if (light->GetLightType() == LightType::Directional)
                     {
-                        envGridLights[envGrid] = light;
+                        probeVolumeLights[probeVolume] = light;
 
                         break;
                     }
                 }
             }
 
-            envGrids.Insert(envGrid);
+            probeVolumes.Insert(probeVolume);
         }
     }
 
@@ -2678,7 +2678,7 @@ void DeferredPass::RenderFrame(Frame* frame, const RenderSetup& rs)
         g_statLightmapVolumes += rpl.GetLightmapVolumes().NumCurrent();
         g_statParticleVolumes += rpl.GetParticleVolumes().NumCurrent();
         g_statLights += rpl.GetLights().NumCurrent();
-        g_statEnvGrids += rpl.GetEnvGrids().NumCurrent();
+        g_statProbeVolumes += rpl.GetProbeVolumes().NumCurrent();
         g_statEnvProbes += rpl.GetEnvProbes().NumCurrent();
 
 #if 0
@@ -2688,7 +2688,7 @@ void DeferredPass::RenderFrame(Frame* frame, const RenderSetup& rs)
             rpl.GetMaterials().NumCurrent(),
             rpl.GetLightmapVolumes().NumCurrent(),
             rpl.GetLights().NumCurrent(),
-            rpl.GetEnvGrids().NumCurrent(),
+            rpl.GetProbeVolumes().NumCurrent(),
             rpl.GetEnvProbes().NumCurrent());
 #endif
     }

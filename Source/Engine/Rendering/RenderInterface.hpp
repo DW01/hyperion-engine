@@ -83,7 +83,7 @@ extern ResourceBinderBase* g_meshBinder;
 extern ResourceBinderBase* g_cameraBinder;
 extern ResourceBinderBase* g_envProbeBinder;
 extern ResourceBinderBase* g_reflectionProbeTextureBinder;
-extern ResourceBinderBase* g_envGridBinder;
+extern ResourceBinderBase* g_probeVolumeBinder;
 extern ResourceBinderBase* g_lightBinder;
 extern ResourceBinderBase* g_lightmapVolumeBinder;
 extern ResourceBinderBase* g_particleVolumeBinder;
@@ -154,7 +154,7 @@ struct NamedPass
         Deferred = 0,
         UI,
         EnvProbe,
-        EnvGrid,
+        ProbeVolume,
         ShadowMap,
         ParticleVolume,
         Sprite,
@@ -167,7 +167,7 @@ struct NamedPass
         "Deferred",
         "UI",
         "EnvProbe",
-        "EnvGrid",
+        "ProbeVolume",
         "ShadowMap",
         "ParticleVolume",
         "Sprite",
@@ -209,7 +209,7 @@ struct NamedBuffer
         Materials,
         Skeletons,
         EnvProbes,
-        EnvGrids,
+        ProbeVolumes,
         LightmapVolumes,
 
         Max
@@ -223,7 +223,7 @@ struct NamedBuffer
         "Materials",
         "Skeletons",
         "EnvProbes",
-        "EnvGrids",
+        "ProbeVolumes",
         "LightmapVolumes"
     };
 };

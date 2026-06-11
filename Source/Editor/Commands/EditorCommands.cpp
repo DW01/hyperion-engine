@@ -6,7 +6,7 @@
 
 #include <Scene/Scene.hpp>
 #include <Scene/World.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/EntityManager.hpp>
 #include <Scene/Light.hpp>
 #include <Scene/EnvProbe.hpp>
@@ -21,6 +21,7 @@
 
 #include <Scene/Components/BoundingBoxComponent.hpp>
 #include <Scene/Components/LightmapElementComponent.hpp>
+#include <Scene/Components/MeshComponent.hpp>
 
 #include <Scripting/Asset/ScriptAsset.hpp>
 
@@ -56,8 +57,6 @@ EDITOR_API HYP_DECLARE_LOG_CHANNEL(Editor);
 ENGINE_API HYP_DECLARE_LOG_CHANNEL(Console);
 
 extern Handle<EditorState> g_editorState;
-
-struct MeshComponent;
 
 namespace CoreApi {
 CORE_API extern FilePath GetExecutablePath();
@@ -590,7 +589,7 @@ public:
             }
         }
 
-        Handle<EnvGrid> volume = MakeHandle<EnvGrid>(probeGridBounds);
+        Handle<ProbeVolume> volume = MakeHandle<ProbeVolume>(probeGridBounds);
         volume->CreateProbes();
         InitObject(volume);
 

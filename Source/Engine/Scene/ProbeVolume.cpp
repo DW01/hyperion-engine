@@ -8,14 +8,14 @@
 
 #include <Core/Logging/Logger.hpp>
 
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/EnvProbe.hpp>
 
 #include <Scene/BakedLighting/SphericalHarmonics.hpp>
 
 #include <Rendering/RenderProxy.hpp>
 
-#include <EnvGrid.generated.inl>
+#include <ProbeVolume.generated.inl>
 
 namespace Hyperion {
 
@@ -47,24 +47,24 @@ static bool GetBarycentrics(
     return outWeights.Min() >= 0.0f;
 }
 
-#pragma region EnvGrid
+#pragma region ProbeVolume
 
-EnvGrid::EnvGrid()
+ProbeVolume::ProbeVolume()
     : VolumeBase()
 {
 }
 
-EnvGrid::EnvGrid(Name name, const BoundingBox& localBounds)
+ProbeVolume::ProbeVolume(Name name, const BoundingBox& localBounds)
     : VolumeBase(name, localBounds)
 {
 }
 
-EnvGrid::EnvGrid(const BoundingBox& localBounds)
+ProbeVolume::ProbeVolume(const BoundingBox& localBounds)
     : VolumeBase(localBounds)
 {
 }
 
-EnvGrid::~EnvGrid()
+ProbeVolume::~ProbeVolume()
 {
     m_probes.Clear();
     m_probes.Refit();
@@ -73,7 +73,7 @@ EnvGrid::~EnvGrid()
     m_tetrahedra.Refit();
 }
 
-void EnvGrid::OnAddedToWorld(World* world)
+void ProbeVolume::OnAddedToWorld(World* world)
 {
     // Load probes
     m_probes.Clear();
@@ -88,20 +88,20 @@ void EnvGrid::OnAddedToWorld(World* world)
     }
 }
 
-void EnvGrid::OnRemovedFromWorld(World* world)
+void ProbeVolume::OnRemovedFromWorld(World* world)
 {
     m_probes.Clear();
     m_probes.Refit();
 }
 
-void EnvGrid::UpdateRenderProxy(RenderProxyEnvGrid* proxy)
+void ProbeVolume::UpdateRenderProxy(RenderProxyProbeVolume* proxy)
 {
     *proxy = {};
-    proxy->envGrid = MakeWeakRef(this);
+    proxy->probeVolume = MakeWeakRef(this);
     proxy->bufferData = {};
 }
 
-EvaluateSphericalHarmonicsResult EnvGrid::EvaluateSphericalHarmonics(const Entity& inEntity, SphericalHarmonicsData& out) const
+EvaluateSphericalHarmonicsResult ProbeVolume::EvaluateSphericalHarmonics(const Entity& inEntity, SphericalHarmonicsData& out) const
 {
     // @TODO When a probe in the grid moves, it needs to notify us and then we need to update all
     // entities within this grid's aabb which have LightmapElementComponents to update their SH data as well.
@@ -162,7 +162,7 @@ EvaluateSphericalHarmonicsResult EnvGrid::EvaluateSphericalHarmonics(const Entit
     return EvaluateSphericalHarmonicsResult::Failure_OutsideOfVolume;
 }
 
-void EnvGrid::RemoveAllProbes(bool freeMemory)
+void ProbeVolume::RemoveAllProbes(bool freeMemory)
 {
     auto childNodes = GetChildren();
 
@@ -185,7 +185,7 @@ void EnvGrid::RemoveAllProbes(bool freeMemory)
 
 #if HYP_EDITOR
 
-void EnvGrid::SetGridSize(const Vec3u& gridSize)
+void ProbeVolume::SetGridSize(const Vec3u& gridSize)
 {
     if (m_gridSize == gridSize)
     {
@@ -199,7 +199,7 @@ void EnvGrid::SetGridSize(const Vec3u& gridSize)
     CreateProbes();
 }
 
-void EnvGrid::CreateProbes()
+void ProbeVolume::CreateProbes()
 {
     RemoveAllProbes(false);
 
@@ -229,11 +229,11 @@ void EnvGrid::CreateProbes()
 
                 const Vec3f cellMax = cellMin + cellSize;
 
-                Handle<IrradianceProbe> probe = MakeHandle<IrradianceProbe>(
-                    BoundingBox(cellMin, cellMax),
-                    Vec2u { 128, 128 }
-                );
+                BoundingBox probeLocalBounds;
+                probeLocalBounds.min = -cellSize * 0.5f;
+                probeLocalBounds.max = cellSize * 0.5f;
 
+                Handle<IrradianceProbe> probe = MakeHandle<IrradianceProbe>(probeLocalBounds, Vec2u { 8, 8 });
                 probe->SetLocalTranslation(cellMin + cellSize * 0.5f);
 
                 AddChild(probe);
@@ -247,7 +247,7 @@ void EnvGrid::CreateProbes()
     BakeTetrahedra();
 }
 
-void EnvGrid::BakeTetrahedra()
+void ProbeVolume::BakeTetrahedra()
 {
     m_tetrahedra.Clear();
 
@@ -296,6 +296,6 @@ void EnvGrid::BakeTetrahedra()
 
 #endif // HYP_EDITOR
 
-#pragma endregion EnvGrid
+#pragma endregion ProbeVolume
 
 } // namespace Hyperion

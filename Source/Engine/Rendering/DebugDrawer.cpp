@@ -39,7 +39,7 @@
 #include <Scene/View.hpp>
 #include <Scene/Scene.hpp>
 #include <Scene/EnvProbe.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 
 #include <Asset/Assets.hpp>
 #include <Asset/AssetRegistry.hpp>

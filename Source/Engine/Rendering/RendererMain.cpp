@@ -41,7 +41,7 @@
 #include <Scene/View.hpp>
 #include <Scene/Light.hpp>
 #include <Scene/EnvProbe.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/FogVolume.hpp>
 #include <Scene/ParticleVolume.hpp>
 #include <Scene/LightmapVolume.hpp>

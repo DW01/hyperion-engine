@@ -32,7 +32,7 @@ class FogVolume;
 class MaterialInstance;
 class Skeleton;
 class EnvProbe;
-class EnvGrid;
+class ProbeVolume;
 class ShadowMap;
 class InstancedMeshData;
 class Sprite;
@@ -162,17 +162,17 @@ struct RenderProxyEnvProbe : IRenderProxy
     EnvProbeShaderData bufferData {};
 };
 
-struct EnvGridShaderData
+struct ProbeVolumeShaderData
 {
     // Nothing for now until we add the new env grid (baked)
 
     Vec4f dummy;
 };
 
-struct RenderProxyEnvGrid : IRenderProxy
+struct RenderProxyProbeVolume : IRenderProxy
 {
-    WeakHandle<EnvGrid> envGrid;
-    EnvGridShaderData bufferData {};
+    WeakHandle<ProbeVolume> probeVolume;
+    ProbeVolumeShaderData bufferData {};
 };
 
 struct ShadowMapData

@@ -21,7 +21,7 @@
 namespace Hyperion {
 
 class IrradianceProbe;
-struct RenderProxyEnvGrid;
+struct RenderProxyProbeVolume;
 
 struct SphericalHarmonicsData;
 enum class EvaluateSphericalHarmonicsResult : int8;
@@ -36,25 +36,25 @@ struct Tetrahedron
 };
 
 HYP_CLASS()
-class ENGINE_API EnvGrid : public VolumeBase
+class ENGINE_API ProbeVolume : public VolumeBase
 {
-    HYP_OBJECT_BODY(EnvGrid);
+    HYP_OBJECT_BODY(ProbeVolume);
 
 public:
-    EnvGrid();
+    ProbeVolume();
     
-    explicit EnvGrid(Name name, const BoundingBox& localBounds = {});
-    explicit EnvGrid(const BoundingBox& localBounds);
+    explicit ProbeVolume(Name name, const BoundingBox& localBounds = {});
+    explicit ProbeVolume(const BoundingBox& localBounds);
 
-    EnvGrid(const EnvGrid& other) = delete;
-    EnvGrid& operator=(const EnvGrid& other) = delete;
+    ProbeVolume(const ProbeVolume& other) = delete;
+    ProbeVolume& operator=(const ProbeVolume& other) = delete;
 
-    ~EnvGrid() override;
+    ~ProbeVolume() override;
 
     void OnAddedToWorld(World* world) override;
     void OnRemovedFromWorld(World* world) override;
 
-    void UpdateRenderProxy(RenderProxyEnvGrid* proxy);
+    void UpdateRenderProxy(RenderProxyProbeVolume* proxy);
 
     EvaluateSphericalHarmonicsResult EvaluateSphericalHarmonics(
         const Entity& inEntity, SphericalHarmonicsData& out) const;

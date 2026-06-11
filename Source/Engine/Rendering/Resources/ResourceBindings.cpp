@@ -15,7 +15,7 @@
 
 #include <Framework/Resources/ResourceBinder.hpp>
 
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/EnvProbe.hpp>
 #include <Scene/Light.hpp>
 #include <Scene/LightmapVolume.hpp>
