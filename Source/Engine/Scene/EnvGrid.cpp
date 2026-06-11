@@ -19,6 +19,34 @@
 
 namespace Hyperion {
 
+static bool GetBarycentrics(
+    const Vec3f& inPosition,
+    const Vec3f& A, const Vec3f& B, const Vec3f& C, const Vec3f& D,
+    Vec4f& outWeights)
+{
+    const Vec3f vA = A - D;
+    const Vec3f vB = B - D;
+    const Vec3f vC = C - D;
+    const Vec3f vP = inPosition - D;
+
+    const float det = vA.Dot(vB.Cross(vC));
+
+    if (MathUtil::Abs(det) < 1e-6f)
+    {
+        return false; // degenerate tetrahedron!
+    }
+
+    const float invDet = 1.0f / det;
+
+    outWeights[0] = vP.Dot(vB.Cross(vC)) * invDet;
+    outWeights[1] = vA.Dot(vP.Cross(vC)) * invDet;
+    outWeights[2] = vA.Dot(vB.Cross(vP)) * invDet;
+    outWeights[3] = 1.0f - outWeights[0] - outWeights[1] - outWeights[2];
+
+    // All weights must be non-negative for P to be inside.
+    return outWeights.Min() >= 0.0f;
+}
+
 #pragma region EnvGrid
 
 EnvGrid::EnvGrid()
@@ -73,12 +101,65 @@ void EnvGrid::UpdateRenderProxy(RenderProxyEnvGrid* proxy)
     proxy->bufferData = {};
 }
 
-void EnvGrid::EvaluateSphericalHarmonics(const Entity& inEntity, SphericalHarmonicsData& out) const
+EvaluateSphericalHarmonicsResult EnvGrid::EvaluateSphericalHarmonics(const Entity& inEntity, SphericalHarmonicsData& out) const
 {
-    // @TODO! Implement proper SH evaluation using tetrahedron interpolation a la unity
     // @TODO When a probe in the grid moves, it needs to notify us and then we need to update all
     // entities within this grid's aabb which have LightmapElementComponents to update their SH data as well.
     // also for dynamic entities, we'll need to recalculate their SH data in Entity::UpdateRenderProxy() based on their position and the probes in this grid.
+
+    const Vec3f entityTranslation = inEntity.GetWorldTranslation();
+
+    for (const Tetrahedron& tet : m_tetrahedra)
+    {
+        const Vec3f posA = m_probes[tet.probeIndices[0]]->GetWorldTranslation();
+        const Vec3f posB = m_probes[tet.probeIndices[1]]->GetWorldTranslation();
+        const Vec3f posC = m_probes[tet.probeIndices[2]]->GetWorldTranslation();
+        const Vec3f posD = m_probes[tet.probeIndices[3]]->GetWorldTranslation();
+
+        Vec4f weights;
+
+        if (!GetBarycentrics(entityTranslation, posA, posB, posC, posD, weights))
+        {
+            continue;
+        }
+
+        const SphericalHarmonicsData& shA = m_probes[tet.probeIndices[0]]->GetSphericalHarmonicsData();
+        const SphericalHarmonicsData& shB = m_probes[tet.probeIndices[1]]->GetSphericalHarmonicsData();
+        const SphericalHarmonicsData& shC = m_probes[tet.probeIndices[2]]->GetSphericalHarmonicsData();
+        const SphericalHarmonicsData& shD = m_probes[tet.probeIndices[3]]->GetSphericalHarmonicsData();
+
+        out = shA * weights.x
+            + shB * weights.y
+            + shC * weights.z
+            + shD * weights.w;
+
+        return EvaluateSphericalHarmonicsResult::Success_InTetra;
+    }
+
+    // entity is outside all tetrahedra.
+    float bestDist = FLT_MAX;
+    
+    const IrradianceProbe* bestProbe = nullptr;
+
+    for (IrradianceProbe* probe : m_probes)
+    {
+        const float d = (probe->GetWorldTranslation() - entityTranslation).LengthSquared();
+
+        if (d < bestDist)
+        {
+            bestDist = d;
+            bestProbe = probe;
+        }
+    }
+
+    if (bestProbe)
+    {
+        out = bestProbe->GetSphericalHarmonicsData();
+
+        return EvaluateSphericalHarmonicsResult::Success_Fallback;
+    }
+
+    return EvaluateSphericalHarmonicsResult::Failure_OutsideOfVolume;
 }
 
 void EnvGrid::RemoveAllProbes(bool freeMemory)
@@ -157,7 +238,8 @@ void EnvGrid::CreateProbes()
 
                 AddChild(probe);
 
-                m_probes.PushBack(probe);
+                // Probe handle is kept alive due to the fact that it's a child node
+                m_probes.PushBack(probe.Get());
             }
         }
     }

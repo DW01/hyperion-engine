@@ -18,7 +18,7 @@
 
 namespace Hyperion {
 
-#pragma pack(push, 1)
+#pragma pack(push, 4)
 
 HYP_STRUCT()
 struct SphericalHarmonicsData
@@ -27,12 +27,12 @@ struct SphericalHarmonicsData
 
     float values[9 * 3];
 
-    bool operator==(const SphericalHarmonicsData& other) const
+    HYP_FORCE_INLINE bool operator==(const SphericalHarmonicsData& other) const
     {
         return std::memcmp(values, other.values, sizeof(values)) == 0;
     }
 
-    bool operator!=(const SphericalHarmonicsData& other) const
+    HYP_FORCE_INLINE bool operator!=(const SphericalHarmonicsData& other) const
     {
         return std::memcmp(values, other.values, sizeof(values)) != 0;
     }
@@ -43,6 +43,34 @@ struct SphericalHarmonicsData
             reinterpret_cast<const ubyte*>(values),
             reinterpret_cast<const ubyte*>(values) + sizeof(values));
     }
+
+#pragma region Helpers
+    /// Scale by weight
+    HYP_NODISCARD HYP_FORCE_INLINE SphericalHarmonicsData operator*(float weight) const
+    {
+        SphericalHarmonicsData result;
+        
+        for (size_t i = 0; i < std::size(values); i++)
+        {
+            result.values[i] = values[i] * weight;
+        }
+
+        return result;
+    }
+
+    /// Accum
+    HYP_NODISCARD HYP_FORCE_INLINE SphericalHarmonicsData operator+(const SphericalHarmonicsData& other) const
+    {
+        SphericalHarmonicsData result;
+        
+        for (size_t i = 0; i < std::size(values); i++)
+        {
+            result.values[i] = values[i] + other.values[i];
+        }
+
+        return result;
+    }
+#pragma endregion Helpers
 
 #pragma region Serialization
 
@@ -94,6 +122,19 @@ struct SphericalHarmonicsData
 
 #pragma endregion Serialization
 };
+
+enum class EvaluateSphericalHarmonicsResult : int8
+{
+    Failure_OutsideOfVolume = -1,
+
+    Success_InTetra = 0,
+    Success_Fallback = 1
+};
+
+HYP_FORCE_INLINE static constexpr bool IsSuccess(EvaluateSphericalHarmonicsResult result)
+{
+    return static_cast<int8>(result) >= 0;
+}
 
 } // namespace Hyperion
 

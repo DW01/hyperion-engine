@@ -56,6 +56,8 @@ void UpdateInstancedMeshData(Entity& entity, MeshComponent& meshComponent)
         GetCurrentAssetRegistry()->PutAssetUnique(imd);
 
         meshComponent.instanceData = AssetReference(imd);
+
+        Assert(imd->IsRegistered());
     }
 
     const Handle<InstancedMeshData>& imd = DynamicCast<InstancedMeshData>(meshComponent.instanceData.Resolve());
@@ -100,7 +102,9 @@ void DestroyInstancedMeshData(Entity& entity, MeshComponent& meshComponent, bool
         {
             if (meshComponent.instanceData.IsLoaded())
             {
-                meshComponent.instanceData = AssetReference(meshComponent.instanceData.GetAssetPath());
+                // Unload and set to path
+                meshComponent.instanceData = AssetReference();
+                meshComponent.instanceData.SetAssetPath(meshComponent.instanceData.GetAssetPath());
             }
 
             return;

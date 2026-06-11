@@ -32,7 +32,7 @@ void GpuImageBase::SetResourceState(ResourceState newState)
 }
 
 ResourceState GpuImageBase::GetSubResourceState(const ImageSubResource& subResource) const
-{
+{   
     if (!HasSubResourceStates() || IsFullSubResource(subResource))
     {
         return GetResourceState();

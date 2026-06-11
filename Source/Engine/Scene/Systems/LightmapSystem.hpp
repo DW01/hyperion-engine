@@ -14,6 +14,7 @@
 namespace Hyperion {
 
 class LightmapVolume;
+class EnvGrid;
 
 HYP_CLASS(NoScriptBindings, Serialize=false)
 class LightmapSystem : public SystemBase
@@ -22,12 +23,6 @@ class LightmapSystem : public SystemBase
 
 public:
     virtual ~LightmapSystem() override = default;
-
-    virtual bool AllowUpdate() const override
-    {
-        // Process() does nothing currently.
-        return false;
-    }
 
     virtual void OnEntityAdded(Entity* entity) override;
     virtual void OnEntityRemoved(Entity* entity) override;
@@ -41,9 +36,18 @@ private:
             // writes to entities with these components
             ComponentDescriptor<LightmapElementComponent, ComponentAccess::READ_WRITE> {},
 
+            // we update probe-based lighting for dynamic entities at Process() time
+            //
+            // NOTE: We use ComponentAccess::READ even though we do update the SH data,
+            // but nothing else modifies this data during process time and we want to avoid unnecessary System ordering changes.
+            ComponentDescriptor<TagComponent<EntityTag::MobDynamic>, ComponentAccess::READ, false> {},
+
             // used to assign entities to LightmapVolumes
             ComponentDescriptor<BoundingBoxComponent, ComponentAccess::READ> {},
-            ComponentDescriptor<EntityType<LightmapVolume>, ComponentAccess::READ, false> {}
+            ComponentDescriptor<EntityType<LightmapVolume>, ComponentAccess::READ, false> {},
+
+            // For irradiance probes, computing + assigning SH data to LightmapElementComponents
+            ComponentDescriptor<EntityType<EnvGrid>, ComponentAccess::READ, false> {}
         };
     }
 

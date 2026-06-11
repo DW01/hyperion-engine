@@ -604,6 +604,12 @@ extern struct MeshComponent
     NumInstances : uint32
     PreviousModelMatrix : Mat4f
 end
+extern struct LightmapElementComponent
+    LightmapElementId : any
+    LightmapVolumePath : AssetPath
+    LightmapVolume : any
+    ShData : SphericalHarmonicsData
+end
 extern struct CharacterControllerComponent
     Shape : PhysicsShape
     InputHandler : InputHandlerBase
@@ -664,6 +670,8 @@ extern struct AnimationPlaybackState
 end
 extern struct AnimationComponent
     PlaybackState : AnimationPlaybackState
+end
+extern struct SphericalHarmonicsData
 end
 extern struct Keyframe
     Time : float
@@ -2008,8 +2016,6 @@ extern class FogVolume : VolumeBase
     VolumeTexture : Texture
     NoiseTexture : Texture
 end
-extern struct EnvProbeSphericalHarmonics
-end
 extern class EnvProbe : VolumeBase
     GetEnvProbeType() -> EnvProbeType
     GetEnvProbeFlags() -> EnvProbeFlags
@@ -2028,7 +2034,7 @@ extern class EnvProbe : VolumeBase
     Dimensions : Vec2u
     EnvProbeType : EnvProbeType
     EnvProbeFlags : EnvProbeFlags
-    ShData : EnvProbeSphericalHarmonics
+    ShData : SphericalHarmonicsData
 end
 extern class IrradianceProbe : EnvProbe
 end

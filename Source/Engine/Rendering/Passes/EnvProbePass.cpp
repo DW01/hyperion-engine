@@ -544,26 +544,38 @@ void ComputeEnvProbeSphericalHarmonics(const EnvProbe& envProbe, const Texture& 
                 // Readback happens after the frame is finished.
                 // Hand over the payload to the delegate handler.
                 frame->OnFrameEnd.Bind([pPayload = cmdCasted->payload](...)
-                                     {
-                                         ReadbackSphericalHarmonicsPayload& payload = *pPayload;
+                    {
+                        ReadbackSphericalHarmonicsPayload& payload = *pPayload;
 
-                                         // Read back the SH coefficients from the GPU buffer and store on the EnvProbe.
-                                         EnvProbeSphericalHarmonics shData {};
+                        Vec4f raw[9];
 
-                                         Assert(payload.readbackBuffer.IsValid() && payload.readbackBuffer->Size() >= sizeof(shData.values));
-                                         payload.readbackBuffer->Read(sizeof(shData.values), &shData.values[0]);
+                        Assert(payload.readbackBuffer.IsValid() && payload.readbackBuffer->Size() >= sizeof(raw));
+                        payload.readbackBuffer->Read(sizeof(raw), raw);
 
-                                         {
-                                             // SetSphericalHarmonicsData() marks it dirty so we don't need to do that here.
-                                             auto envProbeWriteScope = payload.envProbe->GetWriteScope();
-                                             payload.envProbe->SetSphericalHarmonicsData(shData);
-                                         }
+                        {
+                        // Read back the SH coefficients from the GPU buffer and store on the EnvProbe.
+                        SphericalHarmonicsData shData;
 
-                                         EnqueueDeletion(std::move(payload.shBuffer));
-                                         EnqueueDeletion(std::move(payload.readbackBuffer));
+                        // Copy data from raw
+                        float* outSH = shData.values;
+                        const Vec4f* inSH = raw;
+                        for (uint32 j = 0; j < 9; j++)
+                        {
+                            outSH[j * 3 + 0] = inSH[j].x;
+                            outSH[j * 3 + 1] = inSH[j].y;
+                            outSH[j * 3 + 2] = inSH[j].z;
+                        }
+                        
+                        // SetSphericalHarmonicsData() marks it dirty so we don't need to do that here.
+                        auto envProbeWriteScope = payload.envProbe->GetWriteScope();
+                        payload.envProbe->SetSphericalHarmonicsData(shData);
+                        }
 
-                                         delete pPayload;
-                                     })
+                        EnqueueDeletion(std::move(payload.shBuffer));
+                        EnqueueDeletion(std::move(payload.readbackBuffer));
+
+                        delete pPayload;
+                    })
                     .Detach();
 
                 // not necessary but just to aid in debugging

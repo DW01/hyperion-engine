@@ -20,6 +20,7 @@
 #include <Scene/Camera/Camera.hpp>
 
 #include <Scene/Components/BoundingBoxComponent.hpp>
+#include <Scene/Components/LightmapElementComponent.hpp>
 
 #include <Scripting/Asset/ScriptAsset.hpp>
 
@@ -55,6 +56,8 @@ EDITOR_API HYP_DECLARE_LOG_CHANNEL(Editor);
 ENGINE_API HYP_DECLARE_LOG_CHANNEL(Console);
 
 extern Handle<EditorState> g_editorState;
+
+struct MeshComponent;
 
 namespace CoreApi {
 CORE_API extern FilePath GetExecutablePath();
@@ -520,18 +523,18 @@ DEFINE_EDITOR_COMMAND(AddReflectionProbe);
 
 #pragma endregion AddReflectionProbe
 
-#pragma region AddIrradianceProbeVolume
+#pragma region AddProbeVolume
 
-class EditorCommandAddIrradianceProbeVolume final : public EditorCommandBase
+class EditorCommandAddProbeVolume final : public EditorCommandBase
 {
-    HYP_OBJECT_BODY(EditorCommandAddIrradianceProbeVolume);
+    HYP_OBJECT_BODY(EditorCommandAddProbeVolume);
 
 public:
-    virtual ~EditorCommandAddIrradianceProbeVolume() override = default;
+    virtual ~EditorCommandAddProbeVolume() override = default;
 
     virtual String GetText() const override
     {
-        return "Add Irradiance Probe Volume";
+        return "Add Probe Volume";
     }
 
     virtual void Execute(EditorSubsystem* subsystem) override
@@ -553,6 +556,39 @@ public:
         }
 
         const BoundingBox probeGridBounds = BoundingBox(Vec3f(-25.0f, 0.0f, -25.0f), Vec3f(25.0f, 25.0f, 25.0f));
+
+        // Ensure surrounding entities have a LightmapElementComponent.
+
+        World* world = currentProject->GetWorld();
+        if (world != nullptr)
+        {
+            for (Scene* scene : world->GetScenes())
+            {
+                TSet<Entity*> entitiesToAddComponent;
+
+                for (auto&& [entity, meshComponent] : scene->GetEntityManager()->GetEntitySet<MeshComponent>())
+                {
+                    if (entity->HasComponent<LightmapElementComponent>())
+                    {
+                        // Entity already has the component; skip.
+                        continue;
+                    }
+
+                    const BoundingBox worldBounds = entity->GetWorldBounds();
+
+                    if (probeGridBounds.Overlaps(worldBounds))
+                    {
+                        entitiesToAddComponent.Insert(entity);
+                    }
+                }
+
+                for (Entity* entity : entitiesToAddComponent)
+                {
+                    LightmapElementComponent component;
+                    entity->AddComponent<LightmapElementComponent>(component);
+                }
+            }
+        }
 
         Handle<EnvGrid> volume = MakeHandle<EnvGrid>(probeGridBounds);
         volume->CreateProbes();
@@ -595,9 +631,9 @@ public:
     }
 };
 
-DEFINE_EDITOR_COMMAND(AddIrradianceProbeVolume);
+DEFINE_EDITOR_COMMAND(AddProbeVolume);
 
-#pragma endregion AddIrradianceProbeVolume
+#pragma endregion AddProbeVolume
 
 #pragma region AddParticleVolume
 

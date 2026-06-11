@@ -56,6 +56,8 @@ void InstancedMeshData::PageBlobData()
     {
         BlobDataReference& ref = buffers[i];
 
+        // For editor, we allow inline blobs, so we try to read from the file system first. If that fails, we fall back to the blob storage.
+
         if (ref.raw == nullptr && ref.key && ref.size != 0)
         {
             if (!blobStorage || !blobStorage->GetData(ref.key, ref.size, ref.raw))

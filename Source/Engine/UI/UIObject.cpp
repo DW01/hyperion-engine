@@ -2484,7 +2484,9 @@ void UIObject::UpdateMeshData_Internal()
         instancedMesh = MakeHandle<InstancedMeshData>(NAME_FMT("IMD_{}_{}", InstanceClass()->GetName(), GetName()));
         instancedMesh->SetIsTransient(true);
 
-        GetCurrentAssetRegistry()->PutAssetUnique(instancedMesh);
+        GetEngineAssetRegistry()->PutAssetUnique(instancedMesh);
+
+        Assert(instancedMesh->IsRegistered());
 
         meshComponent->instanceData = AssetReference(instancedMesh);
     }

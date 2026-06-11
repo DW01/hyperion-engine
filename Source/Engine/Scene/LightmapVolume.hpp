@@ -31,7 +31,6 @@ class BakeData;
 } // namespace Baking
 
 enum class LightmapElementId : uint32;
-
 static constexpr LightmapElementId InvalidLightmapElementId = Invalid<LightmapElementId>;
 
 HYP_STRUCT(NoScriptBindings)

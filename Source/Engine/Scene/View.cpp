@@ -992,33 +992,6 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
         HYP_LOG(Scene, Verbose, "Collected {} entities for View {}, {} skipped", numCollectedEntities, Id(), numSkippedEntities);
 #endif
     }
-
-    Resources::ResourceTrackerDiff meshesDiff = rpl.GetMeshEntities().GetDiff();
-
-    if (meshesDiff.NeedsUpdate())
-    {
-        AssertDebug(desc.entityBatchClass == nullptr || desc.entityBatchClass == MeshEntityInstanceBatch::StaticClass());
-
-        Array<Entity*, ThreadAllocator> addedOrChanged;
-        rpl.GetMeshEntities().GetAdded(addedOrChanged, /* includeChanged */ true);
-
-        for (Entity* entity : addedOrChanged)
-        {
-            AssertDebug(entity->InstanceClass() == Entity::StaticClass());
-
-            auto&& [meshComponent, transformComponent, boundingBoxComponent, lightmapElementComponent] = entity->GetEntityManager()->TryGetComponents<MeshComponent, TransformComponent, BoundingBoxComponent, LightmapElementComponent>(entity);
-
-            AssertDebug(meshComponent != nullptr);
-
-            if (!meshComponent->mesh || !meshComponent->material)
-            {
-                continue;
-            }
-
-            RenderProxyMesh& meshProxy = *rpl.GetMeshEntities().SetProxy(entity->Id(), RenderProxyMesh());
-            entity->UpdateRenderProxy(&meshProxy);
-        }
-    }
 }
 
 void View::CollectCameras(RenderProxyList& rpl)

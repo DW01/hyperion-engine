@@ -918,6 +918,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
     const bool shouldEvaluateSH = (shouldWriteSHData && prepassStage != DepthPrepass::DPP_InPrepass);
 
     Vec4f shData[9];
+    Memory::Zero(shData, sizeof(shData));
     shData[0].w = (shouldEvaluateSH ? 1.0f : 0.0f); // shader uses this field to branch on
 
     uint32 numShaderUniforms = 0;

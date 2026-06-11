@@ -414,7 +414,7 @@ void EnvProbe::SetOrigin(const Vec3f& origin)
     SetLocalBounds(localBounds);
 }
 
-void EnvProbe::SetSphericalHarmonicsData(const EnvProbeSphericalHarmonics& shData)
+void EnvProbe::SetSphericalHarmonicsData(const SphericalHarmonicsData& shData)
 {
     m_shData = shData;
 
@@ -600,8 +600,18 @@ void EnvProbe::UpdateRenderProxy(RenderProxyEnvProbe* proxy)
 
     const FixedArray<Mat4f, 6> viewMatrices = CreateCubemapMatrices(worldBounds.GetCenter());
 
-    Memory::Copy(bufferData.faceViewMatrices, viewMatrices.Data(), sizeof(EnvProbeShaderData::faceViewMatrices));
-    Memory::Copy(bufferData.shData, &m_shData, sizeof(EnvProbeSphericalHarmonics::values));
+    Memory::Copy(bufferData.faceViewMatrices, viewMatrices.Data(), sizeof(bufferData.faceViewMatrices)); // TODO remove?
+    
+    // Update Spherical Harmonics data.
+    const float* inSH = m_shData.values;
+    Vec4f* outSH = bufferData.shData;
+
+    for (size_t i = 0; i < 9; ++i)
+    {
+        outSH[i].x = *inSH++;
+        outSH[i].y = *inSH++;
+        outSH[i].z = *inSH++;
+    }
 }
 
 void EnvProbe::SetBakedTexture(const Handle<Texture>& texture)
