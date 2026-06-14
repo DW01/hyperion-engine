@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -14,6 +14,9 @@
 
 #include <Core/Math/BoundingBox.hpp>
 #include <Core/Math/Mat3f.hpp>
+#include <Core/Math/Vector4.hpp>
+
+#include <Core/Containers/Map.hpp>
 
 #include <Framework/EngineMemory.hpp>
 
@@ -49,7 +52,7 @@ class ENGINE_API ProbeVolume : public VolumeBase
 
 public:
     ProbeVolume();
-    
+
     explicit ProbeVolume(Name name, const BoundingBox& localBounds = {});
     explicit ProbeVolume(const BoundingBox& localBounds);
 
@@ -78,9 +81,14 @@ private:
 
     void RemoveAllProbes(bool freeMemory);
 
-    int32 FindEnclosingTetrahedron(const Vec3f& position) const;
+    bool FindEnclosingTetrahedron(
+        const Vec3f& position,
+        int32& inOutTetIndex,
+        Vec4f& outWeights) const;
 
     void RebuildRuntimeData();
+
+    void RemoveStaleCacheEntries();
 
 #if HYP_EDITOR
 public:
@@ -93,28 +101,39 @@ public:
     HYP_METHOD(Property = "GridSize", EditorOnly)
     void SetGridSize(const Vec3u& gridSize);
 
+    HYP_METHOD(EditAction = "Rebuild Connectivity")
     void CreateProbes();
 
-    HYP_METHOD(EditAction = "Rebuild Connectivity")
     void BakeTetrahedra();
 
     Span<const Tetrahedron> GetTetrahedra() const
     {
         return m_tetrahedra;
     }
-    
+
 private:
     HYP_FIELD(Property = "GridSize", EditorOnly, Serialize)
     Vec3u m_gridSize = Vec3u { 2, 2, 2 };
+
+    void TessellateGrid();
 #endif // HYP_EDITOR
+
+    HYP_FIELD(Property = "GridCount", Serialize, EditHide)
+    Vec3u m_gridCount = Vec3u { 0, 0, 0 };
 
     HYP_FIELD(Property = "Probes", Transient, EditHide)
     Array<IrradianceProbe*, SceneAllocator> m_probes;
 
     HYP_FIELD(Property = "Tetrahedra", Serialize, EditHide)
     Array<Tetrahedron, SceneAllocator> m_tetrahedra;
+    struct CachedState
+    {
+        SharedMutex mutex;
+        TMap<WeakHandle<Entity>, int32, SceneAllocator> entityCellCache;
+        int32 lastTetHint = 0;
+    };
 
-    mutable int32 m_lastTetHint = 0;
+    mutable CachedState m_cachedState;
 };
 
 } // namespace Hyperion

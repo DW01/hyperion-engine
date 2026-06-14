@@ -45,17 +45,6 @@ static constexpr int MaxDebugDrawShapeTypes = 8;
 
 ENGINE_API extern uint32 GetRingIndex();
 
-HYP_STRUCT(ConfigName = "EngineConfig", JsonPath = "Rendering.Debug.DebugDrawer")
-struct DebugDrawerConfig : public Config<DebugDrawerConfig>
-{
-    HYP_STRUCT_BODY(DebugDrawerConfig);
-
-    HYP_FIELD(Description = "Enable or disable the debug drawer.")
-    bool enabled = true;
-
-    virtual ~DebugDrawerConfig() override = default;
-};
-
 enum class DebugDrawType : int
 {
     MESH = 0
@@ -246,19 +235,13 @@ public:
     static DebugDrawer& GetInstance();
 
     DebugDrawer();
+    
     DebugDrawer(const DebugDrawer& other) = delete;
     DebugDrawer& operator=(const DebugDrawer& other) = delete;
+
     ~DebugDrawer();
 
-    HYP_FORCE_INLINE bool IsEnabled() const
-    {
-        return m_config.enabled;
-    }
-
-    HYP_FORCE_INLINE const DebugDrawerConfig& GetConfig() const
-    {
-        return m_config;
-    }
+    bool IsEnabled() const;
 
     HYP_FORCE_INLINE uint32 NumEnqueuedDrawCommands() const
     {
@@ -276,8 +259,6 @@ public:
 private:
     GraphicsPipelineRef FetchGraphicsPipeline(RenderableAttributeSet attributes, uint32 layerIndex, PassData* passData);
     void ClearCommands(uint32 idx);
-
-    DebugDrawerConfig m_config;
 
     FixedArray<Array<DebugDrawCommandHeader>, RingBufferDepth> m_headers;
     FixedArray<ByteBuffer, RingBufferDepth> m_buffers;

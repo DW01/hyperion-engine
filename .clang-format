@@ -2,7 +2,6 @@ Language: Cpp
 BasedOnStyle: LLVM
 
 AccessModifierOffset: -4
-AlignAfterOpenBracket: DontAlign
 AlignConsecutiveDeclarations: false
 AlignEscapedNewlines: Left
 AlignOperands: DontAlign
@@ -27,7 +26,7 @@ BraceWrapping:
   BeforeLambdaBody: true
   BeforeWhile: true
   IndentBraces: false
-BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeBinaryOperators: All
 BreakBeforeBraces: Custom
 BreakInheritanceList: AfterColon
 BreakBeforeTernaryOperators: true

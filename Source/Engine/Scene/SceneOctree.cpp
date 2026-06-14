@@ -171,13 +171,13 @@ void SceneOctree::Clear()
                     continue;
                 }
 
-                if (VisibilityStateComponent* visibilityStateComponent = m_entityManager->TryGetComponent<VisibilityStateComponent>(entity))
+                if (VisibilityStateComponent* visibilityStateComponent = entity->TryGetComponent<VisibilityStateComponent>())
                 {
                     visibilityStateComponent->octantId = OctantId::Invalid();
                     visibilityStateComponent->visibilityState = nullptr;
                 }
 
-                m_entityManager->AddTag<EntityTag::UpdateVisibility>(entity);
+                entity->AddTag<EntityTag::UpdateVisibility>();
 
                 if (UseEntityMap())
                 {
@@ -284,7 +284,7 @@ SceneOctree::Result SceneOctree::Rebuild(const BoundingBox& newAabb, bool allowG
                 return insertResult;
             }
 
-            VisibilityStateComponent* visibilityStateComponent = m_entityManager->TryGetComponent<VisibilityStateComponent>(entity);
+            VisibilityStateComponent* visibilityStateComponent = entity->TryGetComponent<VisibilityStateComponent>();
 
             if (visibilityStateComponent)
             {
@@ -293,10 +293,10 @@ SceneOctree::Result SceneOctree::Rebuild(const BoundingBox& newAabb, bool allowG
             }
             else
             {
-                m_entityManager->AddComponent<VisibilityStateComponent>(entity, VisibilityStateComponent { .octantId = insertResult.GetValue(), .visibilityState = nullptr });
+                entity->AddComponent<VisibilityStateComponent>(VisibilityStateComponent { .octantId = insertResult.GetValue(), .visibilityState = nullptr });
             }
 
-            m_entityManager->AddTag<EntityTag::UpdateVisibility>(entity);
+            entity->AddTag<EntityTag::UpdateVisibility>();
         }
     }
 
@@ -1013,7 +1013,7 @@ bool SceneOctree::TestRay(const Ray& ray, RayTestResults& outResults, EnumFlags<
             if (flags & RayTestFlags::TestBVH)
             {
                 // If the entity has a BVH associated with it, use that instead of the AABB for more accuracy
-                if (MeshComponent* meshComponent = m_entityManager->TryGetComponent<MeshComponent>(entry.value);
+                if (MeshComponent* meshComponent = entry.value->TryGetComponent<MeshComponent>();
                     meshComponent && meshComponent->mesh && meshComponent->mesh->GetBVH().IsValid())
                 {
                     Mat4f modelMatrix = entry.value->GetWorldMatrix();

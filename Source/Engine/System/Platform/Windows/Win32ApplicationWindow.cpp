@@ -368,7 +368,10 @@ LRESULT CALLBACK Win32ApplicationWindow::ParentSubclassProc(HWND hWnd, UINT msg,
 
         Event event(isActive ? EventType::WINDOW_FOCUS_GAINED : EventType::WINDOW_FOCUS_LOST, self, platformEvent);
 
-        self->GetInputManager()->ProcessEvent(std::move(event));
+        InputManager* inputManager = self->GetInputManager();
+        Assert(inputManager != nullptr);
+
+        inputManager->ProcessEvent(std::move(event));
 
         break;
     }

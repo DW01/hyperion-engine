@@ -61,15 +61,15 @@ void CheckUnfreedSymbolTypes()
     {
         // Cannot use ToString(), as it may reference other SymbolTypes that have been deleted
         message += HYP_FORMAT(" - {} (type: {}) @  {}\n",
-            type->GetName(),
-            SymbolTypeClassToString(type->GetTypeClass()),
-            (void*)type);
+                              type->GetName(),
+                              SymbolTypeClassToString(type->GetTypeClass()),
+                              (void*)type);
     }
 
     HYP_LOG(Script, Warning, "{}", message);
 }
 
-#endif
+#endif // HYP_SYMBOL_TYPE_UNFREED_PTR_DEBUG
 
 #pragma region GenericInstanceTypeInfo
 
@@ -144,8 +144,8 @@ SymbolTypeRegistration::~SymbolTypeRegistration()
 SymbolType::SymbolType()
     : m_name("<temp>"),
       m_typeClass(TYPE_INVALID),
-      m_base(nullptr),
       m_defaultValue(nullptr),
+      m_base(nullptr),
       m_constantBitSize(CBS_INVALID),
       m_flags(STF_NONE),
       m_declScope(nullptr),
@@ -211,8 +211,8 @@ SymbolType::SymbolType(
 
 #if defined(HYP_SYMBOL_TYPE_ALLOCATION_TRACE) && HYP_SYMBOL_TYPE_ALLOCATION_TRACE
     allocationTrace = StackDump(2, 5).ToString();
-#endif
-#endif
+#endif // HYP_SYMBOL_TYPE_ALLOCATION_TRACE
+#endif // HYP_SYMBOL_TYPE_UNFREED_PTR_DEBUG
 }
 
 SymbolType::~SymbolType()
@@ -1403,9 +1403,9 @@ SymbolType* SymbolType::GenericInstance(
         for (const SymbolTypeMember& member : genericType->GetMembers())
         {
             const auto overridenMemberIt = allMembers.FindIf([&member](const SymbolTypeMember& otherMember)
-                {
-                    return otherMember.GetName() == member.GetName();
-                });
+                                                             {
+                                                                 return otherMember.GetName() == member.GetName();
+                                                             });
 
             if (overridenMemberIt != allMembers.End())
             {
@@ -1425,9 +1425,9 @@ SymbolType* SymbolType::GenericInstance(
         for (const SymbolTypeMember& staticMember : genericType->GetStaticMembers())
         {
             const auto overridenStaticMemberIt = allStaticMembers.FindIf([&staticMember](const auto& otherMember)
-                {
-                    return otherMember.GetName() == staticMember.GetName();
-                });
+                                                                         {
+                                                                             return otherMember.GetName() == staticMember.GetName();
+                                                                         });
 
             if (overridenStaticMemberIt != allStaticMembers.End())
             {
@@ -1450,9 +1450,9 @@ SymbolType* SymbolType::GenericInstance(
     for (SymbolTypeMember& member : members)
     {
         const auto overridenMemberIt = allMembers.FindIf([&member](const SymbolTypeMember& otherMember)
-            {
-                return otherMember.GetName() == member.GetName();
-            });
+                                                         {
+                                                             return otherMember.GetName() == member.GetName();
+                                                         });
 
         if (overridenMemberIt != allMembers.End())
         {
@@ -1473,9 +1473,9 @@ SymbolType* SymbolType::GenericInstance(
     for (SymbolTypeMember& staticMember : staticMembers)
     {
         const auto overridenStaticMemberIt = allStaticMembers.FindIf([&staticMember](const SymbolTypeMember& otherMember)
-            {
-                return otherMember.GetName() == staticMember.GetName();
-            });
+                                                                     {
+                                                                         return otherMember.GetName() == staticMember.GetName();
+                                                                     });
 
         if (overridenStaticMemberIt != allStaticMembers.End())
         {

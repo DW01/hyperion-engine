@@ -23,8 +23,7 @@ class AstExpression;
 class AstArgument;
 class AstVariableDeclaration;
 class CompilationUnit;
-
-struct Scope;
+class Scope;
 
 extern SlabAllocator& GetSymbolTypeAllocator();
 

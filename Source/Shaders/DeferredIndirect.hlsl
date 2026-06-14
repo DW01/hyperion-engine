@@ -194,14 +194,14 @@ PSOutput PSMain(PSInput input)
 
     const uint2 viewportExtent = camera.dimensions.xy;
 
-    // CalculateEnvProbesContribution(
-    //     positionVS.xyz, positionWS.xyz,
-    //     N, V, R,
-    //     camera.near, camera.far,
-    //     roughness, perceptualRoughness,
-    //     texcoord, viewportExtent,
-    //     /* inout */ reflections,
-    //     /* inout */ irradiance);
+    CalculateEnvProbesContribution(
+        positionVS.xyz, positionWS.xyz,
+        N, V, R,
+        camera.near, camera.far,
+        roughness, perceptualRoughness,
+        texcoord, viewportExtent,
+        /* inout */ reflections,
+        /* inout */ irradiance);
 
     irradiance.rgb += probeLighting; // @NOTE If object is lightmapped, probeLighting will contain lightmap UVs; but the next line will cancel this out anyway
     irradiance *= 1.0 - min(1.0, float(mask & OBJECT_MASK_LIGHTMAPPED));

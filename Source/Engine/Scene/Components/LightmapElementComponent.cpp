@@ -9,7 +9,8 @@
 namespace Hyperion {
 
 LightmapElementComponent::LightmapElementComponent()
-    : lightmapElementId(InvalidLightmapElementId)
+    : lightmapElementId(InvalidLightmapElementId),
+      shData {}
 {
 }
 

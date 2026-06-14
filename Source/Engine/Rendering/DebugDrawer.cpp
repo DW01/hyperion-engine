@@ -35,6 +35,7 @@
 #include <Framework/EngineGlobals.hpp>
 #include <Framework/EngineStats.hpp>
 #include <Framework/EngineDriver.hpp>
+#include <Framework/CVarManager.hpp>
 
 #include <Scene/View.hpp>
 #include <Scene/Scene.hpp>
@@ -46,11 +47,11 @@
 
 #include <Core/Resource/Resource.hpp>
 
-#include <DebugDrawer.generated.inl>
-
 namespace Hyperion {
 
 extern EngineStatCounter<uint32> g_statDebugDraws;
+
+static CVar<bool> s_cvEnableDebugDrawer("Rendering.EnableDebugDrawer", true);
 
 static const ShaderPropertyId s_propImmediateMode = InternShaderProperty(ShaderProperty(NAME("IMMEDIATE_MODE")));
 
@@ -620,8 +621,7 @@ DebugDrawer& DebugDrawer::GetInstance()
 }
 
 DebugDrawer::DebugDrawer()
-    : m_config(DebugDrawerConfig::FromConfig()),
-      m_buffers(CreateDebugDrawBuffers()),
+    : m_buffers(CreateDebugDrawBuffers()),
       m_bufferOffsets {},
       m_bufferSizeHistory {}
 {
@@ -629,6 +629,11 @@ DebugDrawer::DebugDrawer()
 
 DebugDrawer::~DebugDrawer()
 {
+}
+
+bool DebugDrawer::IsEnabled() const
+{
+    return s_cvEnableDebugDrawer.Get();
 }
 
 void DebugDrawer::Initialize()

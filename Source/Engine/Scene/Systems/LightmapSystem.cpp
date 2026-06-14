@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <ScenePch.hpp>
 
@@ -36,63 +36,30 @@ void LightmapSystem::OnEntityAdded(Entity* entity)
         if (!AssignLightmapVolume(entity->GetScene(), lightmapElementComponent, boundingBoxComponent))
         {
             HYP_LOG(Lightmap, Warning, "LightmapElementComponent for Entity {} could not be associated at runtime",
-                entity->GetName());
+                    entity->GetName());
         }
     }
 
-    World* world = GetWorld();
-
-    if (world != nullptr)
-    {
-        bool updatedSphericalHarmonics = false;
-
-        for (Scene* scene : world->GetScenes())
-        {
-            if (scene == entity->GetScene())
-            {
-                for (auto&& [probeVolumeEntity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<ProbeVolume>>().GetScopedView(GetComponentInfos()))
-                {
-                    ProbeVolume* probeVolume = static_cast<ProbeVolume*>(probeVolumeEntity);
-
-                    EvaluateSphericalHarmonicsResult result = probeVolume->EvaluateSphericalHarmonics(*entity, lightmapElementComponent.shData);
-                    
-                    if (IsSuccess(result))
-                    {
-                        updatedSphericalHarmonics = true;
-                    }
-                    else
-                    {
-                        HYP_LOG(Lightmap, Warning, "Failed to evaluate spherical harmonics for Entity {} in ProbeVolume {}: {}",
-                            entity->GetName(), probeVolume->GetName(), int(result));
-                    }
-                }
-            }
-        }
-
-        if (updatedSphericalHarmonics)
-        {
-            entity->SetNeedsRenderProxyUpdate();
-
-            entity->RemoveTag<EntityTag::UpdateSphericalHarmonicsData>();
-        }
-    }
+    entity->AddTag<EntityTag::UpdateSphericalHarmonicsData>();
 }
 
 void LightmapSystem::OnEntityRemoved(Entity* entity)
 {
     SystemBase::OnEntityRemoved(entity);
 
-    LightmapElementComponent& lightmapElementComponent = entity->GetComponent<LightmapElementComponent>();
+    LightmapElementComponent* lightmapElementComponent = entity->TryGetComponent<LightmapElementComponent>();
 
-    if (lightmapElementComponent.lightmapVolume.IsValid())
+    if (lightmapElementComponent != nullptr)
     {
-        lightmapElementComponent.lightmapVolume.Reset();
+        if (lightmapElementComponent->lightmapVolume.IsValid())
+        {
+            lightmapElementComponent->lightmapVolume.Reset();
+        }
+
+        lightmapElementComponent->shData = {};
+
+        entity->SetNeedsRenderProxyUpdate();
     }
-
-    // Zeroize, to avoid rendering it with stale SH data.
-    Memory::Zero(&lightmapElementComponent.shData, sizeof(lightmapElementComponent.shData));
-
-    entity->SetNeedsRenderProxyUpdate();
 }
 
 void LightmapSystem::Process(float delta, Span<Handle<Scene>> scenes)
@@ -177,18 +144,24 @@ void LightmapSystem::Process(float delta, Span<Handle<Scene>> scenes)
             {
                 updatedEntities.Add(entity);
             }
+            else
+            {
+                // No overlap, clear out the SH data.
+                lightmapElementComponent.shData = {};
+            }
         }
     }
 
     if (updatedEntities.Any())
     {
         AfterProcess([updatedEntities = std::move(updatedEntities)]()
-            {
-                for (Entity* entity : updatedEntities)
-                {
-                    entity->RemoveTag<EntityTag::UpdateSphericalHarmonicsData>();
-                }
-            });
+                     {
+                         for (Entity* entity : updatedEntities)
+                         {
+                             entity->RemoveTag<EntityTag::UpdateSphericalHarmonicsData>();
+                             entity->AddTag<EntityTag::UpdateRenderProxy>();
+                         }
+                     });
     }
 }
 
