@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <RenderingPch.hpp>
 
@@ -88,6 +88,7 @@ static const Name s_nameForward = NAME("FORWARD");
 static const ShaderPropertyId s_propShadingTypeForward = InternShaderProperty(ShaderProperty(s_nameShadingType, Name(s_nameForward)));
 
 static const ShaderPropertyId s_propForwardClustered = InternShaderProperty(ShaderProperty(NAME("FORWARD_CLUSTERED")));
+static const ShaderPropertyId s_propForwardShading = InternShaderProperty(ShaderProperty(NAME("FORWARD_SHADING")));
 
 static HYP_FORCE_INLINE bool IsCubemapShader(StringHash shaderNameHash)
 {
@@ -101,7 +102,7 @@ static HYP_FORCE_INLINE bool IsCubemapShader(StringHash shaderNameHash)
 
 // per-thread CommandRecorder
 // Wtf is this crash?
-//using ThreadedCommandRecorder = TCommandRecorder<ThreadAllocator>;
+// using ThreadedCommandRecorder = TCommandRecorder<ThreadAllocator>;
 
 using ThreadedCommandRecorder = TCommandRecorder<DynamicAllocator>;
 
@@ -148,9 +149,9 @@ struct ParallelRenderingState_Shared
             AssertDebug(poolThreads[threadIndex] != nullptr);
 
             tasks.EmplaceBack(poolThreads[threadIndex]->GetScheduler().Enqueue([&destructCommandRecorders, threadIndex]
-                {
-                    destructCommandRecorders(threadIndex);
-                }));
+                                                                               {
+                                                                                   destructCommandRecorders(threadIndex);
+                                                                               }));
         }
 
         AwaitAll(tasks.ToSpan());
@@ -293,7 +294,7 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
 
     const bool isCubemap = IsCubemapShader(attributes.GetMaterialAttributes().shaderName);
 
-#if 0//def HYP_VULKAN
+#if 0 // def HYP_VULKAN
     const bool isMultiView = isCubemap;
 #else
     const bool isMultiView = false;
@@ -375,8 +376,7 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
 
 #pragma region DepthPrepass
 
-namespace DepthPrepass
-{
+namespace DepthPrepass {
 
 enum Stage : uint8
 {
@@ -599,9 +599,9 @@ static inline void UpdateRefs(T& renderProxyList)
     AssertDebug(renderProxyList.useRefCounting);
 
     ForEachResourceTracker(renderProxyList.resourceTrackers.ToSpan(), []<class... Args>(Args&&... args)
-        {
-            UpdateRefs_Impl(std::forward<Args>(args)...);
-        });
+                           {
+                               UpdateRefs_Impl(std::forward<Args>(args)...);
+                           });
 }
 
 #pragma region RenderProxyList
@@ -614,11 +614,11 @@ RenderProxyList::RenderProxyList(bool isShared, bool useRefCounting)
 {
     // initialize the resource trackers
     ForEachResourceTrackerType(resourceTrackers.ToSpan(), [this]<class ResourceTrackerType>(TypeWrapper<ResourceTrackerType>, ResourceTrackerBase<AllocatorType>*& pResourceTracker, size_t idx)
-        {
-            AssertDebug(!pResourceTracker);
+                               {
+                                   AssertDebug(!pResourceTracker);
 
-            pResourceTracker = new ResourceTrackerType();
-        });
+                                   pResourceTracker = new ResourceTrackerType();
+                               });
 }
 
 RenderProxyList::~RenderProxyList()
@@ -627,13 +627,13 @@ RenderProxyList::~RenderProxyList()
     int numRenderProxies = 0;
 
     ForEachResourceTracker(resourceTrackers.ToSpan(), [&](auto&& resourceTracker)
-        {
-            for (Bitset::BitIndex bit : resourceTracker.GetSubclassIndices())
-            {
-                auto&& impl = resourceTracker.GetSubclassImpl(int(bit));
-                numRenderProxies += impl.proxies.Count();
-            }
-        });
+                           {
+                               for (Bitset::BitIndex bit : resourceTracker.GetSubclassIndices())
+                               {
+                                   auto&& impl = resourceTracker.GetSubclassImpl(int(bit));
+                                   numRenderProxies += impl.proxies.Count();
+                               }
+                           });
 
     if (numRenderProxies > 0)
         HYP_LOG(Rendering, Verbose, "RenderProxyList destroyed with {} render proxies still in it", numRenderProxies);
@@ -659,9 +659,9 @@ void RenderProxyList::BeginWrite()
     // advance all trackers to the next state before we write into them.
     // this clears their 'next' bits and sets their 'previous' bits so we can tell what changed.
     ForEachResourceTracker(resourceTrackers.ToSpan(), [](auto&& resourceTracker)
-        {
-            resourceTracker.Advance(/* clearNextState */ true);
-        });
+                           {
+                               resourceTracker.Advance(/* clearNextState */ true);
+                           });
 }
 
 void RenderProxyList::EndWrite()
@@ -742,9 +742,9 @@ void RenderProxyList::ClearAll()
     // First advance would be from BeginWrite(), we advance again without tracking any new resources,
     // so the current ones all get disposed.
     ForEachResourceTracker(resourceTrackers.ToSpan(), [](auto&& resourceTracker)
-        {
-            resourceTracker.Advance(/* clearNextState */ true);
-        });
+                           {
+                               resourceTracker.Advance(/* clearNextState */ true);
+                           });
 }
 
 #pragma endregion RenderProxyList
@@ -767,8 +767,9 @@ struct TPerformRenderingPayload
     PerformRenderingPayloadBase* pNext;
 };
 
+/// Forward shading, NOT clustered
 template <class TCommandRecorder>
-static void SetForwardShadingUniforms(
+static void SetForwardShadingConstants(
     const RenderSetup& renderSetup,
     TCommandRecorder& cr,
     uint32& numShaderUniforms)
@@ -833,7 +834,9 @@ static void SetForwardShadingUniforms(
             AssertDebug(atlasElement != nullptr);
 
             if (!atlasElement)
+            {
                 continue;
+            }
 
             AssertDebug(shadowMapViewsDynamic.Size() > 0 && shadowMapViewsDynamic[0]->GetCamera() != nullptr);
 
@@ -871,7 +874,7 @@ static void SetForwardShadingUniforms(
 
     rpl.EndRead();
 
-    cr << SetShaderUniform(numShaderUniforms++, "FowardShadingConstants"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
+    cr << SetShaderUniform(numShaderUniforms++, "ForwardShadingConstants"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
 }
 
 template <bool UseIndirectRendering, class TCommandRecorder>
@@ -912,8 +915,9 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
     const RenderableAttributeSet& ras = drawCallCollection.attributes;
     const MaterialAttributes& mas = ras.GetMaterialAttributes();
 
-    const bool isForwardShading = mas.shaderProperties.Test(s_propShadingTypeForward);
-    
+    const bool isForwardClustered = mas.shaderProperties.Test(s_propShadingTypeForward); // s_propForwardClustered);
+    const bool isForwardNonClustered = mas.shaderProperties.Test(s_propForwardShading);
+
     const bool shouldWriteSHData = (mas.shaderName == GeometryPass::DefaultShaderName);
     const bool shouldEvaluateSH = (shouldWriteSHData && prepassStage != DepthPrepass::DPP_InPrepass);
 
@@ -953,11 +957,6 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
     else
         cr << SetShaderUniform(numShaderUniforms++, "CurrentEnvProbe"_sh, RI.namedBuffers[NamedBuffer::EnvProbes], 0);
 
-    // if (isForwardShading)
-    // {
-    //     SetForwardShadingUniforms(renderSetup, cr, numShaderUniforms);
-    // }
-
     // Will only be non-null if we are in a deferred rendering pass.
     DeferredPassData* dpd = DynamicCast<DeferredPassData>(renderSetup.passData);
 
@@ -965,7 +964,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
     {
         cr << SetShaderUniform(numShaderUniforms++, "GBufferMipChain"_sh, RI.textureViewCache->GetOrCreate(dpd->mipChain));
 
-        if (isForwardShading)
+        if (isForwardClustered)
         {
             // Even though the name (DeferredPassData) suggests otherwise, we are in forward pass, where we use clustered shading
 
@@ -975,6 +974,11 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
             cr << SetShaderUniform(numShaderUniforms++, "ClusterGridBuffer"_sh, *dpd->gridTilesBuffer);
             cr << SetShaderUniform(numShaderUniforms++, "ClusterIndexBuffer"_sh, *dpd->gridIndexBuffer);
         }
+    }
+
+    if (isForwardNonClustered)
+    {
+        SetForwardShadingConstants(renderSetup, cr, numShaderUniforms);
     }
 
     static const bool s_useBindlessTextures = RI.GetRenderConfig().bindlessTextures;
@@ -998,9 +1002,9 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
             }
 
             if (DepthPrepass::ShouldIncludeInPrepass(
-                renderSetup.viewport,
-                cameraProxy->bufferData.viewProjMat,
-                meshProxy))
+                    renderSetup.viewport,
+                    cameraProxy->bufferData.viewProjMat,
+                    meshProxy))
             {
                 if (!isDepthWriteEnabled)
                 {
@@ -1020,9 +1024,9 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
                 bool shouldEnableDepthWrite;
 
                 if (DepthPrepass::ShouldIncludeInPrepass(
-                    renderSetup.viewport,
-                    cameraProxy->bufferData.viewProjMat,
-                    meshProxy))
+                        renderSetup.viewport,
+                        cameraProxy->bufferData.viewProjMat,
+                        meshProxy))
                 {
                     // No depth write; depth would have been written by the prepass
                     shouldEnableDepthWrite = false;
@@ -1230,8 +1234,8 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
                 const StringHash textureUniformName = MaterialDefinition::s_textureNames[bit];
 
                 cr << SetShaderUniform(numDrawCallUniforms++,
-                    textureUniformName,
-                    imageViews[materialProxy->boundTextureIndices[bit]]);
+                                       textureUniformName,
+                                       imageViews[materialProxy->boundTextureIndices[bit]]);
             }
         }
 
@@ -1377,7 +1381,8 @@ static inline void DeleteOnRenderThread(Func&& function)
     Mutex::Guard* pGuard = nullptr;
     HYP_DEFER({ if (pGuard) delete pGuard; });
 
-    Payload** ppPayload = DeletionQueue::GetInstance().AllocCustom<Payload*>([](void* ptr)
+    Payload** ppPayload = DeletionQueue::GetInstance().AllocCustom<Payload*>(
+        [](void* ptr)
         {
             AssertOnThread(g_renderThread);
 
@@ -1408,7 +1413,8 @@ RenderCollector::~RenderCollector()
         return;
     }
 
-    DeleteOnRenderThread([attrs = std::move(previousAttributes), m = std::move(mappingsByBucket), states = parallelRenderingStates]() mutable
+    DeleteOnRenderThread(
+        [attrs = std::move(previousAttributes), m = std::move(mappingsByBucket), states = parallelRenderingStates]() mutable
         {
             attrs.Clear(/* freeMemory */ true);
 
@@ -1817,7 +1823,6 @@ bool RenderCollector::BeginRecordDrawCalls(
         }
     }
 
-
     return anyEnqueued;
 }
 
@@ -1915,8 +1920,6 @@ void RenderCollector::ExecuteDrawCalls(
     {
         frame->cr << SetCurrentFramebuffer(framebuffer);
     }
-
-    RenderGroupCache& attributeRegistry = *RI.renderGroupCache;
 
     // set these to null after rendering
     static Array<ParallelRenderingState**> s_parallelRenderingStatesToNullify;
@@ -2323,7 +2326,7 @@ void RenderCollector::PerformRendering(Frame* frame, PerformRenderingPayloadBase
     if (drawCallCollection.parallelRenderingState != nullptr && renderThreadIndex >= 1)
     {
         AssertDebug(drawCallCollection.flags & RenderGroupFlags::PARALLEL_COLLECTION);
-        
+
         auto& cr = drawCallCollection.parallelRenderingState->sharedData->threadedCommandRecorders[renderThreadIndex - 1];
 
         TPerformRenderingPayload payloadNext { &cr, &payload };

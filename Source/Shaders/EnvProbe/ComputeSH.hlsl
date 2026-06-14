@@ -125,6 +125,12 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
     ProjectOntoSH9Color(dir, color.rgb, sh_values);
 
     float3 d_unnorm = float3(sample_point.x, sample_point.y, 1.0 - abs(sample_point.x) - abs(sample_point.y));
+    
+    if (d_unnorm.z < 0.0)
+    {
+        d_unnorm.xy = (1.0 - abs(d_unnorm.yx)) * sign(d_unnorm.xy);
+    }
+    
     float len = length(d_unnorm);
     float weight = 1.0 / max(len * len * len, 0.0001);
 
@@ -218,11 +224,5 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
         OutSHBuffer[i] = float4(result, 1.0);
     }
 #endif
-
-    // // temp: debug
-    // for (int i = 0; i < 9; i++)
-    // {
-    //     OutSHBuffer[i] = float4(1.0, 0.0, 0.0, 1.0);
-    // }
 #endif
 }

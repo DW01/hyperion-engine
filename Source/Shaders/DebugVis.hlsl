@@ -73,7 +73,7 @@ DECLARE_SRV(DebugDrawerDescriptorSet, EntitiesBuffer) StructuredBuffer<Entity> e
 #if !defined(INSTANCING) || defined(IMMEDIATE_MODE)
 DECLARE_BUFFER_DYNAMIC(DebugDrawerDescriptorSet, CBuffer) cbuffer CBuffer
 {
-#if !defined(IMMEDIATE_MODE) && !defined(INSTANCING)
+#if !defined(INSTANCING)
     // To match CBuffer in RendererMain:
     Entity entity;
 #endif // INSTANCING

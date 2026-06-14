@@ -290,26 +290,29 @@ bool ProbeVolume::FindEnclosingTetrahedron(
     }
 
     // Try O(1) grid-cell lookup first
-    if (m_gridCount.x > 0 && m_gridCount.y > 0 && m_gridCount.z > 0)
+    if (m_gridCount.x > 1 && m_gridCount.y > 1 && m_gridCount.z > 1)
     {
         const BoundingBox worldBounds = GetWorldBounds();
         const Vec3f extent = worldBounds.GetExtent();
 
-        const float spanX = extent.x;
-        const float spanY = extent.y;
-        const float spanZ = extent.z;
+        const Vec3f halfCellSize = (extent / Vec3f(m_gridCount)) * 0.5f;
 
-        if (spanX > 0.0f && spanY > 0.0f && spanZ > 0.0f)
+        // The actual space covered by the tetrahedral mesh
+        const Vec3f meshMin = worldBounds.min + halfCellSize;
+        const Vec3f meshMax = worldBounds.max - halfCellSize;
+        const Vec3f meshSpan = meshMax - meshMin;
+
+        if (meshSpan.x > 0.0f && meshSpan.y > 0.0f && meshSpan.z > 0.0f)
         {
-            const Vec3f relativePos = position - worldBounds.min;
+            const Vec3f relativePos = position - meshMin;
 
             const int32 numCellsX = m_gridCount.x - 1;
             const int32 numCellsY = m_gridCount.y - 1;
             const int32 numCellsZ = m_gridCount.z - 1;
 
-            const int32 gx = MathUtil::Clamp(static_cast<int32>((relativePos.x / spanX) * numCellsX), 0, numCellsX - 1);
-            const int32 gy = MathUtil::Clamp(static_cast<int32>((relativePos.y / spanY) * numCellsY), 0, numCellsY - 1);
-            const int32 gz = MathUtil::Clamp(static_cast<int32>((relativePos.z / spanZ) * numCellsZ), 0, numCellsZ - 1);
+            const int32 gx = MathUtil::Clamp(static_cast<int32>((relativePos.x / meshSpan.x) * numCellsX), 0, numCellsX - 1);
+            const int32 gy = MathUtil::Clamp(static_cast<int32>((relativePos.y / meshSpan.y) * numCellsY), 0, numCellsY - 1);
+            const int32 gz = MathUtil::Clamp(static_cast<int32>((relativePos.z / meshSpan.z) * numCellsZ), 0, numCellsZ - 1);
 
             const int32 cellLinear = (gx * numCellsY * numCellsZ) + (gy * numCellsZ) + gz;
 
@@ -385,7 +388,28 @@ bool ProbeVolume::FindEnclosingTetrahedron(
 
         if (next == -1)
         {
-            return false;
+            // We hit the outer hull of the tetrahedral mesh
+            inOutTetIndex = current;
+
+            // Clamp negative weights to 0 to prevent inverted/negative light multipliers
+            outWeights.x = MathUtil::Max(w.x, 0.0f);
+            outWeights.y = MathUtil::Max(w.y, 0.0f);
+            outWeights.z = MathUtil::Max(w.z, 0.0f);
+            outWeights.w = MathUtil::Max(w.w, 0.0f);
+
+            // Normalize the weights so they sum to exactly 1.0
+            const float weightSum = outWeights.x + outWeights.y + outWeights.z + outWeights.w;
+            if (weightSum > 0.00001f)
+            {
+                outWeights /= weightSum;
+            }
+            else
+            {
+                // never hit partically, unless all probes were at the same position.
+                outWeights = Vec4f(0.0f, 0.0f, 0.0f, 0.0f);
+            }
+
+            return true;
         }
 
         if (next == previous)
@@ -414,10 +438,17 @@ EvaluateSphericalHarmonicsResult ProbeVolume::EvaluateSphericalHarmonics(
     // See: Cupisz, "Light Probe Interpolation Using Tetrahedral Tessellations", GDC 2012.
     {
         const BoundingBox worldBounds = GetWorldBounds();
+        const Vec3f extent = worldBounds.GetExtent();
 
-        position.x = MathUtil::Clamp(position.x, worldBounds.min.x, worldBounds.max.x);
-        position.y = MathUtil::Clamp(position.y, worldBounds.min.y, worldBounds.max.y);
-        position.z = MathUtil::Clamp(position.z, worldBounds.min.z, worldBounds.max.z);
+        // Calculate the half-cell inset where the outermost probes actually sit
+        const Vec3f halfCellSize = (extent / Vec3f(m_gridSize)) * 0.5f;
+
+        const Vec3f min = worldBounds.min + halfCellSize;
+        const Vec3f max = worldBounds.max - halfCellSize;
+
+        position.x = MathUtil::Clamp(position.x, min.x, max.x);
+        position.y = MathUtil::Clamp(position.y, min.y, max.y);
+        position.z = MathUtil::Clamp(position.z, min.z, max.z);
     }
 
     int32 tetHint = -1;

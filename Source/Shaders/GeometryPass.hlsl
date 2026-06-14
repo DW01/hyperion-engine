@@ -397,8 +397,8 @@ PSOutput PSMain(PSInput input)
             | (((uint)(shResult.y * 255.0) & 0xFFu) << 8u)
             | (((uint)(shResult.z * 255.0) & 0xFFu) << 16u);
 
-        // temp debug
-        output.gbuffer_albedo = float4(shResult, 1.0);
+        // // temp debug
+        // output.gbuffer_albedo = float4(shResult, 1.0);
     }
     else
     {

@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <ScenePch.hpp>
 
@@ -32,6 +32,8 @@ namespace Hyperion {
 #if HYP_EDITOR
 EDITOR_API HYP_DECLARE_LOG_CHANNEL(Editor);
 #endif // HYP_EDITOR
+
+static const ShaderPropertyId s_propForwardShading = InternShaderProperty(ShaderProperty(NAME("FORWARD_SHADING")));
 
 static constexpr EnumFlags<EnvProbeFlags> DefaultEnvProbeFlags[EPT_MAX] = {
     EPF_NONE,               // sky
@@ -190,8 +192,7 @@ void EnvProbe::OnAddedToWorld(World* world)
                     TFM_LINEAR,
                     TWM_CLAMP_TO_EDGE,
                     1,
-                    IU_STORAGE | IU_SAMPLED
-                });
+                    IU_STORAGE | IU_SAMPLED });
 
                 m_texture->SetName(NAME_FMT("{}_{}_PrefilteredEnvMap", InstanceClass()->GetName(), GetName()));
             }
@@ -202,7 +203,6 @@ void EnvProbe::OnAddedToWorld(World* world)
     {
         CheckResult(m_texture->Create());
     }
-
 }
 
 void EnvProbe::OnRemovedFromWorld(World* world)
@@ -291,8 +291,7 @@ void EnvProbe::CreateViews()
         TextureType::Cubemap,
         TextureFormat::RGBA8,
         LoadOperation::CLEAR,
-        StoreOperation::STORE
-    });
+        StoreOperation::STORE });
     attachmentImages.PushBack(RI.MakeImage(TextureDesc {
         colorDesc.imageType,
         colorDesc.format,
@@ -301,16 +300,14 @@ void EnvProbe::CreateViews()
         TFM_NEAREST,
         TWM_CLAMP_TO_EDGE,
         1,
-        IU_SAMPLED | IU_ATTACHMENT
-    }));
+        IU_SAMPLED | IU_ATTACHMENT }));
 
     // Depth
     AttachmentDesc& depthDesc = attachmentDescs.PushBack(AttachmentDesc {
         TextureType::Cubemap,
         TextureFormat::D32F,
         LoadOperation::CLEAR,
-        StoreOperation::STORE
-    });
+        StoreOperation::STORE });
     attachmentImages.PushBack(RI.MakeImage(TextureDesc {
         depthDesc.imageType,
         depthDesc.format,
@@ -319,8 +316,7 @@ void EnvProbe::CreateViews()
         TFM_NEAREST,
         TWM_CLAMP_TO_EDGE,
         1,
-        IU_SAMPLED | IU_ATTACHMENT
-    }));
+        IU_SAMPLED | IU_ATTACHMENT }));
 
     for (const GpuImageRef& image : attachmentImages)
     {
@@ -336,6 +332,7 @@ void EnvProbe::CreateViews()
     else
     {
         shaderDesc.name = NAME("DrawCubemap");
+        shaderDesc.properties.Add(s_propForwardShading);
     }
 
     AssertDebug(shaderDesc.name.IsValid());
@@ -373,8 +370,7 @@ void EnvProbe::CreateViews()
                 .shaderName = shaderDesc.name,
                 .shaderProperties = shaderDesc.properties,
                 .blendFunction = BlendFunction::AlphaBlending(),
-                .cullFaces = FCM_NONE
-            });
+                .cullFaces = FCM_NONE });
 
         viewDesc.viewIndex = static_cast<uint8>(viewIndex);
         viewDesc.camera = m_camera;
@@ -602,7 +598,7 @@ void EnvProbe::UpdateRenderProxy(RenderProxyEnvProbe* proxy)
     const FixedArray<Mat4f, 6> viewMatrices = CreateCubemapMatrices(worldBounds.GetCenter());
 
     Memory::Copy(bufferData.faceViewMatrices, viewMatrices.Data(), sizeof(bufferData.faceViewMatrices)); // TODO remove?
-    
+
     // Update Spherical Harmonics data.
     const float* inSH = m_shData.values;
     Vec4f* outSH = bufferData.shData;
@@ -682,8 +678,7 @@ void SkyProbe::Init()
         TFM_LINEAR,
         TWM_CLAMP_TO_EDGE,
         1,
-        IU_STORAGE | IU_SAMPLED
-    });
+        IU_STORAGE | IU_SAMPLED });
 
     m_texture->SetName(NAME_FMT("{}_SkyboxCubemap", Id()));
     m_texture->SetIsTransient(true);
