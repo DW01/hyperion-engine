@@ -113,6 +113,7 @@ static void InvokeScriptMethodT(ReturnType* outReturnValue, ScriptObjectResource
 
                 AssertDebug(outReturnValue != nullptr);
 
+                // we construct the return value in place
                 new (outReturnValue) ReturnType(std::move(returnValue.Get<ReturnType>()));
             }
         }

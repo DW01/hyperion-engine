@@ -186,15 +186,15 @@ private:
     virtual Mesh* GetMesh_Internal() const override;
 };
 
-class ENGINE_API TetrahedronLineDebugDrawShape : public MeshDebugDrawShapeBase
+class ENGINE_API TriangleDebugDrawShape : public MeshDebugDrawShapeBase
 {
 public:
-    TetrahedronLineDebugDrawShape(DebugDrawCommandList& list);
+    TriangleDebugDrawShape(DebugDrawCommandList& list);
 
-    virtual ~TetrahedronLineDebugDrawShape() override = default;
+    virtual ~TriangleDebugDrawShape() override = default;
 
-    void operator()(const Vec3f& p0, const Vec3f& p1, const Vec3f& p2, const Vec3f& p3, const Color& color);
-    void operator()(const Vec3f& p0, const Vec3f& p1, const Vec3f& p2, const Vec3f& p3, const Color& color, const RenderableAttributeSet& attributes);
+    void operator()(const Vec3f& v0, const Vec3f& v1, const Vec3f& v2, const Color& color);
+    void operator()(const Vec3f& v0, const Vec3f& v1, const Vec3f& v2, const Color& color, const RenderableAttributeSet& attributes);
 
 private:
     virtual Mesh* GetMesh_Internal() const override;
@@ -228,7 +228,7 @@ public:
     ReflectionProbeDebugDrawShape reflectionProbe;
     BoxDebugDrawShape box;
     PlaneDebugDrawShape plane;
-    TetrahedronLineDebugDrawShape tetrahedronLine;
+    TriangleDebugDrawShape triangle;
 
 private:
     DebugDrawer* m_debugDrawer;

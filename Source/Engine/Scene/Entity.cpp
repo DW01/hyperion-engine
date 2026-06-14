@@ -520,7 +520,11 @@ void Entity::OnTransformUpdated()
     BoundingBoxComponent& boundingBoxComponent = entityManager->GetComponent<BoundingBoxComponent>(this);
     boundingBoxComponent.worldAabb = GetWorldBounds();
 
-    entityManager->AddTags<EntityTag::UpdateVisibility, EntityTag::UpdateRenderProxy>(this);
+    entityManager->AddTags<
+        EntityTag::UpdateVisibility,
+        EntityTag::UpdateRenderProxy,
+        EntityTag::UpdateSphericalHarmonicsData
+    >(this);
 }
 
 void Entity::OnMobilityChanged(bool isStatic)

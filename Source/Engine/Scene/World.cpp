@@ -707,7 +707,7 @@ void World::SyncPhysicsToEntities()
 {
     PhysicsWorld& physicsWorld = static_cast<PhysicsWorld&>(*m_physicsWorld);
 
-    Array<Entity*, SceneAllocator> updatedEntities;
+    Array<Entity*, SceneTempAllocator> updatedEntities;
 
     for (Scene* scene : m_scenes)
     {
@@ -768,7 +768,7 @@ void World::SyncPhysicsToEntities()
     }
 }
 
-void World::CollectScenes(Array<Scene*, SceneAllocator>& outScenes)
+void World::CollectScenes(Array<Scene*, SceneTempAllocator>& outScenes)
 {
     outScenes.Reserve(outScenes.Size() + m_scenes.Size());
 
@@ -778,7 +778,7 @@ void World::CollectScenes(Array<Scene*, SceneAllocator>& outScenes)
     }
 }
 
-void World::CollectCameras(Array<Camera*, SceneAllocator>& outCameras)
+void World::CollectCameras(Array<Camera*, SceneTempAllocator>& outCameras)
 {
     outCameras.Reserve(m_scenes.Size() * 3);
 
@@ -791,7 +791,7 @@ void World::CollectCameras(Array<Camera*, SceneAllocator>& outCameras)
     }
 }
 
-void World::CollectViews(Array<View*, SceneAllocator>& outViews)
+void World::CollectViews(Array<View*, SceneTempAllocator>& outViews)
 {
     const uint32 slot = GetRingIndex();
 
@@ -841,7 +841,7 @@ void World::CollectViews(Array<View*, SceneAllocator>& outViews)
     m_processViews.Clear();
 }
 
-void World::CollectSubsystems(Array<Subsystem*, SceneAllocator>& outSubsystems)
+void World::CollectSubsystems(Array<Subsystem*, SceneTempAllocator>& outSubsystems)
 {
     const size_t offset = outSubsystems.Size();
     outSubsystems.Resize(offset + m_subsystemsArray.Size());

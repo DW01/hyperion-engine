@@ -29,7 +29,7 @@
 #include <Editor/EditorSubsystem.hpp>
 #include <Editor/EditorState.hpp>
 #include <Editor/EditorPickCache.hpp>
-#endif
+#endif // HYP_EDITOR
 
 #include <Framework/EngineDriver.hpp>
 #include <Framework/GameState.hpp>

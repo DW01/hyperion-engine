@@ -40,9 +40,7 @@ void LightmapSystem::OnEntityAdded(Entity* entity)
         }
     }
 
-    // Update probe lighting if this entity is in an ProbeVolume.
     World* world = GetWorld();
-    Assert(world != nullptr);
 
     if (world != nullptr)
     {
@@ -74,6 +72,8 @@ void LightmapSystem::OnEntityAdded(Entity* entity)
         if (updatedSphericalHarmonics)
         {
             entity->SetNeedsRenderProxyUpdate();
+
+            entity->RemoveTag<EntityTag::UpdateSphericalHarmonicsData>();
         }
     }
 }
@@ -112,6 +112,8 @@ void LightmapSystem::Process(float delta, Span<Handle<Scene>> scenes)
         }
     }
 
+    TSet<Entity*> updatedEntities;
+
     for (Scene* scene : scenes)
     {
         // only dynamic entities.
@@ -134,18 +136,59 @@ void LightmapSystem::Process(float delta, Span<Handle<Scene>> scenes)
                 {
                     updatedSphericalHarmonics = true;
                 }
-                else
-                {
-                    HYP_LOG(Lightmap, Warning, "Failed to evaluate spherical harmonics for Entity {} in ProbeVolume {}: {}",
-                        entity->GetName(), probeVolume->GetName(), int(result));
-                }
             }
 
             if (updatedSphericalHarmonics)
             {
                 entity->SetNeedsRenderProxyUpdate();
+
+                updatedEntities.Add(entity);
             }
         }
+
+        // Now update those with UpdateSphericalHarmonicsData tag
+        for (auto&& [entity, lightmapElementComponent, _] : scene->GetEntityManager()->GetEntitySet<LightmapElementComponent, TagComponent<EntityTag::UpdateSphericalHarmonicsData>>().GetScopedView(GetComponentInfos()))
+        {
+            if (updatedEntities.Contains(entity))
+            {
+                continue;
+            }
+
+            const BoundingBox entityWorldBounds = entity->GetWorldBounds();
+
+            bool updatedSphericalHarmonics = false;
+
+            for (ProbeVolume* probeVolume : probeVolumes)
+            {
+                if (!probeVolume->GetWorldBounds().Overlaps(entityWorldBounds))
+                {
+                    continue;
+                }
+
+                EvaluateSphericalHarmonicsResult result = probeVolume->EvaluateSphericalHarmonics(*entity, lightmapElementComponent.shData);
+
+                if (IsSuccess(result))
+                {
+                    updatedSphericalHarmonics = true;
+                }
+            }
+
+            if (updatedSphericalHarmonics)
+            {
+                updatedEntities.Add(entity);
+            }
+        }
+    }
+
+    if (updatedEntities.Any())
+    {
+        AfterProcess([updatedEntities = std::move(updatedEntities)]()
+            {
+                for (Entity* entity : updatedEntities)
+                {
+                    entity->RemoveTag<EntityTag::UpdateSphericalHarmonicsData>();
+                }
+            });
     }
 }
 

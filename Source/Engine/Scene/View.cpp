@@ -355,7 +355,7 @@ void View::UpdateVisibility()
     }
 }
 
-void View::PrepareShadowViews(Array<View*, SceneAllocator>& outShadowViews)
+void View::PrepareShadowViews(Array<View*, SceneTempAllocator>& outShadowViews)
 {
     HYP_SCOPE;
     AssertOnThread(g_simThread);

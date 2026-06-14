@@ -53,13 +53,14 @@ void AnimationSystem::OnEntityAdded(Entity* entity)
     }
 
     AnimationComponent& animationComponent = entity->GetEntityManager()->GetComponent<AnimationComponent>(entity);
-    animationComponent.playbackState = {
-        .animationIndex = 0,
-        .status = AnimationPlaybackStatus::PLAYING,
-        .loopMode = AnimationLoopMode::REPEAT,
-        .speed = 1.0f,
-        .currentTime = 0.0f
-    };
+    
+    // reset the animation state to default values
+    animationComponent.playbackState = {};
+    animationComponent.playbackState.animationIndex = 0;
+    animationComponent.playbackState.status = AnimationPlaybackStatus::PLAYING;
+    animationComponent.playbackState.loopMode = AnimationLoopMode::REPEAT;
+    animationComponent.playbackState.speed = 1.0f;
+    animationComponent.playbackState.currentTime = 0.0f;
 }
 
 void AnimationSystem::OnEntityRemoved(Entity* entity)

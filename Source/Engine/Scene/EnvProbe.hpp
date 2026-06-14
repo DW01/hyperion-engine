@@ -339,6 +339,8 @@ class ENGINE_API IrradianceProbe : public EnvProbe
 {
     HYP_OBJECT_BODY(IrradianceProbe);
 
+    friend class ProbeVolume;
+
 public:
     IrradianceProbe()
         : EnvProbe(EPT_AMBIENT)
@@ -360,6 +362,13 @@ public:
     IrradianceProbe& operator=(const IrradianceProbe& other) = delete;
 
     ~IrradianceProbe() override = default;
+
+private:
+    void OnTransformUpdated() override;
+
+    void NotifyVolumeNeedsRefresh();
+
+    ProbeVolume* GetParentVolume() const;
 };
 
 } // namespace Hyperion

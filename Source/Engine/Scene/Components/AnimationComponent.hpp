@@ -62,6 +62,7 @@ struct AnimationPlaybackState
     }
 };
 
+/*! \brief A component that holds animation play state for a given entity. */
 HYP_STRUCT(Component)
 struct AnimationComponent
 {

@@ -2357,6 +2357,23 @@ void EditorSubsystem::Update(float delta)
         }
     }
 
+#if 1
+    static const Color tetTriangles[] = {
+        Color::Red(),
+        Color::Green(),
+        Color::Blue(),
+        Color::Yellow(),
+        Color::Cyan(),
+        Color::Magenta(),
+        Color::White(),
+        Color::Black(),
+        // some additional custom colors
+        Color(1.0f, 0.647f, 0.0f),
+        Color(0.5f, 0.0f, 0.5f),
+        Color(0.0f, 1.0f, 1.0f),
+        Color(0.5f, 0.5f, 0.5f)
+    };
+
     for (Scene* scene : GetCurrentProject()->GetWorld()->GetScenes())
     {
         for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<ProbeVolume>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
@@ -2371,6 +2388,8 @@ void EditorSubsystem::Update(float delta)
                 continue;
             }
 
+            size_t tetIndex = 0;
+
             for (const Tetrahedron& tet : tets)
             {
                 const Vec3f p0 = probes[tet.probeIndices[0]]->GetWorldTranslation();
@@ -2378,10 +2397,21 @@ void EditorSubsystem::Update(float delta)
                 const Vec3f p2 = probes[tet.probeIndices[2]]->GetWorldTranslation();
                 const Vec3f p3 = probes[tet.probeIndices[3]]->GetWorldTranslation();
 
-                dbg.tetrahedronLine(p0, p1, p2, p3, Color::Magenta());
+                RenderableAttributeSet triAttrs;
+                triAttrs.GetMaterialAttributes().bucket = RenderBucket::Debug;
+                triAttrs.GetMaterialAttributes().cullFaces = FCM_NONE;
+
+                Color color = tetTriangles[tetIndex++ % HYP_ARRAY_SIZE(tetTriangles)];
+                color.SetAlpha(0.5f);
+
+                dbg.triangle(p0, p1, p2, color, triAttrs);
+                dbg.triangle(p0, p2, p3, color, triAttrs);
+                dbg.triangle(p0, p3, p1, color, triAttrs);
+                dbg.triangle(p1, p3, p2, color, triAttrs);
             }
         }
     }
+#endif
 
     if (!m_selectedNodes.Empty())
     {

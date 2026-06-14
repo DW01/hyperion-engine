@@ -431,20 +431,23 @@ void PlaneDebugDrawShape::operator()(const FixedArray<Vec3f, 4>& points, const C
     Mat4f transformMatrix;
 
     transformMatrix.rows[0][0] = x.x;
-    transformMatrix.rows[0][1] = x.y;
-    transformMatrix.rows[0][2] = x.z;
+    transformMatrix.rows[0][1] = y.x;
+    transformMatrix.rows[0][2] = z.x;
+    transformMatrix.rows[0][3] = center.x;
 
-    transformMatrix.rows[1][0] = y.x;
+    transformMatrix.rows[1][0] = x.y;
     transformMatrix.rows[1][1] = y.y;
-    transformMatrix.rows[1][2] = y.z;
+    transformMatrix.rows[1][2] = z.y;
+    transformMatrix.rows[1][3] = center.y;
 
-    transformMatrix.rows[2][0] = z.x;
-    transformMatrix.rows[2][1] = z.y;
+    transformMatrix.rows[2][0] = x.z;
+    transformMatrix.rows[2][1] = y.z;
     transformMatrix.rows[2][2] = z.z;
+    transformMatrix.rows[2][3] = center.z;
 
-    transformMatrix.rows[3][0] = center.x;
-    transformMatrix.rows[3][1] = center.y;
-    transformMatrix.rows[3][2] = center.z;
+    transformMatrix.rows[3][0] = 0.0f;
+    transformMatrix.rows[3][1] = 0.0f;
+    transformMatrix.rows[3][2] = 0.0f;
     transformMatrix.rows[3][3] = 1.0f;
 
     DebugDrawCommandHeader header;
@@ -468,9 +471,9 @@ void PlaneDebugDrawShape::operator()(const FixedArray<Vec3f, 4>& points, const C
 
 #pragma endregion PlaneDebugDrawShape
 
-#pragma region TetrahedronLineDebugDrawShape
+#pragma region TriangleDebugDrawShape
 
-TetrahedronLineDebugDrawShape::TetrahedronLineDebugDrawShape(DebugDrawCommandList& list)
+TriangleDebugDrawShape::TriangleDebugDrawShape(DebugDrawCommandList& list)
     : MeshDebugDrawShapeBase(list)
 {
     static const int s_shapeId = NextShapeId();
@@ -479,7 +482,7 @@ TetrahedronLineDebugDrawShape::TetrahedronLineDebugDrawShape(DebugDrawCommandLis
     (void)GetMesh(); // hack to preload mesh so it doesn't try to load during render pass
 }
 
-Mesh* TetrahedronLineDebugDrawShape::GetMesh_Internal() const
+Mesh* TriangleDebugDrawShape::GetMesh_Internal() const
 {
     static struct MeshInitializer
     {
@@ -491,24 +494,17 @@ Mesh* TetrahedronLineDebugDrawShape::GetMesh_Internal() const
             const Vec3f v0(0.0f, 0.0f, 0.0f);
             const Vec3f v1(1.0f, 0.0f, 0.0f);
             const Vec3f v2(0.0f, 1.0f, 0.0f);
-            const Vec3f v3(0.0f, 0.0f, 1.0f);
 
-            const Vec3f n0(0.0f, 0.0f, 0.0f);
+            const Vec3f n(0.0f, 0.0f, 1.0f);
 
-            FixedArray<SimpleVertex, 4> vertices = {
-                SimpleVertex { v0, n0, Vec2f(0.0f, 0.0f) },
-                SimpleVertex { v1, n0, Vec2f(0.0f, 0.0f) },
-                SimpleVertex { v2, n0, Vec2f(0.0f, 0.0f) },
-                SimpleVertex { v3, n0, Vec2f(0.0f, 0.0f) }
+            FixedArray<SimpleVertex, 3> vertices = {
+                SimpleVertex { v0, n, Vec2f(0.0f, 0.0f) },
+                SimpleVertex { v1, n, Vec2f(1.0f, 0.0f) },
+                SimpleVertex { v2, n, Vec2f(0.0f, 1.0f) }
             };
 
-            FixedArray<uint32, 12> indices = {
-                0, 1,
-                0, 2,
-                0, 3,
-                1, 2,
-                1, 3,
-                2, 3
+            FixedArray<uint32, 3> indices = {
+                0, 1, 2
             };
 
             MeshDesc meshDesc {};
@@ -518,7 +514,7 @@ Mesh* TetrahedronLineDebugDrawShape::GetMesh_Internal() const
 
             mesh = MakeHandle<Mesh>();
             mesh->SetFlags(MeshFlags::ViewIndependent);
-            mesh->SetName(NAME("TetrahedronLineDebugDrawShape"));
+            mesh->SetName(NAME("TriangleDebugDrawShape"));
 
             VertexArrayView vertexArrayView {};
             vertexArrayView.floatData = reinterpret_cast<const float*>(vertices.Data());
@@ -544,42 +540,42 @@ Mesh* TetrahedronLineDebugDrawShape::GetMesh_Internal() const
     return s_initializer.mesh;
 }
 
-void TetrahedronLineDebugDrawShape::operator()(const Vec3f& p0, const Vec3f& p1, const Vec3f& p2, const Vec3f& p3, const Color& color)
+void TriangleDebugDrawShape::operator()(const Vec3f& v0, const Vec3f& v1, const Vec3f& v2, const Color& color)
 {
-    (*this)(p0, p1, p2, p3, color, DefaultAttributes());
+    (*this)(v0, v1, v2, color, DefaultAttributes());
 }
 
-void TetrahedronLineDebugDrawShape::operator()(const Vec3f& p0, const Vec3f& p1, const Vec3f& p2, const Vec3f& p3, const Color& color, const RenderableAttributeSet& attributes)
+void TriangleDebugDrawShape::operator()(const Vec3f& v0, const Vec3f& v1, const Vec3f& v2, const Color& color, const RenderableAttributeSet& attributes)
 {
     if (!list.GetDebugDrawer()->IsEnabled())
     {
         return;
     }
 
-    const Vec3f x = p1 - p0;
-    const Vec3f y = p2 - p0;
-    const Vec3f z = p3 - p0;
+    const Vec3f x = v1 - v0;
+    const Vec3f y = v2 - v0;
+    const Vec3f z = x.Cross(y).Normalize();
 
     Mat4f transformMatrix;
 
     transformMatrix.rows[0][0] = x.x;
-    transformMatrix.rows[0][1] = x.y;
-    transformMatrix.rows[0][2] = x.z;
-    transformMatrix.rows[0][3] = 0.0f;
+    transformMatrix.rows[0][1] = y.x;
+    transformMatrix.rows[0][2] = z.x;
+    transformMatrix.rows[0][3] = v0.x;
 
-    transformMatrix.rows[1][0] = y.x;
+    transformMatrix.rows[1][0] = x.y;
     transformMatrix.rows[1][1] = y.y;
-    transformMatrix.rows[1][2] = y.z;
-    transformMatrix.rows[1][3] = 0.0f;
+    transformMatrix.rows[1][2] = z.y;
+    transformMatrix.rows[1][3] = v0.y;
 
-    transformMatrix.rows[2][0] = z.x;
-    transformMatrix.rows[2][1] = z.y;
+    transformMatrix.rows[2][0] = x.z;
+    transformMatrix.rows[2][1] = y.z;
     transformMatrix.rows[2][2] = z.z;
-    transformMatrix.rows[2][3] = 0.0f;
+    transformMatrix.rows[2][3] = v0.z;
 
-    transformMatrix.rows[3][0] = p0.x;
-    transformMatrix.rows[3][1] = p0.y;
-    transformMatrix.rows[3][2] = p0.z;
+    transformMatrix.rows[3][0] = 0.0f;
+    transformMatrix.rows[3][1] = 0.0f;
+    transformMatrix.rows[3][2] = 0.0f;
     transformMatrix.rows[3][3] = 1.0f;
 
     DebugDrawCommandHeader header;
@@ -601,7 +597,7 @@ void TetrahedronLineDebugDrawShape::operator()(const Vec3f& p0, const Vec3f& p1,
     list.Push(header);
 }
 
-#pragma endregion TetrahedronLineDebugDrawShape
+#pragma endregion TriangleDebugDrawShape
 
 #pragma region DebugDrawer
 
@@ -1077,7 +1073,7 @@ DebugDrawCommandList::DebugDrawCommandList(DebugDrawer* debugDrawer)
       reflectionProbe(*this),
       box(*this),
       plane(*this),
-      tetrahedronLine(*this),
+      triangle(*this),
       m_bufferOffset(0)
 {
 }

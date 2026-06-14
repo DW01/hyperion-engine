@@ -189,29 +189,6 @@ static HYP_FORCE_INLINE constexpr HYP_ENABLE_IF(isMathVectorV<T>&& std::is_float
     return true;
 }
 
-template <class T>
-static HYP_ENABLE_IF(isMathVectorV<T>, T) RandRange(const T& a, const T& b)
-{
-    T result;
-
-    for (uint32 i = 0; i < HYP_ARRAY_SIZE(result.values); i++)
-    {
-        result.values[i] = RandRange(a.values[i], b.values[i]);
-    }
-
-    return result;
-}
-
-template <class T>
-static HYP_ENABLE_IF(!isMathVectorV<T>, T) RandRange(T a, T b)
-{
-    const auto random = T(rand()) / T(RAND_MAX);
-    const auto diff = b - a;
-    const auto r = random * diff;
-
-    return a + r;
-}
-
 static HYP_FORCE_INLINE constexpr uint32 Rand32(uint32& seed)
 {
     return (seed = 1664525 * seed + 1013904223);
@@ -226,6 +203,15 @@ static HYP_FORCE_INLINE constexpr uint64 Rand64(uint64& seed)
 static HYP_FORCE_INLINE constexpr float RandomFloat(uint32& seed)
 {
     return (float(Rand32(seed) & 0x00FFFFFF) / float(0x01000000));
+}
+
+static HYP_FORCE_INLINE constexpr float RandomInRange(uint32& seed, float a, float b)
+{
+    const float random = RandomFloat(seed);
+    const float diff = b - a;
+    const float r = random * diff;
+
+    return a + r;
 }
 
 template <class T>

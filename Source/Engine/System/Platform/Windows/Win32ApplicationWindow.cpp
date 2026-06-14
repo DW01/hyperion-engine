@@ -80,7 +80,7 @@ struct Win32WindowRegistry
 struct AliveWindows
 {
     TSet<Win32ApplicationWindow*> set;
-    Mutex mutex;
+    SharedMutex mutex;
 
     static AliveWindows& GetInstance()
     {
@@ -90,20 +90,20 @@ struct AliveWindows
 
     void Add(Win32ApplicationWindow* window)
     {
-        Mutex::Guard guard(mutex);
+        TUniqueLock lock(mutex);
         set.Add(window);
     }
 
     void Remove(Win32ApplicationWindow* window)
     {
-        Mutex::Guard guard(mutex);
+        TUniqueLock lock(mutex);
         set.Erase(window);
     }
 
-    bool Contains(Win32ApplicationWindow* window)
+    bool Contains(Win32ApplicationWindow* window) const
     {
-        Mutex::Guard guard(mutex);
-        return set.Contains(window);
+        TSharedLock lock(mutex);
+        return set.Find(window) != set.End();
     }
 };
 

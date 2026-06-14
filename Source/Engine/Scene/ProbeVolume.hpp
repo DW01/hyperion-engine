@@ -13,6 +13,7 @@
 #include <Core/Utilities/EnumFlags.hpp>
 
 #include <Core/Math/BoundingBox.hpp>
+#include <Core/Math/Mat3f.hpp>
 
 #include <Framework/EngineMemory.hpp>
 
@@ -33,6 +34,12 @@ struct Tetrahedron
 
     HYP_FIELD()
     FixedArray<uint32, 4> probeIndices;
+
+    HYP_FIELD()
+    FixedArray<int32, 4> neighbours;
+
+    HYP_FIELD()
+    Mat3f invEdgeMatrix;
 };
 
 HYP_CLASS()
@@ -56,6 +63,8 @@ public:
 
     void UpdateRenderProxy(RenderProxyProbeVolume* proxy);
 
+    void RefreshProbe(IrradianceProbe& probe);
+
     EvaluateSphericalHarmonicsResult EvaluateSphericalHarmonics(
         const Entity& inEntity, SphericalHarmonicsData& out) const;
 
@@ -65,7 +74,13 @@ public:
     }
 
 private:
+    void OnTransformUpdated() override;
+
     void RemoveAllProbes(bool freeMemory);
+
+    int32 FindEnclosingTetrahedron(const Vec3f& position) const;
+
+    void RebuildRuntimeData();
 
 #if HYP_EDITOR
 public:
@@ -98,6 +113,8 @@ private:
 
     HYP_FIELD(Property = "Tetrahedra", Serialize, EditHide)
     Array<Tetrahedron, SceneAllocator> m_tetrahedra;
+
+    mutable int32 m_lastTetHint = 0;
 };
 
 } // namespace Hyperion

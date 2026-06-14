@@ -17,8 +17,7 @@
       },
       "presentation": {
         "reveal": "always",
-        "panel": "new",
-        "close": true
+        "panel": "dedicated"
       }
     },
     {
@@ -37,8 +36,7 @@
       },
       "presentation": {
         "reveal": "always",
-        "panel": "new",
-        "close": true
+        "panel": "dedicated"
       },
       "problemMatcher": []
     }

@@ -31,6 +31,7 @@ HYP_REGISTER_ENTITY_TAG(UIVisible, false);
 HYP_REGISTER_ENTITY_TAG(UpdateRenderProxy, false);
 HYP_REGISTER_ENTITY_TAG(UpdateVisibility, false);
 HYP_REGISTER_ENTITY_TAG(UpdateInstancedMeshData, false);
+HYP_REGISTER_ENTITY_TAG(UpdateSphericalHarmonicsData, false);
 
 HYP_REGISTER_ENTITY_TAG(UpdatePhysicsShape, false);
 HYP_REGISTER_ENTITY_TAG(UpdatePhysicsMaterial, false);

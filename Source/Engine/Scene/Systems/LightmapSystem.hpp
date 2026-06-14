@@ -41,6 +41,8 @@ private:
             // NOTE: We use ComponentAccess::READ even though we do update the SH data,
             // but nothing else modifies this data during process time and we want to avoid unnecessary System ordering changes.
             ComponentDescriptor<TagComponent<EntityTag::MobDynamic>, ComponentAccess::READ, false> {},
+            
+            ComponentDescriptor<TagComponent<EntityTag::UpdateSphericalHarmonicsData>, ComponentAccess::READ_WRITE, false> {},
 
             // used to assign entities to LightmapVolumes
             ComponentDescriptor<BoundingBoxComponent, ComponentAccess::READ> {},

@@ -1997,6 +1997,8 @@ extern class ProbeVolume : VolumeBase
 end
 extern struct Tetrahedron
     ProbeIndices : Array<uint32>
+    Neighbours : Array<int32>
+    InvEdgeMatrix : Mat3f
 end
 extern class ParticleVolume : VolumeBase
     Texture : Texture

@@ -11,6 +11,7 @@
 #include <Scene/World.hpp>
 #include <Scene/Scene.hpp>
 #include <Scene/Light.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/EntityManager.hpp>
 
 #include <Rendering/Texture.hpp>
@@ -691,5 +692,37 @@ void SkyProbe::Init()
 }
 
 #pragma endregion SkyProbe
+
+#pragma region IrradianceProbe
+
+void IrradianceProbe::OnTransformUpdated()
+{
+    EnvProbe::OnTransformUpdated();
+
+    NotifyVolumeNeedsRefresh();
+}
+
+void IrradianceProbe::NotifyVolumeNeedsRefresh()
+{
+    ProbeVolume* volume = GetParentVolume();
+
+    if (volume != nullptr)
+    {
+        // Tell the volume to refresh this probe.
+        // This will ensure that entities that could be affected by the probe's change are updated.
+        volume->RefreshProbe(*this);
+    }
+    else
+    {
+        HYP_LOG(Scene, Warning, "Irradiance probe {} has no valid parent volume", Id());
+    }
+}
+
+ProbeVolume* IrradianceProbe::GetParentVolume() const
+{
+    return DynamicCast<ProbeVolume>(GetParent());
+}
+
+#pragma endregion IrradianceProbe
 
 } // namespace Hyperion
