@@ -2357,7 +2357,7 @@ void EditorSubsystem::Update(float delta)
         }
     }
 
-#if 1
+#if 0
     static const Color tetTriangles[] = {
         Color::Red(),
         Color::Green(),

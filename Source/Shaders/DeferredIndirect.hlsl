@@ -203,7 +203,10 @@ PSOutput PSMain(PSInput input)
         /* inout */ reflections,
         /* inout */ irradiance);
 
-    irradiance.rgb += probeLighting; // @NOTE If object is lightmapped, probeLighting will contain lightmap UVs; but the next line will cancel this out anyway
+    // @NOTE Ignoring sky irradiance right now
+
+    // @TODO We need to properly mix sky irradiance - probeLighting should contain blended sh between sky and probes
+    irradiance.rgb = probeLighting; // @NOTE If object is lightmapped, probeLighting will contain lightmap UVs; but the next line will cancel this out anyway
     irradiance *= 1.0 - min(1.0, float(mask & OBJECT_MASK_LIGHTMAPPED));
 
 #ifdef SSR_ENABLED

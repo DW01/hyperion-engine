@@ -789,8 +789,11 @@ void IrradianceProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSet
     AssertOnThread(g_renderThread);
 
     AssertDebug(!envProbe->IsBaked());
+    AssertDebug(envProbe->IsA<IrradianceProbe>());
 
-    View* firstView = envProbe->GetView(0);
+    IrradianceProbe* irradianceProbe = StaticCast<IrradianceProbe>(envProbe);
+
+    View* firstView = irradianceProbe->GetView(0);
 
     if (!firstView)
     {
@@ -800,17 +803,17 @@ void IrradianceProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSet
     EnvProbePassData* pd = static_cast<EnvProbePassData*>(FetchViewPassData(firstView));
     AssertDebug(pd != nullptr);
 
-    RenderProxyEnvProbe* envProbeProxy = static_cast<RenderProxyEnvProbe*>(GetRenderProxy(envProbe));
+    RenderProxyEnvProbe* envProbeProxy = static_cast<RenderProxyEnvProbe*>(GetRenderProxy(irradianceProbe));
     AssertDebug(envProbeProxy != nullptr);
 
-    bool needsRerender = false;
-    bool renderedView = false;
+    bool needsRerender = irradianceProbe->needsRender.Load();
+    uint8 renderedViews = 0;
 
     for (uint8 viewIndex = 0; viewIndex < 6; viewIndex++)
     {
         RenderSetup rs = renderSetup.Fork();
-        rs.view = envProbe->GetView(viewIndex);
-        rs.framebuffer = envProbe->GetViewFramebuffer(viewIndex);
+        rs.view = irradianceProbe->GetView(viewIndex);
+        rs.framebuffer = irradianceProbe->GetViewFramebuffer(viewIndex);
         rs.passData = pd;
 
         RenderProxyList& rpl = GetConsumerProxyList(rs.view);
@@ -824,17 +827,19 @@ void IrradianceProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSet
             continue;
         }
 
-        RenderProbeView(frame, rs, envProbe);
+        RenderProbeView(frame, rs, irradianceProbe);
 
-        renderedView = true;
+        renderedViews |= (1u << viewIndex);
     }
 
-    if (!renderedView)
+    if (renderedViews == 0)
     {
         return;
     }
 
-    ComputeSH::ComputeEnvProbeSphericalHarmonics(frame, envProbe);
+    ComputeSH::ComputeEnvProbeSphericalHarmonics(frame, irradianceProbe);
+
+    irradianceProbe->needsRender.Store(false);
 }
 
 void IrradianceProbePass::RenderProbeView(Frame* frame, const RenderSetup& renderSetup, EnvProbe* envProbe)

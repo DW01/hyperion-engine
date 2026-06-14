@@ -546,48 +546,37 @@ public:
             return;
         }
 
-        Handle<Scene> activeScene = subsystem->GetActiveScene();
-        if (!activeScene.IsValid())
-        {
-            HYP_LOG(Editor, Error, "No active scene; cannot add irradiance probe volume!");
-
-            return;
-        }
-
-        const BoundingBox probeGridBounds = BoundingBox(Vec3f(-60.0f, -15.0f, -60.0f), Vec3f(60.0f, 30.0f, 60.0f));
+        const BoundingBox probeGridBounds = BoundingBox(Vec3f(-50.0f, -15.0f, -50.0f), Vec3f(50.0f, 30.0f, 50.0f));
 
         // Ensure surrounding entities have a LightmapElementComponent.
-
-        World* world = currentProject->GetWorld();
-        if (world != nullptr)
+        static const auto initOverlappingEntities = [](World* world, const BoundingBox& probeGridBounds)
         {
             for (Scene* scene : world->GetScenes())
             {
                 TSet<Entity*> entitiesToAddComponent;
 
-                for (auto&& [entity, meshComponent] : scene->GetEntityManager()->GetEntitySet<MeshComponent>())
+                for (auto&& [entity, meshComponent] : scene->GetEntityManager()->GetEntitySet<MeshComponent>().GetScopedView(DataAccessFlags::ACCESS_RW))
                 {
-                    if (entity->HasComponent<LightmapElementComponent>())
-                    {
-                        // Entity already has the component; skip.
-                        continue;
-                    }
+                    const BoundingBox entityWorldBounds = entity->GetWorldBounds();
 
-                    const BoundingBox worldBounds = entity->GetWorldBounds();
-
-                    if (probeGridBounds.Overlaps(worldBounds))
+                    if (entityWorldBounds.Overlaps(probeGridBounds))
                     {
-                        entitiesToAddComponent.Insert(entity);
+                        entitiesToAddComponent.Add(entity);
                     }
                 }
 
                 for (Entity* entity : entitiesToAddComponent)
                 {
-                    LightmapElementComponent component;
-                    entity->AddComponent<LightmapElementComponent>(component);
+                    if (!entity->HasComponent<LightmapElementComponent>())
+                    {
+                        LightmapElementComponent component;
+                        entity->AddComponent<LightmapElementComponent>(component);
+                    }
+                    
+                    entity->AddTag<EntityTag::UpdateSphericalHarmonicsData>();
                 }
             }
-        }
+        };
 
         Handle<ProbeVolume> volume = MakeHandle<ProbeVolume>(probeGridBounds);
         volume->SetGridSize(Vec3u(4, 4, 4));
@@ -598,32 +587,45 @@ public:
 
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
             GetText(),
-            Proc<EditorActionFunctions()>([volume, previousFocusedNode, activeScene]() -> EditorActionFunctions
-                                          {
-                                              return EditorActionFunctions {
-                                                  .execute = Proc<void(EditorSubsystem*, EditorProject*)>([volume, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
-                                                                                                          {
-                                                                                                              activeScene->GetRoot()->AddChild(volume);
+            Proc<EditorActionFunctions()>(
+                [volume, previousFocusedNode]() -> EditorActionFunctions
+                {
+                    return EditorActionFunctions {
+                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>(
+                        [volume](EditorSubsystem* editorSubsystem, EditorProject* project)
+                        {
+                            Handle<Scene> activeScene = editorSubsystem->GetActiveScene();
+                            if (!activeScene.IsValid())
+                            {
+                                HYP_LOG(Editor, Error, "No active scene; cannot add irradiance probe volume!");
 
-                                                                                                              editorSubsystem->SetFocusedNode(volume, true);
-                                                                                                          }),
-                                                  .revert = Proc<void(EditorSubsystem*, EditorProject*)>([volume, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
-                                                                                                         {
-                                                                                                             volume->Remove();
+                                return;
+                            }
+                            
+                            activeScene->GetRoot()->AddChild(volume);
 
-                                                                                                             if (editorSubsystem->GetFocusedNode() == volume)
-                                                                                                             {
-                                                                                                                 editorSubsystem->SetFocusedNode(nullptr, true);
+                            editorSubsystem->SetFocusedNode(volume, true);
 
-                                                                                                                 Handle<Node> focusedNode = previousFocusedNode.Lock();
-                                                                                                                 if (focusedNode.IsValid())
-                                                                                                                 {
-                                                                                                                     editorSubsystem->SetFocusedNode(focusedNode, true);
-                                                                                                                 }
-                                                                                                             }
-                                                                                                         })
-                                              };
-                                          }));
+                            initOverlappingEntities(activeScene->GetWorld(), volume->GetWorldBounds());
+                        }),
+                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>(
+                        [volume, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
+                        {
+                            volume->Remove();
+
+                            if (editorSubsystem->GetFocusedNode() == volume)
+                            {
+                                editorSubsystem->SetFocusedNode(nullptr, true);
+
+                                Handle<Node> focusedNode = previousFocusedNode.Lock();
+                                if (focusedNode.IsValid())
+                                {
+                                    editorSubsystem->SetFocusedNode(focusedNode, true);
+                                }
+                            }
+                        })
+                    };
+                }));
 
         InitObject(action);
 

@@ -12,6 +12,8 @@
 
 #include <Core/Memory/Pool/Pool.hpp>
 
+#include <Core/Threading/AtomicFlag.hpp>
+
 #include <Core/Utilities/EnumFlags.hpp>
 
 #include <Core/Math/BoundingBox.hpp>
@@ -362,6 +364,8 @@ public:
     IrradianceProbe& operator=(const IrradianceProbe& other) = delete;
 
     ~IrradianceProbe() override = default;
+
+    AtomicFlag needsRender;
 
 private:
     void OnTransformUpdated() override;

@@ -292,8 +292,8 @@ bool ProbeVolume::FindEnclosingTetrahedron(
     // Try O(1) grid-cell lookup first
     if (m_gridCount.x > 0 && m_gridCount.y > 0 && m_gridCount.z > 0)
     {
-        const BoundingBox localBounds = GetLocalBounds();
-        const Vec3f extent = localBounds.GetExtent();
+        const BoundingBox worldBounds = GetWorldBounds();
+        const Vec3f extent = worldBounds.GetExtent();
 
         const float spanX = extent.x;
         const float spanY = extent.y;
@@ -301,32 +301,29 @@ bool ProbeVolume::FindEnclosingTetrahedron(
 
         if (spanX > 0.0f && spanY > 0.0f && spanZ > 0.0f)
         {
-            const Vec3f localPos = position - localBounds.min;
+            const Vec3f relativePos = position - worldBounds.min;
 
-            const int32 gx = static_cast<int32>(localPos.x / spanX * static_cast<float>(m_gridCount.x - 1));
-            const int32 gy = static_cast<int32>(localPos.y / spanY * static_cast<float>(m_gridCount.y - 1));
-            const int32 gz = static_cast<int32>(localPos.z / spanZ * static_cast<float>(m_gridCount.z - 1));
+            const int32 numCellsX = m_gridCount.x - 1;
+            const int32 numCellsY = m_gridCount.y - 1;
+            const int32 numCellsZ = m_gridCount.z - 1;
 
-            if (gx > 0 && gx < static_cast<int32>(m_gridCount.x)
-                && gy > 0 && gy < static_cast<int32>(m_gridCount.y)
-                && gz > 0 && gz < static_cast<int32>(m_gridCount.z))
+            const int32 gx = MathUtil::Clamp(static_cast<int32>((relativePos.x / spanX) * numCellsX), 0, numCellsX - 1);
+            const int32 gy = MathUtil::Clamp(static_cast<int32>((relativePos.y / spanY) * numCellsY), 0, numCellsY - 1);
+            const int32 gz = MathUtil::Clamp(static_cast<int32>((relativePos.z / spanZ) * numCellsZ), 0, numCellsZ - 1);
+
+            const int32 cellLinear = (gx * numCellsY * numCellsZ) + (gy * numCellsZ) + gz;
+
+            const int32 tetStart = cellLinear * 6;
+            const int32 tetEnd = MathUtil::Min(tetStart + 6, numTets);
+
+            for (int32 i = tetStart; i < tetEnd; i++)
             {
-                const int32 cellLinear = (gx - 1) * static_cast<int32>((m_gridCount.y - 1) * (m_gridCount.z - 1))
-                    + (gy - 1) * static_cast<int32>(m_gridCount.z - 1)
-                    + (gz - 1);
-
-                const int32 tetStart = cellLinear * 6;
-                const int32 tetEnd = MathUtil::Min(tetStart + 6, numTets);
-
-                for (int32 i = tetStart; i < tetEnd; i++)
+                const Vec4f w = computeWeights(i, position);
+                if (cellContains(w))
                 {
-                    const Vec4f w = computeWeights(i, position);
-                    if (cellContains(w))
-                    {
-                        inOutTetIndex = i;
-                        outWeights = w;
-                        return true;
-                    }
+                    inOutTetIndex = i;
+                    outWeights = w;
+                    return true;
                 }
             }
         }
@@ -404,7 +401,7 @@ bool ProbeVolume::FindEnclosingTetrahedron(
 
     inOutTetIndex = current;
     outWeights = computeWeights(current, position);
-    
+
     return true;
 }
 
@@ -416,7 +413,8 @@ EvaluateSphericalHarmonicsResult ProbeVolume::EvaluateSphericalHarmonics(
     // Clamp sample position to volume bounds for cheap extrapolation.
     // See: Cupisz, "Light Probe Interpolation Using Tetrahedral Tessellations", GDC 2012.
     {
-        const BoundingBox worldBounds = GetWorldMatrix() * GetLocalBounds();
+        const BoundingBox worldBounds = GetWorldBounds();
+
         position.x = MathUtil::Clamp(position.x, worldBounds.min.x, worldBounds.max.x);
         position.y = MathUtil::Clamp(position.y, worldBounds.min.y, worldBounds.max.y);
         position.z = MathUtil::Clamp(position.z, worldBounds.min.z, worldBounds.max.z);
@@ -537,6 +535,8 @@ void ProbeVolume::RefreshProbe(IrradianceProbe& probe)
         LightmapElementComponent component {};
         entity->AddComponent<LightmapElementComponent>(component);
     }
+
+    probe.needsRender.Store(true);
 }
 
 #if HYP_EDITOR
