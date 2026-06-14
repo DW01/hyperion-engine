@@ -157,7 +157,7 @@ void LightmapRenderer_GpuPathTracing::CleanJobData(BakeJobBase* job)
         return;
     }
 
-    //m_jobData.Erase(jobDataIt);
+    // m_jobData.Erase(jobDataIt);
 }
 
 bool LightmapRenderer_GpuPathTracing::CanRender() const
@@ -281,7 +281,7 @@ void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(
         HYP_LOG(Lightmap, Warning, "Job data missing");
 
         callback({});
-        
+
         return;
     }
 
@@ -326,17 +326,17 @@ void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(
             auto& callback = payload.callback;
 
             RI.GetCurrentFrame()->OnFrameEnd.Bind([&payload, buffer, cb = std::move(callback)](Frame*)
-                {
-                    Span<LightmapHit> hits;
-                    hits.first = reinterpret_cast<LightmapHit*>(buffer->Map());
-                    hits.last = hits.first + (buffer->Size() / sizeof(LightmapHit));
+                                                  {
+                                                      Span<LightmapHit> hits;
+                                                      hits.first = reinterpret_cast<LightmapHit*>(buffer->Map());
+                                                      hits.last = hits.first + (buffer->Size() / sizeof(LightmapHit));
 
-                    cb(hits);
+                                                      cb(hits);
 
-                    buffer->Release();
+                                                      buffer->Release();
 
-                    delete &payload;
-                })
+                                                      delete &payload;
+                                                  })
                 .Detach();
         }
     };
@@ -371,7 +371,7 @@ bool LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
     Assert(CanRender());
 
     AssertDebug(renderSetup.world);
-    
+
     RenderProxyList& rpl = *renderSetup.view->GetRenderProxyList(GetRingIndex()); // GetConsumerProxyList(renderSetup.view);
     rpl.BeginRead();
     HYP_DEFER({ rpl.EndRead(); });
@@ -451,14 +451,14 @@ bool LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
             && numBoundEnvProbes < LightmapVolumeMaxBoundEnvProbes)
         {
             auto it = tempEnvProbes.FindIf([envProbe = renderSetup.envProbe](const auto& pair)
-                {
-                    if (pair.first == envProbe)
-                    {
-                        return true;
-                    }
+                                           {
+                                               if (pair.first == envProbe)
+                                               {
+                                                   return true;
+                                               }
 
-                    return false;
-                });
+                                               return false;
+                                           });
 
             if (it == tempEnvProbes.End())
             {
@@ -502,28 +502,28 @@ bool LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
 
         // sort so sky is last
         std::sort(tempEnvProbes.Begin(), tempEnvProbes.End(),
-            [](const Pair<EnvProbe*, EnvProbeShaderData*>& a, const Pair<EnvProbe*, EnvProbeShaderData*>& b)
-        {
-            const bool aIsSky = a.first->IsA(SkyProbe::StaticClass());
-            const bool bIsSky = b.first->IsA(SkyProbe::StaticClass());
+                  [](const Pair<EnvProbe*, EnvProbeShaderData*>& a, const Pair<EnvProbe*, EnvProbeShaderData*>& b)
+                  {
+                      const bool aIsSky = a.first->IsA(SkyProbe::StaticClass());
+                      const bool bIsSky = b.first->IsA(SkyProbe::StaticClass());
 
-            if (aIsSky && !bIsSky)
-            {
-                return false;
-            }
+                      if (aIsSky && !bIsSky)
+                      {
+                          return false;
+                      }
 
-            if (!aIsSky && bIsSky)
-            {
-                return true;
-            }
+                      if (!aIsSky && bIsSky)
+                      {
+                          return true;
+                      }
 
-            if (aIsSky && bIsSky)
-            {
-                return false;
-            }
+                      if (aIsSky && bIsSky)
+                      {
+                          return false;
+                      }
 
-            return true;
-        });
+                      return true;
+                  });
 
         for (uint32 i = 0; i < LightmapVolumeMaxBoundEnvProbes; i++)
         {
@@ -535,7 +535,7 @@ bool LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
             }
             else
             {
-                static const EnvProbeShaderData s_dummyEnvProbeShaderData;
+                static const EnvProbeShaderData s_dummyEnvProbeShaderData {};
                 pEnvProbeShaderData = &s_dummyEnvProbeShaderData;
             }
 

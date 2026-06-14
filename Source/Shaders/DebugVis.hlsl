@@ -4,11 +4,6 @@
 PERMUTE(IMMEDIATE_MODE);
 PERMUTE(INSTANCING);
 
-#define EPT_SKY 0
-#define EPT_REFLECTION 1
-#define EPT_AMBIENT 2
-#define EPT_INVALID (~0u)
-
 #ifdef VERTEX_SHADER
 
 struct VSInput

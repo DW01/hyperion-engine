@@ -180,6 +180,8 @@ PSOutput PSMain(PSInput input)
     float3 V = normalize(camera.position.xyz - positionWS.xyz);
     float3 R = normalize(reflect(-V, N));
 
+    const float invLightmappedWeight = 1.0 - min(1.0, float(mask & OBJECT_MASK_LIGHTMAPPED));
+
     float ao = 1.0;
     float4 irradiance = (float4)0.0;
     float4 reflections = (float4)0.0;
@@ -203,11 +205,13 @@ PSOutput PSMain(PSInput input)
         /* inout */ reflections,
         /* inout */ irradiance);
 
-    // @NOTE Ignoring sky irradiance right now
+    irradiance.a = saturate(irradiance.a);
+    irradiance *= invLightmappedWeight;
 
-    // @TODO We need to properly mix sky irradiance - probeLighting should contain blended sh between sky and probes
-    irradiance.rgb = probeLighting; // @NOTE If object is lightmapped, probeLighting will contain lightmap UVs; but the next line will cancel this out anyway
-    irradiance *= 1.0 - min(1.0, float(mask & OBJECT_MASK_LIGHTMAPPED));
+    // if the object is lightmapped, probeLighting contains lightmap UVs
+    // multiplying the weight by invLightmappedWeight this cancels it out if
+    // the object is lightmapped.
+    irradiance.rgb = lerp(irradiance.rgb, probeLighting.rgb, length(probeLighting.rgb) * invLightmappedWeight);
 
 #ifdef SSR_ENABLED
     float4 ssrResult = SAMPLE_TEXTURE_2D_LOD(sampler_linear, SSRResultTexture, texcoord, 0);
@@ -232,7 +236,7 @@ PSOutput PSMain(PSInput input)
     irradiance = lerp(irradiance, ddgi, 1.0 - ssgi.a);
 #endif
 
-    irradiance.rgb *= irradiance.a;
+    //irradiance.rgb *= irradiance.a;
     irradiance.a = 1.0; // set alpha to 1 now that we're finished lerping between GI methods.
 
     const float NdotV = max(0.0001, dot(N, V));

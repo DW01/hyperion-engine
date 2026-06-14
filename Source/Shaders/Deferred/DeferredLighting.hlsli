@@ -127,7 +127,7 @@ float4 CalculateReflectionProbe(in EnvProbe probe, float3 P, float3 N, float3 R,
 #ifndef ENV_PROBE_PARALLAX_CORRECTED
     // ENV_PROBE_PARALLAX_CORRECTED is not statically defined, we need to use flags on the EnvProbe struct
     // at render time to determine if the probe is parallax corrected.
-    const bool is_parallax_corrected = bool(probe.flags & HYP_ENV_PROBE_PARALLAX_CORRECTED);
+    const bool is_parallax_corrected = bool(GET_ENV_PROBE_FLAGS(probe) & HYP_ENV_PROBE_PARALLAX_CORRECTED);
 
     if (is_parallax_corrected)
     {
@@ -187,14 +187,13 @@ void CalculateEnvProbesContribution(
 
         EnvProbe currentEnvProbe = EnvProbesBuffer[envProbeIndex];
 
-
         const float numMips = 7.0; // assuming 128x128 cubemap size for reflection probes
         const float lod = perceptualRoughness * numMips;
 
         const float3 aabbMin = currentEnvProbe.aabb_min.xyz;
         const float3 aabbMax = currentEnvProbe.aabb_max.xyz;
 
-        const float3 probeReflectionVector = bool(currentEnvProbe.flags & HYP_ENV_PROBE_PARALLAX_CORRECTED)
+        const float3 probeReflectionVector = bool(GET_ENV_PROBE_FLAGS(currentEnvProbe) & HYP_ENV_PROBE_PARALLAX_CORRECTED)
             ? EnvProbeCoordParallaxCorrected(currentEnvProbe.world_position.xyz, aabbMin, aabbMax, positionWS, R)
             : R;
 
@@ -222,6 +221,7 @@ void CalculateEnvProbesContribution(
 
 #ifndef HYP_ENV_PROBES_NO_IRRADIANCE
     float accumWeightIrradiance = 0.0;
+
     for (uint i = 0; i < numEnvProbes && accumWeightIrradiance < 1.0; ++i)
     {
         const uint envProbeIndex = Cluster_LoadEnvProbeIndex(clusterIndexOffset, numLights, i);
@@ -232,7 +232,12 @@ void CalculateEnvProbesContribution(
         const float weight = CalculateEnvProbeWeight(positionWS, aabbMin, aabbMax);
 
         float3 currentIrradiance = EnvProbeSH(currentEnvProbe, N, /* order */ 2);
+        
+        // // sky contributes 0 alpha so we can prioritize other incoming irradiance
+        // const float alpha = float(GET_ENV_PROBE_TYPE(currentEnvProbe) != EPT_SKY);
+
         irradiance += float4(currentIrradiance, 1.0) * weight * (1.0 - accumWeightIrradiance);
+
         accumWeightIrradiance += weight * (1.0 - accumWeightIrradiance);
     }
 #endif // HYP_ENV_PROBES_NO_IRRADIANCE

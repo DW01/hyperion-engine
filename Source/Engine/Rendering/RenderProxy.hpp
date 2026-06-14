@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -136,24 +136,18 @@ struct RenderProxyMesh final : IRenderProxy
 
 struct EnvProbeShaderData
 {
-    Mat4f faceViewMatrices[6];
-
     Vec4f aabbMax;
     Vec4f aabbMin;
     Vec4f worldPosition;
 
     Vec2u dimensions;
     uint32 textureIndex = ~0u;
-    uint32 flags = 0;
+    uint32 typeAndFlags;
 
     Vec4f shData[9];
-
-    Vec4f _pad0;
-    Vec4f _pad1;
-    Vec4f _pad2;
 };
 
-static_assert(sizeof(EnvProbeShaderData) % 64 == 0);
+static_assert(sizeof(EnvProbeShaderData));
 
 struct RenderProxyEnvProbe : IRenderProxy
 {
@@ -180,9 +174,9 @@ struct ShadowMapData
     Mat4f viewProjMat;
     Mat4f invProjMat;
 
-    Vec4f aabbMin;          // w = offsetUV.x
-    Vec4f aabbMax;          // w = offsetUV.y
-    Vec4f dimensionsScale;  // xy = shadow map dimensions in pixels, zw = shadow map dimensions relative to the atlas dimensions
+    Vec4f aabbMin;         // w = offsetUV.x
+    Vec4f aabbMax;         // w = offsetUV.y
+    Vec4f dimensionsScale; // xy = shadow map dimensions in pixels, zw = shadow map dimensions relative to the atlas dimensions
 
     uint32 layerIndex;
     float splitDistance;
