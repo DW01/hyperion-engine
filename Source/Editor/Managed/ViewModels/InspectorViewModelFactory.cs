@@ -6,6 +6,18 @@ namespace Hyperion.Editor.ViewModels
 {
     public static class InspectorViewModelFactory
     {
+        private const string Vec2fName = "Vec2f";
+        private const string Vec2iName = "Vec2i";
+        private const string Vec2uName = "Vec2u";
+        private const string Vec3fName = "Vec3f";
+        private const string Vec3iName = "Vec3i";
+        private const string Vec3uName = "Vec3u";
+        private const string Vec4fName = "Vec4f";
+        private const string Vec4iName = "Vec4i";
+        private const string Vec4uName = "Vec4u";
+        private const string TransformName = "Transform";
+        private const string BoolName = "bool";
+
         public static InspectorPropertyViewModelBase Create(ObjectBase? target, Property property, bool isReadOnly, int depth = 0, Action? postWriteCallback = null)
         {
             if (target == null)
@@ -34,23 +46,47 @@ namespace Hyperion.Editor.ViewModels
             {
                 vm = new EnumPropertyViewModel(target, property, typeInfo.Class, isReadOnly);
             }
-            else if (typeInfo.IsVec2 && typeInfo.Class?.Name == "Vec2f")
+            else if (typeInfo.IsVec2 && typeInfo.Class?.Name == Vec2fName)
             {
                 vm = new Vec2fViewModel(target, property, isReadOnly);
             }
-            else if (typeInfo.IsVec3 && typeInfo.Class?.Name == "Vec3f")
+            else if (typeInfo.IsVec2 && typeInfo.Class?.Name == Vec2iName)
+            {
+                vm = new Vec2iViewModel(target, property, isReadOnly);
+            }
+            else if (typeInfo.IsVec2 && typeInfo.Class?.Name == Vec2uName)
+            {
+                vm = new Vec2uViewModel(target, property, isReadOnly);
+            }
+            else if (typeInfo.IsVec3 && typeInfo.Class?.Name == Vec3fName)
             {
                 vm = new Vec3fViewModel(target, property, isReadOnly);
             }
-            else if (typeInfo.IsVec4 && typeInfo.Class?.Name == "Vec4f")
+            else if (typeInfo.IsVec3 && typeInfo.Class?.Name == Vec3iName)
+            {
+                vm = new Vec3iViewModel(target, property, isReadOnly);
+            }
+            else if (typeInfo.IsVec3 && typeInfo.Class?.Name == Vec3uName)
+            {
+                vm = new Vec3uViewModel(target, property, isReadOnly);
+            }
+            else if (typeInfo.IsVec4 && typeInfo.Class?.Name == Vec4fName)
             {
                 vm = new Vec4fViewModel(target, property, isReadOnly);
             }
-            else if (typeInfo.Class?.Name == "Transform")
+            else if (typeInfo.IsVec4 && typeInfo.Class?.Name == Vec4iName)
+            {
+                vm = new Vec4iViewModel(target, property, isReadOnly);
+            }
+            else if (typeInfo.IsVec4 && typeInfo.Class?.Name == Vec4uName)
+            {
+                vm = new Vec4uViewModel(target, property, isReadOnly);
+            }
+            else if (typeInfo.Class?.Name == TransformName)
             {
                 vm = new TransformViewModel(target, property, isReadOnly);
             }
-            else if (typeInfo.IsFundamental && typeInfo.IsIntegral && typeInfo.Name == "bool")
+            else if (typeInfo.IsFundamental && typeInfo.IsIntegral && typeInfo.Name == BoolName)
             {
                 vm = new BoolPropertyViewModel(target, property, isReadOnly);
             }
@@ -103,23 +139,47 @@ namespace Hyperion.Editor.ViewModels
             {
                 vm = new EnumPropertyViewModel(classAddress, targetAddressResolver, property, typeInfo.Class, isReadOnly);
             }
-            else if (typeInfo.IsVec2 && typeInfo.Class?.Name == "Vec2f")
+            else if (typeInfo.IsVec2 && typeInfo.Class?.Name == Vec2fName)
             {
                 vm = new Vec2fViewModel(classAddress, targetAddressResolver, property, isReadOnly);
             }
-            else if (typeInfo.IsVec3 && typeInfo.Class?.Name == "Vec3f")
+            else if (typeInfo.IsVec2 && typeInfo.Class?.Name == Vec2iName)
+            {
+                vm = new Vec2iViewModel(classAddress, targetAddressResolver, property, isReadOnly);
+            }
+            else if (typeInfo.IsVec2 && typeInfo.Class?.Name == Vec2uName)
+            {
+                vm = new Vec2uViewModel(classAddress, targetAddressResolver, property, isReadOnly);
+            }
+            else if (typeInfo.IsVec3 && typeInfo.Class?.Name == Vec3fName)
             {
                 vm = new Vec3fViewModel(classAddress, targetAddressResolver, property, isReadOnly);
             }
-            else if (typeInfo.IsVec4 && typeInfo.Class?.Name == "Vec4f")
+            else if (typeInfo.IsVec3 && typeInfo.Class?.Name == Vec3iName)
+            {
+                vm = new Vec3iViewModel(classAddress, targetAddressResolver, property, isReadOnly);
+            }
+            else if (typeInfo.IsVec3 && typeInfo.Class?.Name == Vec3uName)
+            {
+                vm = new Vec3uViewModel(classAddress, targetAddressResolver, property, isReadOnly);
+            }
+            else if (typeInfo.IsVec4 && typeInfo.Class?.Name == Vec4fName)
             {
                 vm = new Vec4fViewModel(classAddress, targetAddressResolver, property, isReadOnly);
             }
-            else if (typeInfo.Class?.Name == "Transform")
+            else if (typeInfo.IsVec4 && typeInfo.Class?.Name == Vec4iName)
+            {
+                vm = new Vec4iViewModel(classAddress, targetAddressResolver, property, isReadOnly);
+            }
+            else if (typeInfo.IsVec4 && typeInfo.Class?.Name == Vec4uName)
+            {
+                vm = new Vec4uViewModel(classAddress, targetAddressResolver, property, isReadOnly);
+            }
+            else if (typeInfo.Class?.Name == TransformName)
             {
                 vm = new TransformViewModel(classAddress, targetAddressResolver, property, isReadOnly);
             }
-            else if (typeInfo.IsFundamental && typeInfo.IsIntegral && typeInfo.Name == "bool")
+            else if (typeInfo.IsFundamental && typeInfo.IsIntegral && typeInfo.Name == BoolName)
             {
                 vm = new BoolPropertyViewModel(classAddress, targetAddressResolver, property, isReadOnly);
             }
@@ -176,19 +236,43 @@ namespace Hyperion.Editor.ViewModels
             {
                 vm = new EnumPropertyViewModel(label, typeInfo, getter, setter, typeInfo.Class, isReadOnly);
             }
-            else if (typeInfo.IsVec2 && typeInfo.Class?.Name == "Vec2f")
+            else if (typeInfo.IsVec2 && typeInfo.Class?.Name == Vec2fName)
             {
                 vm = new Vec2fViewModel(label, typeInfo, getter, setter, isReadOnly);
             }
-            else if (typeInfo.IsVec3 && typeInfo.Class?.Name == "Vec3f")
+            else if (typeInfo.IsVec2 && typeInfo.Class?.Name == Vec2iName)
+            {
+                vm = new Vec2iViewModel(label, typeInfo, getter, setter, isReadOnly);
+            }
+            else if (typeInfo.IsVec2 && typeInfo.Class?.Name == Vec2uName)
+            {
+                vm = new Vec2uViewModel(label, typeInfo, getter, setter, isReadOnly);
+            }
+            else if (typeInfo.IsVec3 && typeInfo.Class?.Name == Vec3fName)
             {
                 vm = new Vec3fViewModel(label, typeInfo, getter, setter, isReadOnly);
             }
-            else if (typeInfo.IsVec4 && typeInfo.Class?.Name == "Vec4f")
+            else if (typeInfo.IsVec3 && typeInfo.Class?.Name == Vec3iName)
+            {
+                vm = new Vec3iViewModel(label, typeInfo, getter, setter, isReadOnly);
+            }
+            else if (typeInfo.IsVec3 && typeInfo.Class?.Name == Vec3uName)
+            {
+                vm = new Vec3uViewModel(label, typeInfo, getter, setter, isReadOnly);
+            }
+            else if (typeInfo.IsVec4 && typeInfo.Class?.Name == Vec4fName)
             {
                 vm = new Vec4fViewModel(label, typeInfo, getter, setter, isReadOnly);
             }
-            else if (typeInfo.IsFundamental && typeInfo.IsIntegral && typeInfo.Name == "bool")
+            else if (typeInfo.IsVec4 && typeInfo.Class?.Name == Vec4iName)
+            {
+                vm = new Vec4iViewModel(label, typeInfo, getter, setter, isReadOnly);
+            }
+            else if (typeInfo.IsVec4 && typeInfo.Class?.Name == Vec4uName)
+            {
+                vm = new Vec4uViewModel(label, typeInfo, getter, setter, isReadOnly);
+            }
+            else if (typeInfo.IsFundamental && typeInfo.IsIntegral && typeInfo.Name == BoolName)
             {
                 vm = new BoolPropertyViewModel(label, getter, setter, isReadOnly);
             }

@@ -53,7 +53,7 @@ struct GBufferTargetDesc
 static const FixedArray<GBufferTargetDesc, GTN_MAX> s_targetDescs = {
     GBufferTargetDesc { TextureFormat::RGBA16F },                     // color
     GBufferTargetDesc { TextureFormat::R10G10B10A2 },                 // normal: https://johnwhite3d.blogspot.com/2017/10/signed-octahedron-normal-encoding.html
-    GBufferTargetDesc { TextureFormat::RGBA32 },                      // material data
+    GBufferTargetDesc { TextureFormat::R32 },                          // material data
     GBufferTargetDesc { TextureFormat::RG16F },                       // velocity
     GBufferTargetDesc { TextureFormat::D24_S8, TextureFormat::D32F_S8 } // depth
 };

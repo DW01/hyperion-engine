@@ -87,7 +87,7 @@ struct PSOutput
 {
     float4 gbuffer_albedo : SV_Target0;
     float4 gbuffer_normals : SV_Target1;
-    uint4 gbuffer_material : SV_Target2;
+    uint gbuffer_material : SV_Target2;
     float2 gbuffer_velocity : SV_Target3;
 };
 
@@ -134,8 +134,8 @@ PSOutput PSMain(PSInput input)
 
     output.gbuffer_albedo = color;
     output.gbuffer_normals = GBufferPackNormal(float3(0.5f, 0.5f, 1.0f));
-    output.gbuffer_material = uint4(0, 0, 0, 0);
-    output.gbuffer_velocity = float2(0, 0);
+    output.gbuffer_material = 0;
+    output.gbuffer_velocity = (float2)0;
 
     return output;
 }

@@ -60,6 +60,9 @@
 
 namespace Hyperion {
 
+ScriptableDelegate<void, World*, const Handle<Scene>&> World::OnSceneAdded;
+ScriptableDelegate<void, World*, Scene*> World::OnSceneRemoved;
+
 #define HYP_WORLD_ASYNC_SUBSYSTEM_UPDATES
 #define HYP_WORLD_ASYNC_VIEW_COLLECTION
 
@@ -99,6 +102,9 @@ World::World(Name name, EnumFlags<WorldFlags> worldFlags)
 World::~World()
 {
     Shutdown();
+
+    OnSceneAdded.RemoveAllForTarget(this);
+    OnSceneRemoved.RemoveAllForTarget(this);
 }
 
 void World::Initialize()
@@ -171,7 +177,7 @@ void World::Initialize()
 
         scene->Initialize();
 
-        OnSceneAdded(this, scene);
+        OnSceneAdded.Fire(this, this, scene);
 
         for (Subsystem* subsystem : m_subsystemsArray)
         {
@@ -295,7 +301,7 @@ void World::Shutdown()
 
         scene->SetOwnerThreadId(CurrentThreadId());
 
-        OnSceneRemoved(this, scene);
+        OnSceneRemoved.Fire(this, this, scene);
 
         for (Subsystem* subsystem : m_subsystemsArray)
         {
@@ -701,7 +707,7 @@ void World::SyncPhysicsToEntities()
 {
     PhysicsWorld& physicsWorld = static_cast<PhysicsWorld&>(*m_physicsWorld);
 
-    Array<Entity*, SceneAllocator> updatedEntities;
+    Array<Entity*, SceneTempAllocator> updatedEntities;
 
     for (Scene* scene : m_scenes)
     {
@@ -762,7 +768,7 @@ void World::SyncPhysicsToEntities()
     }
 }
 
-void World::CollectScenes(Array<Scene*, SceneAllocator>& outScenes)
+void World::CollectScenes(Array<Scene*, SceneTempAllocator>& outScenes)
 {
     outScenes.Reserve(outScenes.Size() + m_scenes.Size());
 
@@ -772,7 +778,7 @@ void World::CollectScenes(Array<Scene*, SceneAllocator>& outScenes)
     }
 }
 
-void World::CollectCameras(Array<Camera*, SceneAllocator>& outCameras)
+void World::CollectCameras(Array<Camera*, SceneTempAllocator>& outCameras)
 {
     outCameras.Reserve(m_scenes.Size() * 3);
 
@@ -785,7 +791,7 @@ void World::CollectCameras(Array<Camera*, SceneAllocator>& outCameras)
     }
 }
 
-void World::CollectViews(Array<View*, SceneAllocator>& outViews)
+void World::CollectViews(Array<View*, SceneTempAllocator>& outViews)
 {
     const uint32 slot = GetRingIndex();
 
@@ -805,7 +811,9 @@ void World::CollectViews(Array<View*, SceneAllocator>& outViews)
         const size_t offset = m_views.Size();
         for (size_t i = 0; i < m_processViews.Size(); i++)
         {
-            m_viewsPerFrame[slot][offset + i] = m_processViews[i];
+            View& view = *m_processViews[i];
+
+            m_viewsPerFrame[slot][offset + i] = &view;
         }
     }
 
@@ -833,7 +841,7 @@ void World::CollectViews(Array<View*, SceneAllocator>& outViews)
     m_processViews.Clear();
 }
 
-void World::CollectSubsystems(Array<Subsystem*, SceneAllocator>& outSubsystems)
+void World::CollectSubsystems(Array<Subsystem*, SceneTempAllocator>& outSubsystems)
 {
     const size_t offset = outSubsystems.Size();
     outSubsystems.Resize(offset + m_subsystemsArray.Size());
@@ -1037,7 +1045,7 @@ void World::AddScene(const Handle<Scene>& scene, bool addToStreamingLayer)
     {
         scene->Initialize();
 
-        OnSceneAdded(this, scene);
+        OnSceneAdded.Fire(this, this, scene);
 
         for (Subsystem* subsystem : m_subsystemsArray)
         {
@@ -1094,7 +1102,7 @@ bool World::RemoveScene(Scene* scene, bool removeFromStreamingLayer)
                 scenesStreamingLayer->RemoveStreamingObject(scene);
             }
 
-            OnSceneRemoved(this, scene);
+            OnSceneRemoved.Fire(this, this, scene);
 
             for (Subsystem* subsystem : m_subsystemsArray)
             {
@@ -1257,7 +1265,7 @@ void World::DeserializeNonStreamingScenes(const Array<Handle<Scene>>& scenes)
 
         if (m_isInitialized)
         {
-            OnSceneRemoved(this, scene);
+            OnSceneRemoved.Fire(this, this, scene);
 
             for (Subsystem* subsystem : m_subsystemsArray)
             {
@@ -1293,7 +1301,7 @@ void World::DeserializeNonStreamingScenes(const Array<Handle<Scene>>& scenes)
         {
             scene->Initialize();
 
-            OnSceneAdded(this, scene);
+            OnSceneAdded.Fire(this, this, scene);
 
             for (Subsystem* subsystem : m_subsystemsArray)
             {

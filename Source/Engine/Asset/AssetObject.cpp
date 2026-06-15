@@ -510,10 +510,6 @@ void AssetObject::LockWriter(bool doInitialize)
     {
         expected = 0;
 
-#if HYP_DEBUG_MODE
-        AssertDebug(m_uniqueLockHolderThread != ThreadId::Current(),
-            "Deadlock due to recursive locking detected!");
-#endif // HYP_DEBUG_MODE
 
         // volatile read
         while (m_rwState != 0)
@@ -529,14 +525,10 @@ void AssetObject::LockWriter(bool doInitialize)
             }
         }
     }
-
-    m_uniqueLockHolderThread = ThreadId::Current();
 }
 
 void AssetObject::UnlockWriter(bool doDeinitialize)
 {
-    m_uniqueLockHolderThread = ThreadId::Invalid();
-
     AtomicBitAnd(&m_rwState, ~0x1);
 }
 

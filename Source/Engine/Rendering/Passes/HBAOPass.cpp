@@ -84,8 +84,6 @@ void HBAO::Render(Frame* frame, const RenderSetup& renderSetup)
     AssertDebug(renderSetup.world && renderSetup.view);
     AssertDebug(renderSetup.passData != nullptr);
 
-    const uint32 frameIndex = frame->GetFrameIndex();
-
     CommandRecorder& cr = frame->cr;
 
     if (!m_cbuffer)

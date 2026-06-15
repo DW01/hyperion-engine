@@ -262,7 +262,12 @@ enum tlsf_private
 ** Set assert macro, if it has not been provided by the user.
 */
 #if !defined (tlsf_assert)
-#define tlsf_assert assert
+#if HYP_DEBUG_MODE
+extern void Hyp_TlsfAssert(int);
+#define tlsf_assert Hyp_TlsfAssert
+#else  // !HYP_DEBUG_MODE
+#define tlsf_assert(...)
+#endif // HYP_DEBUG_MODE
 #endif
 
 /*

@@ -20,9 +20,8 @@ struct PSOutput
 {
     float4 gbuffer_albedo : SV_Target0;
     float4 gbuffer_normals : SV_Target1;
-    uint4 gbuffer_material : SV_Target2;
+    uint gbuffer_material : SV_Target2;
     float2 gbuffer_velocity : SV_Target3;
-    float4 gbuffer_ws_normals : SV_Target4;
 };
 
 DECLARE_SAMPLER(Default, SamplerLinear) SamplerState sampler_linear;
@@ -132,8 +131,7 @@ PSOutput PSMain(PSInput input)
     output.gbuffer_normals = GBufferPackNormal(N);
     output.gbuffer_velocity = velocity;
 
-    output.gbuffer_material = (uint4)0;
-    output.gbuffer_ws_normals = (float4)0.0;
+    output.gbuffer_material = 0;
 
     return output;
 }

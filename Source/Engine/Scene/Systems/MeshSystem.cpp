@@ -19,6 +19,8 @@
 
 #include <Rendering/InstancedMeshData.hpp>
 
+#include <Core/Memory/Allocator/ThreadAllocator.hpp>
+
 #include <MeshSystem.generated.inl>
 
 namespace Hyperion {
@@ -56,6 +58,8 @@ void UpdateInstancedMeshData(Entity& entity, MeshComponent& meshComponent)
         GetCurrentAssetRegistry()->PutAssetUnique(imd);
 
         meshComponent.instanceData = AssetReference(imd);
+
+        Assert(imd->IsRegistered());
     }
 
     const Handle<InstancedMeshData>& imd = DynamicCast<InstancedMeshData>(meshComponent.instanceData.Resolve());
@@ -100,7 +104,9 @@ void DestroyInstancedMeshData(Entity& entity, MeshComponent& meshComponent, bool
         {
             if (meshComponent.instanceData.IsLoaded())
             {
-                meshComponent.instanceData = AssetReference(meshComponent.instanceData.GetAssetPath());
+                // Unload and set to path
+                meshComponent.instanceData = AssetReference();
+                meshComponent.instanceData.SetAssetPath(meshComponent.instanceData.GetAssetPath());
             }
 
             return;
@@ -133,9 +139,7 @@ void MeshSystem::OnEntityAdded(Entity* entity)
     entity->RemoveTag<EntityTag::UpdateInstancedMeshData>();
 
 #if HYP_EDITOR
-    m_cachedStates[entity] = CachedInstancedMeshDataState {
-        meshComponent.enableAutoInstancing
-    };
+    m_cachedStates[entity] = CachedInstancedMeshDataState { meshComponent.enableAutoInstancing };
 #endif // HYP_EDITOR
 }
 
@@ -167,14 +171,16 @@ void MeshSystem::Process(float delta, Span<Handle<Scene>> scenes)
 {
     // Update instanced mesh data for entities that need it.
 
+    TSet<Entity*, ThreadAllocator> updatedEntities;
+
     for (Scene* scene : scenes)
     {
+        updatedEntities.Clear();
+        
         if (!ShouldProcessScene(scene))
         {
             continue;
         }
-
-        TSet<Entity*, SceneAllocator> updatedEntities;
 
 #if HYP_EDITOR
         for (auto [entity, meshComponent] : scene->GetEntityManager()->GetEntitySet<MeshComponent>().GetScopedView(GetComponentInfos()))

@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <HyperionPch.hpp>
 
@@ -35,46 +35,49 @@
 #include <Framework/EngineGlobals.hpp>
 #include <Framework/EngineStats.hpp>
 #include <Framework/EngineDriver.hpp>
+#include <Framework/CVarManager.hpp>
 
 #include <Scene/View.hpp>
 #include <Scene/Scene.hpp>
 #include <Scene/EnvProbe.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 
 #include <Asset/Assets.hpp>
 #include <Asset/AssetRegistry.hpp>
 
 #include <Core/Resource/Resource.hpp>
 
-#include <DebugDrawer.generated.inl>
-
 namespace Hyperion {
 
 extern EngineStatCounter<uint32> g_statDebugDraws;
 
+static CVar<bool> s_cvEnableDebugDrawer("Rendering.EnableDebugDrawer", true);
+
 static const ShaderPropertyId s_propImmediateMode = InternShaderProperty(ShaderProperty(NAME("IMMEDIATE_MODE")));
 
-static RenderableAttributeSet GetRenderableAttributes()
+static RenderableAttributeSet DefaultAttributes()
 {
-    return RenderableAttributeSet(
-        MeshAttributes {
-            .inputLayout = StaticVertexInputLayout<VT_Simple>,
-            .topology = TOP_LINES
-        },
-        MaterialAttributes {
-            .bucket = RenderBucket::Debug,
-            .fillMode = FM_FILL,
-            .blendFunction = BlendFunction::None(),
-            .flags = MAF_DEPTH_TEST | MAF_DEPTH_WRITE
-        });
+    RenderableAttributeSet attributes;
+
+    MeshAttributes& meshAttributes = attributes.GetMeshAttributes();
+    meshAttributes.inputLayout = StaticVertexInputLayout<VT_Simple>;
+    meshAttributes.topology = TOP_TRIANGLES;
+
+    MaterialAttributes& materialAttributes = attributes.GetMaterialAttributes();
+    materialAttributes.bucket = RenderBucket::Debug;
+    materialAttributes.fillMode = FM_FILL;
+    materialAttributes.blendFunction = BlendFunction::None();
+    materialAttributes.flags = MAF_DEPTH_TEST | MAF_DEPTH_WRITE;
+
+    return attributes;
 }
 
 struct DebugDrawCommand
 {
-    IDebugDrawShape* shape;
-    Mat4f transformMatrix;
-    Color color;
-    RenderableAttributeSet attributes;
+    IDebugDrawShape* shape = nullptr;
+    Mat4f transformMatrix = Mat4f::Identity();
+    Color color = Color::White();
+    RenderableAttributeSet attributes = DefaultAttributes();
 };
 
 #pragma region DebugDrawCommand_Probe
@@ -92,7 +95,9 @@ void IDebugDrawShape::UpdateBufferData(DebugDrawCommand* cmd, ImmediateDrawShade
 {
     *bufferData = ImmediateDrawShaderData {
         cmd->transformMatrix,
-        cmd->color.Packed()
+        cmd->color.Packed(),
+        0,
+        ~0u
     };
 }
 
@@ -149,9 +154,9 @@ Mesh* SphereDebugDrawShape::GetMesh_Internal() const
             GetEngineAssetRegistry()->PutAsset(mesh);
 
             onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind([m = &mesh]()
-            {
-                m->Reset();
-            });
+                                                                              {
+                                                                                  m->Reset();
+                                                                              });
         }
     } s_initializer;
 
@@ -160,7 +165,7 @@ Mesh* SphereDebugDrawShape::GetMesh_Internal() const
 
 void SphereDebugDrawShape::operator()(const Vec3f& position, float radius, const Color& color)
 {
-    (*this)(position, radius, color, GetRenderableAttributes());
+    (*this)(position, radius, color, DefaultAttributes());
 }
 
 void SphereDebugDrawShape::operator()(const Vec3f& position, float radius, const Color& color, const RenderableAttributeSet& attributes)
@@ -223,7 +228,7 @@ void AmbientProbeDebugDrawShape::operator()(const Vec3f& position, float radius,
 
     DebugDrawCommand_Probe* ptr = reinterpret_cast<DebugDrawCommand_Probe*>(list.Alloc(sizeof(DebugDrawCommand_Probe), alignof(DebugDrawCommand_Probe), header));
 
-    new (ptr) DebugDrawCommand();
+    new (ptr) DebugDrawCommand_Probe;
     ptr->shape = this;
     ptr->transformMatrix = Transform(position, radius, Quat4f::Identity()).GetMatrix();
     ptr->color = Color::White();
@@ -272,7 +277,7 @@ void ReflectionProbeDebugDrawShape::operator()(const Vec3f& position, float radi
 
     DebugDrawCommand_Probe* ptr = reinterpret_cast<DebugDrawCommand_Probe*>(list.Alloc(sizeof(DebugDrawCommand_Probe), alignof(DebugDrawCommand_Probe), header));
 
-    new (ptr) DebugDrawCommand();
+    new (ptr) DebugDrawCommand_Probe;
     ptr->shape = this;
     ptr->transformMatrix = Transform(position, radius, Quat4f::Identity()).GetMatrix();
     ptr->color = Color::White();
@@ -324,9 +329,9 @@ Mesh* BoxDebugDrawShape::GetMesh_Internal() const
             GetEngineAssetRegistry()->PutAsset(mesh);
 
             onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind([m = &mesh]()
-            {
-                m->Reset();
-            });
+                                                                              {
+                                                                                  m->Reset();
+                                                                              });
         }
     } s_initializer;
 
@@ -335,7 +340,10 @@ Mesh* BoxDebugDrawShape::GetMesh_Internal() const
 
 void BoxDebugDrawShape::operator()(const Vec3f& position, const Vec3f& size, const Color& color)
 {
-    (*this)(position, size, color, GetRenderableAttributes());
+    RenderableAttributeSet attributes = DefaultAttributes();
+    attributes.GetMeshAttributes().topology = TOP_LINES;
+
+    (*this)(position, size, color, attributes);
 }
 
 void BoxDebugDrawShape::operator()(const Vec3f& position, const Vec3f& size, const Color& color, const RenderableAttributeSet& attributes)
@@ -394,9 +402,9 @@ Mesh* PlaneDebugDrawShape::GetMesh_Internal() const
             GetEngineAssetRegistry()->PutAsset(mesh);
 
             onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind([m = &mesh]()
-            {
-                m->Reset();
-            });
+                                                                              {
+                                                                                  m->Reset();
+                                                                              });
         }
     } s_initializer;
 
@@ -405,7 +413,7 @@ Mesh* PlaneDebugDrawShape::GetMesh_Internal() const
 
 void PlaneDebugDrawShape::operator()(const FixedArray<Vec3f, 4>& points, const Color& color)
 {
-    (*this)(points, color, GetRenderableAttributes());
+    (*this)(points, color, DefaultAttributes());
 }
 
 void PlaneDebugDrawShape::operator()(const FixedArray<Vec3f, 4>& points, const Color& color, const RenderableAttributeSet& attributes)
@@ -424,20 +432,23 @@ void PlaneDebugDrawShape::operator()(const FixedArray<Vec3f, 4>& points, const C
     Mat4f transformMatrix;
 
     transformMatrix.rows[0][0] = x.x;
-    transformMatrix.rows[0][1] = x.y;
-    transformMatrix.rows[0][2] = x.z;
+    transformMatrix.rows[0][1] = y.x;
+    transformMatrix.rows[0][2] = z.x;
+    transformMatrix.rows[0][3] = center.x;
 
-    transformMatrix.rows[1][0] = y.x;
+    transformMatrix.rows[1][0] = x.y;
     transformMatrix.rows[1][1] = y.y;
-    transformMatrix.rows[1][2] = y.z;
+    transformMatrix.rows[1][2] = z.y;
+    transformMatrix.rows[1][3] = center.y;
 
-    transformMatrix.rows[2][0] = z.x;
-    transformMatrix.rows[2][1] = z.y;
+    transformMatrix.rows[2][0] = x.z;
+    transformMatrix.rows[2][1] = y.z;
     transformMatrix.rows[2][2] = z.z;
+    transformMatrix.rows[2][3] = center.z;
 
-    transformMatrix.rows[3][0] = center.x;
-    transformMatrix.rows[3][1] = center.y;
-    transformMatrix.rows[3][2] = center.z;
+    transformMatrix.rows[3][0] = 0.0f;
+    transformMatrix.rows[3][1] = 0.0f;
+    transformMatrix.rows[3][2] = 0.0f;
     transformMatrix.rows[3][3] = 1.0f;
 
     DebugDrawCommandHeader header;
@@ -461,6 +472,134 @@ void PlaneDebugDrawShape::operator()(const FixedArray<Vec3f, 4>& points, const C
 
 #pragma endregion PlaneDebugDrawShape
 
+#pragma region TriangleDebugDrawShape
+
+TriangleDebugDrawShape::TriangleDebugDrawShape(DebugDrawCommandList& list)
+    : MeshDebugDrawShapeBase(list)
+{
+    static const int s_shapeId = NextShapeId();
+    shapeId = s_shapeId;
+
+    (void)GetMesh(); // hack to preload mesh so it doesn't try to load during render pass
+}
+
+Mesh* TriangleDebugDrawShape::GetMesh_Internal() const
+{
+    static struct MeshInitializer
+    {
+        Handle<Mesh> mesh;
+        DelegateHandler onShutdownHandle;
+
+        MeshInitializer()
+        {
+            const Vec3f v0(0.0f, 0.0f, 0.0f);
+            const Vec3f v1(1.0f, 0.0f, 0.0f);
+            const Vec3f v2(0.0f, 1.0f, 0.0f);
+
+            const Vec3f n(0.0f, 0.0f, 1.0f);
+
+            FixedArray<SimpleVertex, 3> vertices = {
+                SimpleVertex { v0, n, Vec2f(0.0f, 0.0f) },
+                SimpleVertex { v1, n, Vec2f(1.0f, 0.0f) },
+                SimpleVertex { v2, n, Vec2f(0.0f, 1.0f) }
+            };
+
+            FixedArray<uint32, 3> indices = {
+                0, 1, 2
+            };
+
+            MeshDesc meshDesc {};
+            meshDesc.meshAttributes.inputLayout = { VT_Simple };
+            meshDesc.numIndices = uint32(indices.Size());
+            meshDesc.numVertices = uint32(vertices.Size());
+
+            mesh = MakeHandle<Mesh>();
+            mesh->SetFlags(MeshFlags::ViewIndependent);
+            mesh->SetName(NAME("TriangleDebugDrawShape"));
+
+            VertexArrayView vertexArrayView {};
+            vertexArrayView.floatData = reinterpret_cast<const float*>(vertices.Data());
+            vertexArrayView.vertexCount = vertices.Size();
+            vertexArrayView.layoutDesc = { VT_Simple };
+
+            ConstByteView indicesByteView(
+                reinterpret_cast<const ubyte*>(indices.Data()),
+                indices.Size() * sizeof(uint32));
+
+            mesh->SetMeshData(meshDesc, vertexArrayView, indicesByteView);
+            mesh->UploadGpuData();
+
+            GetEngineAssetRegistry()->PutAsset(mesh);
+
+            onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind([m = &mesh]()
+                                                                              {
+                                                                                  m->Reset();
+                                                                              });
+        }
+    } s_initializer;
+
+    return s_initializer.mesh;
+}
+
+void TriangleDebugDrawShape::operator()(const Vec3f& v0, const Vec3f& v1, const Vec3f& v2, const Color& color)
+{
+    (*this)(v0, v1, v2, color, DefaultAttributes());
+}
+
+void TriangleDebugDrawShape::operator()(const Vec3f& v0, const Vec3f& v1, const Vec3f& v2, const Color& color, const RenderableAttributeSet& attributes)
+{
+    if (!list.GetDebugDrawer()->IsEnabled())
+    {
+        return;
+    }
+
+    const Vec3f x = v1 - v0;
+    const Vec3f y = v2 - v0;
+    const Vec3f z = x.Cross(y).Normalize();
+
+    Mat4f transformMatrix;
+
+    transformMatrix.rows[0][0] = x.x;
+    transformMatrix.rows[0][1] = y.x;
+    transformMatrix.rows[0][2] = z.x;
+    transformMatrix.rows[0][3] = v0.x;
+
+    transformMatrix.rows[1][0] = x.y;
+    transformMatrix.rows[1][1] = y.y;
+    transformMatrix.rows[1][2] = z.y;
+    transformMatrix.rows[1][3] = v0.y;
+
+    transformMatrix.rows[2][0] = x.z;
+    transformMatrix.rows[2][1] = y.z;
+    transformMatrix.rows[2][2] = z.z;
+    transformMatrix.rows[2][3] = v0.z;
+
+    transformMatrix.rows[3][0] = 0.0f;
+    transformMatrix.rows[3][1] = 0.0f;
+    transformMatrix.rows[3][2] = 0.0f;
+    transformMatrix.rows[3][3] = 1.0f;
+
+    DebugDrawCommandHeader header;
+
+    DebugDrawCommand* ptr = reinterpret_cast<DebugDrawCommand*>(list.Alloc(sizeof(DebugDrawCommand), alignof(DebugDrawCommand), header));
+    new (ptr) DebugDrawCommand {
+        this,
+        transformMatrix,
+        color,
+        attributes
+    };
+
+    header.destructFn = &Memory::Destruct<DebugDrawCommand>;
+    header.moveFn = [](void* dst, void* src)
+    {
+        new (dst) DebugDrawCommand(std::move(*reinterpret_cast<DebugDrawCommand*>(src)));
+    };
+
+    list.Push(header);
+}
+
+#pragma endregion TriangleDebugDrawShape
+
 #pragma region DebugDrawer
 
 static FixedArray<ByteBuffer, RingBufferDepth> CreateDebugDrawBuffers()
@@ -482,8 +621,7 @@ DebugDrawer& DebugDrawer::GetInstance()
 }
 
 DebugDrawer::DebugDrawer()
-    : m_config(DebugDrawerConfig::FromConfig()),
-      m_buffers(CreateDebugDrawBuffers()),
+    : m_buffers(CreateDebugDrawBuffers()),
       m_bufferOffsets {},
       m_bufferSizeHistory {}
 {
@@ -491,6 +629,11 @@ DebugDrawer::DebugDrawer()
 
 DebugDrawer::~DebugDrawer()
 {
+}
+
+bool DebugDrawer::IsEnabled() const
+{
+    return s_cvEnableDebugDrawer.Get();
 }
 
 void DebugDrawer::Initialize()
@@ -534,28 +677,28 @@ void DebugDrawer::Shutdown()
 
         // safely destroy the buffer data on the correct frame
         DebugDrawBufferDeleter* deleter = DeletionQueue::GetInstance().AllocCustom<DebugDrawBufferDeleter>([](void* ptr)
-            {
-                AssertOnThread(g_renderThread);
+                                                                                                           {
+                                                                                                               AssertOnThread(g_renderThread);
 
-                DebugDrawBufferDeleter* del = reinterpret_cast<DebugDrawBufferDeleter*>(ptr);
-                AssertDebug(del->idx == GetRingIndex());
+                                                                                                               DebugDrawBufferDeleter* del = reinterpret_cast<DebugDrawBufferDeleter*>(ptr);
+                                                                                                               AssertDebug(del->idx == GetRingIndex());
 
-                DebugDrawBufferDeleterPayload* payload = del->payload;
-                AssertDebug(payload != nullptr);
+                                                                                                               DebugDrawBufferDeleterPayload* payload = del->payload;
+                                                                                                               AssertDebug(payload != nullptr);
 
-                // invoke destructors
-                for (DebugDrawCommandHeader& header : payload->headers)
-                {
-                    if (header.destructFn)
-                    {
-                        header.destructFn(reinterpret_cast<void*>(payload->buffer.Data() + header.offset));
-                    }
-                }
+                                                                                                               // invoke destructors
+                                                                                                               for (DebugDrawCommandHeader& header : payload->headers)
+                                                                                                               {
+                                                                                                                   if (header.destructFn)
+                                                                                                                   {
+                                                                                                                       header.destructFn(reinterpret_cast<void*>(payload->buffer.Data() + header.offset));
+                                                                                                                   }
+                                                                                                               }
 
-                delete del->payload;
-            },
-            &pGuard,
-            /* desiredIdx */ i);
+                                                                                                               delete del->payload;
+                                                                                                           },
+                                                                                                           &pGuard,
+                                                                                                           /* desiredIdx */ i);
 
         deleter->idx = i;
         deleter->payload = new DebugDrawBufferDeleterPayload {
@@ -648,6 +791,8 @@ void DebugDrawer::Update()
     }
 }
 
+HYP_DISABLE_OPTIMIZATION;
+
 void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
 {
     HYP_SCOPE;
@@ -684,7 +829,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
     // It's simply here because it's faster to cache the pointers to each shape by its shape id,
     // and we're only using stuff that doesn't use the shape's debug draw list at all.
     // if we want to use more stuff on each shape, we'll need to devise a different solutoin.
-    IDebugDrawShape* currShapes[MaxDebugDrawShapeTypes] = { };
+    IDebugDrawShape* currShapes[MaxDebugDrawShapeTypes] = {};
 
     for (size_t drawCommandIdx = 0; drawCommandIdx < m_headers[idx].Size(); drawCommandIdx++)
     {
@@ -783,6 +928,8 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
                 {
                 case DebugDrawType::MESH:
                 {
+                    AssertDebug(attributes.GetMeshAttributes().inputLayout.mask != 0);
+
                     cr << SetTopology(attributes.GetMeshAttributes().topology);
                     cr << SetInputLayout(attributes.GetMeshAttributes().inputLayout);
 
@@ -797,6 +944,10 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
                     GpuBuffer* cbuffer = nullptr;
                     size_t cbufferOffset = 0;
                     size_t cbufferSize = 0;
+
+                    // Write Entity struct to match RendererMain
+                    static const EntityShaderData s_dummyEntityData {};
+                    RI.cbufferAllocator->Write<EntityShaderData>(&s_dummyEntityData);
 
                     // Write immediate draw base offset
                     RI.cbufferAllocator->Write<uint32>(&elemOffset);
@@ -839,19 +990,23 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
             uint32 size = m_headers[idx][drawCommandIdx].size;
             AssertDebug(offset + size <= m_buffers[idx].Size());
 
-            numToDraw++;
-
             DebugDrawCommand* drawCommand = reinterpret_cast<DebugDrawCommand*>(m_buffers[idx].Data() + offset);
 
             if (attributes != drawCommand->attributes)
             {
-                attributes = drawCommand->attributes;
-
-                if (i != 0)
+                // commit current pending draws if we'll be changing attributes
+                if (numToDraw != 0)
                 {
+                    AssertDebug(attributes.GetMeshAttributes().inputLayout.mask != 0);
                     CommitCurrentDraws();
                 }
+
+                AssertDebug(drawCommand->attributes.GetMeshAttributes().inputLayout.mask != 0);
+
+                attributes = drawCommand->attributes;
             }
+
+            numToDraw++;
         }
 
         if (numToDraw != 0)
@@ -860,7 +1015,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
         }
     }
 
-    instanceBuffer.Flush();
+    instanceBuffer.FlushBatched();
 
     ClearCommands(idx);
 }
@@ -927,6 +1082,7 @@ DebugDrawCommandList::DebugDrawCommandList(DebugDrawer* debugDrawer)
       reflectionProbe(*this),
       box(*this),
       plane(*this),
+      triangle(*this),
       m_bufferOffset(0)
 {
 }

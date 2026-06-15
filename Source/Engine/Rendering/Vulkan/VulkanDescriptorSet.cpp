@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <VulkanPch.hpp>
 
@@ -58,15 +58,15 @@ static inline void ValidateDynamicOffset(
     if (shaderInput.type == ShaderInputType::CBV_Dynamic)
     {
         AssertDebug(offset % limits.minUniformBufferOffsetAlignment == 0,
-            "Dynamic uniform buffer offset {} for element {} is not aligned to minUniformBufferOffsetAlignment ({})",
-            offset, Name(dynamicElementName), limits.minUniformBufferOffsetAlignment);
+                    "Dynamic uniform buffer offset {} for element {} is not aligned to minUniformBufferOffsetAlignment ({})",
+                    offset, Name(dynamicElementName), limits.minUniformBufferOffsetAlignment);
     }
     else if (shaderInput.type == ShaderInputType::SRV_Dynamic
-        || shaderInput.type == ShaderInputType::UAV_Dynamic)
+             || shaderInput.type == ShaderInputType::UAV_Dynamic)
     {
         AssertDebug(offset % limits.minStorageBufferOffsetAlignment == 0,
-            "Dynamic storage buffer offset {} for element {} is not aligned to minStorageBufferOffsetAlignment ({})",
-            offset, Name(dynamicElementName), limits.minStorageBufferOffsetAlignment);
+                    "Dynamic storage buffer offset {} for element {} is not aligned to minStorageBufferOffsetAlignment ({})",
+                    offset, Name(dynamicElementName), limits.minStorageBufferOffsetAlignment);
     }
 
     /*// Validate offset is within buffer bounds
@@ -204,9 +204,9 @@ VulkanDescriptorSet::~VulkanDescriptorSet()
     if (m_handle != VK_NULL_HANDLE)
     {
         EnqueueDeletion(FunctionWrapper<Proc<void()>>([handle = m_handle, pool = m_vkDescriptorPool]() -> void
-            {
-                RI.DestroyDescriptorSet(handle, pool);
-            }));
+                                                      {
+                                                          RI.DestroyDescriptorSet(handle, pool);
+                                                      }));
 
         m_handle = VK_NULL_HANDLE;
         m_vkDescriptorSetLayout = VK_NULL_HANDLE;
@@ -272,7 +272,8 @@ void VulkanDescriptorSet::UpdateDirtyState(bool* outIsDirty)
             {
                 ObjectBase* ptr = element.values[index];
 
-                AssertDebug(ptr, "Invalid buffer descriptor: {}", name);
+                AssertDebug(ptr, "Invalid buffer descriptor: {}, current shader: {}",
+                            name, RI.state.boundShaderDesc.name);
 
                 if (isBufferBinding)
                 {
@@ -294,13 +295,13 @@ void VulkanDescriptorSet::UpdateDirtyState(bool* outIsDirty)
                     if (ref->GetBufferType() == GpuBufferType::ConstantBuffer)
                     {
                         AssertDebug(element.bufferStride != ByteAddressBufferStride,
-                            "Constant buffer for {} may not have zero for buffer stride!", name);
+                                    "Constant buffer for {} may not have zero for buffer stride!", name);
                     }
 
                     if (isDynamic)
                     {
                         AssertDebug(element.bufferStride != ~0u && element.bufferStride != ByteAddressBufferStride,
-                            "Buffer {} is marked as having a dynamic offset, so it must have stride passed in, and must not be zero (ByteAddressBufferStride)", name);
+                                    "Buffer {} is marked as having a dynamic offset, so it must have stride passed in, and must not be zero (ByteAddressBufferStride)", name);
 
                         bufferRange = element.bufferStride;
                     }

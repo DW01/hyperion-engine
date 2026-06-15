@@ -1,8 +1,9 @@
 {
   "version": "0.2.0",
   "configurations": [
+
     {
-      "name": "(lldb) Launch",
+      "name": "Launch (macOS)",
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/Binaries/Mac/Release/Hyperion.Editor",
@@ -13,5 +14,16 @@
       "externalConsole": false,
       "MIMode": "lldb",
     },
+      {
+        "name": "Launch (Windows)",
+        "type": "cppvsdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/Binaries/Windows/Release/Hyperion.Editor.exe",
+        "args": [],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}/Binaries/Windows/Release",
+        "environment": [],
+        "externalConsole": false,
+      }
   ],
 }

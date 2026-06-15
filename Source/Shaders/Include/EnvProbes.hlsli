@@ -3,30 +3,29 @@
 
 #include "Defines.hlsli"
 
+#define EPT_SKY 0
+#define EPT_REFLECTION 1
+#define EPT_AMBIENT 2
+#define EPT_INVALID (~0u)
+
 // ENV PROBES
 
 #define ENV_PROBE_CUBEMAP 1
 
 struct EnvProbe
 {
-    float4x4 face_view_matrices[6];
-
     float4 aabb_max;
     float4 aabb_min;
     float4 world_position;
 
     uint2 dimensions;
     uint texture_index; // point light shadow map probes - this is the index in the point shadow maps array
-    uint flags;
+    uint typeAndFlags;
 
     float4 sh[9];
-
-    float4 _pad0;
-    float4 _pad1;
-    float4 _pad2;
 };
 
-struct EnvGrid
+struct ProbeVolume
 {
     float4 dummy;
 };
@@ -37,6 +36,9 @@ struct SH9
 };
 
 #define HYP_ENV_PROBE_PARALLAX_CORRECTED 0x1
+
+#define GET_ENV_PROBE_TYPE(envProbe) (envProbe.typeAndFlags & 0x7)
+#define GET_ENV_PROBE_FLAGS(envProbe) ((envProbe.typeAndFlags >> 3))
 
 float4 EnvProbeSample(
     sampler samp,

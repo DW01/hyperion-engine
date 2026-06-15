@@ -3,10 +3,12 @@
 #include "include/Scene.hlsli"
 
 STATIC(VIEW_COUNT, 6)
+STATIC(MAX_LIGHTS, 4)
 
 PERMUTE(MODE_SHADOWS)
 PERMUTE(WRITE_NORMALS)
 PERMUTE(WRITE_MOMENTS)
+PERMUTE(FORWARD_SHADING)
 PERMUTE(INSTANCING)
 PERMUTE(SKINNING)
 
@@ -50,7 +52,6 @@ DECLARE_BUFFER_DYNAMIC(Default, CBuffer) cbuffer CBuffer
     Material material;
     float4x4 vpMatrix;
 };
-
 
 #ifdef SKINNING
 DECLARE_SRV_DYNAMIC(Default, SkeletonsBuffer) StructuredBuffer<float4x4> SkeletonsBuffer;
@@ -178,6 +179,15 @@ DECLARE_BUFFER_DYNAMIC(Default, CBuffer) cbuffer CBuffer
     Material material;
 };
 
+#ifdef FORWARD_SHADING
+DECLARE_BUFFER_DYNAMIC(Default, ForwardShadingConstants) cbuffer ForwardShadingConstants
+{
+    Light lights[MAX_LIGHTS];
+    ShadowMap shadowMaps[MAX_LIGHTS];
+    uint numBoundLights;
+};
+#endif // FORWARD_SHADING
+
 #ifndef CURRENT_MATERIAL
 #define CURRENT_MATERIAL material
 #endif
@@ -204,6 +214,11 @@ PSOutput PSMain(PSInput input)
         albedo *= albedo_texture;
     }
 
+    float roughness = GET_MATERIAL_PARAM(CURRENT_MATERIAL, MATERIAL_PARAM_ROUGHNESS);
+    float metalness = GET_MATERIAL_PARAM(CURRENT_MATERIAL, MATERIAL_PARAM_METALNESS);
+    float perceptualRoughness = roughness;
+    roughness = roughness * roughness;
+
 #ifdef WRITE_MOMENTS
     const float dist = distance(input.position, input.camera_position);
     float2 moments = float2(dist, HYP_FMATH_SQR(dist));
@@ -218,7 +233,64 @@ PSOutput PSMain(PSInput input)
 #endif // WRITE_MOMENTS
 
 #ifndef MODE_SHADOWS
+#ifdef FORWARD_SHADING
+    {
+        const float3 diffuseColor = CalculateDiffuseColor(albedo.rgb, metalness);
+        const float3 F0 = CalculateF0(albedo.rgb, metalness);
+
+        const float NdotV = max(HYP_FMATH_EPSILON, dot(N, V));
+        float3 direct_lighting = (float3)0;
+
+        for (uint lightIdx = 0; lightIdx < numBoundLights; lightIdx++)
+        {
+            Light currentLight = lights[lightIdx];
+
+            float3 L = CalculateLightDirection(currentLight, input.position);
+            const float3 H = normalize(L + V);
+
+            const float NdotL = max(0.000001, dot(N, L));
+            const float LdotH = max(0.000001, dot(L, H));
+            const float NdotH = max(0.000001, dot(N, H));
+            const float HdotV = max(0.000001, dot(H, V));
+
+            float3 light_color = currentLight.color.rgb;
+            float attenuation = 1.0;
+
+            if (currentLight.type != HYP_LIGHT_TYPE_DIRECTIONAL)
+            {
+                const float2 radiusFalloff = float2(
+                    f16tof32(currentLight.radiusFalloffPacked),
+                    f16tof32(currentLight.radiusFalloffPacked >> 16));
+                const float radius = radiusFalloff.x;
+
+                attenuation = GetSquareFalloffAttenuation(input.position, currentLight.position_intensity.xyz, radius);
+
+                if (currentLight.type == HYP_LIGHT_TYPE_SPOT)
+                {
+                    const float theta = max(dot(-L, normalize(currentLight.normal.xyz)), 0.0);
+                    const float2 spot_angles = currentLight.area_size.xy;
+
+                    attenuation *= saturate((theta - spot_angles[0]) / (spot_angles[1] - spot_angles[0]))
+                        * step(spot_angles[0], theta);
+                }
+            }
+
+            const float D = CalculateDistributionTerm(perceptualRoughness, NdotH);
+            const float G = CalculateGeometryTerm(NdotL, NdotV, HdotV, NdotH);
+            const float3 F = CalculateFresnelTerm(F0, perceptualRoughness, LdotH);
+
+            const float3 specular_lobe = D * G * F;
+            const float3 diffuse_lobe = diffuseColor * HYP_FMATH_ONE_OVER_PI;
+
+            direct_lighting += (diffuse_lobe + specular_lobe)
+                * (light_color * NdotL * currentLight.position_intensity.w * attenuation);
+        }
+
+        output.output_color.rgb = direct_lighting;
+    }
+#else
     output.output_color.rgb = albedo.rgb;
+#endif
     output.output_color.a = 1.0;
 
 #ifdef WRITE_NORMALS

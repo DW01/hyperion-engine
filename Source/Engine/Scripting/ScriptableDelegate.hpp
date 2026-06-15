@@ -15,6 +15,10 @@
 
 #include <Core/Utilities/DeferredScope.hpp>
 
+#include <Core/Containers/Map.hpp>
+
+#include <Core/Threading/SharedMutex.hpp>
+
 #ifdef HYP_DOTNET
 #include <DotNET/ManagedObject.hpp>
 #endif
@@ -39,13 +43,21 @@ public:
     virtual HYP_NODISCARD DelegateHandler BindMethod(ANSIStringView methodName, Proc<ScriptObjectResource*()>&& getFn) = 0;
     virtual HYP_NODISCARD DelegateHandler BindMethod(ANSIStringView methodName, ScriptObjectResource* scriptObjectResource) = 0;
 
+    virtual HYP_NODISCARD DelegateHandler BindMethod(void* target, ANSIStringView methodName, Proc<ScriptObjectResource*()>&& getFn) = 0;
+    virtual HYP_NODISCARD DelegateHandler BindMethod(void* target, ANSIStringView methodName, ScriptObjectResource* scriptObjectResource) = 0;
+
 #ifdef HYP_DOTNET
     virtual HYP_NODISCARD DelegateHandler BindMethod(ANSIStringView methodName, UniquePtr<dotnet::ManagedObject>&& object) = 0;
+    virtual HYP_NODISCARD DelegateHandler BindMethod(void* target, ANSIStringView methodName, UniquePtr<dotnet::ManagedObject>&& object) = 0;
 #endif
 
     virtual int RemoveAllDetached() = 0;
 
+    virtual int RemoveAllForTarget(void* target) = 0;
+
     virtual bool Remove(DelegateHandler&& handle) = 0;
+
+    virtual int RemoveAllFromSet(DelegateHandlerSet& handlerSet) const = 0;
 };
 
 class ScriptableDelegateHelper
@@ -155,7 +167,7 @@ public:
  *  \tparam ReturnType The return type of the delegate.
  *  \tparam Args The argument types of the delegate.*/
 template <class ReturnType, class... Args>
-class ScriptableDelegate final : public IScriptableDelegate, public Delegate<ReturnType, Args...>
+class ScriptableDelegate final : public IScriptableDelegate
 {
 public:
     using ProcType = Proc<ReturnType(Args...)>;
@@ -164,23 +176,38 @@ public:
     ScriptableDelegate(const ScriptableDelegate& other) = delete;
     ScriptableDelegate& operator=(const ScriptableDelegate& other) = delete;
 
-    ScriptableDelegate(ScriptableDelegate&& other) noexcept
-        : Delegate<ReturnType, Args...>(static_cast<Delegate<ReturnType, Args...>&&>(other))
-    {
-    }
-
+    ScriptableDelegate(ScriptableDelegate&& other) noexcept = default;
     ScriptableDelegate& operator=(ScriptableDelegate&& other) noexcept = delete;
 
     virtual ~ScriptableDelegate() override = default;
 
+    /*! Non-target overloads — delegate to target-aware versions with nullptr target. */
     HYP_NODISCARD virtual DelegateHandler BindMethod(ANSIStringView methodName, Proc<ScriptObjectResource*()>&& getFn) override
+    {
+        return BindMethod(nullptr, methodName, std::move(getFn));
+    }
+
+    HYP_NODISCARD virtual DelegateHandler BindMethod(ANSIStringView methodName, ScriptObjectResource* scriptObjectResource) override
+    {
+        return BindMethod(nullptr, methodName, scriptObjectResource);
+    }
+
+#ifdef HYP_DOTNET
+    HYP_NODISCARD virtual DelegateHandler BindMethod(ANSIStringView methodName, UniquePtr<dotnet::ManagedObject>&& object) override
+    {
+        return BindMethod(nullptr, methodName, std::move(object));
+    }
+#endif
+
+    /*! binds a handler scoped to a specific target */
+    HYP_NODISCARD virtual DelegateHandler BindMethod(void* target, ANSIStringView methodName, Proc<ScriptObjectResource*()>&& getFn) override
     {
         if (!getFn)
         {
             return DelegateHandler();
         }
 
-        return Delegate<ReturnType, Args...>::Bind([methodName = ANSIString(methodName), getFn = std::move(getFn)]<class... ArgTypes>(ArgTypes&&... args) mutable -> ReturnType
+        return GetOrCreatePerTargetDelegate(target).Bind([methodName = ANSIString(methodName), getFn = std::move(getFn)]<class... ArgTypes>(ArgTypes&&... args) mutable -> ReturnType
             {
                 ValueStorage<ReturnType> returnValueStorage;
                 if (!ScriptableDelegateHelper::InvokeScriptObjectMethod<BoxedValue, ReturnType>(getFn(), methodName, returnValueStorage.GetPointer(), std::forward<ArgTypes>(args)...))
@@ -199,15 +226,41 @@ public:
             });
     }
 
+    HYP_NODISCARD virtual DelegateHandler BindMethod(void* target, ANSIStringView methodName, ScriptObjectResource* scriptObjectResource) override
+    {
+        if (!scriptObjectResource)
+        {
+            return DelegateHandler();
+        }
+
+        return GetOrCreatePerTargetDelegate(target).Bind([methodName = ANSIString(methodName), scriptObjectResource]<class... ArgTypes>(ArgTypes&&... args) mutable -> ReturnType
+            {
+                ValueStorage<ReturnType> returnValueStorage;
+                if (!ScriptableDelegateHelper::InvokeScriptObjectMethod<BoxedValue, ReturnType>(scriptObjectResource, methodName, returnValueStorage.GetPointer(), std::forward<ArgTypes>(args)...))
+                {
+                    return ReturnType();
+                }
+
+                if constexpr (std::is_void_v<ReturnType>)
+                {
+                    return;
+                }
+                else
+                {
+                    return std::move(returnValueStorage).Get();
+                }
+            });
+    }
+
     template <class DefaultReturnType, typename = std::enable_if_t<std::is_copy_constructible_v<NormalizedType<DefaultReturnType>>>>
-    HYP_NODISCARD DelegateHandler BindMethod(ANSIStringView methodName, Proc<ScriptObjectResource*()>&& getFn, DefaultReturnType&& defaultReturn)
+    HYP_NODISCARD DelegateHandler BindMethod(void* target, ANSIStringView methodName, Proc<ScriptObjectResource*()>&& getFn, DefaultReturnType&& defaultReturn)
     {
         if (!getFn)
         {
             return DelegateHandler();
         }
 
-        return Delegate<ReturnType, Args...>::Bind([methodName = ANSIString(methodName), getFn = std::move(getFn), defaultReturn = std::forward<DefaultReturnType>(defaultReturn)]<class... ArgTypes>(ArgTypes&&... args) mutable -> ReturnType
+        return GetOrCreatePerTargetDelegate(target).Bind([methodName = ANSIString(methodName), getFn = std::move(getFn), defaultReturn = std::forward<DefaultReturnType>(defaultReturn)]<class... ArgTypes>(ArgTypes&&... args) mutable -> ReturnType
             {
                 ScriptObjectResource* scriptObjectResource = getFn();
 
@@ -233,41 +286,15 @@ public:
             });
     }
 
-    HYP_NODISCARD virtual DelegateHandler BindMethod(ANSIStringView methodName, ScriptObjectResource* scriptObjectResource) override
-    {
-        if (!scriptObjectResource)
-        {
-            return DelegateHandler();
-        }
-
-        return Delegate<ReturnType, Args...>::Bind([methodName = ANSIString(methodName), scriptObjectResource]<class... ArgTypes>(ArgTypes&&... args) mutable -> ReturnType
-            {
-                ValueStorage<ReturnType> returnValueStorage;
-                if (!ScriptableDelegateHelper::InvokeScriptObjectMethod<BoxedValue, ReturnType>(scriptObjectResource, methodName, returnValueStorage.GetPointer(), std::forward<ArgTypes>(args)...))
-                {
-                    return ReturnType();
-                }
-
-                if constexpr (std::is_void_v<ReturnType>)
-                {
-                    return;
-                }
-                else
-                {
-                    return std::move(returnValueStorage).Get();
-                }
-            });
-    }
-
     template <class DefaultReturnType, typename = std::enable_if_t<std::is_copy_constructible_v<NormalizedType<DefaultReturnType>>>>
-    HYP_NODISCARD DelegateHandler BindMethod(ANSIStringView methodName, ScriptObjectResource* scriptObjectResource, DefaultReturnType&& defaultReturn)
+    HYP_NODISCARD DelegateHandler BindMethod(void* target, ANSIStringView methodName, ScriptObjectResource* scriptObjectResource, DefaultReturnType&& defaultReturn)
     {
         if (!scriptObjectResource)
         {
             return DelegateHandler();
         }
 
-        return Delegate<ReturnType, Args...>::Bind([methodName = ANSIString(methodName), scriptObjectResource, defaultReturn = std::forward<DefaultReturnType>(defaultReturn)]<class... ArgTypes>(ArgTypes&&... args) mutable -> ReturnType
+        return GetOrCreatePerTargetDelegate(target).Bind([methodName = ANSIString(methodName), scriptObjectResource, defaultReturn = std::forward<DefaultReturnType>(defaultReturn)]<class... ArgTypes>(ArgTypes&&... args) mutable -> ReturnType
             {
                 if (!scriptObjectResource)
                 {
@@ -292,7 +319,7 @@ public:
     }
 
 #ifdef HYP_DOTNET
-    HYP_NODISCARD virtual DelegateHandler BindMethod(ANSIStringView methodName, UniquePtr<dotnet::ManagedObject>&& object) override
+    HYP_NODISCARD virtual DelegateHandler BindMethod(void* target, ANSIStringView methodName, UniquePtr<dotnet::ManagedObject>&& object) override
     {
         if (!object)
         {
@@ -320,7 +347,7 @@ public:
             return DelegateHandler();
         }
 
-        return Delegate<ReturnType, Args...>::Bind([methodName = ANSIString(methodName), object = std::move(object)]<class... ArgTypes>(ArgTypes&&... args) mutable -> ReturnType
+        return GetOrCreatePerTargetDelegate(target).Bind([methodName = ANSIString(methodName), object = std::move(object)]<class... ArgTypes>(ArgTypes&&... args) mutable -> ReturnType
             {
                 return object->InvokeMethodByName<ReturnType>(methodName, std::forward<ArgTypes>(args)...);
             });
@@ -329,30 +356,153 @@ public:
 
     virtual int RemoveAllDetached() override
     {
-        return Delegate<ReturnType, Args...>::RemoveAllDetached();
+        int count = 0;
+
+        {
+            TUniqueLock guard(m_targetMutex);
+            for (auto& pair : m_perTargetDelegates)
+            {
+                count += pair.second->RemoveAllDetached();
+            }
+        }
+
+        return count;
+    }
+
+    virtual int RemoveAllForTarget(void* target) override
+    {
+        TUniqueLock guard(m_targetMutex);
+
+        auto it = m_perTargetDelegates.Find(target);
+        if (it == m_perTargetDelegates.End())
+        {
+            return 0;
+        }
+
+        const int count = it->second->RemoveAllDetached();
+        m_perTargetDelegates.Erase(it);
+
+        return count;
     }
 
     virtual bool Remove(DelegateHandler&& handle) override
     {
-        return Delegate<ReturnType, Args...>::Remove(std::move(handle));
+        if (!handle.IsValid())
+        {
+            return false;
+        }
+
+        handle.removeFn(handle.delegateImpl, handle.entry);
+        handle.entry = nullptr;
+
+        return true;
     }
 
-    /*! \brief Call operator overload - alias method for Broadcast().
-     *  \tparam ArgTypes The argument types to pass to the handlers.
-     *  \param args The arguments to pass to the handlers.
-     *  \return The result returned from the final handler that was called, or a default constructed \ref ReturnType if no handlers were bound. */
+    virtual int RemoveAllFromSet(DelegateHandlerSet& handlerSet) const override
+    {
+        int count = 0;
+
+        TSharedLock guard(m_targetMutex);
+        for (auto& pair : m_perTargetDelegates)
+        {
+            count += handlerSet.Remove(pair.second.Get());
+        }
+
+        return count;
+    }
+
+    HYP_NODISCARD DelegateHandler Bind(void* target, Proc<ReturnType(Args...)>&& proc)
+    {
+        return GetOrCreatePerTargetDelegate(target).Bind(std::move(proc));
+    }
+
+    HYP_NODISCARD DelegateHandler BindThreaded(void* target, Proc<ReturnType(Args...)>&& proc, const ThreadId& callingThreadId)
+    {
+        return GetOrCreatePerTargetDelegate(target).BindThreaded(std::move(proc), callingThreadId);
+    }
+
+    template <class... ArgTypes>
+    HYP_FORCE_INLINE ReturnType Fire(void* target, ArgTypes&&... args)
+    {
+        TSharedLock<SharedMutex> guard;
+        Delegate<ReturnType, Args...>* perTargetDelegate = FindPerTargetDelegate(target, guard);
+
+        if (!perTargetDelegate)
+        {
+            return ReturnType();
+        }
+
+        return perTargetDelegate->Broadcast(std::forward<ArgTypes>(args)...);
+    }
+    
     template <class... ArgTypes>
     HYP_FORCE_INLINE ReturnType operator()(ArgTypes&&... args) const
     {
-        return const_cast<ScriptableDelegate*>(this)->Broadcast(std::forward<ArgTypes>(args)...);
+        return const_cast<ScriptableDelegate*>(this)->BroadcastAll(std::forward<ArgTypes>(args)...);
     }
 
 private:
+    Delegate<ReturnType, Args...>& GetOrCreatePerTargetDelegate(void* target)
+    {
+        TUniqueLock guard(m_targetMutex);
+
+        auto it = m_perTargetDelegates.Find(target);
+        if (it == m_perTargetDelegates.End())
+        {
+            it = m_perTargetDelegates.Insert({target, MakeUnique<Delegate<ReturnType, Args...>>()}).first;
+        }
+
+        return *it->second;
+    }
+
+    Delegate<ReturnType, Args...>* FindPerTargetDelegate(void* target, TSharedLock<SharedMutex>& guard) const
+    {
+        guard.Reset(m_targetMutex);
+
+        auto it = m_perTargetDelegates.Find(target);
+        if (it == m_perTargetDelegates.End())
+        {
+            return nullptr;
+        }
+
+        return it->second.Get();
+    }
+
+    template <class... ArgTypes>
+    ReturnType BroadcastAll(ArgTypes&&... args)
+    {
+        if constexpr (std::is_same_v<ReturnType, void>)
+        {
+            TSharedLock guard(m_targetMutex);
+            for (auto& pair : m_perTargetDelegates)
+            {
+                pair.second->Broadcast(std::forward<ArgTypes>(args)...);
+            }
+        }
+        else
+        {
+            ReturnType result = ReturnType();
+
+            TSharedLock guard(m_targetMutex);
+            for (auto& pair : m_perTargetDelegates)
+            {
+                result = pair.second->Broadcast(std::forward<ArgTypes>(args)...);
+            }
+
+            return result;
+        }
+    }
+
+    mutable SharedMutex m_targetMutex;
+    TMap<void*, UniquePtr<Delegate<ReturnType, Args...>>> m_perTargetDelegates;
 };
 
 template <class ReturnType, class... Args>
 struct IsDelegate<ScriptableDelegate<ReturnType, Args...>> : std::true_type
 {
+    // Temporary:
+    static_assert(!std::is_base_of_v<Delegate<ReturnType, Args...>, ScriptableDelegate<ReturnType, Args...>>,
+        "ScriptableDelegate no longer inherits from Delegate, please verify code correctness matches with new ScriptableDelegate API");
 };
 
 } // namespace functional

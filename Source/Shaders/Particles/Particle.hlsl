@@ -90,7 +90,7 @@ struct PSInput
 struct PSOutput
 {
     float4 gbuffer_albedo : SV_Target0;
-    uint4 gbuffer_material : SV_Target2;
+    uint gbuffer_material : SV_Target2;
 };
 
 DECLARE_SRV(ParticleDescriptorSet, ParticleTexture) Texture2D ParticleTexture;
@@ -104,11 +104,7 @@ PSOutput PSMain(PSInput input)
     // color *= input.color;
 
     output.gbuffer_albedo = color;
-
-    output.gbuffer_material.x = OBJECT_MASK_TRANSLUCENT;
-    output.gbuffer_material.y = 0u;
-    output.gbuffer_material.z = 0u;
-    output.gbuffer_material.w = 0u;
+    output.gbuffer_material = 0;
 
     return output;
 }

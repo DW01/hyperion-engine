@@ -251,4 +251,34 @@ HYP_CONCEPT BitwiseComparable = (std::has_unique_object_representations_v<std::r
 template <class T>
 HYP_CONCEPT BitwiseCopyable = std::is_void_v<std::remove_cv_t<T>> || std::is_trivially_copyable_v<std::remove_cv_t<T>>;
 
+template <class T, class T2 = void>
+struct InvalidT;
+
+template <class T>
+struct InvalidT<T, std::enable_if_t<std::is_enum_v<T> && std::is_same_v<std::underlying_type_t<T>, std::uint8_t>>>
+{
+    static constexpr T value = static_cast<T>(UINT8_MAX);
+};
+
+template <class T>
+struct InvalidT<T, std::enable_if_t<std::is_enum_v<T> && std::is_same_v<std::underlying_type_t<T>, std::uint16_t>>>
+{
+    static constexpr T value = static_cast<T>(UINT16_MAX);
+};
+
+template <class T>
+struct InvalidT<T, std::enable_if_t<std::is_enum_v<T> && std::is_same_v<std::underlying_type_t<T>, std::uint32_t>>>
+{
+    static constexpr T value = static_cast<T>(UINT32_MAX);
+};
+
+template <class T>
+struct InvalidT<T, std::enable_if_t<std::is_enum_v<T> && std::is_same_v<std::underlying_type_t<T>, std::uint64_t>>>
+{
+    static constexpr T value = static_cast<T>(UINT64_MAX);
+};
+
+template <class T, class = std::enable_if_t<std::is_enum_v<T>>>
+constexpr T Invalid = InvalidT<T>::value;
+
 } // namespace Hyperion

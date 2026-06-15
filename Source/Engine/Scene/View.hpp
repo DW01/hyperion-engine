@@ -26,21 +26,20 @@
 #include <Rendering/RenderableAttributes.hpp>
 #include <Rendering/RenderTypes.hpp>
 
+#include <Framework/EngineMemory.hpp>
+
 namespace Hyperion {
 
 class Scene;
 class Camera;
 class Light;
 class LightmapVolume;
-class EnvGrid;
+class ProbeVolume;
 class EnvProbe;
 class Texture;
 class GBuffer;
 class EntityBatchAllocatorBase;
 class RenderProxyList;
-
-ENGINE_API extern Pool* g_scenePool;
-using SceneAllocator = AllocatorInstance<Pool, &g_scenePool>;
 
 namespace threading {
 
@@ -66,7 +65,7 @@ enum class ViewFlags : uint32
     NO_FRUSTUM_CULLING = 0x10,          //!< If set, the view will not perform frustum culling. This is useful for debugging or when you want to render everything regardless of visibility.
 
     SKIP_ENV_PROBES = 0x20,             //!< If set, the view will not collect EnvProbes
-    SKIP_ENV_GRIDS = 0x40,              //!< If set, the view will not collect EnvGrids.
+    SKIP_ENV_GRIDS = 0x40,              //!< If set, the view will not collect ProbeVolumes.
     SKIP_LIGHTS = 0x80,                 //!< If set, the view will not collect Lights.
     SKIP_LIGHTMAP_VOLUMES = 0x100,      //!< If set, the view will not collect LightmapVolumes.
     SKIP_PARTICLE_VOLUMES = 0x200,      //!< If set, the view will not collect ParticleVolumes.
@@ -89,7 +88,8 @@ enum class ViewFlags : uint32
     SHADOW_VIEW = 0x400000,             //!< This View is for a rendering a shadow map slice or cascade
     BAKER_VIEW = 0x800000,              //!< This View is for baking lightmaps or shadow maps, not for rendering to the screen (see: Baker.cpp)
     UI_VIEW = 0x1000000,                //!< This View is for rendering UI elements. See UISubsystem.
-    CUBEMAP_FACE_VIEW = 0x2000000,           //!< This View corresponds to a face in a cubemap - will not automatically update sub-frustum
+    ENV_PROBE_VIEW = 0x2000000,         //!< Used by an EnvProbe for rendering a cubemap face - skips shadows and other fancy things that normally allocate per-view.
+    CUBEMAP_FACE_VIEW = 0x4000000,      //!< This View corresponds to a face in a cubemap - will not automatically update sub-frustum
 
     EXTERNAL_RENDERTARGET = 0x10000000,
 
@@ -256,7 +256,7 @@ public:
     /*! \brief Computes visibility states for all Scenes this View has using the Camera */
     void UpdateVisibility();
 
-    void PrepareShadowViews(Array<View*, SceneAllocator>& outShadowViews);
+    void PrepareShadowViews(Array<View*, SceneTempAllocator>& outShadowViews);
 
     /*! \brief Enqueue tasks to `batch` to asynchronously collect entities and other scene resources for the current View. */
     void BeginAsyncCollection(TaskBatch& batch);
@@ -285,7 +285,7 @@ protected:
     void CollectLightmapVolumes(RenderProxyList& rpl);
     void CollectParticleVolumes(RenderProxyList& rpl);
     void CollectFogVolumes(RenderProxyList& rpl);
-    void CollectEnvGrids(RenderProxyList& rpl);
+    void CollectProbeVolumes(RenderProxyList& rpl);
     void CollectEnvProbes(RenderProxyList& rpl);
     void CollectSprites(RenderProxyList& rpl);
     void CollectMeshEntities(RenderProxyList& rpl);

@@ -36,7 +36,7 @@
 #include <Scene/World.hpp>
 #include <Scene/EnvProbe.hpp>
 #include <Scene/Light.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/View.hpp>
 #include <Scene/EntityManager.hpp>
 #include <Scene/LightmapVolume.hpp>
@@ -157,7 +157,7 @@ void LightmapRenderer_GpuPathTracing::CleanJobData(BakeJobBase* job)
         return;
     }
 
-    //m_jobData.Erase(jobDataIt);
+    // m_jobData.Erase(jobDataIt);
 }
 
 bool LightmapRenderer_GpuPathTracing::CanRender() const
@@ -188,6 +188,8 @@ void LightmapRenderer_GpuPathTracing::CreateAccelerationStructures()
 
     rpl.BeginRead();
     HYP_DEFER({ rpl.EndRead(); });
+
+    AssertDebug(rpl.GetMeshEntities().NumCurrent() != 0);
 
     for (Entity* entity : rpl.GetMeshEntities())
     {
@@ -235,6 +237,9 @@ void LightmapRenderer_GpuPathTracing::CreateAccelerationStructures()
     if (!hasBlas)
     {
         HYP_LOG(Lightmap, Warning, "No bottom-level acceleration structures found. Skipping top-level acceleration structure creation.");
+
+        HYP_BREAKPOINT;
+
         return;
     }
 
@@ -257,6 +262,8 @@ void LightmapRenderer_GpuPathTracing::UpdatePipelineState(Frame* frame, BakeJobB
     jd.isCreated = true;
 }
 
+HYP_DISABLE_OPTIMIZATION;
+
 void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(
     Frame* frame,
     BakeJobBase* job,
@@ -269,7 +276,14 @@ void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(
         return;
     }
 
-    Assert(m_jobData.Contains(job));
+    if (!m_jobData.Contains(job))
+    {
+        HYP_LOG(Lightmap, Warning, "Job data missing");
+
+        callback({});
+
+        return;
+    }
 
     JobData& jd = m_jobData[job];
     Assert(jd.isCreated);
@@ -312,17 +326,17 @@ void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(
             auto& callback = payload.callback;
 
             RI.GetCurrentFrame()->OnFrameEnd.Bind([&payload, buffer, cb = std::move(callback)](Frame*)
-                {
-                    Span<LightmapHit> hits;
-                    hits.first = reinterpret_cast<LightmapHit*>(buffer->Map());
-                    hits.last = hits.first + (buffer->Size() / sizeof(LightmapHit));
+                                                  {
+                                                      Span<LightmapHit> hits;
+                                                      hits.first = reinterpret_cast<LightmapHit*>(buffer->Map());
+                                                      hits.last = hits.first + (buffer->Size() / sizeof(LightmapHit));
 
-                    cb(hits);
+                                                      cb(hits);
 
-                    buffer->Release();
+                                                      buffer->Release();
 
-                    delete &payload;
-                })
+                                                      delete &payload;
+                                                  })
                 .Detach();
         }
     };
@@ -345,21 +359,24 @@ void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(
     cr.Done();
 }
 
-void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& renderSetup, BakeJobBase* job, Span<const LightmapRay> rays, uint32 rayOffset)
+bool LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& renderSetup, BakeJobBase* job, Span<const LightmapRay> rays, uint32 rayOffset)
 {
     AssertOnThread(g_renderThread);
 
     if (rays.Size() == 0)
     {
-        return;
+        return false;
     }
 
     Assert(CanRender());
 
     AssertDebug(renderSetup.world);
 
-    const uint32 frameIndex = frame->GetFrameIndex();
-    const uint32 previousFrameIndex = (frame->GetFrameIndex() + NumFramesInFlight - 1) % NumFramesInFlight;
+    RenderProxyList& rpl = *renderSetup.view->GetRenderProxyList(GetRingIndex()); // GetConsumerProxyList(renderSetup.view);
+    rpl.BeginRead();
+    HYP_DEFER({ rpl.EndRead(); });
+
+    AssertDebug(rpl.isShared);
 
     CreateAccelerationStructures();
 
@@ -367,7 +384,7 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
     {
         // no GpuBlas to process if TLAS not created
         HYP_LOG(Lightmap, Error, "No top level acceleration structure created, cannot bake lightmap");
-        return;
+        return false;
     }
 
     UpdatePipelineState(frame, job);
@@ -378,9 +395,6 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
     Assert(cbuffer != nullptr);
 
     { // Fill constants buffer
-        RenderProxyList& rpl = GetConsumerProxyList(renderSetup.view);
-        rpl.BeginRead();
-        HYP_DEFER({ rpl.EndRead(); });
 
         RayTracingConstants constants {};
         constants.rayOffset = rayOffset;
@@ -437,14 +451,14 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
             && numBoundEnvProbes < LightmapVolumeMaxBoundEnvProbes)
         {
             auto it = tempEnvProbes.FindIf([envProbe = renderSetup.envProbe](const auto& pair)
-                {
-                    if (pair.first == envProbe)
-                    {
-                        return true;
-                    }
+                                           {
+                                               if (pair.first == envProbe)
+                                               {
+                                                   return true;
+                                               }
 
-                    return false;
-                });
+                                               return false;
+                                           });
 
             if (it == tempEnvProbes.End())
             {
@@ -488,28 +502,28 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
 
         // sort so sky is last
         std::sort(tempEnvProbes.Begin(), tempEnvProbes.End(),
-            [](const Pair<EnvProbe*, EnvProbeShaderData*>& a, const Pair<EnvProbe*, EnvProbeShaderData*>& b)
-        {
-            const bool aIsSky = a.first->IsA(SkyProbe::StaticClass());
-            const bool bIsSky = b.first->IsA(SkyProbe::StaticClass());
+                  [](const Pair<EnvProbe*, EnvProbeShaderData*>& a, const Pair<EnvProbe*, EnvProbeShaderData*>& b)
+                  {
+                      const bool aIsSky = a.first->IsA(SkyProbe::StaticClass());
+                      const bool bIsSky = b.first->IsA(SkyProbe::StaticClass());
 
-            if (aIsSky && !bIsSky)
-            {
-                return false;
-            }
+                      if (aIsSky && !bIsSky)
+                      {
+                          return false;
+                      }
 
-            if (!aIsSky && bIsSky)
-            {
-                return true;
-            }
+                      if (!aIsSky && bIsSky)
+                      {
+                          return true;
+                      }
 
-            if (aIsSky && bIsSky)
-            {
-                return false;
-            }
+                      if (aIsSky && bIsSky)
+                      {
+                          return false;
+                      }
 
-            return true;
-        });
+                      return true;
+                  });
 
         for (uint32 i = 0; i < LightmapVolumeMaxBoundEnvProbes; i++)
         {
@@ -521,7 +535,7 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
             }
             else
             {
-                static const EnvProbeShaderData s_dummyEnvProbeShaderData;
+                static const EnvProbeShaderData s_dummyEnvProbeShaderData {};
                 pEnvProbeShaderData = &s_dummyEnvProbeShaderData;
             }
 
@@ -582,6 +596,8 @@ void LightmapRenderer_GpuPathTracing::Render(Frame* frame, const RenderSetup& re
     cr << TraceRays(Vec3u { uint32(rays.Size()), 1, 1 });
 
     cr.Done();
+
+    return true;
 }
 
 #pragma endregion LightmapRenderer_GpuPathTracing

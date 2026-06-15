@@ -14,13 +14,17 @@
 
 #include <Asset/AssetPath.hpp>
 
+#include <Scene/BakedLighting/SphericalHarmonics.hpp>
+
 namespace Hyperion {
 
 class LightmapVolume;
 
 enum class LightmapElementId : uint32;
 
-HYP_STRUCT(Component, NoScriptBindings)
+/*! \brief Used for Entities which have baked light via LightmapVolumes or probes to manage their state
+ *   as well as hold their evaluated spherical harmonics coefficients. */
+HYP_STRUCT(Component)
 struct ENGINE_API LightmapElementComponent
 {
     HYP_STRUCT_BODY(LightmapElementComponent);
@@ -33,6 +37,10 @@ struct ENGINE_API LightmapElementComponent
 
     HYP_FIELD(Transient)
     WeakHandle<LightmapVolume> lightmapVolume;
+
+    // Spherical Harmonics for light probes, computed dynamically via the LightmapSystem.
+    HYP_FIELD(Transient)
+    SphericalHarmonicsData shData;
 
     LightmapElementComponent();
 };

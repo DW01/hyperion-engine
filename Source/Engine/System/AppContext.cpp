@@ -57,6 +57,10 @@
 
 namespace Hyperion {
 
+ScriptableDelegate<void, Vec2i> ApplicationWindow::OnWindowSizeChanged;
+ScriptableDelegate<void> ApplicationWindow::OnClose;
+ScriptableDelegate<void, ApplicationWindow*> AppContextBase::OnCurrentWindowChanged;
+
 CORE_API HYP_DECLARE_LOG_CHANNEL(Core);
 
 namespace CoreApi {
@@ -115,7 +119,11 @@ ApplicationWindow::ApplicationWindow(ANSIString title, Vec2i size)
 {
 }
 
-ApplicationWindow::~ApplicationWindow() = default;
+ApplicationWindow::~ApplicationWindow()
+{
+    OnWindowSizeChanged.RemoveAllForTarget(this);
+    OnClose.RemoveAllForTarget(this);
+}
 
 void ApplicationWindow::HandleResize(Vec2i newSize)
 {
@@ -173,7 +181,7 @@ void ApplicationWindow::HandleResize(Vec2i newSize)
         }
     }
 
-    OnWindowSizeChanged(newSize);
+    OnWindowSizeChanged.Fire(this, newSize);
 }
 
 void ApplicationWindow::CreateSwapchain()
@@ -281,7 +289,10 @@ AppContextBase::AppContextBase(ANSIString name, const CommandLineArguments& argu
     }
 }
 
-AppContextBase::~AppContextBase() = default;
+AppContextBase::~AppContextBase()
+{
+    OnCurrentWindowChanged.RemoveAllForTarget(this);
+}
 
 void AppContextBase::SetMainWindow(const Handle<ApplicationWindow>& window)
 {
@@ -297,7 +308,7 @@ void AppContextBase::SetMainWindow(const Handle<ApplicationWindow>& window)
     SetupWindowSwapchainAsync setupSwapchainTask(MakeWeakRef(window));
     setupSwapchainTask(); // will re-enqueue itself if render API is not ready
 
-    OnCurrentWindowChanged(m_mainWindow);
+    OnCurrentWindowChanged.Fire(this, m_mainWindow);
 }
 
 void AppContextBase::RemoveWindow(ApplicationWindow* window)
@@ -319,7 +330,7 @@ void AppContextBase::RemoveWindow(ApplicationWindow* window)
         {
             m_mainWindow = nullptr;
 
-            OnCurrentWindowChanged(nullptr);
+            OnCurrentWindowChanged.Fire(this, nullptr);
         }
     }
 }

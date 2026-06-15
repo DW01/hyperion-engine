@@ -6,20 +6,22 @@
 
 #include <Scene/Scene.hpp>
 #include <Scene/World.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/EntityManager.hpp>
 #include <Scene/Light.hpp>
 #include <Scene/EnvProbe.hpp>
 #include <Scene/LightmapVolume.hpp>
 #include <Scene/InstancedMeshProxy.hpp>
-
-#include <Scene/Camera/Camera.hpp>
-
 #include <Scene/ParticleVolume.hpp>
 #include <Scene/FogVolume.hpp>
 #include <Scene/Sprite.hpp>
 #include <Scene/TextSprite.hpp>
 
+#include <Scene/Camera/Camera.hpp>
+
 #include <Scene/Components/BoundingBoxComponent.hpp>
+#include <Scene/Components/LightmapElementComponent.hpp>
+#include <Scene/Components/MeshComponent.hpp>
 
 #include <Scripting/Asset/ScriptAsset.hpp>
 
@@ -63,17 +65,17 @@ CORE_API extern FilePath GetExecutablePath();
 ENGINE_API extern const FilePath& GetProjectsDirectory();
 ENGINE_API extern const FilePath& GetDataDirectory();
 
-#define DEFINE_EDITOR_COMMAND(name)                                         \
-    const Class* g_clsEditorCommand##name = nullptr;                        \
-                                                                            \
-    const Class* EditorCommand ## name ::StaticClass()                      \
-    {                                                                       \
-        return g_clsEditorCommand##name;                                    \
-    }                                                                       \
-                                                                            \
-    HYP_BEGIN_CLASS(EditorCommand##name, -1, 0, NAME("EditorCommandBase"))  \
-    HYP_END_CLASS                                                           \
-                                                                            \
+#define DEFINE_EDITOR_COMMAND(name)                                        \
+    const Class* g_clsEditorCommand##name = nullptr;                       \
+                                                                           \
+    const Class* EditorCommand##name ::StaticClass()                       \
+    {                                                                      \
+        return g_clsEditorCommand##name;                                   \
+    }                                                                      \
+                                                                           \
+    HYP_BEGIN_CLASS(EditorCommand##name, -1, 0, NAME("EditorCommandBase")) \
+    HYP_END_CLASS                                                          \
+                                                                           \
     static TClassStaticInit<EditorCommand##name> g_classInit##EditorCommand##name {};
 
 #pragma region Undo
@@ -177,35 +179,35 @@ public:
                 }
 
                 GetThreadById(g_simThread)->GetScheduler().Enqueue([weakSubsystem = std::move(weakSubsystem), projectFilepath = std::move(result.GetValue()[0])]() mutable
-                    {
-                        Handle<EditorSubsystem> subsystem = weakSubsystem.Lock();
-                        if (!subsystem)
-                        {
-                            HYP_LOG(Editor, Error, "Failed to lock EditorSubsystem from weak reference in ShowOpenProjectDialog");
-                            return;
-                        }
+                                                                   {
+                                                                       Handle<EditorSubsystem> subsystem = weakSubsystem.Lock();
+                                                                       if (!subsystem)
+                                                                       {
+                                                                           HYP_LOG(Editor, Error, "Failed to lock EditorSubsystem from weak reference in ShowOpenProjectDialog");
+                                                                           return;
+                                                                       }
 
-                        subsystem->CloseProject();
+                                                                       subsystem->CloseProject();
 
-                        TResult<Handle<EditorProject>> loadProjectResult = EditorProject::Load(projectFilepath);
+                                                                       TResult<Handle<EditorProject>> loadProjectResult = EditorProject::Load(projectFilepath);
 
-                        if (loadProjectResult.HasError())
-                        {
-                            HYP_LOG(Editor, Error, "Failed to load project: {}", loadProjectResult.GetError().GetMessage());
-                            return;
-                        }
+                                                                       if (loadProjectResult.HasError())
+                                                                       {
+                                                                           HYP_LOG(Editor, Error, "Failed to load project: {}", loadProjectResult.GetError().GetMessage());
+                                                                           return;
+                                                                       }
 
-                        Handle<EditorProject> project = loadProjectResult.GetValue();
+                                                                       Handle<EditorProject> project = loadProjectResult.GetValue();
 
-                        if (!project.IsValid())
-                        {
-                            HYP_LOG(Editor, Error, "Loaded project is invalid.");
-                            return;
-                        }
+                                                                       if (!project.IsValid())
+                                                                       {
+                                                                           HYP_LOG(Editor, Error, "Loaded project is invalid.");
+                                                                           return;
+                                                                       }
 
-                        subsystem->OpenProject(project);
-                    },
-                    TaskEnqueueFlags::FIRE_AND_FORGET);
+                                                                       subsystem->OpenProject(project);
+                                                                   },
+                                                                   TaskEnqueueFlags::FIRE_AND_FORGET);
             });
     }
 };
@@ -277,7 +279,7 @@ public:
             }
 
             dir.MkDir();
-            
+
             String projectName = *project->GetName();
 
             ShowSelectFolderDialog(
@@ -297,7 +299,7 @@ public:
                         HYP_LOG(Editor, Warning, "No save path selected.");
                         return;
                     }
-                    
+
                     if (selectedPath.EndsWith(projectName))
                     {
                         // IF the path we receive ends with the project name (ie. Projects/Project1) we want to chop off that part,
@@ -306,28 +308,28 @@ public:
                     }
 
                     GetThreadById(g_simThread)->GetScheduler().Enqueue([weakSubsystem = std::move(weakSubsystem), selectedPath = std::move(selectedPath)]() mutable
-                        {
-                            Handle<EditorSubsystem> subsystem = weakSubsystem.Lock();
-                            if (!subsystem)
-                            {
-                                HYP_LOG(Editor, Error, "Failed to lock EditorSubsystem from weak reference in ShowSaveProjectDialog");
-                                return;
-                            }
+                                                                       {
+                                                                           Handle<EditorSubsystem> subsystem = weakSubsystem.Lock();
+                                                                           if (!subsystem)
+                                                                           {
+                                                                               HYP_LOG(Editor, Error, "Failed to lock EditorSubsystem from weak reference in ShowSaveProjectDialog");
+                                                                               return;
+                                                                           }
 
-                            EditorProject* project = subsystem->GetCurrentProject();
-                            if (!project)
-                            {
-                                HYP_LOG(Editor, Error, "No current project in EditorSubsystem; cannot save project as.");
-                                return;
-                            }
+                                                                           EditorProject* project = subsystem->GetCurrentProject();
+                                                                           if (!project)
+                                                                           {
+                                                                               HYP_LOG(Editor, Error, "No current project in EditorSubsystem; cannot save project as.");
+                                                                               return;
+                                                                           }
 
-                            Result saveResult = project->SaveAs(selectedPath);
-                            if (!saveResult)
-                            {
-                                HYP_LOG(Editor, Error, "Failed to save project as '{}': {}", selectedPath, saveResult.GetError().GetMessage());
-                            }
-                        },
-                        TaskEnqueueFlags::FIRE_AND_FORGET);
+                                                                           Result saveResult = project->SaveAs(selectedPath);
+                                                                           if (!saveResult)
+                                                                           {
+                                                                               HYP_LOG(Editor, Error, "Failed to save project as '{}': {}", selectedPath, saveResult.GetError().GetMessage());
+                                                                           }
+                                                                       },
+                                                                       TaskEnqueueFlags::FIRE_AND_FORGET);
                 });
         }
     }
@@ -380,31 +382,31 @@ public:
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
             GetText(),
             Proc<EditorActionFunctions()>([lightmapVolume, previousFocusedNode, activeScene]() -> EditorActionFunctions
-                {
-                    return EditorActionFunctions {
-                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([lightmapVolume, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
-                            {
-                                activeScene->GetRoot()->AddChild(lightmapVolume);
+                                          {
+                                              return EditorActionFunctions {
+                                                  .execute = Proc<void(EditorSubsystem*, EditorProject*)>([lightmapVolume, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
+                                                                                                          {
+                                                                                                              activeScene->GetRoot()->AddChild(lightmapVolume);
 
-                                editorSubsystem->SetFocusedNode(lightmapVolume, true);
-                            }),
-                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([lightmapVolume, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
-                            {
-                                lightmapVolume->Remove();
+                                                                                                              editorSubsystem->SetFocusedNode(lightmapVolume, true);
+                                                                                                          }),
+                                                  .revert = Proc<void(EditorSubsystem*, EditorProject*)>([lightmapVolume, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
+                                                                                                         {
+                                                                                                             lightmapVolume->Remove();
 
-                                if (editorSubsystem->GetFocusedNode() == lightmapVolume)
-                                {
-                                    editorSubsystem->SetFocusedNode(nullptr, true);
+                                                                                                             if (editorSubsystem->GetFocusedNode() == lightmapVolume)
+                                                                                                             {
+                                                                                                                 editorSubsystem->SetFocusedNode(nullptr, true);
 
-                                    Handle<Node> focusedNode = previousFocusedNode.Lock();
-                                    if (focusedNode.IsValid())
-                                    {
-                                        editorSubsystem->SetFocusedNode(focusedNode, true);
-                                    }
-                                }
-                            })
-                    };
-                }));
+                                                                                                                 Handle<Node> focusedNode = previousFocusedNode.Lock();
+                                                                                                                 if (focusedNode.IsValid())
+                                                                                                                 {
+                                                                                                                     editorSubsystem->SetFocusedNode(focusedNode, true);
+                                                                                                                 }
+                                                                                                             }
+                                                                                                         })
+                                              };
+                                          }));
 
         InitObject(action);
 
@@ -470,31 +472,31 @@ public:
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
             GetText(),
             Proc<EditorActionFunctions()>([reflectionProbe, previousFocusedNode, activeScene]() -> EditorActionFunctions
-                {
-                    return EditorActionFunctions {
-                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([reflectionProbe, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
-                            {
-                                activeScene->GetRoot()->AddChild(reflectionProbe);
+                                          {
+                                              return EditorActionFunctions {
+                                                  .execute = Proc<void(EditorSubsystem*, EditorProject*)>([reflectionProbe, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
+                                                                                                          {
+                                                                                                              activeScene->GetRoot()->AddChild(reflectionProbe);
 
-                                editorSubsystem->SetFocusedNode(reflectionProbe, true);
-                            }),
-                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([reflectionProbe, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
-                            {
-                                reflectionProbe->Remove();
+                                                                                                              editorSubsystem->SetFocusedNode(reflectionProbe, true);
+                                                                                                          }),
+                                                  .revert = Proc<void(EditorSubsystem*, EditorProject*)>([reflectionProbe, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
+                                                                                                         {
+                                                                                                             reflectionProbe->Remove();
 
-                                if (editorSubsystem->GetFocusedNode() == reflectionProbe)
-                                {
-                                    editorSubsystem->SetFocusedNode(nullptr, true);
+                                                                                                             if (editorSubsystem->GetFocusedNode() == reflectionProbe)
+                                                                                                             {
+                                                                                                                 editorSubsystem->SetFocusedNode(nullptr, true);
 
-                                    Handle<Node> focusedNode = previousFocusedNode.Lock();
-                                    if (focusedNode.IsValid())
-                                    {
-                                        editorSubsystem->SetFocusedNode(focusedNode, true);
-                                    }
-                                }
-                            })
-                    };
-                }));
+                                                                                                                 Handle<Node> focusedNode = previousFocusedNode.Lock();
+                                                                                                                 if (focusedNode.IsValid())
+                                                                                                                 {
+                                                                                                                     editorSubsystem->SetFocusedNode(focusedNode, true);
+                                                                                                                 }
+                                                                                                             }
+                                                                                                         })
+                                              };
+                                          }));
 
         InitObject(action);
 
@@ -520,6 +522,121 @@ DEFINE_EDITOR_COMMAND(AddReflectionProbe);
 
 #pragma endregion AddReflectionProbe
 
+#pragma region AddProbeVolume
+
+class EditorCommandAddProbeVolume final : public EditorCommandBase
+{
+    HYP_OBJECT_BODY(EditorCommandAddProbeVolume);
+
+public:
+    virtual ~EditorCommandAddProbeVolume() override = default;
+
+    virtual String GetText() const override
+    {
+        return "Add Probe Volume";
+    }
+
+    virtual void Execute(EditorSubsystem* subsystem) override
+    {
+        const Handle<EditorProject>& currentProject = subsystem->GetCurrentProject();
+        if (!currentProject.IsValid())
+        {
+            HYP_LOG(Editor, Error, "No project loaded; cannot add irradiance probe volume!");
+
+            return;
+        }
+
+        const BoundingBox probeGridBounds = BoundingBox(Vec3f(-50.0f, -15.0f, -50.0f), Vec3f(50.0f, 30.0f, 50.0f));
+
+        // Ensure surrounding entities have a LightmapElementComponent.
+        static const auto initOverlappingEntities = [](World* world, const BoundingBox& probeGridBounds)
+        {
+            for (Scene* scene : world->GetScenes())
+            {
+                TSet<Entity*> entitiesToAddComponent;
+
+                for (auto&& [entity, meshComponent] : scene->GetEntityManager()->GetEntitySet<MeshComponent>().GetScopedView(DataAccessFlags::ACCESS_RW))
+                {
+                    const BoundingBox entityWorldBounds = entity->GetWorldBounds();
+
+                    if (entityWorldBounds.Overlaps(probeGridBounds))
+                    {
+                        entitiesToAddComponent.Add(entity);
+                    }
+                }
+
+                for (Entity* entity : entitiesToAddComponent)
+                {
+                    if (!entity->HasComponent<LightmapElementComponent>())
+                    {
+                        LightmapElementComponent component;
+                        entity->AddComponent<LightmapElementComponent>(component);
+                    }
+                    
+                    entity->AddTag<EntityTag::UpdateSphericalHarmonicsData>();
+                }
+            }
+        };
+
+        Handle<ProbeVolume> volume = MakeHandle<ProbeVolume>(probeGridBounds);
+        volume->SetGridSize(Vec3u(4, 4, 4));
+        volume->CreateProbes();
+        InitObject(volume);
+
+        WeakHandle<Node> previousFocusedNode = subsystem->GetFocusedNode();
+
+        Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
+            GetText(),
+            Proc<EditorActionFunctions()>(
+                [volume, previousFocusedNode]() -> EditorActionFunctions
+                {
+                    return EditorActionFunctions {
+                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>(
+                        [volume](EditorSubsystem* editorSubsystem, EditorProject* project)
+                        {
+                            Handle<Scene> activeScene = editorSubsystem->GetActiveScene();
+                            if (!activeScene.IsValid())
+                            {
+                                HYP_LOG(Editor, Error, "No active scene; cannot add irradiance probe volume!");
+
+                                return;
+                            }
+                            
+                            activeScene->GetRoot()->AddChild(volume);
+
+                            editorSubsystem->SetFocusedNode(volume, true);
+
+                            initOverlappingEntities(activeScene->GetWorld(), volume->GetWorldBounds());
+                        }),
+                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>(
+                        [volume, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
+                        {
+                            volume->Remove();
+
+                            if (editorSubsystem->GetFocusedNode() == volume)
+                            {
+                                editorSubsystem->SetFocusedNode(nullptr, true);
+
+                                Handle<Node> focusedNode = previousFocusedNode.Lock();
+                                if (focusedNode.IsValid())
+                                {
+                                    editorSubsystem->SetFocusedNode(focusedNode, true);
+                                }
+                            }
+                        })
+                    };
+                }));
+
+        InitObject(action);
+
+        currentProject->GetActionStack()->PushAction(action);
+    }
+};
+
+DEFINE_EDITOR_COMMAND(AddProbeVolume);
+
+#pragma endregion AddProbeVolume
+
 #pragma region AddParticleVolume
 
 class EditorCommandAddParticleVolume final : public EditorCommandBase
@@ -531,7 +648,7 @@ public:
 
     virtual String GetText() const override
     {
-        return  "Add Particle Volume";
+        return "Add Particle Volume";
     }
 
     virtual void Execute(EditorSubsystem* subsystem) override
@@ -574,30 +691,30 @@ public:
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
             GetText(),
             Proc<EditorActionFunctions()>([particleVolume, previousFocusedNode, activeScene]() -> EditorActionFunctions
-                {
-                    return EditorActionFunctions {
-                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([particleVolume, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
-                            {
-                                activeScene->GetRoot()->AddChild(particleVolume);
-                                editorSubsystem->SetFocusedNode(particleVolume, true);
-                            }),
-                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([particleVolume, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
-                            {
-                                particleVolume->Remove();
+                                          {
+                                              return EditorActionFunctions {
+                                                  .execute = Proc<void(EditorSubsystem*, EditorProject*)>([particleVolume, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
+                                                                                                          {
+                                                                                                              activeScene->GetRoot()->AddChild(particleVolume);
+                                                                                                              editorSubsystem->SetFocusedNode(particleVolume, true);
+                                                                                                          }),
+                                                  .revert = Proc<void(EditorSubsystem*, EditorProject*)>([particleVolume, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
+                                                                                                         {
+                                                                                                             particleVolume->Remove();
 
-                                if (editorSubsystem->GetFocusedNode() == particleVolume)
-                                {
-                                    editorSubsystem->SetFocusedNode(nullptr, true);
+                                                                                                             if (editorSubsystem->GetFocusedNode() == particleVolume)
+                                                                                                             {
+                                                                                                                 editorSubsystem->SetFocusedNode(nullptr, true);
 
-                                    Handle<Node> focusedNode = previousFocusedNode.Lock();
-                                    if (focusedNode.IsValid())
-                                    {
-                                        editorSubsystem->SetFocusedNode(focusedNode, true);
-                                    }
-                                }
-                            })
-                    };
-                }));
+                                                                                                                 Handle<Node> focusedNode = previousFocusedNode.Lock();
+                                                                                                                 if (focusedNode.IsValid())
+                                                                                                                 {
+                                                                                                                     editorSubsystem->SetFocusedNode(focusedNode, true);
+                                                                                                                 }
+                                                                                                             }
+                                                                                                         })
+                                              };
+                                          }));
 
         InitObject(action);
 
@@ -649,30 +766,30 @@ public:
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
             GetText(),
             Proc<EditorActionFunctions()>([fogVolume, previousFocusedNode, activeScene]() -> EditorActionFunctions
-                {
-                    return EditorActionFunctions {
-                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([fogVolume, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
-                            {
-                                activeScene->GetRoot()->AddChild(fogVolume);
-                                editorSubsystem->SetFocusedNode(fogVolume, true);
-                            }),
-                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([fogVolume, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
-                            {
-                                fogVolume->Remove();
+                                          {
+                                              return EditorActionFunctions {
+                                                  .execute = Proc<void(EditorSubsystem*, EditorProject*)>([fogVolume, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
+                                                                                                          {
+                                                                                                              activeScene->GetRoot()->AddChild(fogVolume);
+                                                                                                              editorSubsystem->SetFocusedNode(fogVolume, true);
+                                                                                                          }),
+                                                  .revert = Proc<void(EditorSubsystem*, EditorProject*)>([fogVolume, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
+                                                                                                         {
+                                                                                                             fogVolume->Remove();
 
-                                if (editorSubsystem->GetFocusedNode() == fogVolume)
-                                {
-                                    editorSubsystem->SetFocusedNode(nullptr, true);
+                                                                                                             if (editorSubsystem->GetFocusedNode() == fogVolume)
+                                                                                                             {
+                                                                                                                 editorSubsystem->SetFocusedNode(nullptr, true);
 
-                                    Handle<Node> focusedNode = previousFocusedNode.Lock();
-                                    if (focusedNode.IsValid())
-                                    {
-                                        editorSubsystem->SetFocusedNode(focusedNode, true);
-                                    }
-                                }
-                            })
-                    };
-                }));
+                                                                                                                 Handle<Node> focusedNode = previousFocusedNode.Lock();
+                                                                                                                 if (focusedNode.IsValid())
+                                                                                                                 {
+                                                                                                                     editorSubsystem->SetFocusedNode(focusedNode, true);
+                                                                                                                 }
+                                                                                                             }
+                                                                                                         })
+                                              };
+                                          }));
 
         InitObject(action);
 
@@ -737,46 +854,46 @@ static void AddNodeOfTypeImpl(EditorSubsystem* subsystem, Name defaultNodeName)
     Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
         HYP_FORMAT("Add {}", defaultNodeName),
         Proc<EditorActionFunctions()>([n, currentFocusedNode, activeScene]() -> EditorActionFunctions
-            {
-                return EditorActionFunctions {
-                    .execute = Proc<void(EditorSubsystem*, EditorProject*)>([n, currentFocusedNode, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
-                        {
-                            if constexpr (ShouldAddNodeAsChild<T>())
-                            {
-                                Handle<Node> parentNode = currentFocusedNode.Lock();
+                                      {
+                                          return EditorActionFunctions {
+                                              .execute = Proc<void(EditorSubsystem*, EditorProject*)>([n, currentFocusedNode, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
+                                                                                                      {
+                                                                                                          if constexpr (ShouldAddNodeAsChild<T>())
+                                                                                                          {
+                                                                                                              Handle<Node> parentNode = currentFocusedNode.Lock();
 
-                                if (!parentNode.IsValid())
-                                {
-                                    parentNode = activeScene->GetRoot();
-                                }
+                                                                                                              if (!parentNode.IsValid())
+                                                                                                              {
+                                                                                                                  parentNode = activeScene->GetRoot();
+                                                                                                              }
 
-                                parentNode->AddChild(n);
-                            }
-                            else
-                            {
-                                activeScene->GetRoot()->AddChild(n);
-                            }
+                                                                                                              parentNode->AddChild(n);
+                                                                                                          }
+                                                                                                          else
+                                                                                                          {
+                                                                                                              activeScene->GetRoot()->AddChild(n);
+                                                                                                          }
 
-                            editorSubsystem->SetFocusedNode(n, true);
-                        }),
-                    .revert = Proc<void(EditorSubsystem*, EditorProject*)>([n, currentFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
-                        {
-                            n->Remove();
+                                                                                                          editorSubsystem->SetFocusedNode(n, true);
+                                                                                                      }),
+                                              .revert = Proc<void(EditorSubsystem*, EditorProject*)>([n, currentFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
+                                                                                                     {
+                                                                                                         n->Remove();
 
-                            if (editorSubsystem->GetFocusedNode() == n)
-                            {
-                                editorSubsystem->SetFocusedNode(nullptr, true);
+                                                                                                         if (editorSubsystem->GetFocusedNode() == n)
+                                                                                                         {
+                                                                                                             editorSubsystem->SetFocusedNode(nullptr, true);
 
-                                Handle<Node> focusedNode = currentFocusedNode.Lock();
+                                                                                                             Handle<Node> focusedNode = currentFocusedNode.Lock();
 
-                                if (focusedNode.IsValid())
-                                {
-                                    editorSubsystem->SetFocusedNode(focusedNode, true);
-                                }
-                            }
-                        })
-                };
-            }));
+                                                                                                             if (focusedNode.IsValid())
+                                                                                                             {
+                                                                                                                 editorSubsystem->SetFocusedNode(focusedNode, true);
+                                                                                                             }
+                                                                                                         }
+                                                                                                     })
+                                          };
+                                      }));
 
     InitObject(action);
 
@@ -995,7 +1112,8 @@ public:
 
                 EditorTaskScope* editorTaskScope = new EditorTaskScope(
                     TickableEditorTask::StaticClass(),
-                    []() { /* no tick function */ },
+                    []()
+                    { /* no tick function */ },
                     "Importing content...",
                     "Content is being imported in the background.",
                     /* isForegroundTask */ true);
@@ -1018,27 +1136,27 @@ public:
 
                 batch->OnComplete
                     .Bind([editorTaskScope](AssetMap& results)
-                        {
-                            HYP_LOG(Editor, Verbose, "{} assets loaded.", results.Size());
+                          {
+                              HYP_LOG(Editor, Verbose, "{} assets loaded.", results.Size());
 
-                            for (auto& it : results)
-                            {
-                                String& key = it.first;
-                                LoadedAsset& loadedAsset = it.second;
+                              for (auto& it : results)
+                              {
+                                  String& key = it.first;
+                                  LoadedAsset& loadedAsset = it.second;
 
-                                editorTaskScope->GetEditorTask()->SetDescription("Processing " + key);
+                                  editorTaskScope->GetEditorTask()->SetDescription("Processing " + key);
 
-                                Handle<AssetObject> assetObject = loadedAsset.ExtractAs<AssetObject>();
-                                if (!assetObject.IsValid())
-                                {
-                                    continue;
-                                }
+                                  Handle<AssetObject> assetObject = loadedAsset.ExtractAs<AssetObject>();
+                                  if (!assetObject.IsValid())
+                                  {
+                                      continue;
+                                  }
 
-                                GetCurrentAssetRegistry()->PutAssetUnique(assetObject);
-                            }
+                                  GetCurrentAssetRegistry()->PutAssetUnique(assetObject);
+                              }
 
-                            delete editorTaskScope;
-                        })
+                              delete editorTaskScope;
+                          })
                     .Detach();
 
                 batch->LoadAsync();
@@ -1113,20 +1231,20 @@ public:
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
             GetText(),
             Proc<EditorActionFunctions()>([node, newParent, previousParent = MakeStrongRef(previousParent)]() -> EditorActionFunctions
-                {
-                    return EditorActionFunctions {
-                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([node, newParent](EditorSubsystem*, EditorProject*)
-                            {
-                                node->Remove();
-                                newParent->AddChild(node);
-                            }),
-                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([node, previousParent](EditorSubsystem*, EditorProject*)
-                            {
-                                node->Remove();
-                                previousParent->AddChild(node);
-                            })
-                    };
-                }));
+                                          {
+                                              return EditorActionFunctions {
+                                                  .execute = Proc<void(EditorSubsystem*, EditorProject*)>([node, newParent](EditorSubsystem*, EditorProject*)
+                                                                                                          {
+                                                                                                              node->Remove();
+                                                                                                              newParent->AddChild(node);
+                                                                                                          }),
+                                                  .revert = Proc<void(EditorSubsystem*, EditorProject*)>([node, previousParent](EditorSubsystem*, EditorProject*)
+                                                                                                         {
+                                                                                                             node->Remove();
+                                                                                                             previousParent->AddChild(node);
+                                                                                                         })
+                                              };
+                                          }));
 
         InitObject(action);
 
@@ -1383,7 +1501,10 @@ public:
                         break;
                     }
                 }
-                if (hasAncestorInSet) { break; }
+                if (hasAncestorInSet)
+                {
+                    break;
+                }
             }
 
             if (!hasAncestorInSet)
@@ -1422,45 +1543,45 @@ public:
                 ? HYP_FORMAT("Delete {}", nodesWithParents[0].first->GetName())
                 : HYP_FORMAT("Delete {} nodes", nodesWithParents.Size()),
             Proc<EditorActionFunctions()>([nodesWithParents]() -> EditorActionFunctions
-                {
-                    return EditorActionFunctions {
-                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([nodesWithParents](EditorSubsystem* editorSubsystem, EditorProject* project)
-                            {
-                                for (const auto& pair : nodesWithParents)
-                                {
-                                    pair.first->Remove();
-                                }
+                                          {
+                                              return EditorActionFunctions {
+                                                  .execute = Proc<void(EditorSubsystem*, EditorProject*)>([nodesWithParents](EditorSubsystem* editorSubsystem, EditorProject* project)
+                                                                                                          {
+                                                                                                              for (const auto& pair : nodesWithParents)
+                                                                                                              {
+                                                                                                                  pair.first->Remove();
+                                                                                                              }
 
-                                // Clear focus if it was one of the deleted nodes
-                                if (Handle<Node> focusedNode = editorSubsystem->GetFocusedNode(); !focusedNode.IsValid())
-                                {
-                                    // Focus was auto-cleared; nothing to restore
-                                }
-                            }),
-                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([nodesWithParents](EditorSubsystem* editorSubsystem, EditorProject* project)
-                            {
-                                // Re-attach in reverse order so original order is preserved
-                                for (int i = nodesWithParents.Size() - 1; i >= 0; --i)
-                                {
-                                    const auto& pair = nodesWithParents[i];
+                                                                                                              // Clear focus if it was one of the deleted nodes
+                                                                                                              if (Handle<Node> focusedNode = editorSubsystem->GetFocusedNode(); !focusedNode.IsValid())
+                                                                                                              {
+                                                                                                                  // Focus was auto-cleared; nothing to restore
+                                                                                                              }
+                                                                                                          }),
+                                                  .revert = Proc<void(EditorSubsystem*, EditorProject*)>([nodesWithParents](EditorSubsystem* editorSubsystem, EditorProject* project)
+                                                                                                         {
+                                                                                                             // Re-attach in reverse order so original order is preserved
+                                                                                                             for (int i = nodesWithParents.Size() - 1; i >= 0; --i)
+                                                                                                             {
+                                                                                                                 const auto& pair = nodesWithParents[i];
 
-                                    Handle<Node> parent = pair.second.Lock();
-                                    if (!parent.IsValid())
-                                    {
-                                        continue;
-                                    }
+                                                                                                                 Handle<Node> parent = pair.second.Lock();
+                                                                                                                 if (!parent.IsValid())
+                                                                                                                 {
+                                                                                                                     continue;
+                                                                                                                 }
 
-                                    parent->AddChild(pair.first);
-                                }
+                                                                                                                 parent->AddChild(pair.first);
+                                                                                                             }
 
-                                // Focus the first restored node
-                                if (nodesWithParents.Any())
-                                {
-                                    editorSubsystem->SetFocusedNode(nodesWithParents[0].first, true);
-                                }
-                            })
-                    };
-                }));
+                                                                                                             // Focus the first restored node
+                                                                                                             if (nodesWithParents.Any())
+                                                                                                             {
+                                                                                                                 editorSubsystem->SetFocusedNode(nodesWithParents[0].first, true);
+                                                                                                             }
+                                                                                                         })
+                                              };
+                                          }));
 
         InitObject(action);
 
@@ -1687,68 +1808,68 @@ public:
                 ? HYP_FORMAT("Paste {}", newNodesWithParents[0].first->GetName())
                 : HYP_FORMAT("Paste {} nodes", newNodesWithParents.Size()),
             Proc<EditorActionFunctions()>([newNodesWithParents, previousFocusedNode, activeScene]() -> EditorActionFunctions
-                {
-                    return EditorActionFunctions {
-                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([newNodesWithParents, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
-                            {
-                                const Handle<Node>& sceneRoot = activeScene->GetRoot();
+                                          {
+                                              return EditorActionFunctions {
+                                                  .execute = Proc<void(EditorSubsystem*, EditorProject*)>([newNodesWithParents, activeScene](EditorSubsystem* editorSubsystem, EditorProject* project)
+                                                                                                          {
+                                                                                                              const Handle<Node>& sceneRoot = activeScene->GetRoot();
 
-                                Array<Handle<Node>> addedNodes;
+                                                                                                              Array<Handle<Node>> addedNodes;
 
-                                for (const auto& pair : newNodesWithParents)
-                                {
-                                    const Handle<Node>& newNode = pair.first;
-                                    WeakHandle<Node> parentWeak = pair.second;
+                                                                                                              for (const auto& pair : newNodesWithParents)
+                                                                                                              {
+                                                                                                                  const Handle<Node>& newNode = pair.first;
+                                                                                                                  WeakHandle<Node> parentWeak = pair.second;
 
-                                    Handle<Node> parentStrong = parentWeak.Lock();
-                                    if (!parentStrong.IsValid())
-                                    {
-                                        parentStrong = MakeStrongRef(sceneRoot);
-                                    }
+                                                                                                                  Handle<Node> parentStrong = parentWeak.Lock();
+                                                                                                                  if (!parentStrong.IsValid())
+                                                                                                                  {
+                                                                                                                      parentStrong = MakeStrongRef(sceneRoot);
+                                                                                                                  }
 
-                                    if (!parentStrong.IsValid())
-                                    {
-                                        HYP_LOG(Editor, Error, "Cannot paste node; no parent to attach to");
+                                                                                                                  if (!parentStrong.IsValid())
+                                                                                                                  {
+                                                                                                                      HYP_LOG(Editor, Error, "Cannot paste node; no parent to attach to");
 
-                                        continue;
-                                    }
+                                                                                                                      continue;
+                                                                                                                  }
 
-                                    parentStrong->AddChild(newNode);
-                                    addedNodes.PushBack(newNode);
-                                }
+                                                                                                                  parentStrong->AddChild(newNode);
+                                                                                                                  addedNodes.PushBack(newNode);
+                                                                                                              }
 
-                                // Focus the first pasted node and select all pasted nodes
-                                if (addedNodes.Any())
-                                {
-                                    editorSubsystem->ClearSelection();
+                                                                                                              // Focus the first pasted node and select all pasted nodes
+                                                                                                              if (addedNodes.Any())
+                                                                                                              {
+                                                                                                                  editorSubsystem->ClearSelection();
 
-                                    for (const Handle<Node>& node : addedNodes)
-                                    {
-                                        editorSubsystem->AddToSelection(node);
-                                    }
+                                                                                                                  for (const Handle<Node>& node : addedNodes)
+                                                                                                                  {
+                                                                                                                      editorSubsystem->AddToSelection(node);
+                                                                                                                  }
 
-                                    editorSubsystem->SetFocusedNode(addedNodes[0], true);
-                                }
-                            }),
-                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([newNodesWithParents, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
-                            {
-                                for (const auto& pair : newNodesWithParents)
-                                {
-                                    pair.first->Remove();
-                                }
+                                                                                                                  editorSubsystem->SetFocusedNode(addedNodes[0], true);
+                                                                                                              }
+                                                                                                          }),
+                                                  .revert = Proc<void(EditorSubsystem*, EditorProject*)>([newNodesWithParents, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject* project)
+                                                                                                         {
+                                                                                                             for (const auto& pair : newNodesWithParents)
+                                                                                                             {
+                                                                                                                 pair.first->Remove();
+                                                                                                             }
 
-                                // Restore previous focused node if it was cleared
-                                if (editorSubsystem->GetFocusedNode() == Handle<Node>::Null())
-                                {
-                                    Handle<Node> focusedNode = previousFocusedNode.Lock();
-                                    if (focusedNode.IsValid())
-                                    {
-                                        editorSubsystem->SetFocusedNode(focusedNode, true);
-                                    }
-                                }
-                            })
-                    };
-                }));
+                                                                                                             // Restore previous focused node if it was cleared
+                                                                                                             if (editorSubsystem->GetFocusedNode() == Handle<Node>::Null())
+                                                                                                             {
+                                                                                                                 Handle<Node> focusedNode = previousFocusedNode.Lock();
+                                                                                                                 if (focusedNode.IsValid())
+                                                                                                                 {
+                                                                                                                     editorSubsystem->SetFocusedNode(focusedNode, true);
+                                                                                                                 }
+                                                                                                             }
+                                                                                                         })
+                                              };
+                                          }));
 
         InitObject(action);
 
@@ -1837,23 +1958,23 @@ public:
         Handle<ScriptAsset> scriptAsset = MakeHandle<ScriptAsset>(Name::Unique("NewScript"), ScriptDesc());
         InitObject(scriptAsset);
 
-        //scriptAsset->SetSourceCode(HYP_FORMAT("// {}\n\nexport func Update(DeltaTime : float)\nend\n", scriptAsset->GetName()));
+        // scriptAsset->SetSourceCode(HYP_FORMAT("// {}\n\nexport func Update(DeltaTime : float)\nend\n", scriptAsset->GetName()));
 
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
             GetText(),
             Proc<EditorActionFunctions()>([scriptAsset]() -> EditorActionFunctions
-                {
-                    return EditorActionFunctions {
-                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([scriptAsset](EditorSubsystem*, EditorProject*)
-                            {
-                                GetCurrentAssetRegistry()->PutAssetUnique(scriptAsset);
-                            }),
-                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([scriptAsset](EditorSubsystem*, EditorProject*)
-                            {
-                                GetCurrentAssetRegistry()->RemoveAsset(scriptAsset);
-                            })
-                    };
-                }));
+                                          {
+                                              return EditorActionFunctions {
+                                                  .execute = Proc<void(EditorSubsystem*, EditorProject*)>([scriptAsset](EditorSubsystem*, EditorProject*)
+                                                                                                          {
+                                                                                                              GetCurrentAssetRegistry()->PutAssetUnique(scriptAsset);
+                                                                                                          }),
+                                                  .revert = Proc<void(EditorSubsystem*, EditorProject*)>([scriptAsset](EditorSubsystem*, EditorProject*)
+                                                                                                         {
+                                                                                                             GetCurrentAssetRegistry()->RemoveAsset(scriptAsset);
+                                                                                                         })
+                                              };
+                                          }));
 
         InitObject(action);
 
@@ -1985,24 +2106,24 @@ public:
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
             HYP_FORMAT("Add {}", assetName),
             Proc<EditorActionFunctions()>([clonedNode, parentNode, previousFocusedNode]() -> EditorActionFunctions
-                {
-                    return EditorActionFunctions {
-                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>([clonedNode, parentNode](EditorSubsystem* editorSubsystem, EditorProject*)
-                            {
-                                parentNode->AddChild(clonedNode);
-                                editorSubsystem->SetFocusedNode(clonedNode, true);
-                            }),
-                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>([clonedNode, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject*)
-                            {
-                                clonedNode->Remove();
+                                          {
+                                              return EditorActionFunctions {
+                                                  .execute = Proc<void(EditorSubsystem*, EditorProject*)>([clonedNode, parentNode](EditorSubsystem* editorSubsystem, EditorProject*)
+                                                                                                          {
+                                                                                                              parentNode->AddChild(clonedNode);
+                                                                                                              editorSubsystem->SetFocusedNode(clonedNode, true);
+                                                                                                          }),
+                                                  .revert = Proc<void(EditorSubsystem*, EditorProject*)>([clonedNode, previousFocusedNode](EditorSubsystem* editorSubsystem, EditorProject*)
+                                                                                                         {
+                                                                                                             clonedNode->Remove();
 
-                                if (Handle<Node> focusedNode = previousFocusedNode.Lock(); focusedNode.IsValid())
-                                {
-                                    editorSubsystem->SetFocusedNode(focusedNode, true);
-                                }
-                            })
-                    };
-                }));
+                                                                                                             if (Handle<Node> focusedNode = previousFocusedNode.Lock(); focusedNode.IsValid())
+                                                                                                             {
+                                                                                                                 editorSubsystem->SetFocusedNode(focusedNode, true);
+                                                                                                             }
+                                                                                                         })
+                                              };
+                                          }));
 
         InitObject(action);
         currentProject->GetActionStack()->PushAction(action);

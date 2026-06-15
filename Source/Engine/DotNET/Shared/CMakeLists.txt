@@ -58,6 +58,7 @@ if(HYP_GENERATE_CSHARP_LIBRARIES)
     file(APPEND ${CSPROJ_PATH} "    <ImplicitUsings>enable</ImplicitUsings>\n")
     file(APPEND ${CSPROJ_PATH} "    <Nullable>enable</Nullable>\n")
     file(APPEND ${CSPROJ_PATH} "    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>\n")
+    file(APPEND ${CSPROJ_PATH} "    <IsAotCompatible>true</IsAotCompatible>\n")
     file(APPEND ${CSPROJ_PATH} "    <AssemblyName>Hyperion.NET.Shared</AssemblyName>\n")
     file(APPEND ${CSPROJ_PATH} "    <EnableDynamicLoading>true</EnableDynamicLoading>\n")
     file(APPEND ${CSPROJ_PATH} "    <Platforms>x64;ARM64</Platforms>\n")
@@ -96,7 +97,7 @@ if(HYP_GENERATE_CSHARP_LIBRARIES)
 
     # Restore environment variable
     if(MSBuildSdksPath_BACKUP)
-        set(ENV{MSBuildSdksPath} ${MSBuildSdksPath_BACKUP})
+      set(ENV{MSBuildSdksPath} ${MSBuildSdksPath_BACKUP})
     endif()
 
     if(NOT USE_MSBUILD_FOR_CSHARP_BUILD)

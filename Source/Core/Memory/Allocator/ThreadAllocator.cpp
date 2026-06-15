@@ -8,17 +8,23 @@
 
 #include <Core/Memory/Pool/Pool.hpp>
 
+#include <Core/Threading/Util/ThreadId.hpp>
+
 namespace Hyperion {
 namespace memory {
 
-static constexpr size_t ThreadAllocatorPoolSize = 1024 * 1024 * 10; // 10 MB per thread for thread allocator pool
+static constexpr size_t ThreadAllocatorPoolSize = 1024 * 1024 * 4; // 4 MB per thread for thread allocator pool
 
-void InitThreadAllocatorPool(void* allocator)
+static thread_local void* s_currentThreadAllocatorRaw;
+
+CORE_API void** CurrentThreadAllocatorRaw()
 {
-    Pool* pool = static_cast<Pool*>(allocator);
-    Assert(pool != nullptr);
+    return &s_currentThreadAllocatorRaw;
+}
 
-    new (pool) Pool(ThreadAllocatorPoolSize, PF_NONE);
+void InitThreadAllocatorPool(void* p)
+{
+    new (p) Pool(ThreadAllocatorPoolSize, PF_NONE, ThreadId::Current());
 }
 
 } // namespace memory

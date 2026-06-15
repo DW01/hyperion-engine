@@ -10,6 +10,7 @@
 
 #include <Core/Math/BoundingBox.hpp>
 
+#include <Core/Utilities/Traits.hpp>
 #include <Core/Utilities/Uuid.hpp>
 
 #include <Scene/Volume.hpp>
@@ -20,7 +21,7 @@ namespace Hyperion {
 
 class Texture;
 class LightmapVolume;
-class RenderProxyLightmapVolume;
+struct RenderProxyLightmapVolume;
 
 namespace Baking {
 
@@ -30,7 +31,7 @@ class BakeData;
 } // namespace Baking
 
 enum class LightmapElementId : uint32;
-static constexpr LightmapElementId InvalidLightmapElementId = LightmapElementId(~0u);
+static constexpr LightmapElementId InvalidLightmapElementId = Invalid<LightmapElementId>;
 
 HYP_STRUCT(NoScriptBindings)
 struct LightmapElement

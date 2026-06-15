@@ -313,7 +313,7 @@ namespace Hyperion
 
         private static Dictionary<string, PropertyInfo> CollectProperties(Type type)
         {
-            Dictionary<string, PropertyInfo> properties = new Dictionary<string, PropertyInfo>();
+            Dictionary<string, PropertyInfo> properties = new();
 
             CollectProperties(type, properties);
 

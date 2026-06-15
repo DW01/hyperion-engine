@@ -439,6 +439,7 @@ void AssetBucketData::SetAsset(
 
     AssertDebug(usedIndices.Test(assetDesc.index) == true);
 
+    // Evict old asset.
     if (const Handle<AssetObject>* pOldAssetObject = assetObjectCache.TryGet(assetDesc.index); pOldAssetObject && pOldAssetObject->IsValid() && (*pOldAssetObject) != assetObject)
     {
         const Handle<AssetObject>& oldAssetObject = *pOldAssetObject;
@@ -780,7 +781,6 @@ Handle<AssetObject> AssetRegistry::GetAsset(const AssetBucket& bucket, StringHas
     }
 
     const uint32 index = it->index;
-    AssertDebug(index != AssetDesc::InvalidIndex);
     AssertDebug(data.usedIndices.Test(index) == true);
 
     const Handle<AssetObject>* pAssetObject = data.assetObjectCache.TryGet(index);
@@ -793,7 +793,6 @@ Handle<AssetObject> AssetRegistry::GetAsset(const AssetBucket& bucket, StringHas
     lock.Reset();
 
     String strName = String(*Name(name));
-    AssertDebug(strName.Length() > 0);
 
     // Load it into cache
     Handle<AssetObject> assetObject;
@@ -830,6 +829,12 @@ Handle<AssetObject> AssetRegistry::GetAsset(const AssetBucket& bucket, StringHas
 
         if (pAssetObject != nullptr)
         {
+            // revert
+            assetObject->m_assetIndex = AssetDesc::InvalidIndex;
+            assetObject->m_assetPath = AssetPath();
+
+            assetObject.Reset();
+
             return *pAssetObject;
         }
 
@@ -838,6 +843,8 @@ Handle<AssetObject> AssetRegistry::GetAsset(const AssetBucket& bucket, StringHas
 
     InitObject(assetObject);
     assetObject->OnLoaded();
+    
+    AssertDebug(assetObject->m_assetIndex != AssetDesc::InvalidIndex);
 
     return assetObject;
 }

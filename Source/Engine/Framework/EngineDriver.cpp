@@ -460,17 +460,17 @@ void EngineDriver::UpdateSim(float delta)
     const uint32 slot = GetRingIndex();
     const uint32 frameCounter = GetFrameCounter();
 
-    Array<Scene*, SceneAllocator> scenes;
-    Array<View*, SceneAllocator> views;
-    Array<Subsystem*, SceneAllocator> subsystems;
+    Array<Scene*, SceneTempAllocator> scenes;
+    Array<View*, SceneTempAllocator> views;
+    Array<Subsystem*, SceneTempAllocator> subsystems;
 
     TaskBatch worldUpdateTaskBatch;
     TaskBatch* currBatch = &worldUpdateTaskBatch;
 
-    Array<World*, SceneAllocator> worldsToRender;
+    Array<World*, SceneTempAllocator> worldsToRender;
     worldsToRender.Reserve(m_worlds.Size());
 
-    Array<World*, SceneAllocator> simulatingWorlds;
+    Array<World*, SceneTempAllocator> simulatingWorlds;
     simulatingWorlds.Reserve(m_worlds.Size());
 
     for (uint32 i = 0; i < uint32(m_worlds.Size()); i++)
@@ -532,7 +532,7 @@ void EngineDriver::UpdateSim(float delta)
             View* view = views[viewIndex];
             Assert(view != nullptr);
 
-            if (!(view->GetFlags() & (ViewFlags::SHADOW_VIEW | ViewFlags::BAKER_VIEW | ViewFlags::UI_VIEW)))
+            if (!(view->GetFlags() & (ViewFlags::SHADOW_VIEW | ViewFlags::BAKER_VIEW | ViewFlags::UI_VIEW | ViewFlags::ENV_PROBE_VIEW)))
             {
                 view->PrepareShadowViews(views);
             }
@@ -541,7 +541,7 @@ void EngineDriver::UpdateSim(float delta)
         RI.shadowMapCache->Update();
     }
 
-    static const auto RemoveNonUnique = []<class ArrayType>(ArrayType& elems)
+    static const auto removeNonUnique = []<class ArrayType>(ArrayType& elems)
     {
         for (size_t idx = 0; idx < elems.Size();)
         {
@@ -556,9 +556,9 @@ void EngineDriver::UpdateSim(float delta)
         }
     };
 
-    RemoveNonUnique(views);
-    RemoveNonUnique(subsystems);
-    RemoveNonUnique(scenes);
+    removeNonUnique(views);
+    removeNonUnique(subsystems);
+    removeNonUnique(scenes);
 
     for (View* view : views)
     {
@@ -573,42 +573,7 @@ void EngineDriver::UpdateSim(float delta)
     {
         g_visThreadInstance->Process();
     }
-
-    for (World* world : simulatingWorlds)
-    {
-        world->EndUpdate();
-    }
-
-    enum UpdatedEntitiesBucket
-    {
-        Bucket_RenderProxy,
-        Bucket_Visibility,
-        Bucket_Max
-    };
-
-    Array<Entity*, SceneAllocator> updatedEntities[Bucket_Max];
-
-    {
-        // update mark render proxies as needing update for all entities that could be visible,
-        // if they have the UpdateRenderProxy tag
-        Array<Scene*, SceneTempAllocator> visitedScenes;
-        visitedScenes.Reserve(8);
-
-        for (View* view : views)
-        {
-            for (Scene* scene : view->GetScenes())
-            {
-                if (visitedScenes.Contains(scene))
-                {
-                    continue;
-                }
-
-                MeshEntityHelpers::UpdateDirtyMeshEntities(scene, updatedEntities[Bucket_RenderProxy]);
-
-                visitedScenes.PushBack(scene);
-            }
-        }
-    }
+    
 
 #if HYP_PROCESS_SUBSYSTEMS_ASYNC
     Array<Task<void>, SceneTempAllocator> updateSubsystemTasks;
@@ -656,31 +621,75 @@ void EngineDriver::UpdateSim(float delta)
     }
 #endif
 
+    for (Scene* scene : scenes)
+    {
+        scene->GetEntityManager()->Unlock();
+    }
+
+    for (World* world : simulatingWorlds)
+    {
+        world->EndUpdate();
+    }
+
+    enum UpdatedEntitiesBucket
+    {
+        Bucket_RenderProxy,
+        Bucket_Visibility,
+        Bucket_Max
+    };
+
+    Array<Entity*, SceneTempAllocator> updatedEntities[Bucket_Max];
+
+    {
+        // update mark render proxies as needing update for all entities that could be visible,
+        // if they have the UpdateRenderProxy tag
+        Array<Scene*, SceneTempAllocator> visitedScenes;
+        visitedScenes.Reserve(8);
+
+        for (View* view : views)
+        {
+            for (Scene* scene : view->GetScenes())
+            {
+                if (visitedScenes.Contains(scene))
+                {
+                    continue;
+                }
+
+                MeshEntityHelpers::UpdateDirtyMeshEntities(scene, updatedEntities[Bucket_RenderProxy]);
+
+                visitedScenes.PushBack(scene);
+            }
+        }
+    }
+
     g_visThreadInstance->OnFrameEnd(updatedEntities[Bucket_Visibility]);
 
+    for (Scene* scene : scenes)
+    {
+        // add pending before we mutate entity sets via removing tags.
+        // if we don't, then the states of the pending entity sets may become stale
+        // (they may still assume the tag components exist)
+        scene->GetEntityManager()->AddPendingEntitySets();
+    }
+
+    // remove tags for updates that were applied
     if (std::any_of(std::begin(updatedEntities), std::end(updatedEntities), [](const auto& arr) { return arr.Any(); }))
     {
-        for (Scene* scene : scenes)
+        for (Entity* entity : updatedEntities[Bucket_RenderProxy])
         {
-            scene->GetEntityManager()->Unlock();
-
-            // add pending before we mutate entity sets via removing tags.
-            // if we don't, then the states of the pending entity sets may become stale
-            // (they may still assume the tag components exist)
-            scene->GetEntityManager()->AddPendingEntitySets();
+            entity->RemoveTag<EntityTag::UpdateRenderProxy>();
         }
 
-        // remove tags for updates that were applied
-
-        for (Entity* entity : updatedEntities[Bucket_RenderProxy])
-            entity->RemoveTag<EntityTag::UpdateRenderProxy>();
-
         for (Entity* entity : updatedEntities[Bucket_Visibility])
+        {
             entity->RemoveTag<EntityTag::UpdateVisibility>();
+        }
+    }
 
-        // relock
-        for (Scene* scene : scenes)
-            scene->GetEntityManager()->Lock();
+    // relock
+    for (Scene* scene : scenes)
+    {
+        scene->GetEntityManager()->Lock();
     }
 
     for (size_t viewIndex = 0; viewIndex < views.Size(); viewIndex++)

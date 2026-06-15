@@ -12,15 +12,17 @@
 
 #include <Core/Memory/Pool/Pool.hpp>
 
+#include <Core/Threading/AtomicFlag.hpp>
+
 #include <Core/Utilities/EnumFlags.hpp>
 
 #include <Core/Math/BoundingBox.hpp>
 
 #include <Scene/Volume.hpp>
 
-#include <Rendering/RenderTypes.hpp>
+#include <Scene/BakedLighting/SphericalHarmonics.hpp>
 
-#include <cstring>
+#include <Rendering/RenderTypes.hpp>
 
 namespace Hyperion {
 
@@ -28,7 +30,7 @@ class Texture;
 class View;
 class Light;
 class Camera;
-class RenderProxyEnvProbe;
+struct RenderProxyEnvProbe;
 
 ENGINE_API extern Pool* g_scenePool;
 using SceneAllocator = AllocatorInstance<Pool, &g_scenePool>;
@@ -55,83 +57,6 @@ enum EnvProbeType : uint32
     EPT_MAX
 };
 
-#pragma pack(push, 1)
-
-HYP_STRUCT()
-struct EnvProbeSphericalHarmonics
-{
-    HYP_STRUCT_BODY(EnvProbeSphericalHarmonics);
-
-    float values[9 * 3];
-
-    bool operator==(const EnvProbeSphericalHarmonics& other) const
-    {
-        return std::memcmp(values, other.values, sizeof(values)) == 0;
-    }
-
-    bool operator!=(const EnvProbeSphericalHarmonics& other) const
-    {
-        return std::memcmp(values, other.values, sizeof(values)) != 0;
-    }
-
-    HYP_FORCE_INLINE HashCode GetHashCode() const
-    {
-        return HashCode::GetHashCode(
-            reinterpret_cast<const ubyte*>(values),
-            reinterpret_cast<const ubyte*>(values) + sizeof(values));
-    }
-
-#pragma region Serialization
-
-    HYP_METHOD(Property = "Order0", Serialize = true, NoScriptBindings)
-    Vec3f GetOrder0() const
-    {
-        return Vec3f(values[0], values[1], values[2]);
-    }
-
-    HYP_METHOD(Property = "Order0", Serialize = true, NoScriptBindings)
-    void SetOrder0(const Vec3f& inValues)
-    {
-        std::memcpy(values, &inValues, sizeof(float) * 3);
-    }
-
-    HYP_METHOD(Property = "Order1", Serialize = true, NoScriptBindings)
-    FixedArray<Vec3f, 3> GetOrder1() const
-    {
-        return {
-            Vec3f(values[3], values[4], values[5]),
-            Vec3f(values[6], values[7], values[8]),
-            Vec3f(values[9], values[10], values[11])
-        };
-    }
-
-    HYP_METHOD(Property = "Order1", Serialize = true, NoScriptBindings)
-    void SetOrder1(const FixedArray<Vec3f, 3>& inValues)
-    {
-        std::memcpy(values + 3, inValues.Data(), sizeof(float) * 9);
-    }
-
-    HYP_METHOD(Property = "Order2", Serialize = true, NoScriptBindings)
-    FixedArray<Vec3f, 5> GetOrder2() const
-    {
-        return {
-            Vec3f(values[12], values[13], values[14]),
-            Vec3f(values[15], values[16], values[17]),
-            Vec3f(values[18], values[19], values[20]),
-            Vec3f(values[21], values[22], values[23]),
-            Vec3f(values[24], values[25], values[26])
-        };
-    }
-
-    HYP_METHOD(Property = "Order2", Serialize = true, NoScriptBindings)
-    void SetOrder2(const FixedArray<Vec3f, 5>& inValues)
-    {
-        std::memcpy(values + 12, inValues.Data(), sizeof(float) * 15);
-    }
-
-#pragma endregion Serialization
-};
-
 #pragma pack(pop)
 
 HYP_CLASS(AssetBucket = "EnvProbes")
@@ -146,6 +71,7 @@ public:
 
     EnvProbe(const EnvProbe& other) = delete;
     EnvProbe& operator=(const EnvProbe& other) = delete;
+
     ~EnvProbe();
 
     HYP_METHOD()
@@ -228,12 +154,7 @@ public:
             return false;
         }
 
-        if (IsReflectionProbe() || IsSkyProbe())
-        {
-            return m_dimensions.Volume() > 1;
-        }
-
-        return false;
+        return m_dimensions.Volume() > 1;
     }
 
     HYP_METHOD()
@@ -292,19 +213,12 @@ public:
     HYP_DEPRECATED bool IsVisible(ObjId<Camera> cameraId) const;
     HYP_DEPRECATED void SetIsVisible(ObjId<Camera> cameraId, bool isVisible);
 
-    HYP_FORCE_INLINE const EnvProbeSphericalHarmonics& GetSphericalHarmonicsData() const
+    HYP_FORCE_INLINE const SphericalHarmonicsData& GetSphericalHarmonicsData() const
     {
         return m_shData;
     }
 
-    HYP_FORCE_INLINE void SetSphericalHarmonicsData(const EnvProbeSphericalHarmonics& shData)
-    {
-        m_shData = shData;
-
-        MarkDirty();
-
-        SetNeedsRenderProxyUpdate();
-    }
+    void SetSphericalHarmonicsData(const SphericalHarmonicsData& shData);
 
     virtual void Update(float delta) override;
 
@@ -346,7 +260,7 @@ protected:
     EnumFlags<EnvProbeFlags> m_envProbeFlags;
 
     HYP_FIELD(Property = "SHData")
-    EnvProbeSphericalHarmonics m_shData;
+    SphericalHarmonicsData m_shData;
 
     float m_cameraNear;
     float m_cameraFar;
@@ -409,6 +323,7 @@ public:
 
     SkyProbe(const SkyProbe& other) = delete;
     SkyProbe& operator=(const SkyProbe& other) = delete;
+
     ~SkyProbe() override = default;
 
     HYP_METHOD()
@@ -419,6 +334,45 @@ public:
 
 private:
     void Init() override;
+};
+
+HYP_CLASS()
+class ENGINE_API IrradianceProbe : public EnvProbe
+{
+    HYP_OBJECT_BODY(IrradianceProbe);
+
+    friend class ProbeVolume;
+
+public:
+    IrradianceProbe()
+        : EnvProbe(EPT_AMBIENT)
+    {
+#if HYP_EDITOR
+        useVolumeEditTool = false;
+#endif // HYP_EDITOR
+    }
+
+    IrradianceProbe(const BoundingBox& aabb, const Vec2u& dimensions)
+        : EnvProbe(EPT_AMBIENT, aabb, dimensions)
+    {
+#if HYP_EDITOR
+        useVolumeEditTool = false;
+#endif // HYP_EDITOR
+    }
+
+    IrradianceProbe(const IrradianceProbe& other) = delete;
+    IrradianceProbe& operator=(const IrradianceProbe& other) = delete;
+
+    ~IrradianceProbe() override = default;
+
+    AtomicFlag needsRender;
+
+private:
+    void OnTransformUpdated() override;
+
+    void NotifyVolumeNeedsRefresh();
+
+    ProbeVolume* GetParentVolume() const;
 };
 
 } // namespace Hyperion

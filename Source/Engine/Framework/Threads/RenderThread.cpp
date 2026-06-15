@@ -34,6 +34,7 @@
 #include <Rendering/Passes/DeferredPass.hpp>
 
 #include <Rendering/Util/DeletionQueue.hpp>
+#include <Rendering/Util/FrameLimiter.hpp>
 
 #include <Asset/Assets.hpp>
 
@@ -55,9 +56,16 @@ extern EngineStatTimer g_statRenderUpdate;
 
 extern ThreadSignal g_renderInitSignal;
 
+namespace PlatformUtils {
+ENGINE_API extern bool IsOnBatteryPower();
+} // namespace PlatformUtils
+
 static constexpr float IdleMaxFrameRate = 15.0f;
+static constexpr float BatteryMaxFrameRate = 30.0f;
 static CVar<float> s_cvTargetFrameRate("Rendering.TargetFrameRate", 0);             // 0    = no limit
 static CVar<int> s_cvSkipRenderingWhenIdle("Rendering.SkipRenderingWhenIdle", -1);  // -1   = set dynamically based on if editor mode
+
+static FrameLimiter s_frameLimiter { 0 };
 
 RenderThread::RenderThread()
     : Thread(g_renderThread, ThreadPriorityValue::HIGHEST)
@@ -140,30 +148,16 @@ void RenderThread::Update()
             s_wasFocused = false;
         }
     }
+    else if (PlatformUtils::IsOnBatteryPower())
+    {
+        targetFrameRate = (targetFrameRate > 0) ? MathUtil::Min(targetFrameRate, BatteryMaxFrameRate) : BatteryMaxFrameRate;
+    }
     else
     {
         if (!s_wasFocused)
         {
             s_throttleTimer.Reset();
             s_wasFocused = true;
-        }
-    }
-
-    if (targetFrameRate > 0.0f)
-    {
-        const float elapsed = s_throttleTimer.Interval(ClockTimer::Now());
-        const float targetInterval = 1.0f / targetFrameRate;
-
-        if (elapsed < targetInterval)
-        {
-            ThreadSleep(uint32((targetInterval - elapsed) * 1000.0f));
-
-            s_throttleTimer.lastTimePoint += std::chrono::duration_cast<ClockTimer::Clock::duration>(
-                std::chrono::duration<float>(targetInterval));
-        }
-        else
-        {
-            s_throttleTimer.NextTick();
         }
     }
 
@@ -205,7 +199,7 @@ void RenderThread::Update()
     }
 
     RI.namedBuffers[NamedBuffer::Worlds].Write(0, sizeof(WorldShaderData), GetWorldBufferData());
-    
+
     Swapchain* swapchain = nullptr;
 
     if (!skipRenderingThisFrame)
@@ -216,7 +210,7 @@ void RenderThread::Update()
             {
                 RI.PrepareSwapchain(swapchain);
             }
-            
+
             swapchain = swapchains[0];
         }
 
@@ -303,6 +297,14 @@ void RenderThread::Update()
     RI.EndFrame();
 
     g_renderArena->Reset();
+    
+    // Wait AFTER the frame is rendered to allow sim thread to catch up,
+    // as we want buffered data to keep being written even as we wait.
+    if (targetFrameRate > 0.0f)
+    {
+        s_frameLimiter.SetTargetFPS(static_cast<int>(targetFrameRate));
+        s_frameLimiter.Wait();
+    }
 }
 
 void RenderThread::operator()()

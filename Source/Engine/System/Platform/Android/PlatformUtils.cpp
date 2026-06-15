@@ -22,5 +22,11 @@ ENGINE_API PlatformString GetExecutableAbsolutePath()
     return PlatformString(buffer, buffer + result);
 }
 
+ENGINE_API bool IsOnBatteryPower()
+{
+    // TODO: implement for Android using BatteryManager
+    return false;
+}
+
 } // namespace PlatformUtils
 } // namespace Hyperion

@@ -43,6 +43,32 @@
 
 #include <UIObject.generated.inl>
 
+// Static ScriptableDelegate definitions
+ScriptableDelegate<UIEventHandlerResult> UIObject::OnInit;
+ScriptableDelegate<UIEventHandlerResult> UIObject::OnAttached;
+ScriptableDelegate<UIEventHandlerResult> UIObject::OnRemoved;
+ScriptableDelegate<UIEventHandlerResult, UIObject*> UIObject::OnChildAttached;
+ScriptableDelegate<UIEventHandlerResult, UIObject*> UIObject::OnChildRemoved;
+ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> UIObject::OnMouseDown;
+ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> UIObject::OnMouseUp;
+ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> UIObject::OnMouseDrag;
+ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> UIObject::OnMouseHover;
+ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> UIObject::OnMouseLeave;
+ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> UIObject::OnMouseMove;
+ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> UIObject::OnGainFocus;
+ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> UIObject::OnLoseFocus;
+ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> UIObject::OnScroll;
+ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> UIObject::OnClick;
+ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> UIObject::OnRightClick;
+ScriptableDelegate<UIEventHandlerResult, const KeyboardEvent&> UIObject::OnKeyDown;
+ScriptableDelegate<UIEventHandlerResult, const KeyboardEvent&> UIObject::OnKeyUp;
+ScriptableDelegate<UIEventHandlerResult, const String&> UIObject::OnTextChange;
+ScriptableDelegate<UIEventHandlerResult> UIObject::OnSizeChange;
+ScriptableDelegate<UIEventHandlerResult> UIObject::OnComputedVisibilityChange;
+ScriptableDelegate<UIEventHandlerResult> UIObject::OnEnabled;
+ScriptableDelegate<UIEventHandlerResult> UIObject::OnDisabled;
+ScriptableDelegate<UIEventHandlerResult, const BoxedValue&> UIObject::OnValueChange;
+
 namespace Hyperion {
 
 enum class UIObjectFlags : uint32
@@ -165,30 +191,30 @@ UIObject::UIObject(const ThreadId& ownerThreadId)
 {
     m_scrollOffset.SetRate(60.0); // 60hz for scroll offset updates
 
-    OnInit.BindMethod("OnInit", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnAttached.BindMethod("OnAttached", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnRemoved.BindMethod("OnRemoved", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnChildAttached.BindMethod("OnChildAttached", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnChildRemoved.BindMethod("OnChildRemoved", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnMouseDown.BindMethod("OnMouseDown", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnMouseUp.BindMethod("OnMouseUp", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnMouseDrag.BindMethod("OnMouseDrag", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnMouseHover.BindMethod("OnMouseHover", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnMouseLeave.BindMethod("OnMouseLeave", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnMouseMove.BindMethod("OnMouseMove", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnGainFocus.BindMethod("OnGainFocus", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnLoseFocus.BindMethod("OnLoseFocus", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnScroll.BindMethod("OnScroll", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnClick.BindMethod("OnClick", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnRightClick.BindMethod("OnRightClick", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnKeyDown.BindMethod("OnKeyDown", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnKeyUp.BindMethod("OnKeyUp", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnTextChange.BindMethod("OnTextChange", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnSizeChange.BindMethod("OnSizeChange", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnComputedVisibilityChange.BindMethod("OnComputedVisibilityChange", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnEnabled.BindMethod("OnEnabled", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnDisabled.BindMethod("OnDisabled", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
-    OnValueChange.BindMethod("OnValueChange", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnInit.BindMethod(this, "OnInit", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnAttached.BindMethod(this, "OnAttached", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnRemoved.BindMethod(this, "OnRemoved", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnChildAttached.BindMethod(this, "OnChildAttached", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnChildRemoved.BindMethod(this, "OnChildRemoved", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnMouseDown.BindMethod(this, "OnMouseDown", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnMouseUp.BindMethod(this, "OnMouseUp", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnMouseDrag.BindMethod(this, "OnMouseDrag", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnMouseHover.BindMethod(this, "OnMouseHover", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnMouseLeave.BindMethod(this, "OnMouseLeave", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnMouseMove.BindMethod(this, "OnMouseMove", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnGainFocus.BindMethod(this, "OnGainFocus", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnLoseFocus.BindMethod(this, "OnLoseFocus", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnScroll.BindMethod(this, "OnScroll", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnClick.BindMethod(this, "OnClick", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnRightClick.BindMethod(this, "OnRightClick", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnKeyDown.BindMethod(this, "OnKeyDown", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnKeyUp.BindMethod(this, "OnKeyUp", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnTextChange.BindMethod(this, "OnTextChange", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnSizeChange.BindMethod(this, "OnSizeChange", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnComputedVisibilityChange.BindMethod(this, "OnComputedVisibilityChange", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnEnabled.BindMethod(this, "OnEnabled", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnDisabled.BindMethod(this, "OnDisabled", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
+    OnValueChange.BindMethod(this, "OnValueChange", GetScriptObjectResource(), UIEventHandlerResult::OK).Detach();
 }
 
 UIObject::UIObject()
@@ -198,26 +224,30 @@ UIObject::UIObject()
 
 UIObject::~UIObject()
 {
-    OnInit.RemoveAllDetached();
-    OnAttached.RemoveAllDetached();
-    OnRemoved.RemoveAllDetached();
-    OnChildAttached.RemoveAllDetached();
-    OnChildRemoved.RemoveAllDetached();
-    OnMouseDown.RemoveAllDetached();
-    OnMouseUp.RemoveAllDetached();
-    OnMouseDrag.RemoveAllDetached();
-    OnMouseHover.RemoveAllDetached();
-    OnMouseLeave.RemoveAllDetached();
-    OnMouseMove.RemoveAllDetached();
-    OnGainFocus.RemoveAllDetached();
-    OnLoseFocus.RemoveAllDetached();
-    OnScroll.RemoveAllDetached();
-    OnClick.RemoveAllDetached();
-    OnKeyDown.RemoveAllDetached();
-    OnKeyUp.RemoveAllDetached();
-    OnComputedVisibilityChange.RemoveAllDetached();
-    OnEnabled.RemoveAllDetached();
-    OnDisabled.RemoveAllDetached();
+    OnInit.RemoveAllForTarget(this);
+    OnAttached.RemoveAllForTarget(this);
+    OnRemoved.RemoveAllForTarget(this);
+    OnChildAttached.RemoveAllForTarget(this);
+    OnChildRemoved.RemoveAllForTarget(this);
+    OnMouseDown.RemoveAllForTarget(this);
+    OnMouseUp.RemoveAllForTarget(this);
+    OnMouseDrag.RemoveAllForTarget(this);
+    OnMouseHover.RemoveAllForTarget(this);
+    OnMouseLeave.RemoveAllForTarget(this);
+    OnMouseMove.RemoveAllForTarget(this);
+    OnGainFocus.RemoveAllForTarget(this);
+    OnLoseFocus.RemoveAllForTarget(this);
+    OnScroll.RemoveAllForTarget(this);
+    OnClick.RemoveAllForTarget(this);
+    OnRightClick.RemoveAllForTarget(this);
+    OnKeyDown.RemoveAllForTarget(this);
+    OnKeyUp.RemoveAllForTarget(this);
+    OnTextChange.RemoveAllForTarget(this);
+    OnSizeChange.RemoveAllForTarget(this);
+    OnComputedVisibilityChange.RemoveAllForTarget(this);
+    OnEnabled.RemoveAllForTarget(this);
+    OnDisabled.RemoveAllForTarget(this);
+    OnValueChange.RemoveAllForTarget(this);
 }
 
 void UIObject::Init()
@@ -249,7 +279,7 @@ void UIObject::Init()
     UpdateSize();
     UpdatePosition();
 
-    OnInit();
+	OnInit.Fire(this);
 }
 
 void UIObject::Update(float delta)
@@ -383,10 +413,10 @@ void UIObject::OnAttached_Internal(UIObject* parent)
 
     if (m_isEnabled && m_isParentDisabled)
     {
-        OnDisabled();
+        OnDisabled.Fire(this);
     }
 
-    OnAttached();
+    OnAttached.Fire(this);
 }
 
 /// @FIXME: Need to remove from parent before, and pass in the prev parent pointer. currently the calcualtions will be wrong
@@ -409,7 +439,7 @@ void UIObject::OnRemoved_Internal()
 
         if (m_isEnabled && wasParentDisabled)
         {
-            OnEnabled();
+            OnEnabled.Fire(this);
         }
     }
 
@@ -428,7 +458,7 @@ void UIObject::OnRemoved_Internal()
         m_node->Remove(/* moveToDetached */ false);
     }
 
-    OnRemoved();
+    OnRemoved.Fire(this);
 }
 
 UIStage* UIObject::GetStage() const
@@ -749,9 +779,9 @@ void UIObject::UpdateSize_Internal(bool updateChildren)
         },
         /* deep */ false);
 
-    OnSizeChange();
+	OnSizeChange.Fire(this);
 
-    SetDeferredUpdate(UIObjectUpdateType::UPDATE_CLAMPED_SIZE, true);
+	SetDeferredUpdate(UIObjectUpdateType::UPDATE_CLAMPED_SIZE, true);
 }
 
 void UIObject::UpdateClampedSize(bool updateChildren)
@@ -1066,7 +1096,7 @@ void UIObject::Focus()
     // Some UI object types may need to know if any child object is focused when handling `OnLoseFocus`
     m_stage->SetFocusedObject(MakeStrongRef(this));
 
-    OnGainFocus(MouseEvent {});
+    OnGainFocus.Fire(this, MouseEvent {});
 }
 
 void UIObject::Blur(bool blurChildren)
@@ -1076,7 +1106,7 @@ void UIObject::Blur(bool blurChildren)
     if (GetFocusState() & UIObjectFocusState::FOCUSED)
     {
         SetFocusState(GetFocusState() & ~UIObjectFocusState::FOCUSED);
-        OnLoseFocus(MouseEvent {});
+        OnLoseFocus.Fire(this, MouseEvent {});
     }
 
     if (m_stage == nullptr)
@@ -1358,7 +1388,7 @@ void UIObject::UpdateComputedVisibility(bool updateChildren)
             }
         }
 
-        OnComputedVisibilityChange();
+	OnComputedVisibilityChange.Fire(this);
     }
 
     if (updateChildren)
@@ -1389,11 +1419,11 @@ void UIObject::SetIsEnabled(bool isEnabled)
 
     if (isEnabled && !m_isParentDisabled)
     {
-        OnEnabled();
+	OnEnabled.Fire(this);
     }
     else
     {
-        OnDisabled();
+        OnDisabled.Fire(this);
     }
 
     ForEachChildUIObject([this, isEnabled](UIObject* child)
@@ -1402,11 +1432,11 @@ void UIObject::SetIsEnabled(bool isEnabled)
 
             if (child->m_isEnabled && !child->m_isParentDisabled)
             {
-                child->OnEnabled();
+                OnEnabled.Fire(child);
             }
             else
             {
-                child->OnDisabled();
+                OnDisabled.Fire(child);
             }
 
             return IterationResult::CONTINUE;
@@ -1420,7 +1450,7 @@ void UIObject::SetCurrentValue(BoxedValue&& value, bool triggerEvent)
 
     if (triggerEvent)
     {
-        OnValueChange(m_currentValue);
+	OnValueChange.Fire(this, m_currentValue);
     }
 }
 
@@ -1785,18 +1815,26 @@ void UIObject::SetLocalBounds(const BoundingBox& aabb)
 {
     Mat4f transformMatrix;
 
-    if (Scene* scene = GetScene())
-    {
-        BoundingBoxComponent& boundingBoxComponent = scene->GetEntityManager()->GetComponent<BoundingBoxComponent>(GetEntity());
+    Scene* scene = GetScene();
 
-        if (const Handle<Node>& node = GetNode())
+    if (scene != nullptr)
+    {
+        const Handle<Node>& node = GetNode();
+
+        if (node.IsValid())
         {
             node->SetLocalBounds(aabb);
 
             transformMatrix = node->GetWorldMatrix();
         }
 
-        boundingBoxComponent.worldAabb = transformMatrix * aabb;
+        EntityManager* entityManager = scene->GetEntityManager();
+
+        if (entityManager != nullptr)
+        {
+            BoundingBoxComponent& boundingBoxComponent = entityManager->GetComponent<BoundingBoxComponent>(GetEntity());
+            boundingBoxComponent.worldAabb = transformMatrix * aabb;
+        }
     }
 
     m_aabb = transformMatrix * aabb;
@@ -2446,7 +2484,9 @@ void UIObject::UpdateMeshData_Internal()
         instancedMesh = MakeHandle<InstancedMeshData>(NAME_FMT("IMD_{}_{}", InstanceClass()->GetName(), GetName()));
         instancedMesh->SetIsTransient(true);
 
-        GetCurrentAssetRegistry()->PutAssetUnique(instancedMesh);
+        GetEngineAssetRegistry()->PutAssetUnique(instancedMesh);
+
+        Assert(instancedMesh->IsRegistered());
 
         meshComponent->instanceData = AssetReference(instancedMesh);
     }

@@ -57,8 +57,7 @@ void AstMember::Visit(AstVisitor* visitor, Module* mod)
 
         Assert(m_target != nullptr);
 
-        // For member assignment (obj.field = value), the target expression
-        // needs to load the object, not store to it — the member handles the store.
+        // @NOTE: For member assignment (obj.field = value), the target expression needs to load the object, not store to it (member handles the store)
         if (m_accessMode == ACCESS_MODE_STORE)
         {
             m_target->SetAccessMode(ACCESS_MODE_LOAD);

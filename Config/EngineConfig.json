@@ -15,7 +15,8 @@
     "IndirectRendering": true,
     "DepthPrepass": true,
     "ParallelCollection": true,
-    "TargetFrameRate": 120,
+    "TargetFrameRate": 60,
+    "EnableDebugDraw": true,
     "SSR": {
       "Enabled": true,
       "Quality": 2,
@@ -29,16 +30,13 @@
     },
     "Debug": {
       "Reflections": false,
-      "DebugDrawer": {
-        "Enabled": true
-      },
       "Irradiance": false,
       "Normals": false,
       "AO": false
     },
     "VSync": true,
     "Vulkan": {
-      "DebugLayers": true,
+      "DebugLayers": false,
       "TimelineSemaphores": true
     }
   },

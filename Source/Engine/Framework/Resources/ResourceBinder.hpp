@@ -228,7 +228,7 @@ class ResourceBinder : public ResourceBinderBase
             const BitsetType after = (lastFrameIds & ~removed) | newlyAdded;
             const BitsetType unchanged = currentFrameIds & lastFrameIds;
 
-            AssertDebug(after.Count() <= allocator->maxSize);
+            AssertDebug(after.Count() <= allocator->maxSize, "Too many {} allocated!", TypeName<T>().Data());
 
             // HYP_LOG_TEMP("Num {} resources: {} (added {}, removed {}, unchanged {})", typeInfo->name, after.Count(), newlyAdded.Count(), removed.Count(), unchanged.Count());
 

@@ -38,6 +38,7 @@ struct BuiltinTypes
     static const SymbolType* s_nullType;
     static const SymbolType* s_arrayType;
     static const SymbolType* s_mapType;
+    static const SymbolType* s_mathType;
 
     /*! \brief Initialize builtin types in the given global compilation unit. The
      *   global compilation unit is used for shared library types and must have a lifetime that exists

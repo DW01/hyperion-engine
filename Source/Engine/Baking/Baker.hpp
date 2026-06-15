@@ -148,7 +148,8 @@ public:
     }
 
     virtual void ReadHitsBuffer(Frame* frame, BakeJobBase* job, size_t count, Proc<void(Span<LightmapHit> hits)>&& callback) = 0;
-    virtual void Render(Frame* frame, const RenderSetup& renderSetup, BakeJobBase* job, Span<const LightmapRay> rays, uint32 rayOffset) = 0;
+
+    virtual bool Render(Frame* frame, const RenderSetup& renderSetup, BakeJobBase* job, Span<const LightmapRay> rays, uint32 rayOffset) = 0;
 
 protected:
     BakerBase* m_baker;
@@ -235,6 +236,8 @@ public:
     }
 
     void Initialize();
+    void Shutdown();
+
     void Update(float delta);
 
     void HandleCompletedJob(BakeJobBase* job);

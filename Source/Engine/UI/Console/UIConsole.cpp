@@ -207,21 +207,21 @@ void UIConsole::Init()
     UIObject::Init();
 
     OnComputedVisibilityChange
-        .Bind([this]() -> UIEventHandlerResult
+        .Bind(this, [this]() -> UIEventHandlerResult
             {
                 return UIEventHandlerResult::OK;
             })
         .Detach();
 
     OnMouseDown
-        .Bind([this](const MouseEvent& eventData) -> UIEventHandlerResult
+        .Bind(this, [this](const MouseEvent& eventData) -> UIEventHandlerResult
             {
                 return UIEventHandlerResult::STOP_BUBBLING;
             })
         .Detach();
 
     OnKeyDown
-        .Bind([this](const KeyboardEvent& eventData) -> UIEventHandlerResult
+        .Bind(this, [this](const KeyboardEvent& eventData) -> UIEventHandlerResult
             {
                 if (eventData.keyCode == KeyCode::KEY_TILDE || eventData.keyCode == KeyCode::KEY_ESCAPE)
                 {
@@ -236,7 +236,7 @@ void UIConsole::Init()
         .Detach();
 
     OnKeyUp
-        .Bind([this](const KeyboardEvent& eventData) -> UIEventHandlerResult
+        .Bind(this, [this](const KeyboardEvent& eventData) -> UIEventHandlerResult
             {
                 return UIEventHandlerResult::STOP_BUBBLING;
             })
@@ -288,14 +288,12 @@ void UIConsole::Init()
     historyListView->SetDataSource(dataSource);
     historyListView->SetTextSize(12.0f);
 
-    historyListView->OnSizeChange
-        .Bind([this]() -> UIEventHandlerResult
-            {
-                m_historyListView->SetScrollOffset(Vec2f(0.0f, float(m_historyListView->GetActualInnerSize().y + 1000)), /* smooth */ false);
+    OnSizeChange.Bind(historyListView, [this]() -> UIEventHandlerResult
+        {
+            m_historyListView->SetScrollOffset(Vec2f(0.0f, float(m_historyListView->GetActualInnerSize().y + 1000)), /* smooth */ false);
 
-                return UIEventHandlerResult::STOP_BUBBLING;
-            })
-        .Detach();
+            return UIEventHandlerResult::STOP_BUBBLING;
+        }).Detach();
 
     m_historyListView = historyListView;
 
@@ -326,9 +324,54 @@ void UIConsole::Init()
 
     m_textbox = textbox;
 
-    m_textbox->OnTextChange
-        .Bind([this](const String& text) -> UIEventHandlerResult
+    OnTextChange.Bind(m_textbox, [this](const String& text) -> UIEventHandlerResult
+        {
+            if (text.Any())
             {
+                if (text.ToLower() == "clear")
+                {
+                    m_history->ClearHistory();
+                }
+                else
+                {
+                    m_history->AddEntry(text, ConsoleHistoryEntryType::COMMAND);
+                }
+
+                Array<String> args = text.Split(' ');
+                Array<const char*> argsCharV = Map(args, [](const String& str) { return str.Data(); });
+
+                int result = Hyp_ExecuteConsoleCommand(int(args.Size()), argsCharV.Data());
+                if (result != 0)
+                {
+                    HYP_LOG(Console, Error, "Error executing command: returned error code {}", result);
+                }
+                else
+                {
+                    HYP_LOG(Console, Info, "Executed command: {}", text);
+                }
+
+                m_currentCommandText.Clear();
+
+                //m_textbox->Focus();
+            }
+
+            return UIEventHandlerResult::STOP_BUBBLING;
+        }).Detach();
+
+    OnKeyDown.Bind(m_textbox, [this](const KeyboardEvent& eventData) -> UIEventHandlerResult
+        {
+            if (eventData.keyCode == KeyCode::KEY_TILDE || eventData.keyCode == KeyCode::KEY_ESCAPE)
+            {
+                // let the parent handle this key
+                Blur();
+
+                return UIEventHandlerResult::OK;
+            }
+
+            if (eventData.keyCode == KeyCode::KEY_RETURN)
+            {
+                const String& text = m_textbox->GetText();
+
                 if (text.Any())
                 {
                     if (text.ToLower() == "clear")
@@ -354,108 +397,59 @@ void UIConsole::Init()
                     }
 
                     m_currentCommandText.Clear();
-
-                    //m_textbox->Focus();
-                }
-
-                return UIEventHandlerResult::STOP_BUBBLING;
-            })
-        .Detach();
-
-    m_textbox->OnKeyDown
-        .Bind([this](const KeyboardEvent& eventData) -> UIEventHandlerResult
-            {
-                if (eventData.keyCode == KeyCode::KEY_TILDE || eventData.keyCode == KeyCode::KEY_ESCAPE)
-                {
-                    // let the parent handle this key
-                    Blur();
-
-                    return UIEventHandlerResult::OK;
-                }
-
-                if (eventData.keyCode == KeyCode::KEY_RETURN)
-                {
-                    const String& text = m_textbox->GetText();
-
-                    if (text.Any())
-                    {
-                        if (text.ToLower() == "clear")
-                        {
-                            m_history->ClearHistory();
-                        }
-                        else
-                        {
-                            m_history->AddEntry(text, ConsoleHistoryEntryType::COMMAND);
-                        }
-
-                        Array<String> args = text.Split(' ');
-                        Array<const char*> argsCharV = Map(args, [](const String& str) { return str.Data(); });
-
-                        int result = Hyp_ExecuteConsoleCommand(int(args.Size()), argsCharV.Data());
-                        if (result != 0)
-                        {
-                            HYP_LOG(Console, Error, "Error executing command: returned error code {}", result);
-                        }
-                        else
-                        {
-                            HYP_LOG(Console, Info, "Executed command: {}", text);
-                        }
-
-                        m_currentCommandText.Clear();
-                        m_textbox->SetText("");
-
-                        m_textbox->Focus();
-                    }
-                }
-                else if (eventData.keyCode == KeyCode::KEY_UP)
-                {
-                    // @TODO Only cycle through COMMAND items..
-                    if (m_historyListView && m_historyListView->GetListViewItems().Any())
-                    {
-                        const int selectedItemIndex = m_historyListView->GetSelectedItemIndex() - 1;
-
-                        if (selectedItemIndex >= 0 && selectedItemIndex < int(m_historyListView->GetListViewItems().Size()))
-                        {
-                            m_historyListView->SetSelectedItemIndex(selectedItemIndex);
-                        }
-                    }
-                }
-                else if (eventData.keyCode == KeyCode::KEY_DOWN)
-                {
-                    if (m_historyListView && m_historyListView->GetListViewItems().Any())
-                    {
-                        const int selectedItemIndex = m_historyListView->GetSelectedItemIndex() + 1;
-
-                        if (selectedItemIndex < 0)
-                        {
-                            m_historyListView->SetSelectedItemIndex(0);
-                        }
-                        else if (selectedItemIndex < int(m_historyListView->GetListViewItems().Size()))
-                        {
-                            m_historyListView->SetSelectedItemIndex(selectedItemIndex);
-                        }
-                        else
-                        {
-                            m_textbox->SetText(m_currentCommandText);
-                        }
-                    }
-                }
-                else if (eventData.keyCode == KeyCode::KEY_ESCAPE)
-                {
                     m_textbox->SetText("");
-                    m_currentCommandText.Clear();
 
-                    // Lose focus of the console.
-                    Blur();
+                    m_textbox->Focus();
                 }
-                else
+            }
+            else if (eventData.keyCode == KeyCode::KEY_UP)
+            {
+                // @TODO Only cycle through COMMAND items..
+                if (m_historyListView && m_historyListView->GetListViewItems().Any())
                 {
-                    m_currentCommandText = m_textbox->GetText();
-                }
+                    const int selectedItemIndex = m_historyListView->GetSelectedItemIndex() - 1;
 
-                return UIEventHandlerResult::STOP_BUBBLING;
-            })
-        .Detach();
+                    if (selectedItemIndex >= 0 && selectedItemIndex < int(m_historyListView->GetListViewItems().Size()))
+                    {
+                        m_historyListView->SetSelectedItemIndex(selectedItemIndex);
+                    }
+                }
+            }
+            else if (eventData.keyCode == KeyCode::KEY_DOWN)
+            {
+                if (m_historyListView && m_historyListView->GetListViewItems().Any())
+                {
+                    const int selectedItemIndex = m_historyListView->GetSelectedItemIndex() + 1;
+
+                    if (selectedItemIndex < 0)
+                    {
+                        m_historyListView->SetSelectedItemIndex(0);
+                    }
+                    else if (selectedItemIndex < int(m_historyListView->GetListViewItems().Size()))
+                    {
+                        m_historyListView->SetSelectedItemIndex(selectedItemIndex);
+                    }
+                    else
+                    {
+                        m_textbox->SetText(m_currentCommandText);
+                    }
+                }
+            }
+            else if (eventData.keyCode == KeyCode::KEY_ESCAPE)
+            {
+                m_textbox->SetText("");
+                m_currentCommandText.Clear();
+
+                // Lose focus of the console.
+                Blur();
+            }
+            else
+            {
+                m_currentCommandText = m_textbox->GetText();
+            }
+
+            return UIEventHandlerResult::STOP_BUBBLING;
+        }).Detach();
 }
 
 void UIConsole::UpdateSize_Internal(bool updateChildren)

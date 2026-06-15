@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <RenderingPch.hpp>
 
@@ -41,7 +41,7 @@
 #include <Scene/View.hpp>
 #include <Scene/Light.hpp>
 #include <Scene/EnvProbe.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/FogVolume.hpp>
 #include <Scene/ParticleVolume.hpp>
 #include <Scene/LightmapVolume.hpp>
@@ -75,6 +75,10 @@ extern EngineStatCounter<uint32> g_statInstancedDrawCalls;
 extern EngineStatCounter<uint32> g_statTriangles;
 extern EngineStatCounter<uint32> g_statRenderGroups;
 
+extern EngineStatTimer g_statTotalStallTime;
+
+static EngineStatTimer s_statProxyListReadWait("Rendering/CPU/ProxyListReadWait");
+
 extern CVar<bool> cvDepthPrepass;
 extern CVar<bool> cvPathTracing;
 
@@ -84,6 +88,7 @@ static const Name s_nameForward = NAME("FORWARD");
 static const ShaderPropertyId s_propShadingTypeForward = InternShaderProperty(ShaderProperty(s_nameShadingType, Name(s_nameForward)));
 
 static const ShaderPropertyId s_propForwardClustered = InternShaderProperty(ShaderProperty(NAME("FORWARD_CLUSTERED")));
+static const ShaderPropertyId s_propForwardShading = InternShaderProperty(ShaderProperty(NAME("FORWARD_SHADING")));
 
 static HYP_FORCE_INLINE bool IsCubemapShader(StringHash shaderNameHash)
 {
@@ -95,14 +100,19 @@ static HYP_FORCE_INLINE bool IsCubemapShader(StringHash shaderNameHash)
 
 #pragma region ParallelRenderingState
 
+// per-thread CommandRecorder
+// Wtf is this crash?
+// using ThreadedCommandRecorder = TCommandRecorder<ThreadAllocator>;
+
+using ThreadedCommandRecorder = TCommandRecorder<DynamicAllocator>;
+
 // Holds shared data for ParallelRenderingState instances to reduce memory usage
 struct ParallelRenderingState_Shared
 {
     HYP_DEF_POOL_NEW_DELETE(g_renderPool);
 
-    static constexpr uint32 MaxBatches = ParallelRenderingState::MaxBatches;
+    static constexpr uint32 MaxBatches = NumRendererWorkerThreads;
 
-    using ThreadedCommandRecorder = ParallelRenderingState::ThreadedCommandRecorder;
     FixedArray<ThreadedCommandRecorder, MaxBatches> threadedCommandRecorders;
 
     ParallelRenderingState_Shared()
@@ -110,34 +120,38 @@ struct ParallelRenderingState_Shared
     {
     }
 
+    ParallelRenderingState_Shared(const ParallelRenderingState_Shared& other) = delete;
+    ParallelRenderingState_Shared& operator=(const ParallelRenderingState_Shared& other) = delete;
+
     ~ParallelRenderingState_Shared()
     {
         // we have to free up the memory for each local queue on individual threads,
         // due to the use of ThreadAllocator.
-        auto DestructCommandRecorders = [this]() mutable -> void
+        auto destructCommandRecorders = [data = threadedCommandRecorders.Data()](uint32 renderThreadIndex) mutable -> void
         {
-            const uint32 renderThreadIndex = CurrentRenderThreadIndex();
             Assert(renderThreadIndex < MaxBatches);
 
-            ThreadedCommandRecorder& commandRecorder = threadedCommandRecorders[renderThreadIndex];
+            ThreadedCommandRecorder& commandRecorder = data[renderThreadIndex];
             commandRecorder.Reset(/* freeMemory */ true);
         };
 
         AssertOnThread(g_renderThread);
 
-        // Render thread == 0
-        DestructCommandRecorders();
-
         Array<Task<void>> tasks;
-        tasks.Reserve(ParallelRenderingState::MaxBatches);
+        tasks.Reserve(MaxBatches);
 
         auto& poolThreads = TaskSystem::GetInstance().GetPool(TaskThreadPoolName::THREAD_POOL_RENDER).GetThreads();
 
-        for (uint32 i = 0; i < uint32(poolThreads.Size()); i++)
-        {
-            AssertDebug(poolThreads[i] != nullptr);
+        const uint32 numWorkerBatches = MathUtil::Min(uint32(poolThreads.Size()), MaxBatches);
 
-            tasks.EmplaceBack(poolThreads[i]->GetScheduler().Enqueue([&DestructCommandRecorders] { DestructCommandRecorders(); }));
+        for (uint32 threadIndex = 0; threadIndex < numWorkerBatches; threadIndex++)
+        {
+            AssertDebug(poolThreads[threadIndex] != nullptr);
+
+            tasks.EmplaceBack(poolThreads[threadIndex]->GetScheduler().Enqueue([&destructCommandRecorders, threadIndex]
+                                                                               {
+                                                                                   destructCommandRecorders(threadIndex);
+                                                                               }));
         }
 
         AwaitAll(tasks.ToSpan());
@@ -145,7 +159,7 @@ struct ParallelRenderingState_Shared
 
     void Reset()
     {
-        for (uint32 i = 0; i < ParallelRenderingState::MaxBatches; i++)
+        for (uint32 i = 0; i < ParallelRenderingState_Shared::MaxBatches; i++)
         {
             // don't free memory; each queue uses thread-local memory allocators
             threadedCommandRecorders[i].Reset(/* freeMemory */ false);
@@ -158,11 +172,6 @@ ParallelRenderingState::ParallelRenderingState(ParallelRenderingState_Shared* sh
       ownsSharedData(ownsSharedData)
 {
     Assert(sharedData != nullptr);
-
-    for (uint32 i = 0; i < MaxBatches; i++)
-    {
-        threadedCommandRecorders[i] = &sharedData->threadedCommandRecorders[i];
-    }
 }
 
 ParallelRenderingState::~ParallelRenderingState()
@@ -170,6 +179,7 @@ ParallelRenderingState::~ParallelRenderingState()
     if (ownsSharedData)
     {
         delete sharedData;
+        sharedData = nullptr;
     }
 }
 
@@ -284,7 +294,7 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
 
     const bool isCubemap = IsCubemapShader(attributes.GetMaterialAttributes().shaderName);
 
-#if 0//def HYP_VULKAN
+#if 0 // def HYP_VULKAN
     const bool isMultiView = isCubemap;
 #else
     const bool isMultiView = false;
@@ -366,8 +376,7 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
 
 #pragma region DepthPrepass
 
-namespace DepthPrepass
-{
+namespace DepthPrepass {
 
 enum Stage : uint8
 {
@@ -590,9 +599,9 @@ static inline void UpdateRefs(T& renderProxyList)
     AssertDebug(renderProxyList.useRefCounting);
 
     ForEachResourceTracker(renderProxyList.resourceTrackers.ToSpan(), []<class... Args>(Args&&... args)
-        {
-            UpdateRefs_Impl(std::forward<Args>(args)...);
-        });
+                           {
+                               UpdateRefs_Impl(std::forward<Args>(args)...);
+                           });
 }
 
 #pragma region RenderProxyList
@@ -605,11 +614,11 @@ RenderProxyList::RenderProxyList(bool isShared, bool useRefCounting)
 {
     // initialize the resource trackers
     ForEachResourceTrackerType(resourceTrackers.ToSpan(), [this]<class ResourceTrackerType>(TypeWrapper<ResourceTrackerType>, ResourceTrackerBase<AllocatorType>*& pResourceTracker, size_t idx)
-        {
-            AssertDebug(!pResourceTracker);
+                               {
+                                   AssertDebug(!pResourceTracker);
 
-            pResourceTracker = new ResourceTrackerType();
-        });
+                                   pResourceTracker = new ResourceTrackerType();
+                               });
 }
 
 RenderProxyList::~RenderProxyList()
@@ -618,13 +627,13 @@ RenderProxyList::~RenderProxyList()
     int numRenderProxies = 0;
 
     ForEachResourceTracker(resourceTrackers.ToSpan(), [&](auto&& resourceTracker)
-        {
-            for (Bitset::BitIndex bit : resourceTracker.GetSubclassIndices())
-            {
-                auto&& impl = resourceTracker.GetSubclassImpl(int(bit));
-                numRenderProxies += impl.proxies.Count();
-            }
-        });
+                           {
+                               for (Bitset::BitIndex bit : resourceTracker.GetSubclassIndices())
+                               {
+                                   auto&& impl = resourceTracker.GetSubclassImpl(int(bit));
+                                   numRenderProxies += impl.proxies.Count();
+                               }
+                           });
 
     if (numRenderProxies > 0)
         HYP_LOG(Rendering, Verbose, "RenderProxyList destroyed with {} render proxies still in it", numRenderProxies);
@@ -650,9 +659,9 @@ void RenderProxyList::BeginWrite()
     // advance all trackers to the next state before we write into them.
     // this clears their 'next' bits and sets their 'previous' bits so we can tell what changed.
     ForEachResourceTracker(resourceTrackers.ToSpan(), [](auto&& resourceTracker)
-        {
-            resourceTracker.Advance(/* clearNextState */ true);
-        });
+                           {
+                               resourceTracker.Advance(/* clearNextState */ true);
+                           });
 }
 
 void RenderProxyList::EndWrite()
@@ -677,25 +686,30 @@ void RenderProxyList::BeginRead(bool* pOutSuccess)
     bool lockAcquired = false;
     uint32 numSpins = 0;
 
-    while (!lockAcquired)
     {
-        while (!(lockAcquired = m_lock.TryLockReader()) && numSpins++ < MaxSpinsBeforeFail)
-            ;
+        ENGINE_STAT_SCOPE(&g_statTotalStallTime);
+        ENGINE_STAT_SCOPE(&s_statProxyListReadWait);
 
-        if (!lockAcquired && numSpins >= MaxSpinsBeforeFail)
+        while (!lockAcquired)
         {
-            HYP_LOG(Rendering, Verbose, "Failed to acquire read lock. "
-                                        "If this is occurring frequently, the View that owns this RenderProxyList should have double / triple buffering enabled");
+            while (!(lockAcquired = m_lock.TryLockReader()) && numSpins++ < MaxSpinsBeforeFail)
+                ;
 
-            if (pOutSuccess != nullptr)
+            if (!lockAcquired && numSpins >= MaxSpinsBeforeFail)
             {
-                *pOutSuccess = false;
+                HYP_LOG(Rendering, Verbose, "Failed to acquire read lock. "
+                                            "If this is occurring frequently, the View that owns this RenderProxyList should have double / triple buffering enabled");
 
-                return;
+                if (pOutSuccess != nullptr)
+                {
+                    *pOutSuccess = false;
+
+                    return;
+                }
+
+                // continue and try again, if no pOutSuccess
+                ThreadSleep(0);
             }
-
-            // continue and try again, if no pOutSuccess
-            ThreadSleep(0);
         }
     }
 
@@ -728,9 +742,9 @@ void RenderProxyList::ClearAll()
     // First advance would be from BeginWrite(), we advance again without tracking any new resources,
     // so the current ones all get disposed.
     ForEachResourceTracker(resourceTrackers.ToSpan(), [](auto&& resourceTracker)
-        {
-            resourceTracker.Advance(/* clearNextState */ true);
-        });
+                           {
+                               resourceTracker.Advance(/* clearNextState */ true);
+                           });
 }
 
 #pragma endregion RenderProxyList
@@ -753,8 +767,9 @@ struct TPerformRenderingPayload
     PerformRenderingPayloadBase* pNext;
 };
 
+/// Forward shading, NOT clustered
 template <class TCommandRecorder>
-static void SetForwardShadingUniforms(
+static void SetForwardShadingConstants(
     const RenderSetup& renderSetup,
     TCommandRecorder& cr,
     uint32& numShaderUniforms)
@@ -819,7 +834,9 @@ static void SetForwardShadingUniforms(
             AssertDebug(atlasElement != nullptr);
 
             if (!atlasElement)
+            {
                 continue;
+            }
 
             AssertDebug(shadowMapViewsDynamic.Size() > 0 && shadowMapViewsDynamic[0]->GetCamera() != nullptr);
 
@@ -857,7 +874,7 @@ static void SetForwardShadingUniforms(
 
     rpl.EndRead();
 
-    cr << SetShaderUniform(numShaderUniforms++, "FowardShadingConstants"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
+    cr << SetShaderUniform(numShaderUniforms++, "ForwardShadingConstants"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
 }
 
 template <bool UseIndirectRendering, class TCommandRecorder>
@@ -895,10 +912,18 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
         return;
     }
 
-    const uint32 frameIndex = frame->GetFrameIndex();
-
     const RenderableAttributeSet& ras = drawCallCollection.attributes;
     const MaterialAttributes& mas = ras.GetMaterialAttributes();
+
+    const bool isForwardClustered = mas.shaderProperties.Test(s_propShadingTypeForward); // s_propForwardClustered);
+    const bool isForwardNonClustered = mas.shaderProperties.Test(s_propForwardShading);
+
+    const bool shouldWriteSHData = (mas.shaderName == GeometryPass::DefaultShaderName);
+    const bool shouldEvaluateSH = (shouldWriteSHData && prepassStage != DepthPrepass::DPP_InPrepass);
+
+    Vec4f shData[9];
+    Memory::Zero(shData, sizeof(shData));
+    shData[0].w = (shouldEvaluateSH ? 1.0f : 0.0f); // shader uses this field to branch on
 
     uint32 numShaderUniforms = 0;
 
@@ -932,14 +957,6 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
     else
         cr << SetShaderUniform(numShaderUniforms++, "CurrentEnvProbe"_sh, RI.namedBuffers[NamedBuffer::EnvProbes], 0);
 
-
-    const bool isForwardShading = mas.shaderProperties.Test(s_propShadingTypeForward);
-
-    // if (isForwardShading)
-    // {
-    //     SetForwardShadingUniforms(renderSetup, cr, numShaderUniforms);
-    // }
-
     // Will only be non-null if we are in a deferred rendering pass.
     DeferredPassData* dpd = DynamicCast<DeferredPassData>(renderSetup.passData);
 
@@ -947,7 +964,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
     {
         cr << SetShaderUniform(numShaderUniforms++, "GBufferMipChain"_sh, RI.textureViewCache->GetOrCreate(dpd->mipChain));
 
-        if (isForwardShading)
+        if (isForwardClustered)
         {
             // Even though the name (DeferredPassData) suggests otherwise, we are in forward pass, where we use clustered shading
 
@@ -957,6 +974,11 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
             cr << SetShaderUniform(numShaderUniforms++, "ClusterGridBuffer"_sh, *dpd->gridTilesBuffer);
             cr << SetShaderUniform(numShaderUniforms++, "ClusterIndexBuffer"_sh, *dpd->gridIndexBuffer);
         }
+    }
+
+    if (isForwardNonClustered)
+    {
+        SetForwardShadingConstants(renderSetup, cr, numShaderUniforms);
     }
 
     static const bool s_useBindlessTextures = RI.GetRenderConfig().bindlessTextures;
@@ -970,7 +992,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
     bool isDepthWriteEnabled = bool(mas.flags & MAF_DEPTH_WRITE);
 
     // Helper lambda to handle depth prepass logic. Returns true if the draw should be skipped.
-    auto HandleDepthPrepass = [&](const RenderProxyMesh& meshProxy) -> bool
+    auto handleDepthPrepass = [&](const RenderProxyMesh& meshProxy) -> bool
     {
         if (prepassStage == DepthPrepass::DPP_InPrepass)
         {
@@ -980,9 +1002,9 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
             }
 
             if (DepthPrepass::ShouldIncludeInPrepass(
-                renderSetup.viewport,
-                cameraProxy->bufferData.viewProjMat,
-                meshProxy))
+                    renderSetup.viewport,
+                    cameraProxy->bufferData.viewProjMat,
+                    meshProxy))
             {
                 if (!isDepthWriteEnabled)
                 {
@@ -1002,9 +1024,9 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
                 bool shouldEnableDepthWrite;
 
                 if (DepthPrepass::ShouldIncludeInPrepass(
-                    renderSetup.viewport,
-                    cameraProxy->bufferData.viewProjMat,
-                    meshProxy))
+                        renderSetup.viewport,
+                        cameraProxy->bufferData.viewProjMat,
+                        meshProxy))
                 {
                     // No depth write; depth would have been written by the prepass
                     shouldEnableDepthWrite = false;
@@ -1034,7 +1056,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
 
         const RenderProxyMesh& meshProxy = *drawCalls.meshProxies[i];
 
-        if (HandleDepthPrepass(meshProxy))
+        if (handleDepthPrepass(meshProxy))
         {
             continue;
         }
@@ -1053,8 +1075,29 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
             cba.Write(&cameraProxy->bufferData);
             cba.Write(&materialProxy->bufferData);
             cba.Write(&vpMatrix);
+
+            if (shouldWriteSHData)
+            {
+                if (shouldEvaluateSH)
+                {
+                    // Copy SHs from the mesh proxy
+                    const float* inSH = meshProxy.shData;
+                    Vec4f* outSH = shData;
+
+                    for (size_t i = 0; i < 9; ++i)
+                    {
+                        outSH[i].x = *inSH++;
+                        outSH[i].y = *inSH++;
+                        outSH[i].z = *inSH++;
+                    }
+                }
+
+                cba.Write(shData, sizeof(shData), alignof(decltype(shData)));
+            }
+
             cba.Commit(cbuffer, cbufferOffset, cbufferSize);
         }
+
         cr << SetShaderUniform(cbufferBinding, "CBuffer"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
 
         if (meshProxy.skeleton != nullptr)
@@ -1097,7 +1140,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
         if (UseIndirectRendering && drawCalls.drawCommandIndices[i] != ~0u)
         {
             cr << DrawIndexedIndirect(
-                indirectRenderer->GetDrawState().GetIndirectBuffer(frameIndex),
+                indirectRenderer->GetDrawState().GetIndirectBuffer(frame->GetFrameIndex()),
                 drawCalls.drawCommandIndices[i] * uint32(sizeof(IndirectDrawCommand)));
         }
         else
@@ -1122,7 +1165,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
 
         const RenderProxyMesh& meshProxy = *instancedDrawCalls.meshProxies[i];
 
-        if (HandleDepthPrepass(meshProxy))
+        if (handleDepthPrepass(meshProxy))
         {
             continue;
         }
@@ -1141,8 +1184,29 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
             cba.Write(&cameraProxy->bufferData);
             cba.Write(&materialProxy->bufferData);
             cba.Write(&vpMatrix);
+
+            if (shouldWriteSHData)
+            {
+                if (shouldEvaluateSH)
+                {
+                    // Copy SHs from the mesh proxy
+                    const float* inSH = meshProxy.shData;
+                    Vec4f* outSH = shData;
+
+                    for (size_t i = 0; i < 9; ++i)
+                    {
+                        outSH[i].x = *inSH++;
+                        outSH[i].y = *inSH++;
+                        outSH[i].z = *inSH++;
+                    }
+                }
+
+                cba.Write(shData, sizeof(shData), alignof(decltype(shData)));
+            }
+
             cba.Commit(cbuffer, cbufferOffset, cbufferSize);
         }
+
         cr << SetShaderUniform(cbufferBinding, "CBuffer"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
 
         EntityInstanceBatch* entityInstanceBatch = instancedDrawCalls.batches[i];
@@ -1170,8 +1234,8 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
                 const StringHash textureUniformName = MaterialDefinition::s_textureNames[bit];
 
                 cr << SetShaderUniform(numDrawCallUniforms++,
-                    textureUniformName,
-                    imageViews[materialProxy->boundTextureIndices[bit]]);
+                                       textureUniformName,
+                                       imageViews[materialProxy->boundTextureIndices[bit]]);
             }
         }
 
@@ -1194,7 +1258,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
         if (UseIndirectRendering && instancedDrawCalls.drawCommandIndices[i] != ~0u)
         {
             cr << DrawIndexedIndirect(
-                indirectRenderer->GetDrawState().GetIndirectBuffer(frameIndex),
+                indirectRenderer->GetDrawState().GetIndirectBuffer(frame->GetFrameIndex()),
                 instancedDrawCalls.drawCommandIndices[i] * uint32(sizeof(IndirectDrawCommand)));
         }
         else
@@ -1317,7 +1381,8 @@ static inline void DeleteOnRenderThread(Func&& function)
     Mutex::Guard* pGuard = nullptr;
     HYP_DEFER({ if (pGuard) delete pGuard; });
 
-    Payload** ppPayload = DeletionQueue::GetInstance().AllocCustom<Payload*>([](void* ptr)
+    Payload** ppPayload = DeletionQueue::GetInstance().AllocCustom<Payload*>(
+        [](void* ptr)
         {
             AssertOnThread(g_renderThread);
 
@@ -1348,11 +1413,10 @@ RenderCollector::~RenderCollector()
         return;
     }
 
-    DeleteOnRenderThread([attrs = std::move(previousAttributes), m = std::move(mappingsByBucket), states = parallelRenderingStates]() mutable
+    DeleteOnRenderThread(
+        [attrs = std::move(previousAttributes), m = std::move(mappingsByBucket), states = parallelRenderingStates]() mutable
         {
             attrs.Clear(/* freeMemory */ true);
-
-            Array<Span<ParallelRenderingState::ThreadedCommandRecorder>> allThreadedCommandRecorders;
 
             // Collect command recorders.
             for (auto& list : states)
@@ -1360,6 +1424,8 @@ RenderCollector::~RenderCollector()
                 if (list.head)
                 {
                     ParallelRenderingState* state = list.head;
+
+                    Array<ParallelRenderingState*> toDelete;
 
                     while (state != nullptr)
                     {
@@ -1372,9 +1438,25 @@ RenderCollector::~RenderCollector()
 
                         ParallelRenderingState* nextState = state->next;
 
-                        delete state;
+                        AssertDebug(!toDelete.Contains(state));
+
+                        toDelete.PushBack(state);
 
                         state = nextState;
+                    }
+
+                    TSet<ParallelRenderingState_Shared*> deletedSharedData;
+
+                    for (size_t i = toDelete.Size(); i > 0; i--)
+                    {
+                        if (toDelete[i - 1]->ownsSharedData)
+                        {
+                            AssertDebug(!deletedSharedData.Contains(toDelete[i - 1]->sharedData));
+
+                            deletedSharedData.Add(toDelete[i - 1]->sharedData);
+                        }
+
+                        delete toDelete[i - 1];
                     }
                 }
             }
@@ -1469,7 +1551,6 @@ HYP_NODISCARD ParallelRenderingState* RenderCollector::AcquireNextParallelRender
             taskBatch->pool = &pool;
 
             parallelRenderingStateHead->taskBatch = taskBatch;
-            parallelRenderingStateHead->numBatches = ParallelRenderingState::MaxBatches;
         }
 
         curr = parallelRenderingStateHead;
@@ -1490,7 +1571,6 @@ HYP_NODISCARD ParallelRenderingState* RenderCollector::AcquireNextParallelRender
             taskBatch->pool = &pool;
 
             newParallelRenderingState->taskBatch = taskBatch;
-            newParallelRenderingState->numBatches = ParallelRenderingState::MaxBatches;
 
             next = newParallelRenderingState;
         }
@@ -1538,19 +1618,19 @@ void RenderCollector::Commit(CommandRecorder& cr, uint8 index)
 
     while (state)
     {
-        AssertDebug(state->taskBatch != nullptr);
-        state->taskBatch->AwaitCompletion();
-
         state->renderThreadRecorder.Done();
         cr.Concat(state->renderThreadRecorder);
         state->renderThreadRecorder.Reset(/* freeMemory */ false);
 
-        for (uint32 i = 0; i < ParallelRenderingState::MaxBatches; i++)
-        {
-            state->threadedCommandRecorders[i]->Done();
-            cr.Concat(*state->threadedCommandRecorders[i]);
+        AssertDebug(state->taskBatch != nullptr);
+        state->taskBatch->AwaitCompletion();
 
-            state->threadedCommandRecorders[i]->Reset(/* freeMemory */ false);
+        for (uint32 i = 0; i < ParallelRenderingState_Shared::MaxBatches; i++)
+        {
+            state->sharedData->threadedCommandRecorders[i].Done();
+            cr.Concat(state->sharedData->threadedCommandRecorders[i]);
+
+            state->sharedData->threadedCommandRecorders[i].Reset(/* freeMemory */ false);
         }
 
         // end threaded commands -- reset draw states
@@ -1566,14 +1646,6 @@ void RenderCollector::Commit(CommandRecorder& cr, uint8 index)
         cr << SetDepthBias(0, 0.0f);
         cr << SetDepthClamp(false);
         cr << SetStencilTest(false);
-
-        // Add render stats counts to the engine's render stats
-        for (EngineStatsValueSet& valueSet : state->statValues)
-        {
-            g_engineStats->RecordValueSet(valueSet);
-
-            valueSet = {}; // Reset counts after adding for next use
-        }
 
         state->sharedData->Reset();
         state->taskBatch->ResetState();
@@ -1751,7 +1823,6 @@ bool RenderCollector::BeginRecordDrawCalls(
         }
     }
 
-
     return anyEnqueued;
 }
 
@@ -1849,8 +1920,6 @@ void RenderCollector::ExecuteDrawCalls(
     {
         frame->cr << SetCurrentFramebuffer(framebuffer);
     }
-
-    RenderGroupCache& attributeRegistry = *RI.renderGroupCache;
 
     // set these to null after rendering
     static Array<ParallelRenderingState**> s_parallelRenderingStatesToNullify;
@@ -2184,9 +2253,9 @@ void RenderCollector::BuildRenderGroups(View* view, RenderProxyList& renderProxy
 
             const RenderableAttributeHandle* attributeHandle = previousAttributes.TryGet(idx);
 
-            if (!attributeHandle)
+            if (HYP_UNLIKELY(!attributeHandle))
             {
-                // no handle present — entity was never placed in a draw call collection, nothing to remove
+                // nothing to remove here - Skip it
                 continue;
             }
 
@@ -2251,16 +2320,16 @@ void RenderCollector::PerformRendering(Frame* frame, PerformRenderingPayloadBase
         return;
     }
 
-    const uint32 renderThreadIndex = CurrentRenderThreadIndex();
+    // Render thread index starts at 0 for main render thread, worker threads are 1,2,...
+    const int32 renderThreadIndex = CurrentRenderThreadIndex();
 
-    if (drawCallCollection.parallelRenderingState != nullptr)
+    if (drawCallCollection.parallelRenderingState != nullptr && renderThreadIndex >= 1)
     {
         AssertDebug(drawCallCollection.flags & RenderGroupFlags::PARALLEL_COLLECTION);
 
-        auto* cr = drawCallCollection.parallelRenderingState->threadedCommandRecorders[renderThreadIndex];
-        AssertDebug(cr != nullptr);
+        auto& cr = drawCallCollection.parallelRenderingState->sharedData->threadedCommandRecorders[renderThreadIndex - 1];
 
-        TPerformRenderingPayload payloadNext { cr, &payload };
+        TPerformRenderingPayload payloadNext { &cr, &payload };
 
         PerformRenderingImpl(frame, payloadNext);
     }

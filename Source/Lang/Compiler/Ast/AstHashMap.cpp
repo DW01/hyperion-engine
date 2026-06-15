@@ -268,7 +268,6 @@ UniquePtr<Buildable> AstHashMap::Build(AstVisitor* visitor, Module* mod)
         chunk->Append(std::move(instrPush));
     }
 
-    int arrayStackLocation = visitor->GetCompilationUnit()->GetInstructionStream().GetStackSize();
     // increment stack size
     visitor->GetCompilationUnit()->GetInstructionStream().IncStackSize();
 

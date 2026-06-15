@@ -18,7 +18,7 @@
 #include <Scene/View.hpp>
 
 #include <Scene/EntityManager.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/EnvProbe.hpp>
 #include <Scene/Light.hpp>
 #include <Scene/LightmapVolume.hpp>
@@ -183,10 +183,11 @@ void UISubsystem::Init()
     {
         windowSize = Vec2u(g_appContext->GetMainWindow()->GetSize());
 
-        m_onWindowResizedHandle = g_appContext->GetMainWindow()->OnWindowSizeChanged.BindThreaded(HandleWindowResize, g_simThread);
+        m_onWindowResizedHandle = g_appContext->GetMainWindow()->OnWindowSizeChanged.BindThreaded(g_appContext->GetMainWindow(), HandleWindowResize, g_simThread);
     }
 
     m_onCurrentWindowChangedHandle = g_appContext->OnCurrentWindowChanged.BindThreaded(
+        g_appContext,
         [this, weakThis = MakeWeakRef(this), HandleWindowResize](ApplicationWindow* window)
         {
             Handle<UISubsystem> strongThis = weakThis.Lock();
@@ -204,7 +205,7 @@ void UISubsystem::Init()
 
             if (window != nullptr)
             {
-                m_onWindowResizedHandle = window->OnWindowSizeChanged.BindThreaded(HandleWindowResize, g_simThread);
+                m_onWindowResizedHandle = window->OnWindowSizeChanged.BindThreaded(window, HandleWindowResize, g_simThread);
 
                 HandleWindowResize(Vec2i(window->GetSize()));
             }
@@ -339,60 +340,6 @@ void UISubsystem::RenderCollect(RenderProxyList& rpl)
     };
 
     m_uiStage->CollectObjects(Predicate, /* onlyVisible */ true);
-
-    Resources::ResourceTrackerDiff meshesDiff = rpl.GetMeshEntities().GetDiff();
-
-    if (meshesDiff.NeedsUpdate())
-    {
-        Array<Entity*> entities;
-        rpl.GetMeshEntities().GetAdded(entities, /* includeChanged */ true);
-
-        for (Entity* entity : entities)
-        {
-            AssertDebug(entity->InstanceClass() == Entity::StaticClass());
-
-            auto&& [meshComponent, transformComponent, boundingBoxComponent] = entity->GetEntityManager()->TryGetComponents<MeshComponent, TransformComponent, BoundingBoxComponent>(entity);
-            AssertDebug(meshComponent != nullptr);
-
-            RenderProxyMesh& meshProxy = *rpl.GetMeshEntities().SetProxy(entity->Id(), RenderProxyMesh());
-
-            if ((meshComponent->enableAutoInstancing || meshComponent->numInstances) && meshComponent->instanceData.IsLoaded())
-            {
-                const Handle<InstancedMeshData>& instancedMesh = DynamicCast<InstancedMeshData>(meshComponent->instanceData.Resolve());
-                Assert(instancedMesh.IsValid());
-
-                for (uint32 i = 0; i < uint32(instancedMesh->buffers.Size()); i++)
-                {
-                    if (instancedMesh->buffers[i].size == 0)
-                        continue;
-
-                    meshProxy.instanceData.buffers[i].SetSize(instancedMesh->buffers[i].size, false);
-
-                    AssertDebug(instancedMesh->buffers[i].raw != nullptr);
-                    Memory::Copy(meshProxy.instanceData.buffers[i].Data(), instancedMesh->buffers[i].raw, instancedMesh->buffers[i].size);
-
-                    meshProxy.instanceData.bufferStructSizes[i] = instancedMesh->bufferStructSizes[i];
-                    meshProxy.instanceData.bufferStructAlignments[i] = instancedMesh->bufferStructAlignments[i];
-                }
-            }
-            else
-            {
-                meshProxy.instanceData = {};
-            }
-
-            meshProxy.forceRebind = false;
-            meshProxy.entity = MakeWeakRef(entity);
-            meshProxy.mesh = meshComponent->mesh;
-            meshProxy.material = meshComponent->material;
-            meshProxy.skeleton = meshComponent->skeleton;
-            meshProxy.numIndices = meshComponent->mesh->NumIndices();
-            meshProxy.numInstances = meshComponent->numInstances;
-            meshProxy.enableAutoInstancing = meshComponent->enableAutoInstancing;
-            meshProxy.attributes = RenderableAttributeSet(meshComponent->mesh->GetMeshAttributes(), meshComponent->material->GetAttributes());
-            meshProxy.bufferData.worldAabbMax = boundingBoxComponent ? boundingBoxComponent->worldAabb.max : MathUtil::MinSafeValue<Vec3f>();
-            meshProxy.bufferData.worldAabbMin = boundingBoxComponent ? boundingBoxComponent->worldAabb.min : MathUtil::MaxSafeValue<Vec3f>();
-        }
-    }
 
     rpl.EndWrite();
 }

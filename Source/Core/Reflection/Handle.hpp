@@ -63,8 +63,8 @@ struct Handle final : HandleBase
     {
     }
 
-    /*! \brief Construct a handle from the given Id. Use only if you have an Id for an object that is guaranteed to exist.
-     *  \param id The Id of the object to reference. */
+    /*! \brief Construct a handle from the given ID
+     *  \param id The ID of the object to reference. */
     explicit Handle(IdType id)
         : ptr(nullptr)
     {
@@ -79,10 +79,13 @@ struct Handle final : HandleBase
             TLockGuard<AtomicFlag> guard;
 
             ObjectHeader* header = container->GetObjectHeader(id.ToIndex(), guard);
-            HYP_CORE_ASSERT(header != nullptr);
+            if (!header)
+            {
+                ptr = nullptr;
+                return; // No object with this ID exists, return an empty handle.
+            }
 
             ptr = ObjectHeader::GetObjectPointer(header);
-            HYP_CORE_ASSERT(ptr != nullptr, "Attempting to create handle from invalid ID");
 
             // If strong count == 1 after incrementing, the object has already been destructed and it is invalid to create a strong reference
             if (!header->TryIncRefStrong())
@@ -276,7 +279,7 @@ struct Handle final : HandleBase
      *  \return A pointer to the object. */
     HYP_FORCE_INLINE T* Get() const&
     {
-        return static_cast<T*>(ptr);
+        return reinterpret_cast<T*>(ptr);
     }
 
     HYP_FORCE_INLINE operator T* const() const&
@@ -386,7 +389,7 @@ struct Handle final : HandleBase
             return nullptr;
         }
 
-        T* address = static_cast<T*>(ptr);
+        T* address = reinterpret_cast<T*>(ptr);
         ptr = nullptr;
 
         return address;
@@ -571,7 +574,7 @@ struct WeakHandle final
 
     HYP_FORCE_INLINE T* GetUnsafe() const
     {
-        return static_cast<T*>(ptr);
+        return reinterpret_cast<T*>(ptr);
     }
 
     HYP_FORCE_INLINE bool operator!() const
@@ -753,7 +756,7 @@ struct WeakHandle final
             return nullptr;
         }
 
-        T* address = static_cast<T*>(ptr);
+        T* address = reinterpret_cast<T*>(ptr);
         ptr = nullptr;
 
         return address;

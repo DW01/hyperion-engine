@@ -9,7 +9,7 @@
 #include <Scene/View.hpp>
 #include <Scene/Scene.hpp>
 #include <Scene/Light.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/EnvProbe.hpp>
 #include <Scene/EntityManager.hpp>
 #include <Scene/EntityTag.hpp>
@@ -355,7 +355,7 @@ void View::UpdateVisibility()
     }
 }
 
-void View::PrepareShadowViews(Array<View*, SceneAllocator>& outShadowViews)
+void View::PrepareShadowViews(Array<View*, SceneTempAllocator>& outShadowViews)
 {
     HYP_SCOPE;
     AssertOnThread(g_simThread);
@@ -547,7 +547,7 @@ void View::BeginAsyncCollection(TaskBatch& batch)
             CollectLightmapVolumes(rpl);
             CollectParticleVolumes(rpl);
             CollectFogVolumes(rpl);
-            CollectEnvGrids(rpl);
+            CollectProbeVolumes(rpl);
             CollectEnvProbes(rpl);
             CollectSprites(rpl);
             CollectMeshEntities(rpl);
@@ -992,84 +992,6 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
         HYP_LOG(Scene, Verbose, "Collected {} entities for View {}, {} skipped", numCollectedEntities, Id(), numSkippedEntities);
 #endif
     }
-
-    Resources::ResourceTrackerDiff meshesDiff = rpl.GetMeshEntities().GetDiff();
-
-    if (meshesDiff.NeedsUpdate())
-    {
-        Array<Entity*> added;
-        rpl.GetMeshEntities().GetAdded(added, /* includeChanged */ true);
-
-        for (Entity* entity : added)
-        {
-            AssertDebug(entity->InstanceClass() == Entity::StaticClass());
-
-            auto&& [meshComponent, transformComponent, boundingBoxComponent, lightmapElementComponent] = entity->GetEntityManager()->TryGetComponents<MeshComponent, TransformComponent, BoundingBoxComponent, LightmapElementComponent>(entity);
-
-            AssertDebug(meshComponent != nullptr);
-
-            if (!meshComponent->mesh || !meshComponent->material)
-                continue;
-
-            RenderProxyMesh& meshProxy = *rpl.GetMeshEntities().SetProxy(entity->Id(), RenderProxyMesh());
-
-            meshProxy.forceRebind = false;
-            meshProxy.entity = MakeWeakRef(entity);
-            meshProxy.mesh = meshComponent->mesh;
-            meshProxy.material = meshComponent->material;
-            meshProxy.skeleton = meshComponent->skeleton;
-            meshProxy.numIndices = meshComponent->mesh->NumIndices();
-            meshProxy.numInstances = meshComponent->numInstances;
-            meshProxy.enableAutoInstancing = meshComponent->enableAutoInstancing;
-            meshProxy.lightmapVolume = lightmapElementComponent ? lightmapElementComponent->lightmapVolume.GetUnsafe() : nullptr;
-            meshProxy.lightmapElementId = lightmapElementComponent ? lightmapElementComponent->lightmapElementId : InvalidLightmapElementId;
-            meshProxy.attributes = RenderableAttributeSet(meshComponent->mesh->GetMeshAttributes(), meshComponent->material->GetAttributes());
-
-            Mat4f transformMatrix = transformComponent->GetMatrix();
-
-            if (meshComponent->enableAutoInstancing || meshComponent->numInstances)
-            {
-                AssertDebug(desc.entityBatchClass == nullptr || desc.entityBatchClass == MeshEntityInstanceBatch::StaticClass());
-
-                AssertDebug(meshComponent->instanceData.IsLoaded());
-
-                const Handle<InstancedMeshData>& imd = DynamicCast<InstancedMeshData>(meshComponent->instanceData.Resolve());
-                AssertDebug(imd.IsValid());
-
-                if (imd.IsValid())
-                {
-                    auto scope = imd->GetReadScope();
-
-                    for (uint32 i = 0; i < uint32(imd->buffers.Size()); i++)
-                    {
-                        if (imd->buffers[i].size == 0)
-                            continue;
-
-                        meshProxy.instanceData.buffers[i].SetSize(imd->buffers[i].size, false);
-
-                        AssertDebug(imd->buffers[i].raw != nullptr);
-                        Memory::Copy(meshProxy.instanceData.buffers[i].Data(), imd->buffers[i].raw, imd->buffers[i].size);
-
-                        meshProxy.instanceData.bufferStructSizes[i] = imd->bufferStructSizes[i];
-                        meshProxy.instanceData.bufferStructAlignments[i] = imd->bufferStructAlignments[i];
-                    }
-                }
-            }
-            else
-            {
-                meshProxy.instanceData = {};
-            }
-
-            const BoundingBox meshWorldBounds = transformMatrix * meshProxy.mesh->GetAABB();
-            meshProxy.bufferData.worldAabbMax = meshWorldBounds.max;
-            meshProxy.bufferData.worldAabbMin = meshWorldBounds.min;
-
-            meshProxy.bufferData.modelMatrix = transformMatrix;
-            meshProxy.bufferData.previousModelMatrix = meshComponent->previousModelMatrix;
-            meshProxy.bufferData.normalMatrix = Mat3f(transformMatrix).Inverse().Transpose();
-            meshProxy.bufferData.bucket = uint32(meshComponent->material->GetAttributes().bucket);
-        }
-    }
 }
 
 void View::CollectCameras(RenderProxyList& rpl)
@@ -1297,7 +1219,7 @@ void View::CollectFogVolumes(RenderProxyList& rpl)
     }
 }
 
-void View::CollectEnvGrids(RenderProxyList& rpl)
+void View::CollectProbeVolumes(RenderProxyList& rpl)
 {
     HYP_SCOPE;
 
@@ -1308,15 +1230,15 @@ void View::CollectEnvGrids(RenderProxyList& rpl)
 
     for (Scene* scene : m_scenes)
     {
-        for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<EnvGrid>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
+        for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<ProbeVolume>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
         {
-            EnvGrid* envGrid = static_cast<EnvGrid*>(entity);
+            ProbeVolume* probeVolume = static_cast<ProbeVolume*>(entity);
 
-            const BoundingBox worldBounds = envGrid->GetWorldBounds();
+            const BoundingBox worldBounds = probeVolume->GetWorldBounds();
 
             if (!worldBounds.IsValid() || !worldBounds.IsFinite())
             {
-                HYP_LOG(Scene, Warning, "EnvGrid {} has an invalid AABB in view {}", envGrid->Id(), Id());
+                HYP_LOG(Scene, Warning, "ProbeVolume {} has an invalid AABB in view {}", probeVolume->Id(), Id());
 
                 continue;
             }
@@ -1328,12 +1250,22 @@ void View::CollectEnvGrids(RenderProxyList& rpl)
 
             if (!cachedFrustum.ContainsAABB(worldBounds))
             {
-                HYP_LOG(Scene, Verbose, "EnvGrid {} is not in frustum of View {}", envGrid->Id(), Id());
+                HYP_LOG(Scene, Verbose, "ProbeVolume {} is not in frustum of View {}", probeVolume->Id(), Id());
 
                 continue;
             }
 
-            rpl.GetEnvGrids().Track(envGrid->Id(), envGrid, GET_RESOURCE_VERSION(envGrid));
+            for (IrradianceProbe* probe : probeVolume->GetProbes())
+            {
+                if (!probe)
+                {
+                    continue;
+                }
+
+                rpl.GetEnvProbes().Track(probe->Id(), probe, GET_RESOURCE_VERSION(probe));
+            }
+
+            rpl.GetProbeVolumes().Track(probeVolume->Id(), probeVolume, GET_RESOURCE_VERSION(probeVolume));
         }
     }
 }

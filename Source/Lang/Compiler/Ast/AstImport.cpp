@@ -15,7 +15,7 @@
 
 #include <fstream>
 #include <iostream>
-#include <Functional>
+#include <functional>
 
 namespace Hyperion {
 

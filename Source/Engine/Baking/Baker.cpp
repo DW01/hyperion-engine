@@ -31,7 +31,7 @@
 #include <Scene/World.hpp>
 #include <Scene/Light.hpp>
 #include <Scene/EnvProbe.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/FogVolume.hpp>
 #include <Scene/View.hpp>
 #include <Scene/LightmapVolume.hpp>
@@ -58,6 +58,8 @@
 #include <Core/Utilities/Float16.hpp>
 
 #include <Core/Math/Triangle.hpp>
+
+#include <Rendering/RenderProxyList.hpp>
 
 #include <Rendering/Util/MeshBuilder.hpp>
 
@@ -254,6 +256,15 @@ void BakerBase::Initialize()
     {
         m_threadPool = new BakerThreadPool(GetInnerType(), NumThreads());
         m_threadPool->Start();
+    }
+}
+
+void BakerBase::Shutdown()
+{
+    if (m_camera.IsValid())
+    {
+        m_camera->Remove(/* moveToDetached */ false);
+        m_camera.Reset();
     }
 }
 

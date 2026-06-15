@@ -169,7 +169,7 @@ void ScriptSystem::OnAddedToWorld(World* world)
 
     m_delegateHandlers.Add(
         NAME("OnGameStateChange"),
-        gameInstance->OnGameStateChange.Bind([this](Game* gameInstance, GameStateMode previousGameStateMode, GameStateMode currentGameStateMode)
+        gameInstance->OnGameStateChange.Bind(gameInstance, [this](Game* gameInstance, GameStateMode previousGameStateMode, GameStateMode currentGameStateMode)
             {
                 AssertOnThread(g_simThread);
 

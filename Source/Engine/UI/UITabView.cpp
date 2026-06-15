@@ -162,21 +162,19 @@ void UITabView::AddChildUIObject(const Handle<UIObject>& uiObject)
     tab->SetSize(UIObjectSize({ 0, UIObjectSize::AUTO }, { 30, UIObjectSize::PIXEL }));
 
     tab->OnClick.RemoveAllDetached();
-    tab->OnClick
-        .Bind([this, name = tab->GetName()](const MouseEvent& data) -> UIEventHandlerResult
+    OnClick.Bind(tab, [this, name = tab->GetName()](const MouseEvent& data) -> UIEventHandlerResult
+        {
+            if (data.mouseButtons == MouseButtonState::LEFT)
             {
-                if (data.mouseButtons == MouseButtonState::LEFT)
-                {
-                    const uint32 tabIndex = GetTabIndex(name);
+                const uint32 tabIndex = GetTabIndex(name);
 
-                    SetSelectedTabIndex(tabIndex);
+                SetSelectedTabIndex(tabIndex);
 
-                    return UIEventHandlerResult::STOP_BUBBLING;
-                }
+                return UIEventHandlerResult::STOP_BUBBLING;
+            }
 
-                return UIEventHandlerResult::OK;
-            })
-        .Detach();
+            return UIEventHandlerResult::OK;
+        }).Detach();
 
     UIPanel::AddChildUIObject(tab);
 
@@ -277,20 +275,19 @@ Handle<UITab> UITabView::AddTab(Name name, const String& title)
     tab->SetOriginAlignment(UIObjectAlignment::BOTTOM_LEFT);
     tab->SetText(title);
 
-    tab->OnClick.Bind([this, name](const MouseEvent& data) -> UIEventHandlerResult
+    OnClick.Bind(tab, [this, name](const MouseEvent& data) -> UIEventHandlerResult
+                {
+                    if (data.mouseButtons == MouseButtonState::LEFT)
                     {
-                        if (data.mouseButtons == MouseButtonState::LEFT)
-                        {
-                            const uint32 tabIndex = GetTabIndex(name);
+                        const uint32 tabIndex = GetTabIndex(name);
 
-                            SetSelectedTabIndex(tabIndex);
+                        SetSelectedTabIndex(tabIndex);
 
-                            return UIEventHandlerResult::STOP_BUBBLING;
-                        }
+                        return UIEventHandlerResult::STOP_BUBBLING;
+                    }
 
-                        return UIEventHandlerResult::OK;
-                    })
-        .Detach();
+                    return UIEventHandlerResult::OK;
+                }).Detach();
 
     UIPanel::AddChildUIObject(tab);
 

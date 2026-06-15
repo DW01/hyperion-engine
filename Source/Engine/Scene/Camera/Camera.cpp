@@ -649,12 +649,12 @@ void Camera::InitMatchWindowSize()
 
             MatchWindowSize(window->GetSize());
 
-            m_onWindowResizedHandle = window->OnWindowSizeChanged.BindThreaded(MatchWindowSize, g_simThread);
+            m_onWindowResizedHandle = window->OnWindowSizeChanged.BindThreaded(window, MatchWindowSize, g_simThread);
         };
 
         HandleWindowChanged(g_appContext->GetMainWindow());
 
-        m_onMainWindowChangedHandle = g_appContext->OnCurrentWindowChanged.BindThreaded(HandleWindowChanged, g_simThread);
+        m_onMainWindowChangedHandle = g_appContext->OnCurrentWindowChanged.BindThreaded(g_appContext, HandleWindowChanged, g_simThread);
     }
     else
     {

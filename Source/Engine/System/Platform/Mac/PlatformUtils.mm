@@ -31,5 +31,11 @@ ENGINE_API PlatformString GetExecutableAbsolutePath()
     return PlatformString(buffer, buffer + pathLength);
 }
 
+ENGINE_API bool IsOnBatteryPower()
+{
+    // TODO: implement for macOS using IOPowerSources or IOPS
+    return false;
+}
+
 } // namespace PlatformUtils
 } // namespace Hyperion

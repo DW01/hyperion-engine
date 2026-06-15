@@ -62,7 +62,7 @@ DECLARE_SAMPLER(DeferredPass, SamplerLinear) SamplerState sampler_linear;
 
 DECLARE_SRV(DeferredPass, GBufferAlbedoTexture) Texture2D gbuffer_albedo_texture;
 DECLARE_SRV(DeferredPass, GBufferNormalsTexture) Texture2D gbuffer_normals_texture;
-DECLARE_SRV(DeferredPass, GBufferMaterialTexture) Texture2D<uint4> gbuffer_material_texture;
+DECLARE_SRV(DeferredPass, GBufferMaterialTexture) Texture2D<uint> gbuffer_material_texture;
 DECLARE_SRV(DeferredPass, GBufferVelocityTexture) Texture2D gbuffer_velocity_texture;
 
 DECLARE_SRV(DeferredPass, GBufferMipChain) Texture2D gbuffer_mip_chain;
@@ -160,10 +160,15 @@ PSOutput PSMain(PSInput input)
     float4 positionWS = mul(camera.invViewMat, positionVS);
     positionWS /= positionWS.w;
 
-    uint2 materialData = gbuffer_material_texture.Load(int3(pixelCoord, 0)).xy;
+    const uint materialBits = gbuffer_material_texture.Load(int3(pixelCoord, 0));
+
+    const float3 probeLighting = float3(
+        (float)(materialBits & 0xFFu) / 255.0,
+        (float)((materialBits >> 8u) & 0xFFu) / 255.0,
+        (float)((materialBits >> 16u) & 0xFFu) / 255.0);
 
     GBufferMaterialParams materialParams;
-    GBufferUnpackMaterialParams(normalSample.x, materialData.x, materialParams);
+    GBufferUnpackMaterialParams(normalSample.x, materialBits >> 25u, materialParams);
 
     const float roughness = materialParams.roughness;
     const float metalness = materialParams.metalness;
@@ -174,6 +179,8 @@ PSOutput PSMain(PSInput input)
     float3 N = normalize(normal);
     float3 V = normalize(camera.position.xyz - positionWS.xyz);
     float3 R = normalize(reflect(-V, N));
+
+    const float invLightmappedWeight = 1.0 - min(1.0, float(mask & OBJECT_MASK_LIGHTMAPPED));
 
     float ao = 1.0;
     float4 irradiance = (float4)0.0;
@@ -198,7 +205,13 @@ PSOutput PSMain(PSInput input)
         /* inout */ reflections,
         /* inout */ irradiance);
 
-    irradiance *= 1.0 - min(1.0, float(mask & OBJECT_MASK_LIGHTMAPPED));
+    irradiance.a = saturate(irradiance.a);
+    irradiance *= invLightmappedWeight;
+
+    // if the object is lightmapped, probeLighting contains lightmap UVs
+    // multiplying the weight by invLightmappedWeight this cancels it out if
+    // the object is lightmapped.
+    irradiance.rgb = lerp(irradiance.rgb, probeLighting.rgb, length(probeLighting.rgb) * invLightmappedWeight);
 
 #ifdef SSR_ENABLED
     float4 ssrResult = SAMPLE_TEXTURE_2D_LOD(sampler_linear, SSRResultTexture, texcoord, 0);
@@ -223,7 +236,7 @@ PSOutput PSMain(PSInput input)
     irradiance = lerp(irradiance, ddgi, 1.0 - ssgi.a);
 #endif
 
-    irradiance.rgb *= irradiance.a;
+    //irradiance.rgb *= irradiance.a;
     irradiance.a = 1.0; // set alpha to 1 now that we're finished lerping between GI methods.
 
     const float NdotV = max(0.0001, dot(N, V));

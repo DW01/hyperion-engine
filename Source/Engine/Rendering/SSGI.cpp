@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <RenderingPch.hpp>
 
@@ -139,8 +139,7 @@ void SSGI::Create()
         TFM_LINEAR,
         TWM_CLAMP_TO_EDGE,
         1,
-        IU_STORAGE | IU_SAMPLED
-    });
+        IU_STORAGE | IU_SAMPLED });
     m_ssgiTexture->SetIsTransient(true);
     m_ssgiTexture->SetName(NAME("SSGITexture"));
     CheckResult(m_ssgiTexture->Create());
@@ -157,8 +156,7 @@ void SSGI::Create()
             TFM_LINEAR,
             TWM_CLAMP_TO_EDGE,
             1,
-            IU_SAMPLED
-        });
+            IU_SAMPLED });
         m_downsampleTextures[i]->SetName(NAME_FMT("SSGIDownsampleTexture{}", i));
         CheckResult(m_downsampleTextures[i]->Create());
     }
@@ -220,7 +218,7 @@ void SSGI::Render(Frame* frame, const RenderSetup& renderSetup)
 
     CommandRecorder& cr = frame->cr;
 
-    { // Compute pass
+    {     // Compute pass
         { // Update constant buffer
             SSGIConstants ssgiConstants {};
             ssgiConstants.dimensions = m_extent;
@@ -331,35 +329,35 @@ void SSGI::Render(Frame* frame, const RenderSetup& renderSetup)
             const Vec4f& cameraPosition = cameraProxy->bufferData.cameraPosition;
 
             std::sort(tempEnvProbes.Begin(), tempEnvProbes.End(),
-                [&cameraPosition](const Pair<EnvProbe*, EnvProbeShaderData*>& a, const Pair<EnvProbe*, EnvProbeShaderData*>& b)
-            {
-                const bool aIsSky = a.first->IsA(SkyProbe::StaticClass());
-                const bool bIsSky = b.first->IsA(SkyProbe::StaticClass());
+                      [&cameraPosition](const Pair<EnvProbe*, EnvProbeShaderData*>& a, const Pair<EnvProbe*, EnvProbeShaderData*>& b)
+                      {
+                          const bool aIsSky = a.first->IsA(SkyProbe::StaticClass());
+                          const bool bIsSky = b.first->IsA(SkyProbe::StaticClass());
 
-                if (aIsSky && !bIsSky)
-                {
-                    return false;
-                }
+                          if (aIsSky && !bIsSky)
+                          {
+                              return false;
+                          }
 
-                if (!aIsSky && bIsSky)
-                {
-                    return true;
-                }
+                          if (!aIsSky && bIsSky)
+                          {
+                              return true;
+                          }
 
-                if (aIsSky && bIsSky)
-                {
-                    return false;
-                }
+                          if (aIsSky && bIsSky)
+                          {
+                              return false;
+                          }
 
-                // both are reflection probes, sort by distance to camera
-                const Vec4f& aProbePosition = a.second->worldPosition;
-                const Vec4f& bProbePosition = b.second->worldPosition;
+                          // both are reflection probes, sort by distance to camera
+                          const Vec4f& aProbePosition = a.second->worldPosition;
+                          const Vec4f& bProbePosition = b.second->worldPosition;
 
-                const float aDistSq = (aProbePosition - cameraPosition).LengthSquared();
-                const float bDistSq = (bProbePosition - cameraPosition).LengthSquared();
+                          const float aDistSq = (aProbePosition - cameraPosition).LengthSquared();
+                          const float bDistSq = (bProbePosition - cameraPosition).LengthSquared();
 
-                return aDistSq < bDistSq;
-            });
+                          return aDistSq < bDistSq;
+                      });
 
             for (uint32 i = 0; i < MaxEnvProbes; i++)
             {
@@ -371,7 +369,7 @@ void SSGI::Render(Frame* frame, const RenderSetup& renderSetup)
                 }
                 else
                 {
-                    static const EnvProbeShaderData s_dummyEnvProbeShaderData;
+                    static const EnvProbeShaderData s_dummyEnvProbeShaderData {};
                     pEnvProbeShaderData = &s_dummyEnvProbeShaderData;
                 }
 
@@ -487,8 +485,8 @@ void SSGI::Render(Frame* frame, const RenderSetup& renderSetup)
         cr << SetShaderUniform(numShaderUniforms++, "GBufferDepthTexture"_sh, inputsFramebuffer->GetAttachment(GTN_DEPTH)->GetImageView());
 
         cr << SetShaderUniform(numShaderUniforms++, "PrevPassTexture"_sh,
-            i == 0 ? RI.textureViewCache->GetOrCreate(m_downsampleTextures[NumDownsamplePasses - 1])
-                : m_upsamplePasses[i - 1]->GetAttachment(0)->GetImageView());
+                               i == 0 ? RI.textureViewCache->GetOrCreate(m_downsampleTextures[NumDownsamplePasses - 1])
+                                      : m_upsamplePasses[i - 1]->GetAttachment(0)->GetImageView());
 
         cr << SetShaderUniform(numShaderUniforms++, "CBuffer"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
 

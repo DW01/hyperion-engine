@@ -345,19 +345,19 @@ public:
     /*! \brief Adds a View for processing asynchronously for this frame. */
     void ProcessViewAsync(View* view);
 
-    void CollectScenes(Array<Scene*, SceneAllocator>& outScenes);
-    void CollectCameras(Array<Camera*, SceneAllocator>& outCameras);
-    void CollectViews(Array<View*, SceneAllocator>& outViews);
-    void CollectSubsystems(Array<Subsystem*, SceneAllocator>& outSubsystems);
+    void CollectScenes(Array<Scene*, SceneTempAllocator>& outScenes);
+    void CollectCameras(Array<Camera*, SceneTempAllocator>& outCameras);
+    void CollectViews(Array<View*, SceneTempAllocator>& outViews);
+    void CollectSubsystems(Array<Subsystem*, SceneTempAllocator>& outSubsystems);
 
     void BeginUpdate(TaskBatch& inBatch, float delta);
     void EndUpdate();
 
     HYP_FIELD()
-    ScriptableDelegate<void, World*, const Handle<Scene>& /* scene */> OnSceneAdded;
+    static ScriptableDelegate<void, World*, const Handle<Scene>& /* scene */> OnSceneAdded;
 
     HYP_FIELD()
-    ScriptableDelegate<void, World*, Scene* /* scene */> OnSceneRemoved;
+    static ScriptableDelegate<void, World*, Scene* /* scene */> OnSceneRemoved;
 
 private:
     void UpdateCSMState();

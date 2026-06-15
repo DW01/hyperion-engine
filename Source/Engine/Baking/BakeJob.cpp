@@ -56,6 +56,8 @@ struct TraceLightmapRaysPayload
     uint32 rayOffset;
 };
 
+HYP_DISABLE_OPTIMIZATION;
+
 class TraceLightmapRaysCmd : public CmdBase
 {
 public:
@@ -129,7 +131,12 @@ public:
             {
                 AssertDebug(lightmapRenderer != nullptr);
 
-                lightmapRenderer->Render(frame, renderSetup, job, *raysRc, rayOffset);
+                if (!lightmapRenderer->Render(frame, renderSetup, job, *raysRc, rayOffset))
+                {
+                    HYP_LOG(Lightmap, Error, "Failed to process lightmap!");
+
+                    continue;
+                }
 
                 Proc<void(Span<LightmapHit>)> cb = [job, raysRc, readbackDataOffset, shadingType = lightmapRenderer->GetShadingType()](Span<LightmapHit> hits)
                 {

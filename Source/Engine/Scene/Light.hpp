@@ -24,7 +24,7 @@ class Camera;
 class MaterialInstance;
 class Texture;
 class View;
-class RenderProxyLight;
+struct RenderProxyLight;
 
 enum ShadowMapFilter : uint32;
 

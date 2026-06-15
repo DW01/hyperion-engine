@@ -229,16 +229,14 @@ protected:
     HYP_FIELD(Property = "AssetIndex", Transient, EditHide)
     uint32 m_assetIndex;
 
-    HYP_FIELD(Transient)
-    AssetPath m_assetPath;
-
     mutable volatile int64 m_rwState;
 
     mutable Mutex m_initMutex;
     ConditionVariable m_initCV;
     bool m_isBlobLoaded;
 
-    ThreadId m_uniqueLockHolderThread;
+    HYP_FIELD(Transient)
+    AssetPath m_assetPath;
 };
 
 } // namespace Hyperion

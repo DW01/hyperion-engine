@@ -41,6 +41,9 @@
 
 namespace Hyperion {
 
+ScriptableDelegate<void> Game::OnLaunched;
+ScriptableDelegate<void, Game*, GameStateMode, GameStateMode> Game::OnGameStateChange;
+
 static const Name s_nameMainWorld = NAME("World");
 
 ENGINE_API extern const FilePath& GetLibraryDirectory();
@@ -64,6 +67,9 @@ Game::~Game()
     {
         m_assetRegistry->Shutdown();
     }
+
+    OnLaunched.RemoveAllForTarget(this);
+    OnGameStateChange.RemoveAllForTarget(this);
 }
 
 void Game::Initialize()
@@ -125,7 +131,7 @@ void Game::Shutdown(bool shutdownWorld)
         m_world->m_gameInstance = nullptr;
 
         g_engineDriver->RemoveWorld(m_world);
-        
+
         if (shutdownWorld)
         {
             m_world->Shutdown();
@@ -192,7 +198,7 @@ void Game::SetWorld(const Handle<World>& world)
             {
                 g_engineDriver->RemoveWorld(m_world);
             }
-            
+
             m_world->Shutdown();
         }
     }
@@ -271,7 +277,7 @@ void Game::StartSimulating()
 
     m_gameState.mode = GameStateMode::SIMULATING;
 
-    OnGameStateChange(this, previousGameStateMode, GameStateMode::SIMULATING);
+    OnGameStateChange.Fire(this, this, previousGameStateMode, GameStateMode::SIMULATING);
 }
 
 void Game::StopSimulating()
@@ -287,7 +293,7 @@ void Game::StopSimulating()
     m_gameState.deltaTime = 0.0f;
     m_gameState.mode = GameStateMode::STOPPED;
 
-    OnGameStateChange(this, previousGameStateMode, GameStateMode::STOPPED);
+    OnGameStateChange.Fire(this, this, previousGameStateMode, GameStateMode::STOPPED);
 }
 
 void Game::PauseSimulation()
@@ -301,7 +307,7 @@ void Game::PauseSimulation()
 
     m_gameState.mode = GameStateMode::PAUSED;
 
-    OnGameStateChange(this, previousGameStateMode, GameStateMode::PAUSED);
+    OnGameStateChange.Fire(this, this, previousGameStateMode, GameStateMode::PAUSED);
 }
 
 #if HYP_EDITOR
@@ -319,7 +325,7 @@ void Game::SetToEditMode()
     m_gameState.deltaTime = 0.0f;
     m_gameState.mode = GameStateMode::EDIT_MODE;
 
-    OnGameStateChange(this, previousGameStateMode, GameStateMode::EDIT_MODE);
+    OnGameStateChange.Fire(this, this, previousGameStateMode, GameStateMode::EDIT_MODE);
 
     HYP_LOG(Engine, Verbose, "Game set to Edit Mode");
 }

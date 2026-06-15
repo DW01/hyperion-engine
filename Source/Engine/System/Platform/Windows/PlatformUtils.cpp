@@ -2,6 +2,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <winbase.h>
 
 #include <Core/Containers/String.hpp>
 
@@ -35,6 +36,17 @@ ENGINE_API PlatformString GetExecutableAbsolutePath()
     }
 
     return PlatformString(buffer, buffer + result);
+}
+
+ENGINE_API bool IsOnBatteryPower()
+{
+    SYSTEM_POWER_STATUS powerStatus;
+    if (!GetSystemPowerStatus(&powerStatus))
+    {
+        return false;
+    }
+
+    return powerStatus.ACLineStatus == 0;
 }
 
 } // namespace PlatformUtils

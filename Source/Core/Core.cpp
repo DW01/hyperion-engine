@@ -30,6 +30,15 @@ static FilePath s_executablePath;
 static FilePath s_configDirectory;
 static Array<void (*)()> s_onShutdownFuncs;
 
+extern "C" {
+    HYP_EXPORT void Hyp_TlsfAssert(int cond)
+    {
+        using namespace Hyperion;
+
+        Assert(cond);
+    }
+}
+
 CORE_API FilePath GetExecutablePath()
 {
     Mutex::Guard guard(s_globalsMutex);

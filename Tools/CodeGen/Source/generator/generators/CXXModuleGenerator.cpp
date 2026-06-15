@@ -681,12 +681,19 @@ Result CXXModuleGenerator::GenerateInline(const Analyzer& analyzer, const Module
             {
                 if (member.cxxType->isStatic)
                 {
-                    if (!member.cxxType->isConst && !member.cxxType->isConstexpr)
+                    if (member.cxxType->IsScriptableDelegate())
+                    {
+                        // non-const static ScriptableDelegate fields are allowed
+                        writer.WriteString(HYP_FORMAT("    StaticField(NAME(HYP_STR({})), &{}::{}", member.friendlyName, cls.name, member.name));
+                    }
+                    else if (!member.cxxType->isConst && !member.cxxType->isConstexpr)
                     {
                         return HYP_MAKE_ERROR(Error, "Static fields must be const or constexpr");
                     }
-
-                    writer.WriteString(HYP_FORMAT("    StaticField(NAME(HYP_STR({})), &{}::{}", member.friendlyName, cls.name, member.name));
+                    else
+                    {
+                        writer.WriteString(HYP_FORMAT("    StaticField(NAME(HYP_STR({})), &{}::{}", member.friendlyName, cls.name, member.name));
+                    }
                 }
                 else
                 {
@@ -1083,12 +1090,19 @@ Result CXXModuleGenerator::Generate(const Analyzer& analyzer, const Module& mod,
             {
                 if (member.cxxType->isStatic)
                 {
-                    if (!member.cxxType->isConst && !member.cxxType->isConstexpr)
+                    if (member.cxxType->IsScriptableDelegate())
+                    {
+                        // non-const static ScriptableDelegate fields are allowed
+                        writer.WriteString(HYP_FORMAT("    StaticField(NAME(HYP_STR({})), &{}::{}", member.friendlyName, cls.name, member.name));
+                    }
+                    else if (!member.cxxType->isConst && !member.cxxType->isConstexpr)
                     {
                         return HYP_MAKE_ERROR(Error, "Static fields must be const or constexpr");
                     }
-
-                    writer.WriteString(HYP_FORMAT("    StaticField(NAME(HYP_STR({})), &{}::{}", member.friendlyName, cls.name, member.name));
+                    else
+                    {
+                        writer.WriteString(HYP_FORMAT("    StaticField(NAME(HYP_STR({})), &{}::{}", member.friendlyName, cls.name, member.name));
+                    }
                 }
                 else
                 {

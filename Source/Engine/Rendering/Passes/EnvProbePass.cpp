@@ -71,9 +71,7 @@ struct ConvolveProbeConstants
     Vec2u inImageDimensions;
 };
 
-void ConvolveEnvProbeCubemap(
-    const Handle<Texture>& inTexture,
-    const EnvProbe& envProbe)
+void ConvolveEnvProbeCubemap(const Handle<Texture>& inTexture, const EnvProbe& envProbe)
 {
     Assert(inTexture != nullptr);
 
@@ -342,6 +340,22 @@ void ConvolveEnvProbeCubemap(
     }
 }
 
+static void ComputePrefilteredEnvMap(Frame* frame, const RenderSetup& renderSetup, EnvProbe* envProbe)
+{
+    AssertDebug(envProbe);
+
+    RenderProxyEnvProbe* envProbeProxy = static_cast<RenderProxyEnvProbe*>(GetRenderProxy(envProbe));
+    AssertDebug(envProbeProxy != nullptr);
+
+    const FramebufferRef& framebuffer = envProbe->GetViewFramebuffer(0);
+    AssertDebug(framebuffer.IsValid());
+
+    AttachmentBase* colorAttachment = framebuffer->GetAttachment(0);
+    AssertDebug(colorAttachment != nullptr);
+
+    ConvolveEnvProbeCubemap(MakeStrongRef(colorAttachment), *envProbe);
+}
+
 } // namespace ConvolveProbe
 
 #pragma endregion ConvolveProbe
@@ -352,9 +366,7 @@ namespace ComputeSH {
 
 constexpr bool UseAsyncCompute = false;
 
-void ComputeEnvProbeSphericalHarmonics(
-    const EnvProbe& envProbe,
-    const Texture& inColorTexture)
+void ComputeEnvProbeSphericalHarmonics(const EnvProbe& envProbe, const Texture& inColorTexture)
 {
     bool useAsyncCompute = UseAsyncCompute;
     if (!IsOnThread(g_renderThread))
@@ -532,26 +544,38 @@ void ComputeEnvProbeSphericalHarmonics(
                 // Readback happens after the frame is finished.
                 // Hand over the payload to the delegate handler.
                 frame->OnFrameEnd.Bind([pPayload = cmdCasted->payload](...)
-                                     {
-                                         ReadbackSphericalHarmonicsPayload& payload = *pPayload;
+                    {
+                        ReadbackSphericalHarmonicsPayload& payload = *pPayload;
 
-                                         // Read back the SH coefficients from the GPU buffer and store on the EnvProbe.
-                                         EnvProbeSphericalHarmonics shData {};
+                        Vec4f raw[9];
 
-                                         Assert(payload.readbackBuffer.IsValid() && payload.readbackBuffer->Size() >= sizeof(shData.values));
-                                         payload.readbackBuffer->Read(sizeof(shData.values), &shData.values[0]);
+                        Assert(payload.readbackBuffer.IsValid() && payload.readbackBuffer->Size() >= sizeof(raw));
+                        payload.readbackBuffer->Read(sizeof(raw), raw);
 
-                                         {
-                                             // SetSphericalHarmonicsData() marks it dirty so we don't need to do that here.
-                                             auto envProbeWriteScope = payload.envProbe->GetWriteScope();
-                                             payload.envProbe->SetSphericalHarmonicsData(shData);
-                                         }
+                        {
+                        // Read back the SH coefficients from the GPU buffer and store on the EnvProbe.
+                        SphericalHarmonicsData shData;
 
-                                         EnqueueDeletion(std::move(payload.shBuffer));
-                                         EnqueueDeletion(std::move(payload.readbackBuffer));
+                        // Copy data from raw
+                        float* outSH = shData.values;
+                        const Vec4f* inSH = raw;
+                        for (uint32 j = 0; j < 9; j++)
+                        {
+                            outSH[j * 3 + 0] = inSH[j].x;
+                            outSH[j * 3 + 1] = inSH[j].y;
+                            outSH[j * 3 + 2] = inSH[j].z;
+                        }
+                        
+                        // SetSphericalHarmonicsData() marks it dirty so we don't need to do that here.
+                        auto envProbeWriteScope = payload.envProbe->GetWriteScope();
+                        payload.envProbe->SetSphericalHarmonicsData(shData);
+                        }
 
-                                         delete pPayload;
-                                     })
+                        EnqueueDeletion(std::move(payload.shBuffer));
+                        EnqueueDeletion(std::move(payload.readbackBuffer));
+
+                        delete pPayload;
+                    })
                     .Detach();
 
                 // not necessary but just to aid in debugging
@@ -578,27 +602,42 @@ void ComputeEnvProbeSphericalHarmonics(
     }
 }
 
+static void ComputeEnvProbeSphericalHarmonics(Frame* frame, EnvProbe* envProbe)
+{
+    const FramebufferRef& framebuffer = envProbe->GetViewFramebuffer(0);
+    AssertDebug(framebuffer.IsValid() && framebuffer->IsCreated());
+
+    AttachmentBase* colorAttachment = framebuffer->GetAttachment(0);
+    Assert(colorAttachment != nullptr && colorAttachment->IsCreated());
+
+    ComputeEnvProbeSphericalHarmonics(*envProbe, *colorAttachment);
+}
+
 } // namespace ComputeSH
 
 #pragma endregion ComputeSH
 
+struct EnvProbeRendererPassDataExt : PassDataExt
+{
+    EnvProbe* envProbe = nullptr;
+
+    EnvProbeRendererPassDataExt()
+        : PassDataExt(TypeId::ForType<EnvProbeRendererPassDataExt>())
+    {
+    }
+
+    virtual ~EnvProbeRendererPassDataExt() override = default;
+
+    virtual PassDataExt* Clone() override
+    {
+        EnvProbeRendererPassDataExt* clone = new EnvProbeRendererPassDataExt;
+        *clone = *this;
+
+        return clone;
+    }
+};
+
 #pragma region EnvProbePassBase
-
-EnvProbePassBase::EnvProbePassBase()
-{
-}
-
-EnvProbePassBase::~EnvProbePassBase()
-{
-}
-
-void EnvProbePassBase::Initialize()
-{
-}
-
-void EnvProbePassBase::Shutdown()
-{
-}
 
 void EnvProbePassBase::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
 {
@@ -630,24 +669,6 @@ PassData* EnvProbePassBase::CreateViewPassData(View* view, PassDataExt& ext)
 
 #pragma region ReflectionProbePass
 
-ReflectionProbePass::ReflectionProbePass()
-{
-}
-
-ReflectionProbePass::~ReflectionProbePass()
-{
-}
-
-void ReflectionProbePass::Initialize()
-{
-    EnvProbePassBase::Initialize();
-}
-
-void ReflectionProbePass::Shutdown()
-{
-    EnvProbePassBase::Shutdown();
-}
-
 void ReflectionProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSetup, EnvProbe* envProbe)
 {
     HYP_SCOPE;
@@ -656,7 +677,8 @@ void ReflectionProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSet
     AssertDebug(!envProbe->IsBaked());
 
     View* firstView = envProbe->GetView(0);
-    if (firstView == nullptr)
+
+    if (!firstView)
     {
         return;
     }
@@ -734,12 +756,12 @@ void ReflectionProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSet
 
     if (envProbe->ShouldComputePrefilteredEnvMap())
     {
-        ComputePrefilteredEnvMap(frame, renderSetup, envProbe);
+        ConvolveProbe::ComputePrefilteredEnvMap(frame, renderSetup, envProbe);
     }
 
     if (envProbe->ShouldComputeSphericalHarmonics())
     {
-        ComputeSH(frame, envProbe);
+        ComputeSH::ComputeEnvProbeSphericalHarmonics(frame, envProbe);
     }
 }
 
@@ -757,33 +779,83 @@ void ReflectionProbePass::RenderProbeView(Frame* frame, const RenderSetup& rende
     renderCollector.ExecuteDrawCalls(frame, renderSetup, RenderBucketMask<RenderBucket::Opaque, RenderBucket::Translucent>);
 }
 
-void ReflectionProbePass::ComputePrefilteredEnvMap(Frame* frame, const RenderSetup& renderSetup, EnvProbe* envProbe)
-{
-    AssertDebug(envProbe);
+#pragma endregion ReflectionProbePass
 
-    RenderProxyEnvProbe* envProbeProxy = static_cast<RenderProxyEnvProbe*>(GetRenderProxy(envProbe));
+#pragma region IrradianceProbePass
+
+void IrradianceProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSetup, EnvProbe* envProbe)
+{
+    HYP_SCOPE;
+    AssertOnThread(g_renderThread);
+
+    AssertDebug(!envProbe->IsBaked());
+    AssertDebug(envProbe->IsA<IrradianceProbe>());
+
+    IrradianceProbe* irradianceProbe = StaticCast<IrradianceProbe>(envProbe);
+
+    View* firstView = irradianceProbe->GetView(0);
+
+    if (!firstView)
+    {
+        return;
+    }
+
+    EnvProbePassData* pd = static_cast<EnvProbePassData*>(FetchViewPassData(firstView));
+    AssertDebug(pd != nullptr);
+
+    RenderProxyEnvProbe* envProbeProxy = static_cast<RenderProxyEnvProbe*>(GetRenderProxy(irradianceProbe));
     AssertDebug(envProbeProxy != nullptr);
 
-    const FramebufferRef& framebuffer = envProbe->GetViewFramebuffer(0);
-    AssertDebug(framebuffer.IsValid());
+    bool needsRerender = irradianceProbe->needsRender.Load();
+    uint8 renderedViews = 0;
 
-    AttachmentBase* colorAttachment = framebuffer->GetAttachment(0);
-    AssertDebug(colorAttachment != nullptr);
+    for (uint8 viewIndex = 0; viewIndex < 6; viewIndex++)
+    {
+        RenderSetup rs = renderSetup.Fork();
+        rs.view = irradianceProbe->GetView(viewIndex);
+        rs.framebuffer = irradianceProbe->GetViewFramebuffer(viewIndex);
+        rs.passData = pd;
 
-    ConvolveProbe::ConvolveEnvProbeCubemap(MakeStrongRef(colorAttachment), *envProbe);
+        RenderProxyList& rpl = GetConsumerProxyList(rs.view);
+        rpl.BeginRead();
+        HYP_DEFER({ rpl.EndRead(); });
+
+        if (!needsRerender
+            && !rpl.GetMeshEntities().GetDiff().NeedsUpdate()
+            && !rpl.GetLights().GetDiff().NeedsUpdate())
+        {
+            continue;
+        }
+
+        RenderProbeView(frame, rs, irradianceProbe);
+
+        renderedViews |= (1u << viewIndex);
+    }
+
+    if (renderedViews == 0)
+    {
+        return;
+    }
+
+    ComputeSH::ComputeEnvProbeSphericalHarmonics(frame, irradianceProbe);
+
+    irradianceProbe->needsRender.Store(false);
 }
 
-void ReflectionProbePass::ComputeSH(Frame* frame, EnvProbe* envProbe)
+void IrradianceProbePass::RenderProbeView(Frame* frame, const RenderSetup& renderSetup, EnvProbe* envProbe)
 {
-    const FramebufferRef& framebuffer = envProbe->GetViewFramebuffer(0);
-    AssertDebug(framebuffer.IsValid() && framebuffer->IsCreated());
+    View* view = renderSetup.view;
+    AssertDebug(view != nullptr);
 
-    AttachmentBase* colorAttachment = framebuffer->GetAttachment(0);
-    Assert(colorAttachment != nullptr && colorAttachment->IsCreated());
+    RenderCollector& renderCollector = GetRenderCollector(view);
 
-    ComputeSH::ComputeEnvProbeSphericalHarmonics(*envProbe, *colorAttachment);
+#if HYP_DEBUG_MODE
+        HYP_LOG(Rendering, Verbose, "Render EnvProbe {}, num total draw calls: {}", envProbe->Id(), renderCollector.NumDrawCallsCollected());
+#endif
+
+    renderCollector.ExecuteDrawCalls(frame, renderSetup, RenderBucketMask<RenderBucket::Opaque, RenderBucket::Translucent>);
 }
 
-#pragma endregion ReflectionProbePass
+#pragma endregion IrradianceProbePass
 
 } // namespace Hyperion

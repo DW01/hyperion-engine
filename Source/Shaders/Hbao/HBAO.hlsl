@@ -45,7 +45,7 @@ struct PSInput
 
 DECLARE_SRV(HBAO, GBufferAlbedoTexture) Texture2D gbuffer_albedo_texture;
 DECLARE_SRV(HBAO, GBufferNormalsTexture) Texture2D gbuffer_normals_texture;
-DECLARE_SRV(HBAO, GBufferMaterialTexture) Texture2D gbuffer_material_texture;
+DECLARE_SRV(HBAO, GBufferMaterialTexture) Texture2D<uint> gbuffer_material_texture;
 DECLARE_SRV(HBAO, GBufferVelocityTexture) Texture2D gbuffer_velocity_texture;
 
 DECLARE_SRV(HBAO, GBufferMipChain) Texture2D gbuffer_mip_chain;

@@ -30,7 +30,7 @@ class SSGI;
 class View;
 class DeferredPass;
 class GBuffer;
-class EnvGrid;
+class ProbeVolume;
 class EnvProbe;
 class TAAPass;
 class PostProcessing;

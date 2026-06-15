@@ -42,6 +42,7 @@
 #include <Core/Utilities/Optional.hpp>
 
 #include <Framework/Config/EngineConfig.hpp>
+#include <Framework/EngineStats.hpp>
 
 #include <dxgi1_6.h>
 
@@ -58,8 +59,11 @@ ENGINE_API HYP_DECLARE_LOG_CHANNEL(RenderingBackend);
 
 extern EngineStatGpuTimer g_statGpuFrameTime;
 
+extern EngineStatTimer g_statTotalStallTime;
+EngineStatTimer g_statWaitOnTransientFence("Rendering/CPU/WaitOnTransientFence");
+
 // @TODO Make these flags configurable
-//#define HYP_DX12_ENABLE_DEBUG_LAYER
+#define HYP_DX12_ENABLE_DEBUG_LAYER
 //#define HYP_DX12_ENABLE_DRED
 
 #pragma region DX12RenderConfig
@@ -484,6 +488,8 @@ void DX12RenderInterface::Shutdown()
 {
     HYP_LOG(RenderingBackend, Info, "Destroying DX12 render backend...");
 
+    const uint32 frameCounter = GetFrameCounter();
+
     // Flush all GPU work
     for (uint32 queueIndex = 0; queueIndex <= uint32(D3D12_COMMAND_LIST_TYPE_COPY); queueIndex++)
     {
@@ -520,6 +526,38 @@ void DX12RenderInterface::Shutdown()
         }
     }
 
+    { // Flush transient submits
+        auto& fences = m_transientCommandBufferFences[frameCounter % NumFramesInFlight];
+        for (auto it = fences.Begin(); it != fences.End(); ++it)
+        {
+            DX12Fence& fence = *it;
+
+            if (fence.isSubmitted)
+            {
+                fence.Wait(true);
+                fence.Reset();
+            }
+        }
+
+        fences.Clear();
+
+        for (uint32 threadIndex = 0; threadIndex < NumRendererWorkerThreads + 1; threadIndex++)
+        {
+            for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
+            {
+                m_transientCommandBuffers[threadIndex][frameIndex].Clear();
+                m_pendingTransientCommandBuffers[threadIndex][frameIndex].Clear();
+            }
+        }
+
+        for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
+        {
+            m_transientCommandBufferFences[frameIndex].Clear();
+        }
+
+        m_recycledTransientCommandBufferFences.Clear();
+    }
+
     for (DX12AsyncCompute* ac : m_asyncComputePool)
     {
         delete ac;
@@ -532,22 +570,6 @@ void DX12RenderInterface::Shutdown()
 
     m_asyncComputePool.Clear();
     m_submittedAsyncComputes.Clear();
-
-    for (uint32 threadIndex = 0; threadIndex < NumRendererWorkerThreads + 1; threadIndex++)
-    {
-        for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
-        {
-            m_transientCommandBuffers[threadIndex][frameIndex].Clear();
-            m_pendingTransientCommandBuffers[threadIndex][frameIndex].Clear();
-        }
-    }
-
-    for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
-    {
-        m_transientCommandBufferFences[frameIndex].Clear();
-    }
-
-    m_recycledTransientCommandBufferFences.Clear();
 
     for (DX12CommandBufferRef& commandBuffer : m_commandBuffers)
     {
@@ -638,7 +660,11 @@ void DX12RenderInterface::PrepareFrame(DX12Frame* frame)
                 }
             }
 
-            DWORD waitResult = WaitForSingleObject(m_frameFenceEvent, INFINITE);
+            DWORD waitResult;
+            {
+                ENGINE_STAT_SCOPE(&g_statTotalStallTime);
+                waitResult = WaitForSingleObject(m_frameFenceEvent, INFINITE);
+            }
             if (waitResult != WAIT_OBJECT_0)
             {
                 HYP_LOG(RenderingBackend, Error, "Failed to wait for fence! Result: {}", waitResult);
@@ -718,9 +744,13 @@ void DX12RenderInterface::PrepareFrame(DX12Frame* frame)
     for (auto it = fences.Begin(); it != fences.End();)
     {
         DX12Fence& fence = *it;
-        //HYP_LOG_TEMP("Waiting on transient command buffer {}, wait for fence value {} on frame {}", fence.GetDebugName(), fence.GetValue(), frameIndex);
 
-        fence.Wait(true);
+        {
+            ENGINE_STAT_SCOPE(&g_statTotalStallTime);
+            ENGINE_STAT_SCOPE(&g_statWaitOnTransientFence);
+
+            fence.Wait(true);
+        }
 
         m_recycledTransientCommandBufferFences.PushBack(std::move(fence));
 

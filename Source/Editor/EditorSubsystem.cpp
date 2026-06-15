@@ -26,6 +26,7 @@
 #include <Scene/View.hpp>
 #include <Scene/Light.hpp>
 #include <Scene/EnvProbe.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/FogVolume.hpp>
 #include <Scene/EntityManager.hpp>
 
@@ -2044,7 +2045,7 @@ EditorSubsystem::EditorSubsystem()
     m_editorDelegates = new EditorDelegates();
 
     OnProjectOpened
-        .Bind([this](const Handle<EditorProject>& project)
+        .Bind(this, [this](const Handle<EditorProject>& project)
             {
                 HYP_LOG(Editor, Verbose, "Opening project: {}", *project->GetName());
 
@@ -2085,7 +2086,7 @@ EditorSubsystem::EditorSubsystem()
                     vp->OnAdded(this);
                 }
 
-                m_delegateHandlers.Add(project->GetWorld()->OnSceneAdded.Bind([this, projectWeak = project.ToWeak()](World*, const Handle<Scene>& scene)
+                m_delegateHandlers.Add(project->GetWorld()->OnSceneAdded.Bind(project->GetWorld().Get(), [this, projectWeak = project.ToWeak()](World*, const Handle<Scene>& scene)
                         {
                             Assert(scene != nullptr);
                             Assert(scene != m_editorScene);
@@ -2110,7 +2111,7 @@ EditorSubsystem::EditorSubsystem()
                             }
                         }));
 
-                m_delegateHandlers.Add(project->GetWorld()->OnSceneRemoved.Bind([this, projectWeak = project.ToWeak()](World*, Scene* scene)
+                m_delegateHandlers.Add(project->GetWorld()->OnSceneRemoved.Bind(project->GetWorld().Get(), [this, projectWeak = project.ToWeak()](World*, Scene* scene)
                         {
                             Assert(scene != nullptr);
                             Assert(scene != m_editorScene);
@@ -2118,7 +2119,7 @@ EditorSubsystem::EditorSubsystem()
                             Handle<EditorProject> project = projectWeak.Lock();
                             Assert(project != nullptr);
 
-                            m_delegateHandlers.Remove(&scene->OnRootNodeChanged);
+                            scene->OnRootNodeChanged.RemoveAllFromSet(m_delegateHandlers);
 
                             // remove from all editor views
                             for (const Handle<EditorViewport>& vp : m_editorViewports)
@@ -2156,7 +2157,7 @@ EditorSubsystem::EditorSubsystem()
         .Detach();
 
     OnProjectClosing
-        .Bind([this](const Handle<EditorProject>& project)
+        .Bind(this, [this](const Handle<EditorProject>& project)
             {
                 g_editorState->GetPickCache().Clear();
 
@@ -2182,7 +2183,7 @@ EditorSubsystem::EditorSubsystem()
                         continue;
                     }
 
-                    m_delegateHandlers.Remove(&scene->OnRootNodeChanged);
+                    scene->OnRootNodeChanged.RemoveAllFromSet(m_delegateHandlers);
 
                     // StopWatchingNode(scene->GetRoot());
                 }
@@ -2192,9 +2193,9 @@ EditorSubsystem::EditorSubsystem()
                     vp->OnRemoved(this);
                 }
 
-                m_delegateHandlers.Remove(&project->GetWorld()->OnSceneAdded);
-                m_delegateHandlers.Remove(&project->GetWorld()->OnSceneRemoved);
-                m_delegateHandlers.Remove(&project->GetGame()->OnGameStateChange);
+                project->GetWorld()->OnSceneAdded.RemoveAllFromSet(m_delegateHandlers);
+                project->GetWorld()->OnSceneRemoved.RemoveAllFromSet(m_delegateHandlers);
+                project->GetGame()->OnGameStateChange.RemoveAllFromSet(m_delegateHandlers);
 
                 // if (m_contentBrowserDirectoryList && m_contentBrowserDirectoryList->GetDataSource())
                 // {
@@ -2207,7 +2208,7 @@ EditorSubsystem::EditorSubsystem()
         .Detach();
 
     OnSelectedGizmoChanged
-        .Bind([this](EditorGizmoBase* newGizmo, EditorGizmoBase* prevGizmo)
+        .Bind(this, [this](EditorGizmoBase* newGizmo, EditorGizmoBase* prevGizmo)
             {
                 SetHoveredGizmo(MouseEvent {}, nullptr, Handle<Node>::Null());
 
@@ -2325,11 +2326,95 @@ void EditorSubsystem::Update(float delta)
     AssertOnThread(g_simThread);
 
     m_editorDelegates->Update();
+    
+    DebugDrawCommandList& dbg = DebugDrawer::GetInstance().CreateCommandList();
+
+
+    // Debug draw probes
+    for (Scene* scene : GetCurrentProject()->GetWorld()->GetScenes())
+    {
+        for (auto [probe, _] : scene->GetEntityManager()->GetEntitySet<EntityType<EnvProbe>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
+        {
+            static constexpr auto ReflectionProbeTypeId = CONSTEXPR_TYPE_ID(ReflectionProbe);
+            static constexpr auto SkyProbeTypeId = CONSTEXPR_TYPE_ID(SkyProbe);
+            static constexpr auto IrradianceProbeTypeId = CONSTEXPR_TYPE_ID(IrradianceProbe);
+
+            switch (probe->InstanceClass()->GetTypeId().Value())
+            {
+            case ReflectionProbeTypeId:
+                dbg.reflectionProbe(probe->GetWorldTranslation(), 1.0f, static_cast<EnvProbe&>(*probe));
+                break;
+            case SkyProbeTypeId:
+                dbg.reflectionProbe(probe->GetWorldTranslation(), 1.0f, static_cast<EnvProbe&>(*probe));
+                break;
+            case IrradianceProbeTypeId:
+                dbg.ambientProbe(probe->GetWorldTranslation(), 1.0f, static_cast<EnvProbe&>(*probe));
+                break;
+            default:
+                HYP_LOG_ONCE(Editor, Warning, "Unknown probe type class: {}", probe->InstanceClass()->GetName());
+                break;
+            }
+        }
+    }
+
+#if 0
+    static const Color tetTriangles[] = {
+        Color::Red(),
+        Color::Green(),
+        Color::Blue(),
+        Color::Yellow(),
+        Color::Cyan(),
+        Color::Magenta(),
+        Color::White(),
+        Color::Black(),
+        // some additional custom colors
+        Color(1.0f, 0.647f, 0.0f),
+        Color(0.5f, 0.0f, 0.5f),
+        Color(0.0f, 1.0f, 1.0f),
+        Color(0.5f, 0.5f, 0.5f)
+    };
+
+    for (Scene* scene : GetCurrentProject()->GetWorld()->GetScenes())
+    {
+        for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<ProbeVolume>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
+        {
+            ProbeVolume* probeVolume = static_cast<ProbeVolume*>(entity);
+
+            const Span<const Tetrahedron> tets = probeVolume->GetTetrahedra();
+            const Span<IrradianceProbe* const> probes = probeVolume->GetProbes();
+
+            if (tets.Size() == 0 || probes.Size() == 0)
+            {
+                continue;
+            }
+
+            size_t tetIndex = 0;
+
+            for (const Tetrahedron& tet : tets)
+            {
+                const Vec3f p0 = probes[tet.probeIndices[0]]->GetWorldTranslation();
+                const Vec3f p1 = probes[tet.probeIndices[1]]->GetWorldTranslation();
+                const Vec3f p2 = probes[tet.probeIndices[2]]->GetWorldTranslation();
+                const Vec3f p3 = probes[tet.probeIndices[3]]->GetWorldTranslation();
+
+                RenderableAttributeSet triAttrs;
+                triAttrs.GetMaterialAttributes().bucket = RenderBucket::Debug;
+                triAttrs.GetMaterialAttributes().cullFaces = FCM_NONE;
+
+                Color color = tetTriangles[tetIndex++ % HYP_ARRAY_SIZE(tetTriangles)];
+                color.SetAlpha(0.5f);
+
+                dbg.triangle(p0, p1, p2, color, triAttrs);
+                dbg.triangle(p0, p2, p3, color, triAttrs);
+                dbg.triangle(p0, p3, p1, color, triAttrs);
+                dbg.triangle(p1, p3, p2, color, triAttrs);
+            }
+        }
+    }
+#endif
 
     if (!m_selectedNodes.Empty())
     {
-        DebugDrawCommandList& dbg = DebugDrawer::GetInstance().CreateCommandList();
-
         for (const Handle<Node>& node : m_selectedNodes)
         {
             if (node.IsValid())
@@ -2614,8 +2699,8 @@ void EditorSubsystem::InitViewport()
 
     uiSubsystem->GetUIStage()->UpdateSize(true);
 
-    m_delegateHandlers.Remove(&backdropPanel->OnClick);
-    m_delegateHandlers.Add(backdropPanel->OnClick.Bind([this](const MouseEvent& event)
+    backdropPanel->OnClick.RemoveAllFromSet(m_delegateHandlers);
+    m_delegateHandlers.Add(backdropPanel->OnClick.Bind(backdropPanel.Get(), [this](const MouseEvent& event)
         {
             if (m_shouldCancelNextClick)
             {
@@ -2707,8 +2792,8 @@ void EditorSubsystem::InitViewport()
             return UIEventHandlerResult::OK;
         }));
 
-    m_delegateHandlers.Remove(&backdropPanel->OnMouseLeave);
-    m_delegateHandlers.Add(backdropPanel->OnMouseLeave.Bind([this](const MouseEvent& event)
+    backdropPanel->OnMouseLeave.RemoveAllFromSet(m_delegateHandlers);
+    m_delegateHandlers.Add(backdropPanel->OnMouseLeave.Bind(backdropPanel.Get(), [this](const MouseEvent& event)
         {
             EditorViewport* activeViewport = GetActiveViewport();
             if (!activeViewport)
@@ -2726,8 +2811,8 @@ void EditorSubsystem::InitViewport()
             return UIEventHandlerResult::OK;
         }));
 
-    m_delegateHandlers.Remove(&backdropPanel->OnMouseDrag);
-    m_delegateHandlers.Add(backdropPanel->OnMouseDrag.Bind([this, uiStage = uiSubsystem->GetUIStage().Get()](const MouseEvent& event)
+    backdropPanel->OnMouseDrag.RemoveAllFromSet(m_delegateHandlers);
+    m_delegateHandlers.Add(backdropPanel->OnMouseDrag.Bind(backdropPanel.Get(), [this, uiStage = uiSubsystem->GetUIStage().Get()](const MouseEvent& event)
         {
             // prevent click being triggered on release once mouse has been dragged
             m_shouldCancelNextClick = true;
@@ -2765,8 +2850,8 @@ void EditorSubsystem::InitViewport()
             return UIEventHandlerResult::OK;
         }));
 
-    m_delegateHandlers.Remove(&backdropPanel->OnMouseMove);
-    m_delegateHandlers.Add(backdropPanel->OnMouseMove.Bind([this, uiStage = uiSubsystem->GetUIStage().Get()](const MouseEvent& event)
+    backdropPanel->OnMouseMove.RemoveAllFromSet(m_delegateHandlers);
+    m_delegateHandlers.Add(backdropPanel->OnMouseMove.Bind(backdropPanel.Get(), [this, uiStage = uiSubsystem->GetUIStage().Get()](const MouseEvent& event)
         {
             EditorViewport* activeViewport = GetActiveViewport();
             if (!activeViewport)
@@ -2825,8 +2910,8 @@ void EditorSubsystem::InitViewport()
             return UIEventHandlerResult::OK;
         }));
 
-    m_delegateHandlers.Remove(&backdropPanel->OnMouseDown);
-    m_delegateHandlers.Add(backdropPanel->OnMouseDown.Bind([this, uiStageWeak = uiSubsystem->GetUIStage().ToWeak()](const MouseEvent& event)
+    backdropPanel->OnMouseDown.RemoveAllFromSet(m_delegateHandlers);
+    m_delegateHandlers.Add(backdropPanel->OnMouseDown.Bind(backdropPanel.Get(), [this, uiStageWeak = uiSubsystem->GetUIStage().ToWeak()](const MouseEvent& event)
         {
             m_shouldCancelNextClick = false;
 
@@ -2870,8 +2955,8 @@ void EditorSubsystem::InitViewport()
             return UIEventHandlerResult::OK;
         }));
 
-    m_delegateHandlers.Remove(&backdropPanel->OnMouseUp);
-    m_delegateHandlers.Add(backdropPanel->OnMouseUp.Bind([this](const MouseEvent& event)
+    backdropPanel->OnMouseUp.RemoveAllFromSet(m_delegateHandlers);
+    m_delegateHandlers.Add(backdropPanel->OnMouseUp.Bind(backdropPanel.Get(), [this](const MouseEvent& event)
         {
             m_shouldCancelNextClick = false;
 
@@ -2891,8 +2976,8 @@ void EditorSubsystem::InitViewport()
             return UIEventHandlerResult::OK;
         }));
 
-    m_delegateHandlers.Remove(&backdropPanel->OnKeyDown);
-    m_delegateHandlers.Add(backdropPanel->OnKeyDown.Bind([this](const KeyboardEvent& event)
+    backdropPanel->OnKeyDown.RemoveAllFromSet(m_delegateHandlers);
+    m_delegateHandlers.Add(backdropPanel->OnKeyDown.Bind(backdropPanel.Get(), [this](const KeyboardEvent& event)
         {
             if (!GetWorld()->GetGameState().IsEditMode())
             {
@@ -2913,8 +2998,8 @@ void EditorSubsystem::InitViewport()
             return UIEventHandlerResult::OK;
         }));
 
-    m_delegateHandlers.Remove(&backdropPanel->OnKeyUp);
-    m_delegateHandlers.Add(backdropPanel->OnKeyUp.Bind([this](const KeyboardEvent& event)
+    backdropPanel->OnKeyUp.RemoveAllFromSet(m_delegateHandlers);
+    m_delegateHandlers.Add(backdropPanel->OnKeyUp.Bind(backdropPanel.Get(), [this](const KeyboardEvent& event)
         {
             if (!GetWorld()->GetGameState().IsEditMode())
             {
@@ -2935,8 +3020,8 @@ void EditorSubsystem::InitViewport()
             return UIEventHandlerResult::OK;
         }));
 
-    m_delegateHandlers.Remove(&backdropPanel->OnGainFocus);
-    m_delegateHandlers.Add(backdropPanel->OnGainFocus.Bind([this](const MouseEvent& event)
+    backdropPanel->OnGainFocus.RemoveAllFromSet(m_delegateHandlers);
+    m_delegateHandlers.Add(backdropPanel->OnGainFocus.Bind(backdropPanel.Get(), [this](const MouseEvent& event)
         {
             m_editorCameraEnabled = true;
 
@@ -2951,8 +3036,8 @@ void EditorSubsystem::InitViewport()
             return UIEventHandlerResult::OK;
         }));
 
-    m_delegateHandlers.Remove(&backdropPanel->OnLoseFocus);
-    m_delegateHandlers.Add(backdropPanel->OnLoseFocus.Bind([this](const MouseEvent& event)
+    backdropPanel->OnLoseFocus.RemoveAllFromSet(m_delegateHandlers);
+    m_delegateHandlers.Add(backdropPanel->OnLoseFocus.Bind(backdropPanel.Get(), [this](const MouseEvent& event)
         {
             m_editorCameraEnabled = false;
 
@@ -2980,8 +3065,8 @@ void EditorSubsystem::StartWatchingNode(const Handle<Node>& node)
     UISubsystem* uiSubsystem = GetWorld()->GetSubsystem<UISubsystem>();
     AssertDebug(uiSubsystem != nullptr);
 
-    m_delegateHandlers.Remove(&node->OnChildAdded);
-    m_delegateHandlers.Add(node->OnChildAdded.Bind([this](Node* node, bool isDirect)
+    node->OnChildAdded.RemoveAllFromSet(m_delegateHandlers);
+    m_delegateHandlers.Add(node->OnChildAdded.Bind(node.Get(), [this](Node* node, bool isDirect)
         {
             Assert(node != nullptr);
 
@@ -2991,8 +3076,8 @@ void EditorSubsystem::StartWatchingNode(const Handle<Node>& node)
             }
         }));
 
-    m_delegateHandlers.Remove(&node->OnChildRemoved);
-    m_delegateHandlers.Add(node->OnChildRemoved.Bind([this](Node* node, bool)
+    node->OnChildRemoved.RemoveAllFromSet(m_delegateHandlers);
+    m_delegateHandlers.Add(node->OnChildRemoved.Bind(node.Get(), [this](Node* node, bool)
         {
             // If the node being removed is the focused node, clear the focused node
             if (node == m_focusedNode.GetUnsafe())
@@ -3032,8 +3117,8 @@ void EditorSubsystem::StopWatchingNode(const Handle<Node>& node)
     // Keep ref alive to node to prevent it from being destroyed while we're removing the watchers
     Handle<Node> nodeCopy = node;
 
-    m_delegateHandlers.Remove(&node->OnChildAdded);
-    m_delegateHandlers.Remove(&node->OnChildRemoved);
+    node->OnChildAdded.RemoveAllFromSet(m_delegateHandlers);
+    node->OnChildRemoved.RemoveAllFromSet(m_delegateHandlers);
 
     m_editorDelegates->RemoveNodeWatcher(NAME("SceneView"), node.Get());
 }
@@ -3198,7 +3283,7 @@ void EditorSubsystem::InitActiveSceneSelection()
         sceneMenuItem->SetText(scene->GetName().LookupString());
 
         sceneMenuItem->OnClick
-            .Bind([this, activeSceneMenuItemWeak = activeSceneMenuItem.ToWeak(), sceneMenuItemWeak = sceneMenuItem.ToWeak(), sceneWeak = scene.ToWeak()](const MouseEvent&)
+            .Bind(sceneMenuItem.Get(), [this, activeSceneMenuItemWeak = activeSceneMenuItem.ToWeak(), sceneMenuItemWeak = sceneMenuItem.ToWeak(), sceneWeak = scene.ToWeak()](const MouseEvent&)
                 {
                     Handle<Scene> scene = sceneWeak.Lock();
                     if (!scene.IsValid())
@@ -3476,7 +3561,7 @@ void EditorSubsystem::SetFocusedNode(const Handle<Node>& focusedNode, bool shoul
         // HYP_LOG(Editor, Verbose, "Set focused node: {}\t{}", m_focusedNode->GetName(), m_focusedNode->GetWorldTranslation());
         // HYP_LOG(Editor, Verbose, "Set highlight node translation: {}", m_highlightNode->GetWorldTranslation());
 
-        if (focusedNode->IsA(VolumeBase::StaticClass()))
+        if (focusedNode->IsA<VolumeBase>() && StaticCast<VolumeBase>(focusedNode)->useVolumeEditTool)
             //|| (focusedNode->IsA(Light::StaticClass()) && !focusedNode->IsA(DirectionalLight::StaticClass())))
         {
             SetSelectedManipulationMode(EditorManipulationMode::VOLUME_EDIT);

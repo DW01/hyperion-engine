@@ -20,7 +20,8 @@ namespace Hyperion {
 #pragma region CommandRecorderAllocator
 
 CommandRecorderAllocator::CommandRecorderAllocator()
-    : m_tempCommandRecordersCount(0)
+    : m_tempCommandRecordersCount(0),
+      m_isShuttingDown(false)
 {
 }
 
@@ -53,6 +54,25 @@ void CommandRecorderAllocator::Shutdown()
     root.Reset(/* freeMemory */ true);
 }
 
+void CommandRecorderAllocator::Flush(bool isShuttingDown)
+{
+    HYP_SCOPE;
+    AssertOnThread(g_renderThread);
+
+    Mutex::Guard guard(m_mutex);
+
+    if (m_isShuttingDown)
+    {
+        return;
+    }
+
+    m_isShuttingDown = true;
+
+    UpdateQueue_Internal();
+
+    root.Submit();
+}
+
 void CommandRecorderAllocator::UpdateQueue()
 {
     HYP_SCOPE;
@@ -66,6 +86,11 @@ void CommandRecorderAllocator::UpdateQueue()
 
     Mutex::Guard guard(m_mutex);
 
+    UpdateQueue_Internal();
+}
+
+void CommandRecorderAllocator::UpdateQueue_Internal()
+{
     for (auto it = m_tempCommandRecorders.Begin(); it != m_tempCommandRecorders.End();)
     {
         auto& commandRecorder = *it;
@@ -100,6 +125,8 @@ void CommandRecorderAllocator::UpdateQueue()
 CommandRecorder& CommandRecorderAllocator::GetCommandRecorder()
 {
     Mutex::Guard guard(m_mutex);
+
+    AssertDebug(!m_isShuttingDown);
 
     AtomicIncrement(&m_tempCommandRecordersCount);
     auto& newCommandRecorder = m_tempCommandRecorders.EmplaceBack();

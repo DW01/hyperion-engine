@@ -74,7 +74,7 @@ groupshared float4 shared_memory[9][6];
 #if defined(MODE_BUILD_COEFFICIENTS) || defined(MODE_CLEAR)
 [numthreads(NUM_SAMPLES_X, NUM_SAMPLES_Y, 1)]
 #elif defined(MODE_REDUCE)
-[numthreads(6, 4, 4)]
+[numthreads(8, 8, 1)]
 #elif defined(MODE_FINALIZE)
 [numthreads(1, 1, 1)]
 #endif
@@ -82,6 +82,11 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
 {
 #ifdef MODE_CLEAR
     const uint2 sample_index = uint2(dispatchThreadID.xy);
+
+    if (any(sample_index >= uint2(NUM_SAMPLES_X, NUM_SAMPLES_Y)))
+    {
+        return;
+    }
 
     for (int i = 0; i < 9; i++)
     {
@@ -98,17 +103,34 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
 #elif defined(MODE_BUILD_COEFFICIENTS)
     const uint2 sample_index = uint2(dispatchThreadID.xy);
 
+    if (any(sample_index >= uint2(NUM_SAMPLES_X, NUM_SAMPLES_Y)))
+    {
+        return;
+    }
+
     const float2 uv = (float2(sample_index) + 0.5) / float2(NUM_SAMPLES_X, NUM_SAMPLES_Y);
     const float2 sample_point = uv * 2.0 - 1.0;
     const float3 dir = normalize(DecodeOctahedralCoord(sample_point));
 
     float4 albedo = SAMPLE_TEXTURE_CUBE_LOD(sampler_linear, cubemap_color, dir, 0.0);
+
+    if (any(isnan(albedo)) || any(isinf(albedo)))
+    {
+        albedo = float4(0.0, 0.0, 0.0, 1.0);
+    }
+
     float4 color = albedo;
 
     float sh_values[27];
     ProjectOntoSH9Color(dir, color.rgb, sh_values);
 
     float3 d_unnorm = float3(sample_point.x, sample_point.y, 1.0 - abs(sample_point.x) - abs(sample_point.y));
+    
+    if (d_unnorm.z < 0.0)
+    {
+        d_unnorm.xy = (1.0 - abs(d_unnorm.yx)) * sign(d_unnorm.xy);
+    }
+    
     float len = length(d_unnorm);
     float weight = 1.0 / max(len * len * len, 0.0001);
 
@@ -122,41 +144,21 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
         CURRENT_TILE.coeffs_weights[i] = float4(sh_color * weight, weight);
     }
 #elif defined(MODE_REDUCE)
-    const int face_index = int(dispatchThreadID.x);
-
-    if (face_index >= 6)
-    {
-        return;
-    }
-
-    const int2 input_index = int2(dispatchThreadID.yz * 2);
-    const int2 output_index = int2(dispatchThreadID.yz);
+    const int2 output_index = int2(dispatchThreadID.xy);
+    const int2 input_index = output_index * 2;
 
     const int2 prev_dimensions = int2(level_dimensions.xy);
     const int2 next_dimensions = int2(level_dimensions.zw);
 
-    if (any(input_index >= prev_dimensions))
-    {
-        return;
-    }
-
-    if (any(input_index + 1 >= prev_dimensions))
-    {
-        return;
-    }
-
-    if (any(output_index >= next_dimensions))
-    {
-        return;
-    }
+    if (any(output_index >= next_dimensions) || any(input_index + 1 >= prev_dimensions)) return;
 
     for (int i = 0; i < 9; i++)
     {
-        sh_tiles_output[(face_index * next_dimensions.x * next_dimensions.y) + (output_index.x * next_dimensions.y) + output_index.y].coeffs_weights[i] =
-            sh_tiles[(face_index * prev_dimensions.x * prev_dimensions.y) + (input_index.x * prev_dimensions.y) + input_index.y].coeffs_weights[i]
-            + sh_tiles[(face_index * prev_dimensions.x * prev_dimensions.y) + ((input_index.x + 1) * prev_dimensions.y) + input_index.y].coeffs_weights[i]
-            + sh_tiles[(face_index * prev_dimensions.x * prev_dimensions.y) + ((input_index.x + 1) * prev_dimensions.y) + (input_index.y + 1)].coeffs_weights[i]
-            + sh_tiles[(face_index * prev_dimensions.x * prev_dimensions.y) + (input_index.x * prev_dimensions.y) + (input_index.y + 1)].coeffs_weights[i];
+        sh_tiles_output[(output_index.x * next_dimensions.y) + output_index.y].coeffs_weights[i] =
+            sh_tiles[(input_index.x * prev_dimensions.y) + input_index.y].coeffs_weights[i]
+            + sh_tiles[((input_index.x + 1) * prev_dimensions.y) + input_index.y].coeffs_weights[i]
+            + sh_tiles[((input_index.x + 1) * prev_dimensions.y) + (input_index.y + 1)].coeffs_weights[i]
+            + sh_tiles[(input_index.x * prev_dimensions.y) + (input_index.y + 1)].coeffs_weights[i];
     }
 #elif defined(MODE_FINALIZE)
 
@@ -167,18 +169,26 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
     };
 
 #ifdef PARALLEL_REDUCE
-    for (int face_index = 0; face_index < 6; face_index++)
+    const int FINAL_TILE_COUNT = 1; 
+
+    for (int i = 0; i < 9; i++)
+    {
+        OutSHBuffer[i] = (float4)0.0;
+    }
+
+    for (int tile_index = 0; tile_index < FINAL_TILE_COUNT; tile_index++)
     {
         for (int i = 0; i < 9; i++)
         {
-            OutSHBuffer[i] += sh_tiles[face_index * 9 + i].coeffs_weights[i];
+            OutSHBuffer[i] += sh_tiles[tile_index].coeffs_weights[i];
         }
     }
 
     for (int i = 0; i < 9; i++)
     {
-        float weight = OutSHBuffer[i].a;
-        float normFactor = (4.0 * HYP_FMATH_PI) / max(weight, 0.0001);
+        float weight = max(OutSHBuffer[i].a + 1e-6f, 0.0001);
+        float normFactor = (4.0 * HYP_FMATH_PI) / weight;
+        
         OutSHBuffer[i] = float4(OutSHBuffer[i].rgb * normFactor * s_aOverPi[i], 1.0);
     }
 #else
@@ -204,6 +214,9 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
         }
     }
 
+    total_weight += 1e-6f;
+    total_weight = max(total_weight, 0.0001);
+
     for (int i = 0; i < 9; i++)
     {
         float3 result = sh_result[i] * ((4.0 * HYP_FMATH_PI) / total_weight) * s_aOverPi[i];
@@ -211,11 +224,5 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
         OutSHBuffer[i] = float4(result, 1.0);
     }
 #endif
-
-    // // temp: debug
-    // for (int i = 0; i < 9; i++)
-    // {
-    //     OutSHBuffer[i] = float4(1.0, 0.0, 0.0, 1.0);
-    // }
 #endif
 }

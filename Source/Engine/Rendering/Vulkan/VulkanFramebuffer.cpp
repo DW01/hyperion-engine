@@ -63,7 +63,8 @@ RendererResult VulkanAttachmentMap::Create()
         return HYP_MAKE_ERROR(RendererError, "Framebuffer is not valid");
     }
 
-    Array<VulkanAttachment*, VulkanTempAllocator> attachments;
+    // @NOTE this can be called on any thread, so don't use VulkanTempAllocator
+    Array<VulkanAttachment*> attachments;
     attachments.Reserve(this->attachments.Size());
 
     for (KeyValuePair<uint32, VulkanAttachment*>& pair : this->attachments)

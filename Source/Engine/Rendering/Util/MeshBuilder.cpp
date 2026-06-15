@@ -452,7 +452,6 @@ ENGINE_API Handle<Mesh> NormalizedCubeSphere(uint32 numDivisions){
     vertexArrayView.layoutDesc = { VT_Simple };
 
     mesh->SetMeshData(meshDesc, vertexArrayView, indices.ToByteView());
-    mesh->CalculateNormals();
 
     return mesh;
 }

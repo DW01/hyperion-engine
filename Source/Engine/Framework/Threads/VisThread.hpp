@@ -46,7 +46,7 @@ public:
     void AddViewToProcess(View* view);
 
     void OnFrameStart(uint32 frameCounter);
-    void OnFrameEnd(Array<Entity*, SceneAllocator>& outProcessedEntities);
+    void OnFrameEnd(Array<Entity*, SceneTempAllocator>& outProcessedEntities);
 
     void Process();
 

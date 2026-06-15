@@ -34,7 +34,7 @@ public:
 
     ~ParticleVolume() override;
 
-    void UpdateRenderProxy(class RenderProxyParticleVolume* proxy);
+    void UpdateRenderProxy(struct RenderProxyParticleVolume* proxy);
 
     HYP_FIELD(Serialize, Editor)
     Handle<Texture> texture;

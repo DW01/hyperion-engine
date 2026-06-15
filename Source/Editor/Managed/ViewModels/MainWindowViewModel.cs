@@ -129,6 +129,7 @@ namespace Hyperion.Editor.ViewModels
         public EditorCommand AddAreaRectLight => new EditorCommand("AddAreaRectLight");
 
         public EditorCommand AddLightmapVolume => new EditorCommand("AddLightmapVolume");
+        public EditorCommand AddProbeVolume => new EditorCommand("AddProbeVolume");
         public EditorCommand AddReflectionProbe => new EditorCommand("AddReflectionProbe");
         public EditorCommand AddParticleVolume => new EditorCommand("AddParticleVolume");
         public EditorCommand AddFogVolume => new EditorCommand("AddFogVolume");
@@ -222,7 +223,7 @@ namespace Hyperion.Editor.ViewModels
         public ObservableCollection<TaskItemViewModel> Tasks { get; } = new();
 
         public ForegroundTaskViewModel ForegroundTask { get; private set; }
-        
+
         private SceneViewModel? _activeScene;
         public SceneViewModel? ActiveScene
         {
@@ -230,7 +231,7 @@ namespace Hyperion.Editor.ViewModels
             set
             {
                 Logger.Log(LogLevel.Info, $"Setting ActiveScene to {(value != null ? value.Scene.Name.ToString() : "null")}");
-                
+
                 if (_activeScene == value)
                     return;
 
@@ -318,7 +319,7 @@ namespace Hyperion.Editor.ViewModels
             ContentBrowser = new ContentBrowserViewModel(_editorSubsystem);
             ContentBrowser.LoadBuckets();
             OnPropertyChanged(nameof(ContentBrowser));
-            
+
             HandleCurrentProjectChanged(_editorSubsystem.CurrentProject);
 
             EditorState editorState = EditorState.Instance;
@@ -459,7 +460,7 @@ namespace Hyperion.Editor.ViewModels
                 _activeScene = Scenes
                     .Where(s => s.Scene == scene)
                     .FirstOrDefault();
-                
+
                 if (_activeScene == null)
                 {
                     _activeScene = new SceneViewModel(scene, isActive: true);
@@ -785,7 +786,7 @@ namespace Hyperion.Editor.ViewModels
                             return; // already exists
                         }
                     }
-                    
+
                     Scenes.Add(new SceneViewModel(scene, isActive: _activeScene.Scene?.Id == scene.Id));
 
                     OnPropertyChanged(nameof(Scenes));
@@ -876,7 +877,7 @@ namespace Hyperion.Editor.ViewModels
                     // as currently we only support adding instances to entities, not to other node types (e.g. we don't support adding instances to a Light)
                     CanAddInstance = validNode != null
                         && validNode.GetType() == typeof(Entity);
-                        //&& ((Entity)validNode).HasComponent<MeshComponent>();
+                    //&& ((Entity)validNode).HasComponent<MeshComponent>();
                 }
                 finally
                 {

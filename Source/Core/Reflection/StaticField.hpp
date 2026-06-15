@@ -43,7 +43,7 @@ public:
         HYP_CORE_ASSERT(m_typeInfo != nullptr);
     }
 
-    template <class ConstantType, typename = std::enable_if_t<!std::is_reference_v<ConstantType>>>
+    template <class ConstantType, typename = std::enable_if_t<!std::is_reference_v<ConstantType> && !std::is_pointer_v<ConstantType>>>
     StaticField(Name name, ConstantType value, Span<const ClassAttribute> attributes = {})
         : m_name(name),
           m_typeInfo(&TypeOf<NormalizedType<ConstantType>>()),
@@ -61,7 +61,8 @@ public:
         : m_name(name),
           m_typeInfo(&TypeOf<NormalizedType<ConstantType>>()),
           m_size(sizeof(NormalizedType<ConstantType>)),
-          m_attributes(attributes)
+          m_attributes(attributes),
+          m_dataPtr(const_cast<void*>(static_cast<const void*>(pValue)))
     {
         m_getProc = [pValue]() -> BoxedValue
         {
@@ -135,6 +136,16 @@ public:
         return m_getProc.IsValid();
     }
 
+    void* GetDataPointer() const
+    {
+        return m_dataPtr;
+    }
+
+    void SetDataPointer(void* ptr)
+    {
+        m_dataPtr = ptr;
+    }
+
     HYP_FORCE_INLINE BoxedValue Get() const
     {
         return m_getProc();
@@ -161,6 +172,7 @@ private:
     const TypeInfo* m_typeInfo;
     uint32 m_size;
     ClassAttributeSet m_attributes;
+    void* m_dataPtr = nullptr;
 
     Proc<BoxedValue()> m_getProc;
 };

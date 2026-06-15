@@ -58,7 +58,7 @@
 
 #include <Scene/World.hpp>
 #include <Scene/View.hpp>
-#include <Scene/EnvGrid.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/EnvProbe.hpp>
 #include <Scene/FogVolume.hpp>
 #include <Scene/ParticleVolume.hpp>
@@ -157,7 +157,7 @@ EngineStatCounter<uint32> g_statLights("Rendering/Lights");
 EngineStatCounter<uint32> g_statLightmapVolumes("Rendering/LightmapVolumes");
 EngineStatCounter<uint32> g_statParticleVolumes("Rendering/ParticleVolumes");
 EngineStatCounter<uint32> g_statEnvProbes("Rendering/EnvProbes");
-EngineStatCounter<uint32> g_statEnvGrids("Rendering/EnvGrids");
+EngineStatCounter<uint32> g_statProbeVolumes("Rendering/ProbeVolumes");
 EngineStatCounter<uint32> g_statDebugDraws("Rendering/DebugDraws");
 
 CVar<int> cvDeferredDebugVis { "Rendering.Deferred.DebugVis", 0 };
@@ -300,10 +300,10 @@ void FillShadowMapData(
 
 } // namespace DeferredRendererHelpers
 
-static const TypeId s_envProbeTypeToTypeId[EPT_MAX] = {
+static constexpr TypeId EnvProbeTypeToTypeId[EPT_MAX] = {
     TypeId::ForType<SkyProbe>(),        // EPT_SKY
     TypeId::ForType<ReflectionProbe>(), // EPT_REFLECTION
-    TypeId::ForType<EnvProbe>()         // EPT_AMBIENT (fixme when derived class)
+    TypeId::ForType<IrradianceProbe>()  // EPT_AMBIENT (fixme when derived class)
 };
 
 #pragma region LightingPass
@@ -333,10 +333,7 @@ void LightingPass::Create()
     // linear transform cosines texture data
     if (m_mode == DPM_DIRECT_LIGHTING && !m_ltcSampler)
     {
-        m_ltcSampler = RI.samplerCache->GetOrCreate(SamplerDesc {
-            TFM_NEAREST,
-            TFM_LINEAR,
-            TWM_CLAMP_TO_EDGE });
+        m_ltcSampler = RI.samplerCache->GetOrCreate(SamplerDesc { TFM_NEAREST, TFM_LINEAR, TWM_CLAMP_TO_EDGE });
 
         ByteBuffer ltcMatrixData(sizeof(s_ltcMatrix), s_ltcMatrix);
 
@@ -389,8 +386,6 @@ void LightingPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
     RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(rs.view->GetCamera()));
     Assert(cameraProxy != nullptr);
 
-    const Vec4f& cameraPosition = cameraProxy->bufferData.cameraPosition;
-
     DeferredPassData* dpd = DynamicCast<DeferredPassData>(rs.passData);
     AssertDebug(dpd != nullptr);
 
@@ -431,11 +426,7 @@ void LightingPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
     uint32 numShaderUniforms = 0;
 
-    Sampler* shadowSampler = RI.samplerCache->GetOrCreate(SamplerDesc {
-        TFM_LINEAR,
-        TFM_LINEAR,
-        TWM_CLAMP_TO_EDGE,
-        SamplerCompareOp::LessEq });
+    Sampler* shadowSampler = RI.samplerCache->GetOrCreate(SamplerDesc { TFM_LINEAR, TFM_LINEAR, TWM_CLAMP_TO_EDGE, SamplerCompareOp::LessEq });
 
     cr << SetShaderUniform(numShaderUniforms++, "SamplerLinear"_sh, RI.placeholderData->GetSamplerLinearMipmap());
     cr << SetShaderUniform(numShaderUniforms++, "SamplerNearest"_sh, RI.placeholderData->GetSamplerNearest());
@@ -947,9 +938,7 @@ void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
     cr << SetStencilTest(true);
     cr << SetStencilFunction(StencilFunction {
-        .passOp = SO_KEEP,
-        .failOp = SO_KEEP,
-        .depthFailOp = SO_KEEP,
+        .passOp = SO_KEEP, .failOp = SO_KEEP, .depthFailOp = SO_KEEP,
         .compareOp = SCO_EQUAL // match values with equal atlas index when we render
     });
 
@@ -1130,7 +1119,7 @@ void FogVolumePass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup
     if (data.noiseTexture)
         cr << SetShaderUniform(6, "NoiseMap"_sh, RI.textureViewCache->GetOrCreate(data.noiseTexture));
 
-    //dpd->depthPyramidRenderer->GetResultImageView()
+    // dpd->depthPyramidRenderer->GetResultImageView()
     cr << SetShaderUniform(7, "DepthPyramidTexture"_sh, framebuffer->GetAttachment(GTN_DEPTH)->GetImageView());
 
     // Set constants
@@ -1263,8 +1252,7 @@ ReflectionsPass::ReflectionsPass(Vec2u extent, GBuffer* gbuffer, const GpuImageV
     m_shaderDesc = ShaderDesc(NAME("ApplyReflectionProbe"));
 
     SetBlendFunction(BlendFunction(
-        BMF_SRC_ALPHA, BMF_ONE_MINUS_SRC_ALPHA,
-        BMF_ONE, BMF_ONE_MINUS_SRC_ALPHA));
+        BMF_SRC_ALPHA, BMF_ONE_MINUS_SRC_ALPHA, BMF_ONE, BMF_ONE_MINUS_SRC_ALPHA));
 }
 
 ReflectionsPass::~ReflectionsPass()
@@ -1334,8 +1322,7 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
     cr << SetDepthWrite(false);
     cr << SetStencilTest(false);
     cr << SetCurrentBlendFunction(BlendFunction(
-        BMF_SRC_ALPHA, BMF_ONE_MINUS_SRC_ALPHA,
-        BMF_ONE, BMF_ONE_MINUS_SRC_ALPHA));
+        BMF_SRC_ALPHA, BMF_ONE_MINUS_SRC_ALPHA, BMF_ONE, BMF_ONE_MINUS_SRC_ALPHA));
     cr << SetFillMode(FM_FILL);
     cr << SetFaceCullMode(FCM_BACK);
 
@@ -1351,7 +1338,7 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
     {
         const EnvProbeType envProbeType = EnvProbeTypes[cubemapType];
 
-        for (EnvProbe* envProbe : rpl.GetEnvProbes().GetElements(s_envProbeTypeToTypeId[envProbeType]))
+        for (EnvProbe* envProbe : rpl.GetEnvProbes().GetElements(EnvProbeTypeToTypeId[envProbeType]))
         {
             probesPerCubemapType[cubemapType].PushBack(envProbe);
         }
@@ -1393,7 +1380,6 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
 
     for (uint32 envProbeTypeIndex = 0; envProbeTypeIndex < ArraySize(EnvProbeTypes); envProbeTypeIndex++)
     {
-        const EnvProbeType envProbeType = EnvProbeTypes[envProbeTypeIndex];
         const CubemapType cubemapType = CubemapTypes[envProbeTypeIndex];
 
         const Array<EnvProbe*, RenderTempAllocator>& probes = probesPerCubemapType[cubemapType];
@@ -1534,14 +1520,15 @@ static FramebufferRef CreateDeferredShadingFramebuffer(GBuffer* gbuffer)
     framebuffer->SetDebugName(NAME("DeferredShadingFramebuffer"));
 #endif
 
+    AttachmentDesc colorAttachmentDesc {};
+    colorAttachmentDesc.imageType = TextureType::Texture2D;
+    colorAttachmentDesc.format = TextureFormat::RGBA16F;
+    colorAttachmentDesc.loadOp = LoadOperation::CLEAR;
+    colorAttachmentDesc.storeOp = StoreOperation::STORE;
+
     Attachment* colorAttachment = framebuffer->AddAttachment(
         0,
-        AttachmentDesc {
-            TextureType::Texture2D,
-            TextureFormat::RGBA16F,
-            LoadOperation::CLEAR,
-            StoreOperation::STORE
-        });
+        colorAttachmentDesc);
 
     // depth for stencil testing
     const GpuImageViewRef& depthImageView = gbuffer->GetBucket(RenderBucket::Opaque).GetGBufferAttachment(GTN_DEPTH)->GetImageView();
@@ -1710,8 +1697,7 @@ public:
         };
 
         auto ProjectSphereToScreenAABB = [&projMatrix, &extent, cameraNear, numTilesX, numTilesY](
-                                             const Vec3f& centerVS, float radius,
-                                             uint32& outMinX, uint32& outMinY, uint32& outMaxX, uint32& outMaxY) -> bool
+                                             const Vec3f& centerVS, float radius, uint32& outMinX, uint32& outMinY, uint32& outMaxX, uint32& outMaxY) -> bool
         {
             const float dist = centerVS.z;
 
@@ -1761,9 +1747,7 @@ public:
         };
 
         auto ProjectAABBToScreenTiles = [&viewMatrix, &projMatrix, &extent, cameraNear, numTilesX, numTilesY](
-                                            const Vec3f& aabbMinWS, const Vec3f& aabbMaxWS,
-                                            uint32& outMinX, uint32& outMinY, uint32& outMaxX, uint32& outMaxY,
-                                            float& outMinVSZ, float& outMaxVSZ) -> bool
+                                            const Vec3f& aabbMinWS, const Vec3f& aabbMaxWS, uint32& outMinX, uint32& outMinY, uint32& outMaxX, uint32& outMaxY, float& outMinVSZ, float& outMaxVSZ) -> bool
         {
             const Vec3f corners[8] = {
                 { aabbMinWS.x, aabbMinWS.y, aabbMinWS.z },
@@ -1920,7 +1904,7 @@ public:
         // Start env probes
         ENGINE_STAT_SCOPE(&s_statClusterEnvProbes);
 
-        Array<Tuple<EnvProbe*, EnvProbeShaderData*, uint32>, RenderAllocator> envProbes;
+        Array<Tuple<EnvProbe*, EnvProbeShaderData*, uint32>, RenderTempAllocator> envProbes;
         envProbes.Reserve(rpl.GetEnvProbes().NumCurrent());
 
         for (EnvProbe* envProbe : rpl.GetEnvProbes())
@@ -1942,35 +1926,35 @@ public:
 
         // Sort env probes, we want sky LAST so other env probes fall back to it.
         std::sort(envProbes.Begin(), envProbes.End(),
-            [&cameraPosition](const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& a, const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& b)
-            {
-                const bool aIsSky = a.GetElement<0>()->IsA(SkyProbe::StaticClass());
-                const bool bIsSky = b.GetElement<0>()->IsA(SkyProbe::StaticClass());
+                  [&cameraPosition](const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& a, const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& b)
+                  {
+                      const bool aIsSky = a.GetElement<0>()->IsA<SkyProbe>();
+                      const bool bIsSky = b.GetElement<0>()->IsA<SkyProbe>();
 
-                if (aIsSky && !bIsSky)
-                {
-                    return false;
-                }
+                      if (aIsSky && !bIsSky)
+                      {
+                          return false;
+                      }
 
-                if (!aIsSky && bIsSky)
-                {
-                    return true;
-                }
+                      if (!aIsSky && bIsSky)
+                      {
+                          return true;
+                      }
 
-                if (aIsSky && bIsSky)
-                {
-                    return false;
-                }
+                      if (aIsSky && bIsSky)
+                      {
+                          return false;
+                      }
 
-                // both are reflection probes, sort by distance to camera
-                const Vec3f aProbePosition = a.GetElement<1>()->worldPosition.GetXYZ();
-                const Vec3f bProbePosition = b.GetElement<1>()->worldPosition.GetXYZ();
+                      // both are reflection probes, sort by distance to camera
+                      const Vec3f aProbePosition = a.GetElement<1>()->worldPosition.GetXYZ();
+                      const Vec3f bProbePosition = b.GetElement<1>()->worldPosition.GetXYZ();
 
-                const float aDistSq = (aProbePosition - cameraPosition).LengthSquared();
-                const float bDistSq = (bProbePosition - cameraPosition).LengthSquared();
+                      const float aDistSq = (aProbePosition - cameraPosition).LengthSquared();
+                      const float bDistSq = (bProbePosition - cameraPosition).LengthSquared();
 
-                return aDistSq < bDistSq;
-            });
+                      return aDistSq < bDistSq;
+                  });
 
         for (size_t envProbeIndex = 0; envProbeIndex < envProbes.Size(); envProbeIndex++)
         {
@@ -1983,7 +1967,7 @@ public:
             const Vec3f aabbMinWS = envProbeData.aabbMin.GetXYZ();
             const Vec3f aabbMaxWS = envProbeData.aabbMax.GetXYZ();
 
-            const bool isSky = envProbe.GetEnvProbeType() == EPT_SKY;
+            const bool isSky = envProbe.IsA<SkyProbe>();
 
             if (isSky)
             {
@@ -2147,8 +2131,7 @@ PassData* DeferredPass::CreateViewPassData(View* view, PassDataExt&)
 
         HYP_LOG(Rendering, Verbose, "Creating renderer for view '{}' with GBuffer '{}'", view->Id(), gbuffer->GetExtent());
 
-        const FramebufferRef& opaquePassFramebuffer = view->GetOutputTarget().GetFramebuffer(RenderBucket::Opaque);
-        const FramebufferRef& lightmapPassFramebuffer = view->GetOutputTarget().GetFramebuffer(RenderBucket::Lightmapped);
+        Framebuffer* opaquePassFramebuffer = view->GetOutputTarget().GetFramebuffer(RenderBucket::Opaque);
 
         passData.ssgi = MakeUnique<SSGI>(gbuffer);
         passData.ssgi->Create();
@@ -2182,8 +2165,8 @@ PassData* DeferredPass::CreateViewPassData(View* view, PassDataExt&)
             TFM_LINEAR_MIPMAP,
             TWM_CLAMP_TO_EDGE,
             1,
-            IU_SAMPLED | IU_ATTACHMENT
-        });
+            IU_SAMPLED | IU_ATTACHMENT });
+
         passData.mipChain->SetName(NAME("DeferredPassMipChain"));
         CheckResult(passData.mipChain->Create());
 
@@ -2210,18 +2193,19 @@ PassData* DeferredPass::CreateViewPassData(View* view, PassDataExt&)
 
                 GpuImageViewRef mipImageView = RI.MakeImageView(
                     passData.mipChain->GetGpuImage(),
-                    uint8(mipLevel), 1, // mip level, 1 mip
-                    0, 1                // layer 0, 1 layer
+                    uint8(mipLevel),
+                    1, // mip level, 1 mip
+                    0,
+                    1 // layer 0, 1 layer
                 );
 
-                Attachment* attachment = passData.mipChainFramebuffers[mipLevel]->AddAttachment(
+                passData.mipChainFramebuffers[mipLevel]->AddAttachment(
                     0,
                     AttachmentDesc {
                         TextureType::Texture2D,
                         passData.mipChain->GetTextureDesc().format,
                         LoadOperation::CLEAR,
-                        StoreOperation::STORE
-                    },
+                        StoreOperation::STORE },
                     mipImageView);
 
                 CheckResult(passData.mipChainFramebuffers[mipLevel]->Create());
@@ -2268,9 +2252,7 @@ PassData* DeferredPass::CreateViewPassData(View* view, PassDataExt&)
         return pd;
     }
 
-    HYP_LOG(Rendering, Fatal,
-        "Cannot create PassData for View {}! View does not have any flags set that would allow us to create PassData for it. View flags: {}",
-        view->Id(), uint32(view->GetFlags()));
+    HYP_LOG(Rendering, Fatal, "Cannot create PassData for View {}! View does not have any flags set that would allow us to create PassData for it. View flags: {}", view->Id(), uint32(view->GetFlags()));
 
     return nullptr;
 }
@@ -2347,8 +2329,7 @@ void DeferredPass::ResizeView(Viewport viewport, View* view, DeferredPassData& p
 
     gbuffer->Resize(newSize);
 
-    const FramebufferRef& opaquePassFramebuffer = view->GetOutputTarget().GetFramebuffer(RenderBucket::Opaque);
-    const FramebufferRef& lightmapPassFramebuffer = view->GetOutputTarget().GetFramebuffer(RenderBucket::Lightmapped);
+    Framebuffer* opaquePassFramebuffer = view->GetOutputTarget().GetFramebuffer(RenderBucket::Opaque);
 
     if (passData.deferredShadingFramebuffer.IsValid())
     {
@@ -2388,8 +2369,7 @@ void DeferredPass::ResizeView(Viewport viewport, View* view, DeferredPassData& p
         TFM_LINEAR_MIPMAP,
         TWM_CLAMP_TO_EDGE,
         1,
-        IU_SAMPLED | IU_ATTACHMENT
-    });
+        IU_SAMPLED | IU_ATTACHMENT });
     passData.mipChain->SetName(NAME("DeferredPassMipChain"));
     CheckResult(passData.mipChain->Create());
 
@@ -2416,8 +2396,10 @@ void DeferredPass::ResizeView(Viewport viewport, View* view, DeferredPassData& p
 
             GpuImageViewRef mipImageView = RI.MakeImageView(
                 passData.mipChain->GetGpuImage(),
-                uint8(mipLevel), 1, // mip level, 1 mip
-                0, 1                // layer 0, 1 layer
+                uint8(mipLevel),
+                1, // mip level, 1 mip
+                0,
+                1 // layer 0, 1 layer
             );
 
             Attachment* attachment = passData.mipChainFramebuffers[mipLevel]->AddAttachment(
@@ -2426,8 +2408,7 @@ void DeferredPass::ResizeView(Viewport viewport, View* view, DeferredPassData& p
                     TextureType::Texture2D,
                     passData.mipChain->GetTextureDesc().format,
                     LoadOperation::CLEAR,
-                    StoreOperation::STORE
-                },
+                    StoreOperation::STORE },
                 mipImageView);
 
             CheckResult(passData.mipChainFramebuffers[mipLevel]->Create());
@@ -2494,10 +2475,10 @@ void DeferredPass::RenderFrame(Frame* frame, const RenderSetup& rs)
     //// \todo : We could use the existing binning by subclass that ResourceTracker now provides.
     FixedArray<FlatSet<EnvProbe*>, EPT_MAX> envProbes;
     FixedArray<FlatSet<Light*>, NumLightTypes> lights;
-    FlatSet<EnvGrid*> envGrids;
+    FlatSet<ProbeVolume*> probeVolumes;
 
-    // For rendering EnvGrids and EnvProbes, we use a directional light from one of the Views that references it (if found)
-    FlatMap<EnvGrid*, Light*> envGridLights;
+    // For rendering ProbeVolumes and EnvProbes, we use a directional light from one of the Views that references it (if found)
+    FlatMap<ProbeVolume*, Light*> probeVolumeLights;
     FlatMap<EnvProbe*, Light*> envProbeLights;
 
     // init view pass data and collect global rendering resources
@@ -2578,27 +2559,27 @@ void DeferredPass::RenderFrame(Frame* frame, const RenderSetup& rs)
             envProbes[envProbe->GetEnvProbeType()].Insert(envProbe);
         }
 
-        for (EnvGrid* envGrid : rpl.GetEnvGrids())
+        for (ProbeVolume* probeVolume : rpl.GetProbeVolumes())
         {
-            if (envGrids.Contains(envGrid))
+            if (probeVolumes.Contains(probeVolume))
             {
                 continue;
             }
 
-            if (!envGridLights.Contains(envGrid))
+            if (!probeVolumeLights.Contains(probeVolume))
             {
                 for (Light* light : rpl.GetLights())
                 {
                     if (light->GetLightType() == LightType::Directional)
                     {
-                        envGridLights[envGrid] = light;
+                        probeVolumeLights[probeVolume] = light;
 
                         break;
                     }
                 }
             }
 
-            envGrids.Insert(envGrid);
+            probeVolumes.Insert(probeVolume);
         }
     }
 
@@ -2618,8 +2599,8 @@ void DeferredPass::RenderFrame(Frame* frame, const RenderSetup& rs)
 
         if (envProbes.Any())
         {
-            // check for dynamic env probes to render
-            for (uint32 envProbeType = 0; envProbeType <= EPT_REFLECTION; envProbeType++)
+            // check for dynamic probes to render
+            for (uint32 envProbeType = 0; envProbeType < EPT_MAX; envProbeType++)
             {
                 if (PassBase* pass = RI.namedPasses[NamedPass::EnvProbe][envProbeType])
                 {
@@ -2638,26 +2619,8 @@ void DeferredPass::RenderFrame(Frame* frame, const RenderSetup& rs)
                 }
                 else
                 {
-                    HYP_LOG(Rendering, Warning, "No EnvProbePass found for EnvProbeType {}! Skipping rendering of env probes of this type.", EPT_REFLECTION);
+                    HYP_LOG_ONCE(Rendering, Warning, "No EnvProbePass found for EnvProbeType {}!", EnumToString(EnvProbeType(envProbeType)));
                 }
-            }
-        }
-
-        if (envGrids.Any())
-        {
-            for (EnvGrid* envGrid : envGrids)
-            {
-                RenderSetup envGridSetup = envProbeSetup.Fork();
-
-                // Set global directional light as fallback
-                if (envGridLights.Contains(envGrid))
-                {
-                    envGridSetup.light = envGridLights[envGrid];
-                }
-
-                envGridSetup.envGrid = envGrid;
-
-                RI.namedPasses[NamedPass::EnvGrid][0]->RenderFrame(frame, envGridSetup);
             }
         }
     }
@@ -2685,7 +2648,7 @@ void DeferredPass::RenderFrame(Frame* frame, const RenderSetup& rs)
         g_statLightmapVolumes += rpl.GetLightmapVolumes().NumCurrent();
         g_statParticleVolumes += rpl.GetParticleVolumes().NumCurrent();
         g_statLights += rpl.GetLights().NumCurrent();
-        g_statEnvGrids += rpl.GetEnvGrids().NumCurrent();
+        g_statProbeVolumes += rpl.GetProbeVolumes().NumCurrent();
         g_statEnvProbes += rpl.GetEnvProbes().NumCurrent();
 
 #if 0
@@ -2695,7 +2658,7 @@ void DeferredPass::RenderFrame(Frame* frame, const RenderSetup& rs)
             rpl.GetMaterials().NumCurrent(),
             rpl.GetLightmapVolumes().NumCurrent(),
             rpl.GetLights().NumCurrent(),
-            rpl.GetEnvGrids().NumCurrent(),
+            rpl.GetProbeVolumes().NumCurrent(),
             rpl.GetEnvProbes().NumCurrent());
 #endif
     }
@@ -3220,9 +3183,7 @@ void DeferredPass::UpdateRayTracingView(Frame* frame, const RenderSetup& rs)
         GpuBlas* blas;
 
         RI.blasCache->GetOrCreateBLAS(
-            entity, meshProxy->mesh, meshProxy->material,
-            newKey, oldKey,
-            blas);
+            entity, meshProxy->mesh, meshProxy->material, newKey, oldKey, blas);
 
         if (!blas)
         {
@@ -3331,8 +3292,10 @@ void DeferredPass::GenerateMipChain(Frame* frame, const RenderSetup& rs, RenderC
         // Create image view for the source mip level
         const GpuImageViewRef& srcMipView = RI.textureViewCache->GetOrCreate(
             mipChainTexture,
-            uint8(srcMip), 1,   // mip level, 1 mip
-            0, 1                // layer 0, 1 layer
+            uint8(srcMip),
+            1, // mip level, 1 mip
+            0,
+            1 // layer 0, 1 layer
         );
 
         cr << InsertBarrier(mipChainTexture->GetGpuImage(), RS_RENDER_TARGET, ImageSubResource { mipLevel, 1, 0, 1 });

@@ -31,5 +31,11 @@ ENGINE_API PlatformString GetExecutableAbsolutePath()
     return PlatformString(buffer, buffer + pathLength);
 }
 
+ENGINE_API bool IsOnBatteryPower()
+{
+    // TODO: implement for iOS using UIDevice
+    return false;
+}
+
 } // namespace PlatformUtils
 } // namespace Hyperion

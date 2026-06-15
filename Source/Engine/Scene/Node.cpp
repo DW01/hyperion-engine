@@ -29,7 +29,7 @@
 #include <Editor/EditorSubsystem.hpp>
 #include <Editor/EditorState.hpp>
 #include <Editor/EditorPickCache.hpp>
-#endif
+#endif // HYP_EDITOR
 
 #include <Framework/EngineDriver.hpp>
 #include <Framework/GameState.hpp>
@@ -43,6 +43,10 @@
 #include <Node.generated.inl>
 
 namespace Hyperion {
+
+ScriptableDelegate<void, Node*, bool> Node::OnChildAdded;
+ScriptableDelegate<void, Node*, bool> Node::OnChildRemoved;
+ScriptableDelegate<void, Node*> Node::TransformUpdated;
 
 #if HYP_EDITOR
 extern Handle<EditorState> g_editorState;
@@ -111,6 +115,10 @@ Node::~Node()
 
         child.Reset();
     }
+
+    OnChildAdded.RemoveAllForTarget(this);
+    OnChildRemoved.RemoveAllForTarget(this);
+    TransformUpdated.RemoveAllForTarget(this);
 }
 
 Handle<Node> Node::Clone() const
@@ -283,7 +291,7 @@ World* Node::GetWorld() const
 
 void Node::OnTransformUpdated()
 {
-    TransformUpdated(this);
+    TransformUpdated.Fire(this, this);
 }
 
 void Node::OnMobilityChanged(bool isStatic)
@@ -415,7 +423,7 @@ Handle<Node> Node::AddChild(const Handle<Node>& node)
 
     while (currentParent != nullptr)
     {
-        currentParent->OnChildAdded(node, /* direct */ currentParent == this);
+        OnChildAdded.Fire(currentParent, node, /* direct */ currentParent == this);
 
         currentParent = currentParent->m_parentNode;
     }
@@ -474,7 +482,7 @@ bool Node::RemoveChild(const Node* node, bool moveToDetached)
 
     while (currentParent != nullptr)
     {
-        currentParent->OnChildRemoved(const_cast<Node*>(node), /* direct */ currentParent == this);
+        OnChildRemoved.Fire(currentParent, const_cast<Node*>(node), /* direct */ currentParent == this);
 
         currentParent = currentParent->m_parentNode;
     }
@@ -530,9 +538,9 @@ void Node::RemoveAllChildren(bool moveToDetached)
 
             while (currentParent != nullptr)
             {
-                currentParent->OnChildRemoved(node, /* direct */ currentParent == this);
+            OnChildRemoved.Fire(currentParent, node, /* direct */ currentParent == this);
 
-                currentParent = currentParent->m_parentNode;
+            currentParent = currentParent->m_parentNode;
             }
         }
 

@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <ScenePch.hpp>
 
@@ -11,6 +11,7 @@
 #include <Scene/World.hpp>
 #include <Scene/Scene.hpp>
 #include <Scene/Light.hpp>
+#include <Scene/ProbeVolume.hpp>
 #include <Scene/EntityManager.hpp>
 
 #include <Rendering/Texture.hpp>
@@ -32,10 +33,12 @@ namespace Hyperion {
 EDITOR_API HYP_DECLARE_LOG_CHANNEL(Editor);
 #endif // HYP_EDITOR
 
+static const ShaderPropertyId s_propForwardShading = InternShaderProperty(ShaderProperty(NAME("FORWARD_SHADING")));
+
 static constexpr EnumFlags<EnvProbeFlags> DefaultEnvProbeFlags[EPT_MAX] = {
     EPF_NONE,               // sky
     EPF_PARALLAX_CORRECTED, // reflection
-    EPF_BAKED               // ambient
+    EPF_NONE                // ambient
 };
 
 static FixedArray<Mat4f, 6> CreateCubemapMatrices(const Vec3f& origin)
@@ -189,8 +192,7 @@ void EnvProbe::OnAddedToWorld(World* world)
                     TFM_LINEAR,
                     TWM_CLAMP_TO_EDGE,
                     1,
-                    IU_STORAGE | IU_SAMPLED
-                });
+                    IU_STORAGE | IU_SAMPLED });
 
                 m_texture->SetName(NAME_FMT("{}_{}_PrefilteredEnvMap", InstanceClass()->GetName(), GetName()));
             }
@@ -201,13 +203,10 @@ void EnvProbe::OnAddedToWorld(World* world)
     {
         CheckResult(m_texture->Create());
     }
-
 }
 
 void EnvProbe::OnRemovedFromWorld(World* world)
 {
-    Entity::OnRemovedFromWorld(world);
-
     if (m_camera != nullptr)
     {
         for (const Handle<View>& view : m_views)
@@ -218,6 +217,8 @@ void EnvProbe::OnRemovedFromWorld(World* world)
         RemoveChild(m_camera, /* moveToDetached */ false);
         m_camera = nullptr;
     }
+
+    Entity::OnRemovedFromWorld(world);
 
     if (AnyOf(m_views, &Handle<View>::IsValid))
     {
@@ -285,34 +286,28 @@ void EnvProbe::CreateViews()
 
     uint32 attachmentIndex = 0;
 
-    if (IsReflectionProbe() || IsSkyProbe())
-    {
-        // color
-        AttachmentDesc& colorDesc = attachmentDescs.PushBack(AttachmentDesc {
-            TextureType::Cubemap,
-            TextureFormat::RGBA8,
-            LoadOperation::CLEAR,
-            StoreOperation::STORE
-        });
-        attachmentImages.PushBack(RI.MakeImage(TextureDesc {
-            colorDesc.imageType,
-            colorDesc.format,
-            Vec3u(framebufferDesc.extent, 1),
-            TFM_NEAREST,
-            TFM_NEAREST,
-            TWM_CLAMP_TO_EDGE,
-            1,
-            IU_SAMPLED | IU_ATTACHMENT
-        }));
-    }
+    // color
+    AttachmentDesc& colorDesc = attachmentDescs.PushBack(AttachmentDesc {
+        TextureType::Cubemap,
+        TextureFormat::RGBA8,
+        LoadOperation::CLEAR,
+        StoreOperation::STORE });
+    attachmentImages.PushBack(RI.MakeImage(TextureDesc {
+        colorDesc.imageType,
+        colorDesc.format,
+        Vec3u(framebufferDesc.extent, 1),
+        TFM_NEAREST,
+        TFM_NEAREST,
+        TWM_CLAMP_TO_EDGE,
+        1,
+        IU_SAMPLED | IU_ATTACHMENT }));
 
     // Depth
     AttachmentDesc& depthDesc = attachmentDescs.PushBack(AttachmentDesc {
         TextureType::Cubemap,
         TextureFormat::D32F,
         LoadOperation::CLEAR,
-        StoreOperation::STORE
-    });
+        StoreOperation::STORE });
     attachmentImages.PushBack(RI.MakeImage(TextureDesc {
         depthDesc.imageType,
         depthDesc.format,
@@ -321,8 +316,7 @@ void EnvProbe::CreateViews()
         TFM_NEAREST,
         TWM_CLAMP_TO_EDGE,
         1,
-        IU_SAMPLED | IU_ATTACHMENT
-    }));
+        IU_SAMPLED | IU_ATTACHMENT }));
 
     for (const GpuImageRef& image : attachmentImages)
     {
@@ -331,13 +325,14 @@ void EnvProbe::CreateViews()
 
     ShaderDesc shaderDesc;
 
-    if (IsReflectionProbe())
-    {
-        shaderDesc.name = NAME("DrawCubemap");
-    }
-    else if (IsSkyProbe())
+    if (IsSkyProbe())
     {
         shaderDesc.name = NAME("RenderSky");
+    }
+    else
+    {
+        shaderDesc.name = NAME("DrawCubemap");
+        shaderDesc.properties.Add(s_propForwardShading);
     }
 
     AssertDebug(shaderDesc.name.IsValid());
@@ -363,25 +358,30 @@ void EnvProbe::CreateViews()
 
         ViewDesc viewDesc {};
         viewDesc.flags = (OnlyCollectStaticEntities() ? ViewFlags::COLLECT_STATIC_ENTITIES : ViewFlags::COLLECT_ALL_ENTITIES)
-            | ViewFlags::NO_FRUSTUM_CULLING
-            | ViewFlags::CUBEMAP_FACE_VIEW
+            | ViewFlags::CUBEMAP_FACE_VIEW | ViewFlags::ENV_PROBE_VIEW
             | ViewFlags::SKIP_ENV_PROBES
             | ViewFlags::SKIP_ENV_GRIDS
             | ViewFlags::NO_PARALLEL_DRAW_CALL_COLLECTION
             | ViewFlags::EXTERNAL_RENDERTARGET;
-        viewDesc.viewIndex = static_cast<uint8>(viewIndex);
-        viewDesc.camera = m_camera;
+
         viewDesc.overrideAttributes = RenderableAttributeSet(
             MeshAttributes {},
             MaterialAttributes {
                 .shaderName = shaderDesc.name,
                 .shaderProperties = shaderDesc.properties,
                 .blendFunction = BlendFunction::AlphaBlending(),
-                .cullFaces = FCM_NONE
-            });
+                .cullFaces = FCM_NONE });
+
+        viewDesc.viewIndex = static_cast<uint8>(viewIndex);
+        viewDesc.camera = m_camera;
+
+        if (m_scene != nullptr)
+        {
+            viewDesc.scenes = { m_scene };
+        }
 
         Handle<View> view = MakeHandle<View>(viewDesc);
-        view->SetName(NAME_FMT("EnvProbe_{}_View{}", GetName(), viewIndex));
+        view->SetName(NAME_FMT("{}_{}_View{}", InstanceClass()->GetName(), GetName(), viewIndex));
         InitObject(view);
 
         m_views[viewIndex] = std::move(view);
@@ -411,6 +411,14 @@ void EnvProbe::SetOrigin(const Vec3f& origin)
     SetLocalBounds(localBounds);
 }
 
+void EnvProbe::SetSphericalHarmonicsData(const SphericalHarmonicsData& shData)
+{
+    m_shData = shData;
+
+    MarkDirty();
+    SetNeedsRenderProxyUpdate();
+}
+
 void EnvProbe::Update(float delta)
 {
     HYP_SCOPE;
@@ -433,7 +441,7 @@ void EnvProbe::Update(float delta)
         cacheKeysToRemove.PushBack(kvp.first);
     }
 
-    FixedArray<Mat4f, 6> matrices = CreateCubemapMatrices(worldAabb.GetCenter());
+    FixedArray<Mat4f, 6> matrices = CreateCubemapMatrices(GetWorldTranslation());
 
     TSet<Scene*, SceneTempAllocator> allScenes;
     for (uint32 viewIndex = 0; viewIndex < 6; viewIndex++)
@@ -585,12 +593,18 @@ void EnvProbe::UpdateRenderProxy(RenderProxyEnvProbe* proxy)
     bufferData.aabbMax = Vec4f(worldBounds.max, 1.0f);
     bufferData.worldPosition = Vec4f(GetOrigin(), 1.0f);
     bufferData.dimensions = Vec2u { m_dimensions.x, m_dimensions.y };
-    bufferData.flags = uint32(m_envProbeFlags);
+    bufferData.typeAndFlags = uint32(m_envProbeType) | (uint32(m_envProbeFlags) << 3);
 
-    const FixedArray<Mat4f, 6> viewMatrices = CreateCubemapMatrices(worldBounds.GetCenter());
+    // Update Spherical Harmonics data.
+    const float* inSH = m_shData.values;
+    Vec4f* outSH = bufferData.shData;
 
-    Memory::Copy(bufferData.faceViewMatrices, viewMatrices.Data(), sizeof(EnvProbeShaderData::faceViewMatrices));
-    Memory::Copy(bufferData.shData, &m_shData, sizeof(EnvProbeSphericalHarmonics::values));
+    for (size_t i = 0; i < 9; ++i)
+    {
+        outSH[i].x = *inSH++;
+        outSH[i].y = *inSH++;
+        outSH[i].z = *inSH++;
+    }
 }
 
 void EnvProbe::SetBakedTexture(const Handle<Texture>& texture)
@@ -660,8 +674,7 @@ void SkyProbe::Init()
         TFM_LINEAR,
         TWM_CLAMP_TO_EDGE,
         1,
-        IU_STORAGE | IU_SAMPLED
-    });
+        IU_STORAGE | IU_SAMPLED });
 
     m_texture->SetName(NAME_FMT("{}_SkyboxCubemap", Id()));
     m_texture->SetIsTransient(true);
@@ -670,5 +683,37 @@ void SkyProbe::Init()
 }
 
 #pragma endregion SkyProbe
+
+#pragma region IrradianceProbe
+
+void IrradianceProbe::OnTransformUpdated()
+{
+    EnvProbe::OnTransformUpdated();
+
+    NotifyVolumeNeedsRefresh();
+}
+
+void IrradianceProbe::NotifyVolumeNeedsRefresh()
+{
+    ProbeVolume* volume = GetParentVolume();
+
+    if (volume != nullptr)
+    {
+        // Tell the volume to refresh this probe.
+        // This will ensure that entities that could be affected by the probe's change are updated.
+        volume->RefreshProbe(*this);
+    }
+    else
+    {
+        HYP_LOG(Scene, Warning, "Irradiance probe {} has no valid parent volume", Id());
+    }
+}
+
+ProbeVolume* IrradianceProbe::GetParentVolume() const
+{
+    return DynamicCast<ProbeVolume>(GetParent());
+}
+
+#pragma endregion IrradianceProbe
 
 } // namespace Hyperion

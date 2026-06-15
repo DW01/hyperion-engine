@@ -43,4 +43,11 @@ extern "C"
         *pOutBoxed = pStaticField->Get();
     }
 
+    HYP_EXPORT void* StaticField_GetDataPointer(const StaticField* pStaticField)
+    {
+        Assert(pStaticField != nullptr);
+
+        return pStaticField->GetDataPointer();
+    }
+
 } // extern "C"

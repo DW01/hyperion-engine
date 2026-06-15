@@ -68,6 +68,12 @@ void DeletionQueueElem<Handle<ObjectBase>>::DestroyObject()
     {
         ObjectHeader* header = ptr->GetObjectHeader_Internal();
 
+        if (!header)
+        {
+            ptr->~ObjectBase();
+            return;
+        }
+
         /// @NOTE: Objects with C# scripts that haven't been GC'd here wouldn't get deleted.
         /// However, we incremented the strong ref count in the constructor to prevent deletion until this point.
         /// So the object would've been kept alive long enough to be safe to use during rendering.

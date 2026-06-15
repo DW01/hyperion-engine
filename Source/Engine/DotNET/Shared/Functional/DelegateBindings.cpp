@@ -20,13 +20,13 @@ using namespace Hyperion::dotnet;
 extern "C"
 {
 #ifdef HYP_DOTNET
-    HYP_EXPORT DelegateHandler* ScriptableDelegate_Bind(IScriptableDelegate* pDelegate, ManagedClass* pClass, ObjectReference* pObjectReference)
+    HYP_EXPORT DelegateHandler* ScriptableDelegate_Bind(IScriptableDelegate* pDelegate, void* targetPtr, ManagedClass* pClass, ObjectReference* pObjectReference)
     {
         Assert(pDelegate != nullptr);
         Assert(pObjectReference != nullptr);
         Assert(pClass != nullptr);
 
-        return new DelegateHandler(pDelegate->BindMethod("DynamicInvoke", MakeUnique<ManagedObject>(pClass->RefCountedPtrFromThis(), *pObjectReference, ObjectFlags::CREATED_FROM_MANAGED)));
+        return new DelegateHandler(pDelegate->BindMethod(targetPtr, "DynamicInvoke", MakeUnique<ManagedObject>(pClass->RefCountedPtrFromThis(), *pObjectReference, ObjectFlags::CREATED_FROM_MANAGED)));
     }
 #endif
 

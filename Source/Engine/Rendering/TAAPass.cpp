@@ -42,6 +42,7 @@ TAAPass::TAAPass(const GpuImageViewRef& inputImageView, const Vec2u& extent, GBu
     : m_inputImageView(inputImageView),
       m_extent(extent),
       m_gbuffer(gbuffer),
+      m_pingPongIndex(0),
       m_isInitialized(false)
 {
 }
@@ -102,8 +103,6 @@ void TAAPass::Render(Frame* frame, const RenderSetup& renderSetup)
 
     AssertDebug(renderSetup.world && renderSetup.view);
 
-    const uint32 frameIndex = frame->GetFrameIndex();
-
     RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(renderSetup.view->GetCamera()));
     AssertDebug(cameraProxy != nullptr);
 
@@ -133,8 +132,10 @@ void TAAPass::Render(Frame* frame, const RenderSetup& renderSetup)
         RI.cbufferAllocator->Commit(cbuffer, cbufferOffset, cbufferSize);
     }
 
-    Texture* activeTexture = frame->GetFrameIndex() % 2 == 0 ? m_resultTexture : m_historyTexture;
-    Texture* prevTexture = frame->GetFrameIndex() % 2 == 0 ? m_historyTexture : m_resultTexture;
+    Texture* textures[2] = { m_resultTexture.Get(), m_historyTexture.Get() };
+
+    Texture* activeTexture = textures[m_pingPongIndex];
+    Texture* prevTexture = textures[m_pingPongIndex ^ 1];
 
     frame->cr << InsertBarrier(activeTexture->GetGpuImage(), RS_UNORDERED_ACCESS);
 
@@ -153,6 +154,8 @@ void TAAPass::Render(Frame* frame, const RenderSetup& renderSetup)
 
     frame->cr << DispatchCompute(Vec3u { (m_extent.x + 7) / 8, (m_extent.y + 7) / 8, 1 });
     frame->cr << InsertBarrier(activeTexture->GetGpuImage(), RS_SHADER_RESOURCE);
+    
+    m_pingPongIndex ^= 1;
 }
 
 } // namespace Hyperion

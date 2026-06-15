@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -32,7 +32,7 @@ class FogVolume;
 class MaterialInstance;
 class Skeleton;
 class EnvProbe;
-class EnvGrid;
+class ProbeVolume;
 class ShadowMap;
 class InstancedMeshData;
 class Sprite;
@@ -109,9 +109,8 @@ struct InstanceData
 };
 
 /*! \brief Proxy for a renderable Entity with a valid Mesh and Material assigned */
-class RenderProxyMesh final : public IRenderProxy
+struct RenderProxyMesh final : IRenderProxy
 {
-public:
     WeakHandle<Entity> entity;
 
     Mesh* mesh = nullptr;
@@ -119,9 +118,7 @@ public:
     Skeleton* skeleton = nullptr;
 
     uint32 numIndices = 0;
-
     uint32 numInstances = 0;
-    bool enableAutoInstancing = false;
 
     LightmapVolume* lightmapVolume = nullptr;
     LightmapElementId lightmapElementId = LightmapElementId(~0u);
@@ -130,52 +127,46 @@ public:
 
     InstanceData instanceData;
 
-    MeshRayTracingData rayTracingData;
-
     EntityShaderData bufferData {};
+
+    float shData[3 * 9];
+
+    bool enableAutoInstancing = false;
 };
 
 struct EnvProbeShaderData
 {
-    Mat4f faceViewMatrices[6];
-
     Vec4f aabbMax;
     Vec4f aabbMin;
     Vec4f worldPosition;
 
     Vec2u dimensions;
     uint32 textureIndex = ~0u;
-    uint32 flags = 0;
+    uint32 typeAndFlags;
 
     Vec4f shData[9];
-
-    Vec4f _pad0;
-    Vec4f _pad1;
-    Vec4f _pad2;
 };
 
-static_assert(sizeof(EnvProbeShaderData) % 64 == 0);
+static_assert(sizeof(EnvProbeShaderData));
 
-class RenderProxyEnvProbe final : public IRenderProxy
+struct RenderProxyEnvProbe : IRenderProxy
 {
-public:
     WeakHandle<EnvProbe> envProbe;
     Texture* texture = nullptr; // baked cubemap texture or prefiltered env
     EnvProbeShaderData bufferData {};
 };
 
-struct EnvGridShaderData
+struct ProbeVolumeShaderData
 {
     // Nothing for now until we add the new env grid (baked)
 
     Vec4f dummy;
 };
 
-class RenderProxyEnvGrid final : public IRenderProxy
+struct RenderProxyProbeVolume : IRenderProxy
 {
-public:
-    WeakHandle<EnvGrid> envGrid;
-    EnvGridShaderData bufferData {};
+    WeakHandle<ProbeVolume> probeVolume;
+    ProbeVolumeShaderData bufferData {};
 };
 
 struct ShadowMapData
@@ -183,9 +174,9 @@ struct ShadowMapData
     Mat4f viewProjMat;
     Mat4f invProjMat;
 
-    Vec4f aabbMin;          // w = offsetUV.x
-    Vec4f aabbMax;          // w = offsetUV.y
-    Vec4f dimensionsScale;  // xy = shadow map dimensions in pixels, zw = shadow map dimensions relative to the atlas dimensions
+    Vec4f aabbMin;         // w = offsetUV.x
+    Vec4f aabbMax;         // w = offsetUV.y
+    Vec4f dimensionsScale; // xy = shadow map dimensions in pixels, zw = shadow map dimensions relative to the atlas dimensions
 
     uint32 layerIndex;
     float splitDistance;
@@ -218,9 +209,8 @@ struct LightShaderData
 
 static_assert(sizeof(LightShaderData) % 64 == 0);
 
-class RenderProxyLight final : public IRenderProxy
+struct RenderProxyLight : IRenderProxy
 {
-public:
     WeakHandle<Light> light;
     MaterialInstance* lightMaterial = nullptr; // for textured area lights
     Texture* bakedShadowMap = nullptr;
@@ -243,9 +233,8 @@ struct LightmapVolumeShaderData
 
 static_assert(sizeof(LightmapVolumeShaderData) % 64 == 0);
 
-class RenderProxyLightmapVolume final : public IRenderProxy
+struct RenderProxyLightmapVolume : IRenderProxy
 {
-public:
     WeakHandle<LightmapVolume> lightmapVolume;
     Array<Texture*> atlasIrradianceTextures;
     Array<Texture*> atlasRadianceTextures;
@@ -270,9 +259,8 @@ struct ParticleVolumeShaderData
     Vec4f _pad3;
 };
 
-class RenderProxyParticleVolume final : public IRenderProxy
+struct RenderProxyParticleVolume : IRenderProxy
 {
-public:
     WeakHandle<ParticleVolume> particleVolume;
 
     Texture* particleTexture = nullptr;
@@ -297,9 +285,8 @@ struct FogVolumeShaderData
     Vec4f _pad3;
 };
 
-class RenderProxyFogVolume final : public IRenderProxy
+struct RenderProxyFogVolume : IRenderProxy
 {
-public:
     WeakHandle<FogVolume> fogVolume;
     Texture* volumeTexture = nullptr;
     Texture* noiseTexture = nullptr;
@@ -327,9 +314,8 @@ struct MaterialShaderData
 
 static_assert(sizeof(MaterialShaderData) % 64 == 0);
 
-class RenderProxyMaterial final : public IRenderProxy
+struct RenderProxyMaterial : IRenderProxy
 {
-public:
     RenderProxyMaterial()
     {
         // set all to invalid (~0u) by default
@@ -352,9 +338,8 @@ struct SkeletonShaderData
     Mat4f bones[maxBones];
 };
 
-class RenderProxySkeleton final : public IRenderProxy
+struct RenderProxySkeleton : IRenderProxy
 {
-public:
     RenderProxySkeleton()
     {
         for (size_t i = 0; i < SkeletonShaderData::maxBones; ++i)
@@ -396,9 +381,8 @@ struct CameraShaderData
 
 static_assert(sizeof(CameraShaderData) % 64 == 0);
 
-class RenderProxyCamera final : public IRenderProxy
+struct RenderProxyCamera : IRenderProxy
 {
-public:
     WeakHandle<Camera> camera;
     CameraShaderData bufferData {};
     Frustum viewFrustum;
@@ -417,9 +401,8 @@ struct SpriteShaderData
     Vec4f _pad0;
 };
 
-class RenderProxySprite final : public IRenderProxy
+struct RenderProxySprite : IRenderProxy
 {
-public:
     WeakHandle<class Sprite> sprite;
     Texture* texture = nullptr;
     class FontAtlas* fontAtlas = nullptr;

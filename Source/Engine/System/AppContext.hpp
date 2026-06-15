@@ -196,10 +196,10 @@ public:
     virtual void Close() = 0;
 
     HYP_FIELD()
-    ScriptableDelegate<void, Vec2i> OnWindowSizeChanged;
+    static ScriptableDelegate<void, Vec2i> OnWindowSizeChanged;
 
     HYP_FIELD()
-    ScriptableDelegate<void> OnClose;
+    static ScriptableDelegate<void> OnClose;
 
 protected:
     ANSIString m_title;
@@ -265,7 +265,7 @@ public:
     virtual int PollEvents(Event& event) = 0;
 
     HYP_FIELD()
-    ScriptableDelegate<void, ApplicationWindow*> OnCurrentWindowChanged;
+    static ScriptableDelegate<void, ApplicationWindow*> OnCurrentWindowChanged;
 
 protected:
     ApplicationWindow* m_mainWindow;

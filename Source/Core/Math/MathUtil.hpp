@@ -189,29 +189,6 @@ static HYP_FORCE_INLINE constexpr HYP_ENABLE_IF(isMathVectorV<T>&& std::is_float
     return true;
 }
 
-template <class T>
-static HYP_ENABLE_IF(isMathVectorV<T>, T) RandRange(const T& a, const T& b)
-{
-    T result;
-
-    for (uint32 i = 0; i < HYP_ARRAY_SIZE(result.values); i++)
-    {
-        result.values[i] = RandRange(a.values[i], b.values[i]);
-    }
-
-    return result;
-}
-
-template <class T>
-static HYP_ENABLE_IF(!isMathVectorV<T>, T) RandRange(T a, T b)
-{
-    const auto random = T(rand()) / T(RAND_MAX);
-    const auto diff = b - a;
-    const auto r = random * diff;
-
-    return a + r;
-}
-
 static HYP_FORCE_INLINE constexpr uint32 Rand32(uint32& seed)
 {
     return (seed = 1664525 * seed + 1013904223);
@@ -226,6 +203,15 @@ static HYP_FORCE_INLINE constexpr uint64 Rand64(uint64& seed)
 static HYP_FORCE_INLINE constexpr float RandomFloat(uint32& seed)
 {
     return (float(Rand32(seed) & 0x00FFFFFF) / float(0x01000000));
+}
+
+static HYP_FORCE_INLINE constexpr float RandomInRange(uint32& seed, float a, float b)
+{
+    const float random = RandomFloat(seed);
+    const float diff = b - a;
+    const float r = random * diff;
+
+    return a + r;
 }
 
 template <class T>
@@ -469,7 +455,19 @@ static HYP_FORCE_INLINE T Exp(T a)
 template <class T>
 static HYP_FORCE_INLINE constexpr T Mod(T a, T b)
 {
-    return (a % b + b) % b;
+    if constexpr (std::is_same_v<T, double>)
+    {
+        return std::fmod(a, b);
+    }
+    else if constexpr (std::is_same_v<T, float>)
+    {
+        return std::fmodf(a, b);
+    }
+    else
+    {
+        static_assert(std::is_integral_v<T>, "T must be an integral type");
+        return (a % b + b) % b;
+    }
 }
 
 template <class T>
@@ -760,21 +758,21 @@ HYP_FORCE_INLINE constexpr float LinearizeDepth(float depth, float nearPlane, fl
 }
 
 CORE_API Vec2i ReshapeExtent(Vec2i extent);
- 
+
  CORE_API Vec2f Hammersley(uint32 sampleIndex, uint32 numSamples);
- 
+
  CORE_API Vec3f RandomInSphere(Vec3f rnd);
  CORE_API Vec3f RandomInHemisphere(Vec3f rnd, Vec3f n);
- 
+
  CORE_API Vec2f VogelDisk(uint32 sampleIndex, uint32 numSamples, float phi);
- 
+
  CORE_API Vec3f ImportanceSampleGGX(Vec2f xi, Vec3f n, float roughness);
- 
+
  CORE_API Vec3f CalculateBarycentricCoordinates(const Vec3f& v0, const Vec3f& v1, const Vec3f& v2, const Vec3f& p);
  CORE_API Vec3f CalculateBarycentricCoordinates(const Vec2f& v0, const Vec2f& v1, const Vec2f& v2, const Vec2f& p);
- 
+
  CORE_API void ComputeOrthonormalBasis(const Vec3f& normal, Vec3f& outTangent, Vec3f& outBitangent);
- 
+
  CORE_API Vec2f EncodeOctahedralCoord(const Vec3f& in);
  CORE_API Vec3f DecodeOctahedralCoord(const Vec2f& in);
  CORE_API Vec2f NormalizeOctahedralCoord(const Vec2i& coord, const Vec2i& extent);

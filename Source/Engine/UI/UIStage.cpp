@@ -394,6 +394,7 @@ void UIStage::Init()
         }
 
         m_onWindowResizedHandler = window->OnWindowSizeChanged.BindThreaded(
+            window,
             [weakThis = MakeWeakRef(this)](Vec2i newSize)
             {
                 Handle<UIStage> strongThis = weakThis.Lock();
@@ -411,7 +412,7 @@ void UIStage::Init()
     UpdateSurfaceSize(g_appContext->GetMainWindow());
 
     m_onCurrentWindowChangedHandler = g_appContext->OnCurrentWindowChanged
-        .BindThreaded(UpdateSurfaceSize, g_simThread);
+        .BindThreaded(g_appContext, UpdateSurfaceSize, g_simThread);
 
     // Will create a new Scene
     SetScene(nullptr);
@@ -677,7 +678,7 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
                         // trigger mouse up
                         uiObject->SetFocusState(uiObject->GetFocusState() & ~UIObjectFocusState::PRESSED);
 
-                        UIEventHandlerResult currentResult = uiObject->OnMouseUp(MouseEvent {
+                        UIEventHandlerResult currentResult = OnMouseUp.Fire(uiObject.Get(), MouseEvent {
                             .baseEvent = &event,
                             .relativePos = uiObject->TransformScreenCoordsToRelative(mousePosition),
                             .relativePrevPos = uiObject->TransformScreenCoordsToRelative(previousMousePosition),
@@ -693,7 +694,7 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
 
                 uiObject->SetFocusState(uiObject->GetFocusState() & ~UIObjectFocusState::HOVER);
 
-                uiObject->OnMouseLeave(MouseEvent {
+                OnMouseLeave.Fire(uiObject, MouseEvent {
                     .baseEvent = &event,
                     .relativePos = uiObject->TransformScreenCoordsToRelative(mousePosition),
                     .relativePrevPos = uiObject->TransformScreenCoordsToRelative(previousMousePosition),
@@ -717,7 +718,7 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
 
                 if (Handle<UIObject> uiObject = weakUiObject.Lock(); uiObject.IsValid())
                 {
-                    uiObject->OnKeyUp(KeyboardEvent {
+                    OnKeyUp.Fire(uiObject, KeyboardEvent {
                         .baseEvent = &event,
                         .inputManager = inputManager,
                         .keyCode = keyCode
@@ -773,7 +774,7 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
                             continue;
                         }
 
-                        UIEventHandlerResult currentResult = uiObject->OnMouseDrag(mouseEvent);
+                        UIEventHandlerResult currentResult = OnMouseDrag.Fire(uiObject, mouseEvent);
 
                         mouseDragEventHandlerResult |= currentResult;
 
@@ -816,7 +817,7 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
                     if (m_hoveredUiObjects.Contains(uiObject))
                     {
                         // Already hovered, trigger mouse move event instead
-                        UIEventHandlerResult currentResult = uiObject->OnMouseMove(MouseEvent {
+                        UIEventHandlerResult currentResult = OnMouseMove.Fire(uiObject, MouseEvent {
                             .baseEvent = &event,
                             .relativePos = uiObject->TransformScreenCoordsToRelative(mousePosition),
                             .relativePrevPos = uiObject->TransformScreenCoordsToRelative(previousMousePosition),
@@ -867,7 +868,7 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
 
                     uiObject->SetFocusState(uiObject->GetFocusState() | UIObjectFocusState::HOVER);
 
-                    UIEventHandlerResult currentResult = uiObject->OnMouseHover(MouseEvent {
+                    UIEventHandlerResult currentResult = OnMouseHover.Fire(uiObject, MouseEvent {
                         .baseEvent = &event,
                         .relativePos = uiObject->TransformScreenCoordsToRelative(mousePosition),
                         .relativePrevPos = uiObject->TransformScreenCoordsToRelative(previousMousePosition),
@@ -907,7 +908,7 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
                             // trigger mouse up
                             uiObject->SetFocusState(uiObject->GetFocusState() & ~UIObjectFocusState::PRESSED);
 
-                            UIEventHandlerResult currentResult = uiObject->OnMouseUp(MouseEvent {
+                            UIEventHandlerResult currentResult = OnMouseUp.Fire(uiObject.Get(), MouseEvent {
                                 .baseEvent = &event,
                                 .relativePos = uiObject->TransformScreenCoordsToRelative(mousePosition),
                                 .relativePrevPos = uiObject->TransformScreenCoordsToRelative(previousMousePosition),
@@ -923,7 +924,7 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
 
                     uiObject->SetFocusState(uiObject->GetFocusState() & ~UIObjectFocusState::HOVER);
 
-                    uiObject->OnMouseLeave(MouseEvent {
+                    OnMouseLeave.Fire(uiObject, MouseEvent {
                         .baseEvent = &event,
                         .relativePos = uiObject->TransformScreenCoordsToRelative(mousePosition),
                         .relativePrevPos = uiObject->TransformScreenCoordsToRelative(previousMousePosition),
@@ -999,7 +1000,7 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
                     uiObject->SetFocusState(uiObject->GetFocusState() | UIObjectFocusState::PRESSED);
                 }
 
-                const UIEventHandlerResult onMouseDownResult = uiObject->OnMouseDown(MouseEvent {
+                const UIEventHandlerResult onMouseDownResult = OnMouseDown.Fire(uiObject, MouseEvent {
                     .baseEvent = &event,
                     .relativePos = uiObject->TransformScreenCoordsToRelative(mousePosition),
                     .relativePrevPos = uiObject->TransformScreenCoordsToRelative(previousMousePosition),
@@ -1033,8 +1034,7 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
         // Check LMB/RMB clicking if only one bit (mouse button) was pressed.
         if (ByteUtil::BitCount(inputManager->GetButtonStates() | buttons) == 1)
         {
-            typedef ScriptableDelegate<UIEventHandlerResult, const MouseEvent&> UIObject::* ClickDelegateMember;
-            const auto checkClickEvent = [&](MouseButtonState mouseButtonToCheck, ClickDelegateMember delegateMember = nullptr)
+            const auto checkClickEvent = [&](MouseButtonState mouseButtonToCheck, ScriptableDelegate<UIEventHandlerResult, const MouseEvent&>* delegatePtr = nullptr)
             {
                 if (buttons != mouseButtonToCheck)
                 {
@@ -1057,9 +1057,9 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
                     // check if we should trigger a click event
                     if (uiObject->IsEnabled())
                     {
-                        if (delegateMember != nullptr)
+                        if (delegatePtr != nullptr)
                         {
-                            const UIEventHandlerResult result = (uiObject->*delegateMember)(MouseEvent {
+                            const UIEventHandlerResult result = delegatePtr->Fire(uiObject.Get(), MouseEvent {
                                 .baseEvent = &event,
                                 .relativePos = uiObject->TransformScreenCoordsToRelative(mousePosition),
                                 .relativePrevPos = uiObject->TransformScreenCoordsToRelative(previousMousePosition),
@@ -1110,7 +1110,7 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
                     uiObject->SetFocusState(uiObject->GetFocusState() & ~UIObjectFocusState::PRESSED);
                 }
 
-                UIEventHandlerResult currentResult = uiObject->OnMouseUp(MouseEvent {
+                UIEventHandlerResult currentResult = OnMouseUp.Fire(uiObject.Get(), MouseEvent {
                     .baseEvent = &event,
                     .relativePos = uiObject->TransformScreenCoordsToRelative(mousePosition),
                     .relativePrevPos = uiObject->TransformScreenCoordsToRelative(previousMousePosition),
@@ -1167,7 +1167,7 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
                 //     firstHit = uiObject;
                 // }
 
-                UIEventHandlerResult currentResult = uiObject->OnScroll(MouseEvent {
+                UIEventHandlerResult currentResult = OnScroll.Fire(uiObject, MouseEvent {
                     .baseEvent = &event,
                     .relativePos = uiObject->TransformScreenCoordsToRelative(mousePosition),
                     .relativePrevPos = uiObject->TransformScreenCoordsToRelative(previousMousePosition),
@@ -1213,7 +1213,7 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
                 ++keyState.count;
                 keyState.heldTime = 0.0f;
 
-                UIEventHandlerResult currentResult = uiObject->OnKeyDown(KeyboardEvent {
+                UIEventHandlerResult currentResult = OnKeyDown.Fire(uiObject, KeyboardEvent {
                     .baseEvent = &event,
                     .inputManager = inputManager,
                     .keyCode = keyCode
@@ -1254,7 +1254,7 @@ UIEventHandlerResult UIStage::OnInputEvent(const Event& event)
 
             if (Handle<UIObject> uiObject = weakUiObject.Lock(); uiObject.IsValid())
             {
-                uiObject->OnKeyUp(KeyboardEvent {
+                OnKeyUp.Fire(uiObject, KeyboardEvent {
                     .baseEvent = &event,
                     .inputManager = inputManager,
                     .keyCode = keyCode

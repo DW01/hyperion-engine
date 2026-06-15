@@ -33,58 +33,37 @@ public:
     Vec3f cachedProbeOrigin;
 };
 
-struct EnvProbeRendererPassDataExt : PassDataExt
-{
-    EnvProbe* envProbe = nullptr;
-
-    EnvProbeRendererPassDataExt()
-        : PassDataExt(TypeId::ForType<EnvProbeRendererPassDataExt>())
-    {
-    }
-
-    virtual ~EnvProbeRendererPassDataExt() override = default;
-
-    virtual PassDataExt* Clone() override
-    {
-        EnvProbeRendererPassDataExt* clone = new EnvProbeRendererPassDataExt;
-        *clone = *this;
-
-        return clone;
-    }
-};
-
 class EnvProbePassBase : public PassBase
 {
 public:
-    virtual ~EnvProbePassBase() override;
+    void Initialize()
+    {
+    }
 
-    virtual void Initialize() override;
-    virtual void Shutdown() override;
+    void Shutdown()
+    {
+    }
 
-    virtual void RenderFrame(Frame* frame, const RenderSetup& renderSetup) override final;
+    void RenderFrame(Frame* frame, const RenderSetup& renderSetup) override final;
 
 protected:
-    EnvProbePassBase();
-
     virtual void RenderProbe(Frame* frame, const RenderSetup& renderSetup, EnvProbe* envProbe) = 0;
 
     PassData* CreateViewPassData(View* view, PassDataExt& ext) override;
 };
 
-class ReflectionProbePass : public EnvProbePassBase
+class ReflectionProbePass final : public EnvProbePassBase
 {
-public:
-    ReflectionProbePass();
-    virtual ~ReflectionProbePass() override;
-
-    virtual void Initialize() override;
-    virtual void Shutdown() override;
-
-    static void ComputePrefilteredEnvMap(Frame* frame, const RenderSetup& renderSetup, EnvProbe* envProbe);
-    static void ComputeSH(Frame* frame, EnvProbe* envProbe);
-
 protected:
-    virtual void RenderProbe(Frame* frame, const RenderSetup& renderSetup, EnvProbe* envProbe) override;
+    void RenderProbe(Frame* frame, const RenderSetup& renderSetup, EnvProbe* envProbe) override;
+
+    void RenderProbeView(Frame* frame, const RenderSetup& renderSetup, EnvProbe* envProbe);
+};
+
+class IrradianceProbePass final : public EnvProbePassBase
+{
+protected:
+    void RenderProbe(Frame* frame, const RenderSetup& renderSetup, EnvProbe* envProbe) override;
 
     void RenderProbeView(Frame* frame, const RenderSetup& renderSetup, EnvProbe* envProbe);
 };

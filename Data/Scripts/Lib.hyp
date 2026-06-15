@@ -206,30 +206,30 @@ extern class UIObject
     GetAABBClamped() -> BoundingBox
     GetDataSource() -> UIDataSourceBase
     SetDataSource(dataSource : UIDataSourceBase) -> void
-    OnInit : any
-    OnAttached : any
-    OnRemoved : any
-    OnChildAttached : any
-    OnChildRemoved : any
-    OnMouseDown : any
-    OnMouseUp : any
-    OnMouseDrag : any
-    OnMouseHover : any
-    OnMouseLeave : any
-    OnMouseMove : any
-    OnGainFocus : any
-    OnLoseFocus : any
-    OnScroll : any
-    OnClick : any
-    OnRightClick : any
-    OnKeyDown : any
-    OnKeyUp : any
-    OnTextChange : any
-    OnSizeChange : any
-    OnComputedVisibilityChange : any
-    OnEnabled : any
-    OnDisabled : any
-    OnValueChange : any
+    static OnInit : any
+    static OnAttached : any
+    static OnRemoved : any
+    static OnChildAttached : any
+    static OnChildRemoved : any
+    static OnMouseDown : any
+    static OnMouseUp : any
+    static OnMouseDrag : any
+    static OnMouseHover : any
+    static OnMouseLeave : any
+    static OnMouseMove : any
+    static OnGainFocus : any
+    static OnLoseFocus : any
+    static OnScroll : any
+    static OnClick : any
+    static OnRightClick : any
+    static OnKeyDown : any
+    static OnKeyUp : any
+    static OnTextChange : any
+    static OnSizeChange : any
+    static OnComputedVisibilityChange : any
+    static OnEnabled : any
+    static OnDisabled : any
+    static OnValueChange : any
     Init() -> void
 end
 extern class UIConsole : UIObject
@@ -345,8 +345,8 @@ extern class ApplicationWindow
     GetRenderSize() -> Vec2i
     GetDimensions() -> Vec2i
     Close() -> void
-    OnWindowSizeChanged : any
-    OnClose : any
+    static OnWindowSizeChanged : any
+    static OnClose : any
 end
 extern class AndroidApplicationWindow : ApplicationWindow
     SetMousePosition(position : Vec2i) -> void
@@ -400,7 +400,7 @@ extern class AppContextBase
     CreateSystemWindow(windowOptions : WindowOptions) -> ApplicationWindow
     RemoveWindow(window : ApplicationWindow) -> void
     RunCommandlet(commandletName : string, args : CommandLineArguments) -> Result
-    OnCurrentWindowChanged : any
+    static OnCurrentWindowChanged : any
 end
 extern class Win32AppContext : AppContextBase
     CreateSystemWindow(windowOptions : WindowOptions) -> ApplicationWindow
@@ -604,6 +604,12 @@ extern struct MeshComponent
     NumInstances : uint32
     PreviousModelMatrix : Mat4f
 end
+extern struct LightmapElementComponent
+    LightmapElementId : any
+    LightmapVolumePath : AssetPath
+    LightmapVolume : any
+    ShData : SphericalHarmonicsData
+end
 extern struct CharacterControllerComponent
     Shape : PhysicsShape
     InputHandler : InputHandlerBase
@@ -665,6 +671,8 @@ end
 extern struct AnimationComponent
     PlaybackState : AnimationPlaybackState
 end
+extern struct SphericalHarmonicsData
+end
 extern struct Keyframe
     Time : float
     Transform : Transform
@@ -698,7 +706,8 @@ extern enum ViewFlags : uint32
     SHADOW_VIEW = 0x400000,
     BAKER_VIEW = 0x800000,
     UI_VIEW = 0x1000000,
-    CUBEMAP_FACE_VIEW = 0x2000000,
+    ENV_PROBE_VIEW = 0x2000000,
+    CUBEMAP_FACE_VIEW = 0x4000000,
     EXTERNAL_RENDERTARGET = 0x10000000,
     DEFAULT = (ALL_WORLD_SCENES | COLLECT_ALL_ENTITIES)
 end
@@ -1214,9 +1223,6 @@ extern class UISubsystem : Subsystem
     AddDebugOverlay(debugOverlay : OverlayBase) -> void
     RemoveDebugOverlay(debugOverlay : OverlayBase) -> bool
 end
-extern struct DebugDrawerConfig
-    Enabled : bool
-end
 extern enum AccelerationStructureType : uint8
     BOTTOM_LEVEL,
     TOP_LEVEL
@@ -1426,8 +1432,8 @@ extern class Game
     StartSimulating() -> void
     StopSimulating() -> void
     PauseSimulation() -> void
-    OnLaunched : any
-    OnGameStateChange : any
+    static OnLaunched : any
+    static OnGameStateChange : any
     OnLaunch_Impl() -> void
     OnUpdate_Impl(delta : float) -> void
     World : World
@@ -1707,8 +1713,8 @@ extern class World : AssetObject
     RemoveView(view : View) -> void
     AddSystem(system : SystemBase) -> SystemBase
     RemoveSystem(system : SystemBase) -> bool
-    OnSceneAdded : any
-    OnSceneRemoved : any
+    static OnSceneAdded : any
+    static OnSceneRemoved : any
     DeserializeNonStreamingScenes(scenes : Array<Scene>) -> void
     SerializeNonStreamingScenes() -> Array<Scene>
     DeserializeStreamingLayers(streamingLayers : Array<WGLayerDesc>) -> void
@@ -1755,7 +1761,7 @@ extern class Scene : AssetObject
     AddToWorld(world : World) -> bool
     RemoveFromWorld() -> bool
     GetUniqueNodeName(baseName : string) -> Name
-    OnRootNodeChanged : any
+    static OnRootNodeChanged : any
     SceneFlags : SceneFlags
     Root : Node
     OwnerThreadId : any
@@ -1811,9 +1817,9 @@ extern class Node : AssetObject
     FindSelfIndex() -> uint32
     FindChildByName(name : any) -> Node
     MarkDirty() -> void
-    OnChildAdded : any
-    OnChildRemoved : any
-    TransformUpdated : any
+    static OnChildAdded : any
+    static OnChildRemoved : any
+    static TransformUpdated : any
     NodeFlags : NodeFlags
     ParentNode : Node
     ChildNodes : any
@@ -1978,6 +1984,20 @@ extern class UICameraController : OrthoCameraController
 end
 extern class VolumeBase : Entity
 end
+extern class ProbeVolume : VolumeBase
+    GetGridSize() -> Vec3u
+    SetGridSize(gridSize : Vec3u) -> void
+    CreateProbes() -> void
+    GridSize : Vec3u
+    GridCount : Vec3u
+    Probes : Array<IrradianceProbe>
+    Tetrahedra : Array<Tetrahedron>
+end
+extern struct Tetrahedron
+    ProbeIndices : Array<uint32>
+    Neighbours : Array<int32>
+    InvEdgeMatrix : Mat3f
+end
 extern class ParticleVolume : VolumeBase
     Texture : Texture
     Mesh : Mesh
@@ -2007,8 +2027,6 @@ extern class FogVolume : VolumeBase
     VolumeTexture : Texture
     NoiseTexture : Texture
 end
-extern struct EnvProbeSphericalHarmonics
-end
 extern class EnvProbe : VolumeBase
     GetEnvProbeType() -> EnvProbeType
     GetEnvProbeFlags() -> EnvProbeFlags
@@ -2027,7 +2045,9 @@ extern class EnvProbe : VolumeBase
     Dimensions : Vec2u
     EnvProbeType : EnvProbeType
     EnvProbeFlags : EnvProbeFlags
-    ShData : EnvProbeSphericalHarmonics
+    ShData : SphericalHarmonicsData
+end
+extern class IrradianceProbe : EnvProbe
 end
 extern class SkyProbe : EnvProbe
     GetSkyboxCubemap() -> Texture
@@ -2133,8 +2153,6 @@ extern enum LightFlags : uint32
     CacheStaticShadowMaps = 0x10,
     BakeStaticShadows = 0x20,
     Default = (ShadowCaster | ShadowPCF)
-end
-extern class EnvGrid : Entity
 end
 extern struct ShaderInputGroup
     Elements : Array<ShaderInputSet>

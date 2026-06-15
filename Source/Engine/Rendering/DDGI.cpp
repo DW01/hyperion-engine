@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <RenderingPch.hpp>
 
@@ -150,8 +150,7 @@ void DDGI::CreateStorageBuffers()
             TFM_NEAREST,
             TWM_CLAMP_TO_EDGE,
             1,
-            IU_STORAGE | IU_SAMPLED
-        });
+            IU_STORAGE | IU_SAMPLED });
         Assert(m_irradianceImage->Create());
     }
 
@@ -175,8 +174,7 @@ void DDGI::CreateStorageBuffers()
             TFM_NEAREST,
             TWM_CLAMP_TO_EDGE,
             1,
-            IU_STORAGE | IU_SAMPLED
-        });
+            IU_STORAGE | IU_SAMPLED });
 
         Assert(m_depthImage->Create());
     }
@@ -266,7 +264,7 @@ void DDGI::UpdateUniforms(Frame* frame, const RenderSetup& renderSetup)
         }
         else
         {
-            static const EnvProbeShaderData s_dummyEnvProbeShaderData;
+            static const EnvProbeShaderData s_dummyEnvProbeShaderData {};
             pEnvProbeShaderData = &s_dummyEnvProbeShaderData;
         }
 

@@ -185,7 +185,7 @@ namespace Hyperion.Editor.ViewModels
                 return;
             }
 
-            
+
             _components[index] = newValue;
         }
 
@@ -212,8 +212,7 @@ namespace Hyperion.Editor.ViewModels
 
             for (int i = 0; i < _componentCount; i++)
             {
-                if (float.TryParse(_components[i], System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out float parsed))
+                if (TryParseComponent(_components[i], out float parsed))
                 {
                     updated = _withComponent(updated, i, parsed);
                 }
@@ -272,9 +271,14 @@ namespace Hyperion.Editor.ViewModels
             return $"({string.Join(", ", components)})";
         }
 
-        private static string FormatComponent(float value)
+        protected virtual string FormatComponent(float value)
         {
             return value.ToString("F3", CultureInfo.InvariantCulture);
+        }
+
+        protected virtual bool TryParseComponent(string text, out float result)
+        {
+            return float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out result);
         }
 
         // Blocking wait on sim thread to read the struct value.

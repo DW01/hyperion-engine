@@ -54,7 +54,6 @@ DECLARE_BUFFER_DYNAMIC(Default, CBuffer) cbuffer CBuffer
 
 VSOutput VSMain(VSInput input, uint instanceId : SV_InstanceID)
 {
-
     VSOutput output;
 
     float4 position;

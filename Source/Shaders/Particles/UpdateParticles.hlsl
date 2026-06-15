@@ -6,7 +6,7 @@ DECLARE_SAMPLER(UpdateParticlesDescriptorSet, SamplerLinear) SamplerState sample
 
 DECLARE_SRV(UpdateParticlesDescriptorSet, GBufferAlbedoTexture) Texture2D gbuffer_albedo_texture;
 DECLARE_SRV(UpdateParticlesDescriptorSet, GBufferNormalsTexture) Texture2D gbuffer_normals_texture;
-DECLARE_SRV(UpdateParticlesDescriptorSet, GBufferMaterialTexture) Texture2D<uint4> gbuffer_material_texture;
+DECLARE_SRV(UpdateParticlesDescriptorSet, GBufferMaterialTexture) Texture2D<uint> gbuffer_material_texture;
 DECLARE_SRV(UpdateParticlesDescriptorSet, GBufferVelocityTexture) Texture2D gbuffer_velocity_texture;
 DECLARE_SRV(UpdateParticlesDescriptorSet, GBufferDepthTexture) Texture2D gbuffer_depth_texture;
 

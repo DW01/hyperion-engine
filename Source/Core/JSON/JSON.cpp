@@ -1245,7 +1245,6 @@ ParseResult Parse(const String& jsonString)
     const size_t bufferLength = jsonString.Size();
 
     SourceFile sourceFile("<input>", bufferLength);
-    Assert(sourceFile.GetBuffer().Size() == bufferLength);
 
     ByteBuffer temp(bufferLength, jsonString.Data());
     sourceFile.ReadIntoBuffer(temp);

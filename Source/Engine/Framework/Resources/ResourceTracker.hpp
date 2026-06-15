@@ -679,6 +679,29 @@ public:
     {
         return const_cast<ResourceTracker*>(this)->GetProxy(id);
     }
+    
+    ProxyType* GetProxy(IdType id, ProxyType&& defaultIfNotFound)
+    {
+        HYP_SCOPE;
+
+        TypeId typeId = id.GetTypeId();
+
+        if (typeId == TypeInfo_GetId(*baseImpl.typeInfo))
+        {
+            return baseImpl.GetProxy(id, std::move(defaultIfNotFound));
+        }
+
+        const int subclassIndex = GetSubclassIndex(TypeInfo_GetId(*baseImpl.typeInfo), typeId);
+        AssertDebug(subclassIndex >= 0, "Invalid subclass index");
+        AssertDebug(subclassIndex < subclassImpls.Size(), "Invalid subclass index");
+
+        if (!subclassIndices.Test(subclassIndex))
+        {
+            return SetProxy(id, std::move(defaultIfNotFound));
+        }
+
+        return subclassImpls[subclassIndex]->GetProxy(id);
+    }
 
     ProxyType* SetProxy(IdType id, const ProxyType& proxy)
     {
@@ -1177,6 +1200,26 @@ public:
         const ProxyType* GetProxy(IdType id) const
         {
             return const_cast<Impl*>(this)->GetProxy(id);
+        }
+
+        ProxyType* GetProxy(IdType id, ProxyType&& defaultIfNotFound)
+        {
+            AssertDebug(id.GetTypeId() == TypeInfo_GetId(*typeInfo));
+
+            if (id.GetTypeId() != TypeInfo_GetId(*typeInfo))
+            {
+                return nullptr;
+            }
+
+            uint32 idx = id.ToIndex();
+
+            ProxyType* pProxy = proxies.TryGet(idx);
+            if (pProxy)
+            {
+                return pProxy;
+            }
+
+            return proxies.Emplace(idx, std::move(defaultIfNotFound));
         }
 
         ProxyType* SetProxy(IdType id, const ProxyType& proxy)

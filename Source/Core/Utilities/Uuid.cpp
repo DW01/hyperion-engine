@@ -1,3 +1,9 @@
+/*!
+ *  @author The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
+
 #include <Core/Utilities/Uuid.hpp>
 #include <Core/Containers/String.hpp>
 
@@ -78,11 +84,7 @@ UUID::UUID(const char* str)
 
 String UUID::ToString() const
 {
-    union
-    {
-        uint64 data[2];
-        uint8 bytes[16];
-    } u {
+    union { uint64 data[2]; uint8 bytes[16]; } u {
         ByteUtil::IsLittleEndian() ? data0 : SwapEndian(data0),
         ByteUtil::IsLittleEndian() ? data1 : SwapEndian(data1)
     };

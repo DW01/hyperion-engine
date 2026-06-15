@@ -248,7 +248,7 @@ UIText::UIText()
     : UIObject()
 {
     OnComputedVisibilityChange
-        .Bind([this]()
+        .Bind(this, [this]()
             {
                 if (GetComputedVisibility())
                 {
@@ -262,7 +262,7 @@ UIText::UIText()
         .Detach();
 
     OnEnabled
-        .Bind([this]()
+        .Bind(this, [this]()
             {
                 UpdateMaterial(false);
 
@@ -271,7 +271,7 @@ UIText::UIText()
         .Detach();
 
     OnDisabled
-        .Bind([this]()
+        .Bind(this, [this]()
             {
                 UpdateMaterial(false);
 
@@ -454,8 +454,11 @@ void UIText::UpdateMeshData_Internal()
     if (!instancedMesh)
     {
         instancedMesh = MakeHandle<InstancedMeshData>(NAME_FMT("IMD_{}_{}", InstanceClass()->GetName(), GetName()));
+        instancedMesh->SetIsTransient(true);
 
-        GetCurrentAssetRegistry()->PutAssetUnique(instancedMesh);
+        GetEngineAssetRegistry()->PutAssetUnique(instancedMesh);
+
+        Assert(instancedMesh->IsRegistered());
 
         meshComponent.instanceData = AssetReference(instancedMesh);
     }
