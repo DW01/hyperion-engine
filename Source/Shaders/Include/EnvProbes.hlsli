@@ -38,7 +38,7 @@ struct SH9
 #define HYP_ENV_PROBE_PARALLAX_CORRECTED 0x1
 
 #define GET_ENV_PROBE_TYPE(envProbe) (envProbe.typeAndFlags & 0x7)
-#define GET_ENV_PROBE_FLAGS(envProbe) ((envProbe.typeAndFlags >> 3) & 0x1FFFFFF)
+#define GET_ENV_PROBE_FLAGS(envProbe) ((envProbe.typeAndFlags >> 3))
 
 float4 EnvProbeSample(
     sampler samp,

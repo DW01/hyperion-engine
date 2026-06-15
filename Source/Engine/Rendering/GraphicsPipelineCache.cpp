@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <RenderingPch.hpp>
 
@@ -72,10 +72,10 @@ public:
     {
         Assert(Base::HasIndex(index));
 
-        GraphicsPipelineRef* graphicsPipelinePtr = &Base::Get(index);
-        Assert(graphicsPipelinePtr != nullptr);
+        GraphicsPipelineRef* pPipelineRef = &Base::Get(index);
+        Assert(pPipelineRef != nullptr);
 
-        attrMap[key].PushBack(graphicsPipelinePtr);
+        attrMap[key].PushBack(pPipelineRef);
         reverseAttrMap[index] = key;
     }
 
@@ -83,7 +83,7 @@ public:
     {
         Assert(Base::HasIndex(index));
 
-        GraphicsPipelineRef* graphicsPipelinePtr = &Base::Get(index);
+        GraphicsPipelineRef* pPipelineRef = &Base::Get(index);
 
         auto reverseAttrMapIt = reverseAttrMap.Find(index);
         Assert(reverseAttrMapIt != reverseAttrMap.End());
@@ -94,7 +94,7 @@ public:
         // Remove the graphics pipeline from the attribute map
         auto& pipelines = attrMapIt->second;
 
-        auto it = pipelines.Find(graphicsPipelinePtr);
+        auto it = pipelines.Find(pPipelineRef);
         Assert(it != pipelines.end(), "Graphics pipeline not found in attribute map!");
         pipelines.Erase(it);
 
@@ -106,8 +106,55 @@ public:
 
         reverseAttrMap.Erase(reverseAttrMapIt);
 
-        (*graphicsPipelinePtr).Reset();
-        //EnqueueDeletion(std::move(*graphicsPipelinePtr));
+        pPipelineRef->Reset();
+    }
+
+    void Remove(GraphicsPipelineRef* pPipelineRef, bool removeFromAttrMap = true)
+    {
+        if (!pPipelineRef)
+        {
+            return;
+        }
+
+        for (auto attrMapIt = attrMap.Begin(); attrMapIt != attrMap.End(); ++attrMapIt)
+        {
+            auto& pipelines = attrMapIt->second;
+
+            auto it = pipelines.Find(pPipelineRef);
+
+            if (it == pipelines.End())
+            {
+                continue;
+            }
+
+            const PSOCacheKey key = attrMapIt->first;
+
+            pipelines.Erase(it);
+
+            if (pipelines.Empty() && removeFromAttrMap)
+            {
+                attrMap.Erase(attrMapIt);
+            }
+
+            for (auto reverseIt = reverseAttrMap.Begin(); reverseIt != reverseAttrMap.End(); ++reverseIt)
+            {
+                if (reverseIt->second == key && Base::HasIndex(reverseIt->first))
+                {
+                    GraphicsPipelineRef* pCandidate = &Base::Get(reverseIt->first);
+
+                    if (pCandidate == pPipelineRef)
+                    {
+                        reverseAttrMap.Erase(reverseIt);
+
+                        break;
+                    }
+                }
+            }
+
+            pPipelineRef->Reset();
+
+            return;
+        }
     }
 
     GraphicsPipelineCacheHandle Alloc(size_t& outIndex)
@@ -320,7 +367,7 @@ void GraphicsPipelineCache::GetOrCreate(
     if (cacheHandle.IsAlive())
     {
         (*cacheHandle)->lastFrame = GetFrameCounter();
-        
+
         Assert(!(*cacheHandle)->GetShader()->GetShader()->expired);
 
         outCacheHandle = std::move(cacheHandle);
@@ -328,7 +375,7 @@ void GraphicsPipelineCache::GetOrCreate(
     }
 
     Assert(framebufferDesc.numAttachments > 0,
-        "Cannot create a graphics pipeline with no render target descriptor or 0 attachments!");
+           "Cannot create a graphics pipeline with no render target descriptor or 0 attachments!");
 
     ShaderInstanceRef shader = RI.shaderManager->GetOrCreate(
         inOutAttributes.GetMaterialAttributes().shaderName,
@@ -338,12 +385,12 @@ void GraphicsPipelineCache::GetOrCreate(
     if (!shader.IsValid())
     {
         HYP_LOG(Rendering, Warning, "Invalid shader returned from ShaderManager for {}",
-            inOutAttributes.GetMaterialAttributes().shaderName);
+                inOutAttributes.GetMaterialAttributes().shaderName);
 
         outCacheHandle = {};
         return;
     }
-    
+
     Assert(!shader->GetShader()->expired);
 
     // // Shader may have additional static properties.
@@ -367,8 +414,8 @@ void GraphicsPipelineCache::GetOrCreate(
     shaderString += "\n\tVertex attributes: " + String::ToString(shaderInstance->GetShader()->inputLayout.mask);
 
     HYP_LOG(Rendering, Verbose, "Creating graphics pipeline {} (debug name: {}) on render thread, Shader details:\n{}",
-        graphicsPipeline->Id(), graphicsPipeline->GetDebugName(),
-        shaderString);
+            graphicsPipeline->Id(), graphicsPipeline->GetDebugName(),
+            shaderString);
 #endif
 
     if (!CheckResult(graphicsPipeline->Create()))
@@ -449,8 +496,7 @@ GraphicsPipelineCacheHandle GraphicsPipelineCache::FindGraphicsPipeline(
 
 void GraphicsPipelineCache::ExpirePipelinesForShader(const Shader* shader)
 {
-    // Render thread or renderer worker thread.
-    AssertOnThread(g_renderThread | ThreadCategory::THREAD_CATEGORY_TASK);
+    AssertOnThread(g_renderThread);
 
     if (!shader)
     {
@@ -459,58 +505,34 @@ void GraphicsPipelineCache::ExpirePipelinesForShader(const Shader* shader)
 
     TUniqueLock guard(m_mutex);
 
-    // find all pipelines that use this shader and remove them, so they will be recreated with the new shader instance when requested again.
+    // find all pipelines that use this shader and remove them,
+    // so they will be recreated with the new shader instance when requested again.
     for (auto it = m_cachedPipelines->attrMap.Begin(); it != m_cachedPipelines->attrMap.End();)
     {
         const PSOCacheKey& key = it->first;
 
-        // Fast-filter by shader base name, then check the actual Shader pointer
-        // of each pipeline to ensure we expire all pipelines referencing the
-        // destroyed shader, regardless of property set mismatches.
-        if (key.shaderName == shader->baseName)
+        if (key.shaderName == shader->baseName && key.shaderProperties == shader->properties)
         {
-            // @NOTE intentionally making a copy of the array.
-            // CachedPipelinesMap::Remove will modify the original array by removing pipelines one by one, so we need to avoid modifying the array while iterating over it.
-            auto pipelines = it->second;
+            auto& pipelines = it->second;
 
             for (GraphicsPipelineRef* const pPipeline : pipelines)
             {
                 Assert(pPipeline != nullptr);
 
-                // Only remove pipelines that actually reference this specific Shader instance.
-                // Property-based matching (key.shaderProperties == shader->properties) can miss
-                // entries when the shader's property set differs from the cache key's property set.
-                if ((*pPipeline)->GetShader()->GetShader() != shader)
-                {
-                    continue;
-                }
-
-#if HYP_DEBUG_MODE
-                HYP_LOG(Rendering, Info, "Removing cached graphics pipeline: {} on thread: {}",
-                    (*pPipeline)->GetDebugName(), CurrentThreadId().GetName());
-#endif // HYP_DEBUG_MODE
-
                 // Unset so we don't trip over a destroyed pipeline!
                 if (RI.state.boundGraphicsPipeline == *pPipeline)
                 {
-#if HYP_DEBUG_MODE
-                    HYP_LOG(Rendering, Info, "Unset bound graphics pipeline: {} on thread: {}",
-                        (*pPipeline)->GetDebugName(),
-                        CurrentThreadId().GetName());
-#endif // HYP_DEBUG_MODE
                     RI.state.boundGraphicsPipeline = nullptr;
                 }
 
-                const size_t index = m_cachedPipelines->IndexOf(pPipeline);
-                Assert(index != SIZE_MAX);
-
-                m_cachedPipelines->Remove(index, /* removeFromAttrMap */ false);
+                m_cachedPipelines->Remove(pPipeline, /* removeFromAttrMap */ false);
             }
 
             // if we removed all cached pipelines for these attrs then remove from attrMap
             if (it->second.Empty())
             {
                 it = m_cachedPipelines->attrMap.Erase(it);
+
                 continue;
             }
         }
@@ -573,9 +595,9 @@ int GraphicsPipelineCache::RunCleanupCycle(int maxIter)
         {
 #if HYP_DEBUG_MODE
             HYP_LOG(Rendering, Verbose, "Removing graphics pipeline {} (debug name: {}) from cache as it has not been used in {} frames",
-                graphicsPipeline->Id(),
-                graphicsPipeline->GetDebugName(),
-                frameDiff);
+                    graphicsPipeline->Id(),
+                    graphicsPipeline->GetDebugName(),
+                    frameDiff);
 #endif
 
             const size_t index = m_cachedPipelines->IndexOf(m_cachedPipelines->cleanupIterator);

@@ -240,6 +240,8 @@ PSOutput PSMain(PSInput input)
 
             float4 ibl = float4(0.0, 0.0, 0.0, 0.0);
 
+            const float lod = 0.2; // give it a little roughness to keep things interesting
+
             ApplyReflectionProbe(
                 env_probes[input.env_probe_index].texture_index,
                 env_probes[input.env_probe_index].world_position.xyz,
@@ -247,7 +249,7 @@ PSOutput PSMain(PSInput input)
                 env_probes[input.env_probe_index].aabb_max.xyz,
                 input.position.xyz,
                 R,
-                0.0,
+                lod,
                 ibl);
 
             output.gbuffer_albedo.rgb = ibl.rgb;

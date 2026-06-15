@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <HyperionPch.hpp>
 
@@ -24,7 +24,7 @@ Result BakeData<ReflectionProbe>::Build()
     dimensions = Vec3u(m_envProbe->GetDimensions(), 1);
 
     AssertDebug(dimensions.Volume() > 0 && dimensions.x == dimensions.y,
-        "EnvProbe lightmap dimensions must be square and non-zero! Dimensions: {}", dimensions);
+                "EnvProbe lightmap dimensions must be square and non-zero! Dimensions: {}", dimensions);
 
     const uint32 numTexelsPerFace = dimensions.x * dimensions.y;
     const uint32 numTexelsTotal = 6 * numTexelsPerFace;
@@ -38,7 +38,7 @@ Result BakeData<ReflectionProbe>::Build()
     {
         const Vec3f forward = Texture::s_cubemapDirections[face].first;
         const Vec3f up = Texture::s_cubemapDirections[face].second;
-        const Vec3f right = forward.Cross(up).Normalize();
+        const Vec3f right = up.Cross(forward).Normalize();
 
         for (uint32 y = 0; y < dimensions.y; y++)
         {
@@ -47,7 +47,7 @@ Result BakeData<ReflectionProbe>::Build()
                 const uint32 texelIdx = face * uint32(numTexelsPerFace) + y * dimensions.x + x;
 
                 const float u = (float(x) + 0.5f) / float(dimensions.x) * 2.0f - 1.0f;
-                const float v = (float(y) + 0.5f) / float(dimensions.y) * 2.0f - 1.0f;
+                const float v = 1.0 - (float(y) + 0.5f) / float(dimensions.y) * 2.0f;
 
                 const Vec3f dir = (forward + right * u + up * v).Normalize();
 

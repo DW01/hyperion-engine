@@ -155,8 +155,8 @@ public:
                 && g_shaderCompiler->IsGraphicsShaderBundle(request.shaderName))
             {
                 HYP_LOG(Shader, Verbose,
-                    "Failed to compile shader '{}', trying to load fallback...",
-                    request.shaderName);
+                        "Failed to compile shader '{}', trying to load fallback...",
+                        request.shaderName);
 
                 // @TODO Show editor alert.
 
@@ -325,10 +325,10 @@ public:
                 if (useTask)
                 {
                     task = TaskSystem::GetInstance().Enqueue([&taskFunction]
-                        {
-                            taskFunction();
-                        },
-                        TaskThreadPoolName::THREAD_POOL_BACKGROUND);
+                                                             {
+                                                                 taskFunction();
+                                                             },
+                                                             TaskThreadPoolName::THREAD_POOL_BACKGROUND);
                 }
                 else
                 {
@@ -342,10 +342,10 @@ public:
                 if (useTask)
                 {
                     task = TaskSystem::GetInstance().Enqueue([impl]
-                        {
-                            impl->CompileShaders();
-                        },
-                        TaskThreadPoolName::THREAD_POOL_BACKGROUND);
+                                                             {
+                                                                 impl->CompileShaders();
+                                                             },
+                                                             TaskThreadPoolName::THREAD_POOL_BACKGROUND);
                 }
                 else
                 {
@@ -448,10 +448,10 @@ public:
             else
             {
                 HYP_LOG(Shader, Error, "Loaded shader from cache (Name: {}) does not contain the requested properties! "
-                    "Expected properties: {}, Expected Input Layout: {} "
-                    "Actual properties: {}, Actual Input Layout: {}",
-                    name, properties.GetDebugString(), inputLayout.GetDebugString(),
-                    entry->shaderInstance->GetShader()->properties.GetDebugString(), entry->shaderInstance->GetShader()->inputLayout.GetDebugString());
+                                       "Expected properties: {}, Expected Input Layout: {} "
+                                       "Actual properties: {}, Actual Input Layout: {}",
+                        name, properties.GetDebugString(), inputLayout.GetDebugString(),
+                        entry->shaderInstance->GetShader()->properties.GetDebugString(), entry->shaderInstance->GetShader()->inputLayout.GetDebugString());
             }
         }
 
@@ -747,7 +747,7 @@ public:
             return;
         }
 
-#if 0//HYP_EDITOR
+#if 0 // HYP_EDITOR
         {
             Array<String> reloadingShaderNames;
             reloadingShaderNames.Reserve(staleEntries.Size());
@@ -792,33 +792,48 @@ public:
 
             compilingShaderScope.Wait();
 
-            Assert(request.entry->shader != nullptr);
+            Shader* shader = request.entry->shader;
+            Assert(shader != nullptr);
 
-
-            if (request.entry->shader->IsSaved())
+            if (shader->IsSaved())
             {
-                const FilePath manifestPath = GetEngineAssetRegistry()->GetManifestPath(request.entry->shader->GetPath());
+                const FilePath manifestPath = GetEngineAssetRegistry()->GetManifestPath(shader->GetPath());
 
                 Time shaderSourceModifiedTimestamp;
                 Time lastSavedTimestamp = manifestPath.LastModifiedTimestamp();
 
-                AssertDebug(!g_shaderCompiler->IsShaderBundleOutdated(request.entry->shader->baseName));
+                AssertDebug(!g_shaderCompiler->IsShaderBundleOutdated(shader->baseName));
             }
 
-            shadersToExpire.Add(request.entry->shader);
+            shader->AddRef();
+            shadersToExpire.Add(shader);
 
             AssertDebug(request.entry->IsLoaded());
         }
 
         if (shadersToExpire.Any())
         {
-            for (Shader* shader : shadersToExpire)
+            auto expireOnRenderThread = [toExpire = std::move(shadersToExpire)]()
             {
-                RI.graphicsPipelineCache->ExpirePipelinesForShader(shader);
-                RI.computePipelineCache->ExpirePipelinesForShader(shader);
-                RI.rayTracingPipelineCache->ExpirePipelinesForShader(shader);
+                for (Shader* shader : toExpire)
+                {
+                    RI.graphicsPipelineCache->ExpirePipelinesForShader(shader);
+                    RI.computePipelineCache->ExpirePipelinesForShader(shader);
+                    RI.rayTracingPipelineCache->ExpirePipelinesForShader(shader);
 
-                RI.shaderManager->ExpireShaderEntries(shader);
+                    RI.shaderManager->ExpireShaderEntries(shader);
+
+                    shader->Release();
+                }
+            };
+
+            if (IsOnThread(g_renderThread))
+            {
+                expireOnRenderThread();
+            }
+            else
+            {
+                GetThreadById(g_renderThread)->GetScheduler().Enqueue(expireOnRenderThread, TaskEnqueueFlags::FIRE_AND_FORGET);
             }
         }
 

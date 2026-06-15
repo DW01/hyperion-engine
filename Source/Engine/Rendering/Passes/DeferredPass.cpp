@@ -1909,17 +1909,6 @@ public:
 
         for (EnvProbe* envProbe : rpl.GetEnvProbes())
         {
-            static constexpr auto ReflectionProbeTypeId = CONSTEXPR_TYPE_ID(ReflectionProbe);
-            static constexpr auto SkyProbeTypeId = CONSTEXPR_TYPE_ID(SkyProbe);
-
-            const auto envProbeTypeId = envProbe->InstanceClass()->GetTypeId().Value();
-
-            if (envProbeTypeId != ReflectionProbeTypeId && envProbeTypeId != SkyProbeTypeId)
-            {
-                // skip; we only want ReflectionProbe or SkyProbe
-                continue;
-            }
-
             const uint32 envProbeBindingIndex = Resources::GetBinding(envProbe);
 
             if (envProbeBindingIndex == ~0u)
@@ -1936,10 +1925,11 @@ public:
         Vec3f cameraPosition = cameraProxy->bufferData.cameraPosition.GetXYZ();
 
         // Sort env probes, we want sky LAST so other env probes fall back to it.
-        std::sort(envProbes.Begin(), envProbes.End(), [&cameraPosition](const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& a, const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& b)
+        std::sort(envProbes.Begin(), envProbes.End(),
+                  [&cameraPosition](const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& a, const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& b)
                   {
-                      const bool aIsSky = a.GetElement<0>()->IsA(SkyProbe::StaticClass());
-                      const bool bIsSky = b.GetElement<0>()->IsA(SkyProbe::StaticClass());
+                      const bool aIsSky = a.GetElement<0>()->IsA<SkyProbe>();
+                      const bool bIsSky = b.GetElement<0>()->IsA<SkyProbe>();
 
                       if (aIsSky && !bIsSky)
                       {
@@ -1977,7 +1967,7 @@ public:
             const Vec3f aabbMinWS = envProbeData.aabbMin.GetXYZ();
             const Vec3f aabbMaxWS = envProbeData.aabbMax.GetXYZ();
 
-            const bool isSky = envProbe.GetEnvProbeType() == EPT_SKY;
+            const bool isSky = envProbe.IsA<SkyProbe>();
 
             if (isSky)
             {

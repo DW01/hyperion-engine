@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <RenderingPch.hpp>
 
@@ -111,14 +111,14 @@ namespace Hyperion {
 using namespace Resources;
 
 static_assert(RingBufferDepth <= MinSafeDeleteCycles,
-    "RingBufferDepth must be less than or equal to MinSafeDeleteCycles to ensure safe deletion of resources.");
+              "RingBufferDepth must be less than or equal to MinSafeDeleteCycles to ensure safe deletion of resources.");
 
 static constexpr uint32 MaxFramesBeforeDiscard = RingBufferDepth; // number of frames before ViewData is discarded if not written to
 
 // must be greater than or equal to MinSafeDeleteCycles so that
 // we can ensure no active views hold pointers to deleted objects.
 static_assert(MaxFramesBeforeDiscard >= MinSafeDeleteCycles,
-    "MaxFramesBeforeDiscard must be greater than or equal to MinSafeDeleteCycles");
+              "MaxFramesBeforeDiscard must be greater than or equal to MinSafeDeleteCycles");
 
 // iterations per frame for cleaning up unused resources for passes
 static constexpr int FrameCleanupBudget = 16;
@@ -251,10 +251,10 @@ static ViewData* GetViewData(View* view, bool createIfNotExist)
         view->AddRef();
 
         HYP_LOG(Rendering, Verbose, "Allocating new ViewData {} for View {} at frame {}\t(Camera : {})",
-            (void*)viewData,
-            view->Id(),
-            frameCounter,
-            view->GetCamera() ? *view->GetCamera()->GetName() : "null");
+                (void*)viewData,
+                view->Id(),
+                frameCounter,
+                view->GetCamera() ? *view->GetCamera()->GetName() : "null");
 
         // If NO_PARALLEL_DRAW_CALL_COLLECTION flag is set, we need to make sure PARALLEL_COLLECTION is disabled on the group
         if (view->GetFlags() & ViewFlags::NO_PARALLEL_DRAW_CALL_COLLECTION)
@@ -356,7 +356,7 @@ static BufferedViewData* GetBufferedViewData(View* view, uint32 slot)
     // bufferedViewData->rplShared->ClearAll();
     // bufferedViewData->rplShared->EndWrite();
 
-    //AssertDebug(bufferedViewData->rplShared->GetMeshEntities().NumCurrent() == 0);
+    // AssertDebug(bufferedViewData->rplShared->GetMeshEntities().NumCurrent() == 0);
 
     bufferedData.perViewData[view] = bufferedViewData;
 
@@ -439,8 +439,8 @@ IRenderProxy* GetRenderProxy(const ObjectBase* resource)
 
     ResourceSubtypeData& subtypeData = RI.resources->GetSubtypeData(resource->InstanceClass());
     AssertDebug(subtypeData.hasProxyData,
-        "Cannot use GetRenderProxy() for type which does not have a RenderProxy! Type name: {}",
-        subtypeData.typeInfo->name);
+                "Cannot use GetRenderProxy() for type which does not have a RenderProxy! Type name: {}",
+                subtypeData.typeInfo->name);
 
     const ObjIdBase resourceId = resource->Id();
     AssertDebug(resourceId.GetTypeId() == subtypeData.typeInfo->id);
@@ -470,12 +470,12 @@ void UpdateGpuData(const ObjectBase* resource)
     AssertDebug(resourceId.GetTypeId() == subtypeData.typeInfo->id);
 
     AssertDebug(subtypeData.sbuffer != nullptr,
-        "Cannot update GPU data for type which does not have a buffer! Type: {}",
-        subtypeData.typeInfo->name);
+                "Cannot update GPU data for type which does not have a buffer! Type: {}",
+                subtypeData.typeInfo->name);
 
     AssertDebug(subtypeData.hasProxyData,
-        "Cannot use UpdateGpuData() for type which does not have a RenderProxy! Type: {}",
-        subtypeData.typeInfo->name);
+                "Cannot use UpdateGpuData() for type which does not have a RenderProxy! Type: {}",
+                subtypeData.typeInfo->name);
 
     const uint32 bindingIndex = GetBinding(resource);
     AssertDebug(bindingIndex != ~0u);
@@ -553,13 +553,13 @@ void BeginFrameSim(AtomicFlag* pCancelFlag)
         ENGINE_STAT_SCOPE(&g_statSimThreadSync);
         ENGINE_STAT_SCOPE(&g_statTotalStallTime);
 
-       while (!Framework::s_freeSemaphore.try_acquire_for(std::chrono::milliseconds(100)))
-       {
-           if (pCancelFlag != nullptr && pCancelFlag->Load())
-           {
-               return;
-           }
-       }
+        while (!Framework::s_freeSemaphore.try_acquire_for(std::chrono::milliseconds(100)))
+        {
+            if (pCancelFlag != nullptr && pCancelFlag->Load())
+            {
+                return;
+            }
+        }
     }
 }
 
@@ -983,12 +983,12 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
         // Advance render side owned lists ResourceTrackers before we copy dependencies over
         int resourceTrackerIndex = 0;
         StaticForEach<typename RenderProxyList::ResourceTrackerTypes>([rplRender, &resourceTrackerIndex]<class ResourceTrackerType>(TypeWrapper<ResourceTrackerType>)
-            {
-                ResourceTrackerType& resourceTracker = static_cast<ResourceTrackerType&>(*rplRender->resourceTrackers[resourceTrackerIndex]);
-                resourceTracker.Advance();
+                                                                      {
+                                                                          ResourceTrackerType& resourceTracker = static_cast<ResourceTrackerType&>(*rplRender->resourceTrackers[resourceTrackerIndex]);
+                                                                          resourceTracker.Advance();
 
-                ++resourceTrackerIndex;
-            });
+                                                                          ++resourceTrackerIndex;
+                                                                      });
 
         if (!rplShared)
         {
@@ -1079,8 +1079,8 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
 
             // Handle proxies that were updated on sim thread
             for (Bitset::BitIndex i = subtypeData.indicesPendingUpdate.FirstSetBitIndex();
-                i != Bitset::NotFound;
-                i = subtypeData.indicesPendingUpdate.NextSetBitIndex(i + 1))
+                 i != Bitset::NotFound;
+                 i = subtypeData.indicesPendingUpdate.NextSetBitIndex(i + 1))
             {
                 if (!currentBoundIndices.Test(i))
                 {
@@ -1093,8 +1093,8 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
 
                 const uint32 bindingIndex = GetBinding(resource);
                 AssertDebug(bindingIndex != ~0u,
-                    "Failed to retrieve binding for resource: {} in frame {}, but it is marked as bound (index: {})",
-                    i, slot, i);
+                            "Failed to retrieve binding for resource: {} in frame {}, but it is marked as bound (index: {})",
+                            i, slot, i);
 
                 const IRenderProxy* pProxy = reinterpret_cast<const IRenderProxy*>(subtypeData.proxies.GetElementRaw(i));
                 AssertDebug(pProxy != nullptr);
@@ -1185,12 +1185,12 @@ void RenderInterface::EndFrame()
                 {
                     int resourceTrackerIndex = 0;
                     StaticForEach<typename RenderProxyList::ResourceTrackerTypes>([&viewData, &resourceTrackerIndex]<class ResourceTrackerType>(TypeWrapper<ResourceTrackerType>)
-                        {
-                            ResourceTrackerType& resourceTracker = static_cast<ResourceTrackerType&>(*viewData->rplRender.resourceTrackers[resourceTrackerIndex]);
-                            resourceTracker.Advance();
+                                                                                  {
+                                                                                      ResourceTrackerType& resourceTracker = static_cast<ResourceTrackerType&>(*viewData->rplRender.resourceTrackers[resourceTrackerIndex]);
+                                                                                      resourceTracker.Advance();
 
-                            ++resourceTrackerIndex;
-                        });
+                                                                                      ++resourceTrackerIndex;
+                                                                                  });
 
                     static RenderProxyList s_emptyRpl { /* isShared */ false, /* useRefCounting */ false };
                     CopyDependencies(*resources, viewData->rplRender, s_emptyRpl);
@@ -1389,7 +1389,7 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
             || !state.boundGraphicsPipeline->MatchesSignature(state.attributes, state.framebuffer->GetFramebufferDesc()))
         {
             AssertDebug(state.attributes.GetMeshAttributes().inputLayout.mask != 0,
-                "Input layout cannot be empty for graphics pipeline");
+                        "Input layout cannot be empty for graphics pipeline");
 
             graphicsPipelineCache->GetOrCreate(
                 state.attributes,
@@ -1699,9 +1699,9 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
         subResource.numLayers = MathUtil::Min(subResource.numLayers, image->NumArrayLayers() - subResource.baseArrayLayer);
         subResource.numLevels = MathUtil::Min(subResource.numLevels, image->NumMips() - subResource.baseMipLevel);
 
-        //HYP_LOG_TEMP("Shader: {}  Desire {} (mip: {} : {}) in resource state {} for {} shader input {}.",
-        //    state.attributes.GetShaderName(),
-        //    image->GetDebugName(), subResource.baseMipLevel, subResource.numLevels, EnumToString(desiredResourceState), EnumToString(reg), uniform.name);
+        // HYP_LOG_TEMP("Shader: {}  Desire {} (mip: {} : {}) in resource state {} for {} shader input {}.",
+        //     state.attributes.GetShaderName(),
+        //     image->GetDebugName(), subResource.baseMipLevel, subResource.numLevels, EnumToString(desiredResourceState), EnumToString(reg), uniform.name);
 
         if (image->GetResourceState() != desiredResourceState || image->HasSubResourceStates())
         {
@@ -1784,7 +1784,7 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
             }
 
             AssertDebug(state.framebuffer != nullptr,
-                "No framebuffer bound at the time of CommitDrawState!");
+                        "No framebuffer bound at the time of CommitDrawState!");
 
             state.framebuffer->BeginCapture(commandBuffer);
 
@@ -1793,7 +1793,7 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
         else if (state.boundFramebuffer == nullptr)
         {
             AssertDebug(state.framebuffer != nullptr,
-                "No framebuffer bound at the time of CommitDrawState!");
+                        "No framebuffer bound at the time of CommitDrawState!");
 
             state.framebuffer->BeginCapture(commandBuffer);
 
@@ -1964,7 +1964,7 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
 
             const ShaderUniform& uniform = state.shaderUniforms[shaderUniformIndex];
             AssertDebug(uniform.type == ShaderUniform::UT_Buffer,
-                "Uniform {} is not a buffer, cannot use buffer offset", uniform.name);
+                        "Uniform {} is not a buffer, cannot use buffer offset", uniform.name);
 
             offsets.Add(uniform.name, state.shaderUniformBufferOffsets[shaderUniformIndex]);
         }
@@ -1972,12 +1972,15 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
         switch (psoType)
         {
         case PSO_Graphics:
+            AssertDebug(state.boundGraphicsPipeline != nullptr);
             ds->Bind(commandBuffer, state.boundGraphicsPipeline, offsets, setIndex);
             break;
         case PSO_Compute:
+            AssertDebug(state.boundComputePipeline != nullptr);
             ds->Bind(commandBuffer, state.boundComputePipeline, offsets, setIndex);
             break;
         case PSO_RayTracing:
+            AssertDebug(state.boundRayTracingPipeline != nullptr);
             ds->Bind(commandBuffer, state.boundRayTracingPipeline, offsets, setIndex);
             break;
         default:
@@ -2062,7 +2065,7 @@ void RenderInterface::CreateBlueNoiseBuffer()
     if (blobData.Size() != ExpectedSize)
     {
         HYP_FAIL("BlueNoise blob size mismatch: expected {} bytes, got {} bytes",
-            ExpectedSize, blobData.Size());
+                 ExpectedSize, blobData.Size());
         return;
     }
 
@@ -2148,7 +2151,6 @@ DECLARE_RENDER_DATA_CONTAINER(MaterialInstance, RenderProxyMaterial, NamedBuffer
 DECLARE_RENDER_DATA_CONTAINER(Texture, NullProxy, NamedBuffer::Invalid, nullptr, &s_textureBinder);
 
 DECLARE_RENDER_DATA_CONTAINER(Skeleton, RenderProxySkeleton, NamedBuffer::Skeletons, nullptr, &s_skeletonBinder);
-
 
 #define DECLARE_SRV_COND(setName, name, type, count, cond, cat) \
     static ShaderInputGroup::DeclareDescriptor HYP_UNIQUE_NAME(Descriptor_##name)(&GetStaticDescriptorTableDeclaration(), HYP_NAME_UNSAFE(setName), type, ShaderRegister::SRV, HYP_NAME_UNSAFE(name), HYP_MAKE_CONST_ARG(cond), count, ~0u, false, cat)
