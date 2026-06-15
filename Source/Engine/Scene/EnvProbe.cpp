@@ -593,7 +593,7 @@ void EnvProbe::UpdateRenderProxy(RenderProxyEnvProbe* proxy)
     bufferData.aabbMax = Vec4f(worldBounds.max, 1.0f);
     bufferData.worldPosition = Vec4f(GetOrigin(), 1.0f);
     bufferData.dimensions = Vec2u { m_dimensions.x, m_dimensions.y };
-    bufferData.typeAndFlags = uint32(m_envProbeType) | (uint32(m_envProbeFlags) >> 3);
+    bufferData.typeAndFlags = uint32(m_envProbeType) | (uint32(m_envProbeFlags) << 3);
 
     // Update Spherical Harmonics data.
     const float* inSH = m_shData.values;
