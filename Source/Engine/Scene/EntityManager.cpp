@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <ScenePch.hpp>
 
@@ -393,9 +393,9 @@ void EntityManager::Shutdown()
                 if (removeFromOctreeResult.HasError())
                 {
                     HYP_LOG(Entity, Warning, "Failed to remove Entity {} from Scene {}'s octree: {}",
-                        entity->GetName(),
-                        m_scene->GetName(),
-                        removeFromOctreeResult.GetError().GetMessage());
+                            entity->GetName(),
+                            m_scene->GetName(),
+                            removeFromOctreeResult.GetError().GetMessage());
                 }
             }
 
@@ -665,7 +665,7 @@ void EntityManager::AddExistingEntity_Internal(const Handle<Entity>& entity)
     {
         return;
     }
-    
+
     Assert(!IsLocked() && (IsOnThread(m_ownerThreadId) || IsDetachedScene()));
 
     TLockGuard<AtomicFlag> lock;
@@ -852,7 +852,7 @@ void EntityManager::MoveEntity(const Handle<Entity>& entity, const Handle<Entity
     {
         return;
     }
-    
+
     Assert(!IsLocked() && (IsOnThread(m_ownerThreadId) || IsDetachedScene()));
 
     TLockGuard<AtomicFlag> lock;
@@ -882,9 +882,9 @@ void EntityManager::MoveEntity(const Handle<Entity>& entity, const Handle<Entity
             if (removeFromOctreeResult.HasError())
             {
                 HYP_LOG(Entity, Warning, "Failed to remove Entity {} from Scene {}'s octree: {}",
-                    entity->GetName(),
-                    m_scene->GetName(),
-                    removeFromOctreeResult.GetError().GetMessage());
+                        entity->GetName(),
+                        m_scene->GetName(),
+                        removeFromOctreeResult.GetError().GetMessage());
             }
         }
 
@@ -954,6 +954,8 @@ void EntityManager::MoveEntity(const Handle<Entity>& entity, const Handle<Entity
 
         m_entities.Remove(entity);
     }
+
+    lock.Reset();
 
     // Add the entity and its components to the other EntityManager
     auto addToOtherEntityManager = [other = other, entity = entity, components = std::move(components)]() mutable
@@ -1049,15 +1051,19 @@ void EntityManager::MoveEntity(const Handle<Entity>& entity, const Handle<Entity
             componentIds = entityData->components;
         }
 
+        // Notify systems that entity is being added to them
+        other->NotifySystemsOfEntityAdded(entity, componentIds);
+
+        // Have to reset lock before calling OnAddedToWorld or OnAddedToScene, the Entity
+        // may add new Entities which would cause a deadlock for detached scenes if this wasn't unlocked.
+        lock.Reset();
+
         entity->OnAddedToScene(other->m_scene);
 
         if (other->m_world)
         {
             entity->OnAddedToWorld(other->m_world);
         }
-
-        // Notify systems that entity is being added to them
-        other->NotifySystemsOfEntityAdded(entity, componentIds);
     };
 
     if (IsOnThread(other->GetOwnerThreadId()))
@@ -1074,7 +1080,7 @@ void EntityManager::MoveEntity(const Handle<Entity>& entity, const Handle<Entity
 void EntityManager::AddComponent(Entity* entity, const BoxedValue& componentData)
 {
     AssertDebug(!componentData.IsNull());
-    
+
     Assert(!IsLocked() && IsOnThread(m_ownerThreadId));
 
     Assert(entity, "Invalid entity");
@@ -1152,7 +1158,7 @@ void EntityManager::AddComponent(Entity* entity, const BoxedValue& componentData
 void EntityManager::AddComponent(Entity* entity, BoxedValue&& componentData)
 {
     AssertDebug(!componentData.IsNull());
-    
+
     Assert(!IsLocked() && IsOnThread(m_ownerThreadId));
 
     Assert(entity, "Invalid entity");
@@ -1228,7 +1234,7 @@ void EntityManager::AddComponent(Entity* entity, BoxedValue&& componentData)
 bool EntityManager::RemoveComponent(TypeId componentTypeId, Entity* entity)
 {
     EnsureValidComponentType(componentTypeId);
-    
+
     Assert(!IsLocked() && (IsOnThread(m_ownerThreadId) || IsDetachedSceneLocked()));
 
     if (!entity)
@@ -1393,7 +1399,7 @@ bool EntityManager::RemoveTag(Entity* entity, EntityTag tag)
     {
         return false;
     }
-    
+
     Assert(!IsLocked() && (IsOnThread(m_ownerThreadId) || IsDetachedSceneLocked()));
 
     const IComponentInterface* componentInterface = ComponentInterfaceRegistry::GetInstance().GetEntityTagComponentInterface(tag);
