@@ -90,7 +90,4 @@ Projects/**/*
 Source/Generated/**/*
 .opencode
 
-.beacon
-
 compile_commands.json
-AGENTS.md
