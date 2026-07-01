@@ -91,7 +91,7 @@ BottomLevelAS* BLASCache::TryGetBLAS(Entity* entity, uint64* pOutKey)
     auto entityToKeyIt = m_impl->entityToKey.Find(entity);
     if (entityToKeyIt == m_impl->entityToKey.End())
     {
-        return false;
+        return nullptr;
     }
 
     const uint64 key = entityToKeyIt->second;

@@ -402,18 +402,11 @@ void LightingPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
     cr << SetDepthWrite(false);
     cr << SetDepthTest(false);
 
-    // if (m_mode == DPM_INDIRECT_LIGHTING)
-    //{
-    //     cr << SetStencilTest(true);
-    //     cr << SetStencilFunction(StencilFunction {
-    //         .passOp = SO_KEEP,
-    //         .failOp = SO_KEEP,
-    //         .depthFailOp = SO_KEEP,
-    //         .compareOp = SCO_EQUAL });
-
-    //    // stencil state: only render where stencil == 0 (non-lightmapped geometry)
-    //    cr << SetStencilState(0, LightmapStencilMask, 0x0);
-    //}
+    static constexpr uint8 StencilFilterMask = (0xFF & ~LightmapStencilMask);
+    
+    frame->cr << SetStencilTest(true);
+    frame->cr << SetStencilFunction(StencilFunction { SO_KEEP, SO_KEEP, SO_KEEP, SCO_EQUAL });
+    frame->cr << SetStencilState(0, StencilFilterMask, 0x0);
 
     HYP_DEFER({
         // reset states
@@ -1029,11 +1022,11 @@ void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
     cr << SetCurrentBlendFunction(BlendFunction::Additive());
 
-    cr << SetStencilTest(true);
-    cr << SetStencilFunction(StencilFunction {
-        .passOp = SO_KEEP, .failOp = SO_KEEP, .depthFailOp = SO_KEEP,
-        .compareOp = SCO_EQUAL // match values with equal atlas index when we render
-    });
+    // cr << SetStencilTest(true);
+    // cr << SetStencilFunction(StencilFunction {
+    //     .passOp = SO_KEEP, .failOp = SO_KEEP, .depthFailOp = SO_KEEP,
+    //     .compareOp = SCO_EQUAL // match values with equal atlas index when we render
+    // });
 
     HYP_DEFER({
         // reset states
@@ -1623,9 +1616,7 @@ static FramebufferRef CreateLightingFramebuffer(GBuffer* gbuffer)
     colorAttachmentDesc.loadOp = LoadOperation::CLEAR;
     colorAttachmentDesc.storeOp = StoreOperation::STORE;
 
-    Attachment* colorAttachment = framebuffer->AddAttachment(
-        0,
-        colorAttachmentDesc);
+    Attachment* colorAttachment = framebuffer->AddAttachment(0, colorAttachmentDesc);
 
     // depth for stencil testing
     const GpuImageViewRef& depthImageView = gbuffer->GetPass(GBufferPass::Opaque).GetAttachment(GBufferTarget::Depth)->GetImageView();
@@ -2975,6 +2966,7 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         frame->cr << SetDepthCompareOp(DCO_LESS);
     }
 
+    // unset opaque target
     frame->cr << SetCurrentFramebuffer(nullptr);
 
     if (g_cvEnableLightmapVolumes.Get())
@@ -3001,6 +2993,16 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
             frame->cr << SetCurrentFramebuffer(nullptr);
         }
+    }
+
+    
+    if (renderCollector.mappingsByBucket[uint32(RenderBucket::Sky)].Any())
+    {
+        frame->cr << SetCurrentFramebuffer(translucentPassFramebuffer);
+        
+        renderCollector.ExecuteDrawCalls(frame, rs, translucentPassFramebuffer, RenderBucketMask<RenderBucket::Sky>);
+
+        frame->cr << SetCurrentFramebuffer(nullptr);
     }
 
     if ((useRayTracingGlobalIllumination || useRayTracingReflections) && view->GetRayTracingView().IsValid())
@@ -3123,12 +3125,6 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
             passData.directLightingPass->RenderToFramebuffer(frame, rs, passData.lightingFramebuffer);
         }
 
-        // Draw sky after opaque and lighting, but before translucent objects
-        if (renderCollector.mappingsByBucket[uint32(RenderBucket::Sky)].Any())
-        {
-            renderCollector.ExecuteDrawCalls(frame, rs, passData.lightingFramebuffer, RenderBucketMask<RenderBucket::Sky>);
-        }
-
         frame->cr << SetCurrentFramebuffer(nullptr);
     }
 
@@ -3147,40 +3143,51 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         passData.cullData.depthPyramidDimensions = passData.depthPyramidRenderer->GetExtent();
     }
 
-    { // combined + translucent (forward pass)
+
+    { // Render the deferred lighting into the color target with a full screen quad.
+        frame->cr << SetCurrentFramebuffer(effectPassFramebuffer);
+
+        frame->cr << SetCurrentViewport(rs.viewport);
+
+        frame->cr << SetInputLayout(StaticVertexInputLayout<VT_Simple>);
+        frame->cr << SetFaceCullMode(FCM_BACK);
+        frame->cr << SetFillMode(FM_FILL);
+        frame->cr << SetTopology(TOP_TRIANGLES);
+        frame->cr << SetDepthTest(false);
+        frame->cr << SetDepthWrite(false);
+
+        static constexpr uint8 StencilFilterMask = (0xFF & ~LightmapStencilMask);
+
+        // frame->cr << SetStencilTest(false);
+        frame->cr << SetStencilTest(true);
+        frame->cr << SetStencilFunction(StencilFunction { SO_KEEP, SO_KEEP, SO_KEEP, SCO_EQUAL });
+        frame->cr << SetStencilState(0, StencilFilterMask, 0x0);
+
+        frame->cr << SetCurrentShader(ShaderDesc(NAME("BlitTexture")));
+
+        frame->cr << SetShaderUniform(0, "SamplerLinear"_sh, RI.placeholderData->GetSamplerLinear());
+        frame->cr << SetShaderUniform(1, "WorldsBuffer"_sh, RI.namedBuffers[NamedBuffer::Worlds]);
+        frame->cr << SetShaderUniform(2, "InTexture"_sh, passData.lightingFramebuffer->GetAttachment(0)->GetImageView());
+
+        frame->cr << CommitDrawState();
+
+        frame->cr << BindVertexBuffer(m_quadMesh->GetVertexBuffer());
+        frame->cr << BindIndexBuffer(m_quadMesh->GetIndexBuffer());
+
+        frame->cr << DrawIndexed(6);
+
+        // reset
+        frame->cr << SetDepthTest(true);
+        frame->cr << SetDepthWrite(true);
+        frame->cr << SetStencilTest(false);
+
+        frame->cr << SetCurrentFramebuffer(nullptr);
+    }
+
+    { // Translucent, forward lit
         ENGINE_STAT_GPU_SCOPE(&s_statFillTranslucent);
 
         frame->cr << SetCurrentFramebuffer(translucentPassFramebuffer);
-
-        { // Render the deferred lighting into the translucent pass framebuffer with a full screen quad.
-
-            frame->cr << SetCurrentViewport(rs.viewport);
-
-            frame->cr << SetInputLayout(StaticVertexInputLayout<VT_Simple>);
-            frame->cr << SetFaceCullMode(FCM_BACK);
-            frame->cr << SetFillMode(FM_FILL);
-            frame->cr << SetTopology(TOP_TRIANGLES);
-            frame->cr << SetDepthTest(false);
-            frame->cr << SetDepthWrite(false);
-            frame->cr << SetStencilTest(false);
-
-            frame->cr << SetCurrentShader(ShaderDesc(NAME("BlitTexture")));
-
-            frame->cr << SetShaderUniform(0, "SamplerLinear"_sh, RI.placeholderData->GetSamplerLinear());
-            frame->cr << SetShaderUniform(1, "WorldsBuffer"_sh, RI.namedBuffers[NamedBuffer::Worlds]);
-            frame->cr << SetShaderUniform(2, "InTexture"_sh, passData.lightingFramebuffer->GetAttachment(0)->GetImageView());
-
-            frame->cr << CommitDrawState();
-
-            frame->cr << BindVertexBuffer(m_quadMesh->GetVertexBuffer());
-            frame->cr << BindIndexBuffer(m_quadMesh->GetIndexBuffer());
-
-            frame->cr << DrawIndexed(6);
-
-            // reset
-            frame->cr << SetDepthTest(true);
-            frame->cr << SetDepthWrite(true);
-        }
 
         // begin translucent with forward rendering
         if (renderCollector.mappingsByBucket[uint32(RenderBucket::Translucent)].Any())

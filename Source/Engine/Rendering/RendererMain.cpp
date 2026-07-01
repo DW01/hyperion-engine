@@ -149,10 +149,11 @@ struct ParallelRenderingState_Shared
         {
             AssertDebug(poolThreads[threadIndex] != nullptr);
 
-            tasks.EmplaceBack(poolThreads[threadIndex]->GetScheduler().Enqueue([&destructCommandRecorders, threadIndex]
-                                                                               {
-                                                                                   destructCommandRecorders(threadIndex);
-                                                                               }));
+            tasks.EmplaceBack(poolThreads[threadIndex]->GetScheduler().Enqueue(
+                [&destructCommandRecorders, threadIndex]
+                {
+                    destructCommandRecorders(threadIndex);
+                }));
         }
 
         AwaitAll(tasks.ToSpan());
@@ -283,6 +284,8 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
 
     const bool hasForwardLighting = (bucket == RenderBucket::Translucent || bucket == RenderBucket::Sky || bucket == RenderBucket::Debug);
     const bool hasLightmaps = (bucket == RenderBucket::Lightmapped);
+    const bool isSky = (bucket == RenderBucket::Sky);
+
     const bool hasDeferredLighting = !hasForwardLighting && !hasLightmaps;
 
     const bool hasInstancing = proxy.enableAutoInstancing || proxy.numInstances;
@@ -293,25 +296,34 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
 
     const bool isCubemap = IsCubemapShader(attributes.GetMaterialAttributes().shaderName);
 
+    uint8 stencilReferenceValue = 0;
+
     // if lightmap volume is set we need stencil testing
     if (hasLightmaps && !isPathTracer)
     {
-        const uint8 stencilReferenceValue = GetLightmapStencilValue(proxy.lightmapElementId) & LightmapStencilMask;
-
-        if (stencilReferenceValue != (attributes.GetMaterialAttributes().stencilReference & LightmapStencilMask))
-        {
-            attributes.GetMaterialAttributes().flags |= MAF_STENCIL_TEST;
-            attributes.GetMaterialAttributes().stencilReference &= ~LightmapStencilMask;
-            attributes.GetMaterialAttributes().stencilReference |= stencilReferenceValue;
-        }
+        stencilReferenceValue = GetLightmapStencilValue(proxy.lightmapElementId) & LightmapStencilMask;
     }
     else if (attributes.GetMaterialAttributes().stencilReference & LightmapStencilMask)
     {
-        attributes.GetMaterialAttributes().stencilReference &= ~LightmapStencilMask;
+        stencilReferenceValue = (attributes.GetMaterialAttributes().stencilReference & ~LightmapStencilMask);
+    }
+    
+    if (isSky)
+    {
+        stencilReferenceValue = SkyStencilMask;
+    }
 
-        if (!attributes.GetMaterialAttributes().stencilReference)
+    if (stencilReferenceValue != attributes.GetMaterialAttributes().stencilReference)
+    {
+        if (stencilReferenceValue != 0)
+        {
+            attributes.GetMaterialAttributes().flags |= MAF_STENCIL_TEST;
+            attributes.GetMaterialAttributes().stencilReference = stencilReferenceValue;
+        }
+        else
         {
             attributes.GetMaterialAttributes().flags &= ~MAF_STENCIL_TEST;
+            attributes.GetMaterialAttributes().stencilReference = 0;
         }
     }
 

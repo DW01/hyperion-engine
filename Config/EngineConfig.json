@@ -1,8 +1,8 @@
 {
   "Rendering": {
     "HBAO": {
-      "Radius": 1.5,
-      "Power": 2.5,
+      "Radius": 1.500000,
+      "Power": 2.500000,
       "UseTemporalBlending": false,
       "Enabled": true
     },
@@ -12,7 +12,7 @@
     "PathTracing": false,
     "RayTracedReflections": false,
     "DDGI": false,
-    "RayTracingEnabled": true,
+    "RayTracingEnabled": false,
     "IndirectRendering": true,
     "DepthPrepass": true,
     "ParallelCollection": true,
@@ -25,10 +25,10 @@
       "Quality": 2,
       "RoughnessScattering": false,
       "ConeTracing": true,
-      "RayStep": 1.5,
+      "RayStep": 1.500000,
       "NumIterations": 64,
-      "EyeFade": [0.99, 0.995],
-      "ScreenEdgeFade": [0.99, 0.995],
+      "EyeFade": [0.990000, 0.995000],
+      "ScreenEdgeFade": [0.990000, 0.995000],
       "ResolutionScale": 1
     },
     "Debug": {
@@ -42,7 +42,8 @@
     "Vulkan": {
       "DebugLayers": false,
       "TimelineSemaphores": true
-    }
+    },
+    "RayTracedGI": false
   },
   "Editor": {
     "SkipRenderingWhenIdle": true,

@@ -48,7 +48,7 @@ struct RenderProxy;
 enum class LightType : uint32;
 enum EnvProbeType : uint32;
 
-// UpdateRenderProxy trait declared in RenderProxyList.hpp
+static constexpr uint8 SkyStencilMask = 0x20;
 
 struct DrawCallRange
 {

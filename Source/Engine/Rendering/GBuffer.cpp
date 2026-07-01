@@ -268,7 +268,7 @@ FramebufferRef GBuffer::CreateFramebuffer(const FramebufferRef& parentFramebuffe
                 // Use Store op == NONE for those
                 if (i != GBufferTarget::Albedo)
                 {
-                    addOwnedAttachment(i, GetImageFormat(GBufferTarget::TargetName(i)), LoadOperation::LOAD, StoreOperation::NONE);
+                    addSharedAttachment(i, LoadOperation::LOAD, StoreOperation::NONE);
 
                     continue;
                 }

@@ -186,25 +186,25 @@ struct CORE_API BoxedValue
         uint32 dummy;
     } extData;
 
-    BoxedValue()
+    HYP_FORCE_INLINE BoxedValue()
     {
         extData = {};
     }
 
     template <class T, typename = std::enable_if_t<!std::is_same_v<NormalizedType<T>, BoxedValue>>>
-    explicit BoxedValue(T&& value)
+    explicit HYP_FORCE_INLINE BoxedValue(T&& value)
         : BoxedValue()
     {
         BoxedValueHelper<NormalizedType<T>> {}.Set(*this, std::forward<T>(value));
     }
 
-    BoxedValue(const BoxedValue& other)
+    HYP_FORCE_INLINE BoxedValue(const BoxedValue& other)
         : value(other.value)
     {
         extData = other.extData;
     }
 
-    BoxedValue& operator=(const BoxedValue& other)
+    HYP_FORCE_INLINE BoxedValue& operator=(const BoxedValue& other)
     {
         if (&other == this)
         {
@@ -217,14 +217,14 @@ struct CORE_API BoxedValue
         return *this;
     }
 
-    BoxedValue(BoxedValue&& other) noexcept
+    HYP_FORCE_INLINE BoxedValue(BoxedValue&& other) noexcept
         : value(std::move(other.value))
     {
         extData = other.extData;
         other.extData = {};
     }
 
-    BoxedValue& operator=(BoxedValue&& other) noexcept
+    HYP_FORCE_INLINE BoxedValue& operator=(BoxedValue&& other) noexcept
     {
         if (&other == this)
         {
@@ -239,7 +239,11 @@ struct CORE_API BoxedValue
         return *this;
     }
 
+#if defined(HYP_SCRIPT) && defined(HYP_DEBUG_MODE)
     ~BoxedValue();
+#else   // !HYP_SCRIPT || !HYP_DEBUG_MODE
+    ~BoxedValue() = default;
+#endif  // HYP_SCRIPT && HYP_DEBUG_MODE
 
     HYP_FORCE_INLINE bool IsValid() const
     {
@@ -271,41 +275,7 @@ struct CORE_API BoxedValue
         value.Reset();
     }
 
-    HYP_NODISCARD AnyRef ToRef()
-    {
-        if (!IsValid())
-        {
-            return AnyRef();
-        }
-
-        if (ObjectBase** ppObjectBase = value.TryGet<ObjectBase*>())
-        {
-            ObjectBase* objectBase = *ppObjectBase;
-            return AnyRef(&Class_GetTypeInfo(*objectBase->InstanceClass()), objectBase);
-        }
-
-        if (Handle<ObjectBase>* handlePtr = value.TryGet<Handle<ObjectBase>>())
-        {
-            return handlePtr->ToRef();
-        }
-
-        if (RC<void>* rcPtr = value.TryGet<RC<void>>())
-        {
-            return rcPtr->ToRef();
-        }
-
-        if (Any* anyPtr = value.TryGet<Any>())
-        {
-            return anyPtr->ToRef();
-        }
-
-        if (AnyRef* anyRefPtr = value.TryGet<AnyRef>())
-        {
-            return *anyRefPtr;
-        }
-
-        return AnyRef(value.GetCurrentTypeInfo(), value.GetPointer());
-    }
+    HYP_NODISCARD AnyRef ToRef();
 
     HYP_FORCE_INLINE HYP_NODISCARD AnyRef ToRef() const
     {

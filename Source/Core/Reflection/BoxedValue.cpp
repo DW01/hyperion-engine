@@ -14,20 +14,68 @@
 
 namespace Hyperion {
 
+CORE_API const TypeInfo& Class_GetTypeInfo(const Class& cls)
+{
+    return *cls.GetTypeInfo();
+}
+
+#pragma region BoxedValue
+
+#if defined(HYP_SCRIPT) && defined(HYP_DEBUG_MODE)
 BoxedValue::~BoxedValue()
 {
-#ifdef HYP_SCRIPT
     AssertDebug(extData.gcIndex == INVALID_GC_INDEX,
                 "BoxedValue being destroyed while still registered with the GC (index = {})",
                 uint32(extData.gcIndex));
 
     extData.gcIndex = GARBAGE_GC_INDEX;
-#endif
+}
+#endif // defined(HYP_SCRIPT) && defined(HYP_DEBUG_MODE)
+
+
+HYP_NODISCARD AnyRef BoxedValue::ToRef()
+{
+    if (!IsValid())
+    {
+        return AnyRef();
+    }
+
+    if (value.Is<ObjectBase*>())
+    {
+        ObjectBase* object = value.GetUnchecked<ObjectBase*>();
+        
+        // Null object
+        if (!object)
+        {
+            return AnyRef(&Class_GetTypeInfo(*ObjectBase::StaticClass()), nullptr);
+        }
+        
+        return AnyRef(&Class_GetTypeInfo(*object->InstanceClass()), object);
+    }
+
+    if (Handle<ObjectBase>* pHandle = value.TryGet<Handle<ObjectBase>>())
+    {
+        return pHandle->ToRef();
+    }
+
+    if (RC<void>* pRefCounted = value.TryGet<RC<void>>())
+    {
+        return pRefCounted->ToRef();
+    }
+
+    if (Any* pAny = value.TryGet<Any>())
+    {
+        return pAny->ToRef();
+    }
+
+    if (AnyRef* pAnyRef = value.TryGet<AnyRef>())
+    {
+        return *pAnyRef;
+    }
+
+    return AnyRef(value.GetCurrentTypeInfo(), value.GetPointer());
 }
 
-CORE_API const TypeInfo& Class_GetTypeInfo(const Class& cls)
-{
-    return *cls.GetTypeInfo();
-}
+#pragma endregion BoxedValue
 
 } // namespace Hyperion
