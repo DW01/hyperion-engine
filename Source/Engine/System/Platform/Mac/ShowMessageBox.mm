@@ -25,7 +25,8 @@ int ShowMessageBox(
     __block NSString* messageString = [NSString stringWithUTF8String:message];
     __block NSString** buttonTextStrings = (NSString**)malloc(sizeof(NSString*) * 3);
 
-    __block const Proc<void()>** buttonFuncProcs = doAsyncCall ? (const Proc<void()>**)malloc(sizeof(const Proc<void()>*) * 3) : NULL;
+    __block void** buttonFuncProcs = buttons != 0 ? (void**)malloc(sizeof(void*) * 3) : NULL;
+    memset(buttonFuncProcs, 0, sizeof(void*) * 3);
 
     for (int i = 0; i < 3; i++)
     {
@@ -40,7 +41,7 @@ int ShowMessageBox(
 
         if (buttonFuncs != NULL)
         {
-            buttonFuncProcs[i] = (const Proc<void()>*)buttonFuncs[i];
+            buttonFuncProcs[i] = const_cast<void*>(buttonFuncs[i]);
         }
         else
         {
@@ -104,7 +105,8 @@ int ShowMessageBox(
 
             if (returnValue >= 0 && returnValue < 3)
             {
-                const Proc<void()>* pProc = buttonFuncProcs[returnValue];
+                const Proc<void()>* pProc = static_cast<const Proc<void()>*>(buttonFuncProcs[returnValue]);
+                
                 if (pProc != NULL)
                 {
                     (*pProc)();
@@ -121,7 +123,7 @@ int ShowMessageBox(
             {
                 for (int i = 0; i < 3; i++)
                 {
-                    const Proc<void()>* pProc = buttonFuncProcs[i];
+                    const Proc<void()>* pProc = static_cast<const Proc<void()>*>(buttonFuncProcs[i]);
 
                     if (pProc != NULL)
                     {

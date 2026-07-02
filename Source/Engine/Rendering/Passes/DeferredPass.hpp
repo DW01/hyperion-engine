@@ -342,7 +342,7 @@ public:
 
     struct RenderedViewOutputs
     {
-        uint8 frameId = uint8(-1);
+        uint32 frameIndex = ~0u;
         Array<RenderedViewOutput, RenderAllocator> items;
     };
 

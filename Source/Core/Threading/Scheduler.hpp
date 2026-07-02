@@ -248,6 +248,7 @@ public:
         using ReturnType = typename FunctionTraits<Function>::ReturnType;
 
         TaskExecutorInstance<ReturnType>* executor;
+        ValueStorage<Task<ReturnType>> taskStorage;
 
         {
             Mutex::Guard guard(m_mutex);
@@ -263,13 +264,14 @@ public:
             scheduledTask.debugName = debugName;
 
             Enqueue_Internal(std::move(scheduledTask));
+            
+            // Need to construct within the lock.
+            taskStorage.Construct(executor->GetTaskID(), this, executor, !(flags & TaskEnqueueFlags::FIRE_AND_FORGET));
         }
-
-        Task<ReturnType> task(executor->GetTaskID(), this, executor, !(flags & TaskEnqueueFlags::FIRE_AND_FORGET));
 
         WakeUpOwnerThread();
 
-        return task;
+        return std::move(reinterpret_cast<Task<ReturnType>&>(taskStorage));
     }
 
     /*! \brief Enqueue a task to be executed on the owner thread. This is to be

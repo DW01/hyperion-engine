@@ -406,19 +406,15 @@ public:
         return Get() < other.Get();
     }
 
-    template <class Ty, std::enable_if_t<!std::is_same_v<Ty, T> && std::is_convertible_v<std::add_pointer_t<Ty>, std::add_pointer_t<T>>, int> = 0>
+    template <class Ty, std::enable_if_t<!std::is_same_v<Ty, T> && (std::is_convertible_v<std::add_pointer_t<Ty>, std::add_pointer_t<T>> || std::is_same_v<Ty, void>), int> = 0>
     HYP_FORCE_INLINE explicit operator RefCountedPtr<Ty, CountType>&()
     {
-        static_assert(std::is_convertible_v<std::add_pointer_t<T>, std::add_pointer_t<Ty>>, "T must be convertible to Ty!");
-
         return reinterpret_cast<RefCountedPtr<Ty, CountType>&>(*this);
     }
 
-    template <class Ty, std::enable_if_t<!std::is_same_v<Ty, T> && std::is_convertible_v<std::add_pointer_t<Ty>, std::add_pointer_t<T>>, int> = 0>
+    template <class Ty, std::enable_if_t<!std::is_same_v<Ty, T> && (std::is_convertible_v<std::add_pointer_t<Ty>, std::add_pointer_t<T>> || std::is_same_v<Ty, void>), int> = 0>
     HYP_FORCE_INLINE explicit operator const RefCountedPtr<Ty, CountType>&() const
     {
-        static_assert(std::is_convertible_v<std::add_pointer_t<T>, std::add_pointer_t<Ty>>, "T must be convertible to Ty!");
-
         return reinterpret_cast<const RefCountedPtr<Ty, CountType>&>(*this);
     }
 
@@ -766,27 +762,23 @@ public:
         return GetUnsafe() < other.GetUnsafe();
     }
 
-    template <class Ty, std::enable_if_t<!std::is_same_v<Ty, T> && std::is_convertible_v<std::add_pointer_t<Ty>, std::add_pointer_t<T>>, int> = 0>
+    template <class Ty, std::enable_if_t<!std::is_same_v<Ty, T> && (std::is_convertible_v<std::add_pointer_t<Ty>, std::add_pointer_t<T>> || std::is_same_v<Ty, void>), int> = 0>
     HYP_FORCE_INLINE explicit operator WeakRefCountedPtr<Ty, CountType>&()
     {
-        static_assert(std::is_convertible_v<std::add_pointer_t<T>, std::add_pointer_t<Ty>>, "T must be convertible to Ty!");
-
         return reinterpret_cast<WeakRefCountedPtr<Ty, CountType>&>(*this);
     }
 
-    template <class Ty, std::enable_if_t<!std::is_same_v<Ty, T> && std::is_convertible_v<std::add_pointer_t<Ty>, std::add_pointer_t<T>>, int> = 0>
+    template <class Ty, std::enable_if_t<!std::is_same_v<Ty, T> && (std::is_convertible_v<std::add_pointer_t<Ty>, std::add_pointer_t<T>> || std::is_same_v<Ty, void>), int> = 0>
     HYP_FORCE_INLINE explicit operator const WeakRefCountedPtr<Ty, CountType>&() const
     {
-        static_assert(std::is_convertible_v<std::add_pointer_t<T>, std::add_pointer_t<Ty>>, "T must be convertible to Ty!");
-
         return reinterpret_cast<const WeakRefCountedPtr<Ty, CountType>&>(*this);
     }
 
-    HYP_FORCE_INLINE RefCountedPtr<T, CountType> Lock() const
+    HYP_NODISCARD RefCountedPtr<T, CountType> Lock() const
     {
         RefCountedPtr<T, CountType> result;
 
-        Block* block = Base::GetBlock_Internal();
+        auto* block = Base::GetBlock_Internal();
 
         if (!block)
         {
@@ -921,6 +913,41 @@ public:
         weak.SetBlock_Internal(Base::GetBlock_Internal(), true);
 
         return weak;
+    }
+
+    HYP_NODISCARD RefCountedPtr<void, CountType> Lock() const
+    {
+        RefCountedPtr<void, CountType> result;
+
+        auto* block = Base::GetBlock_Internal();
+
+        if (!block)
+        {
+            return result;
+        }
+
+        if constexpr (std::is_integral_v<CountType>) // not atomic
+        {
+            if (block->strong > 0)
+            {
+                result.RefCountedPtrBase<CountType>::SetBlock_Internal(block, true);
+            }
+        }
+        else
+        {
+            uint32 expected = block->strong.Get(MemoryOrder::ACQUIRE);
+        
+            while (expected > 0)
+            {
+                if (block->strong.CompareExchangeWeak(expected, expected + 1, MemoryOrder::ACQUIRE_RELEASE))
+                {
+                    result.RefCountedPtrBase<CountType>::SetBlock_Internal(block, false);
+                    break;
+                }
+            }
+        }
+
+        return result;
     }
 
     HYP_FORCE_INLINE HashCode GetHashCode() const

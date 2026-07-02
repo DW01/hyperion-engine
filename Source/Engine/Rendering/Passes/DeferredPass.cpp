@@ -175,9 +175,10 @@ CVar<bool> g_cvBloom { "Rendering.Bloom", true, "Rendering.Bloom.Enabled" };
 CVar<bool> g_cvEnableLightmapVolumes { "Rendering.LightmapVolumes", true };
 CVar<bool> g_cvClusteredShading { "Rendering.ClusteredShading", true };
 CVar<float> g_cvTonemapExposure { "Rendering.Tonemap.Exposure", 1.8f };
-CVar<bool> g_cvBypassDrawing { "Rendering.BypassDrawing", false };
 CVar<bool> g_cvDepthPrepass { "Rendering.DepthPrepass", true };
 CVar<bool> g_cvFogVolumes { "Rendering.FogVolumes", true };
+
+extern CVar<int> g_cvSkipRendering;
 
 namespace DeferredRendererHelpers {
 
@@ -2825,12 +2826,6 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 {
     AssertDebug(rs.world && rs.view);
 
-    uint32 slot = GetRingIndex();
-    if (m_renderedViewOutputs.frameId != slot)
-    {
-        m_renderedViewOutputs.frameId = slot;
-        m_renderedViewOutputs.items.Clear();
-    }
 
     View* view = rs.view;
     Assert(view->GetFlags() & ViewFlags::GBUFFER);
@@ -2848,9 +2843,15 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
     const uint32 frameIndex = frame->GetFrameIndex();
 
-    if (g_cvBypassDrawing.Get() || rs.viewport.extent.Volume() == 0)
+    if ((g_cvSkipRendering.Get() != 0) || rs.viewport.extent.Volume() == 0)
     {
         return;
+    }
+
+    if (m_renderedViewOutputs.frameIndex != frameIndex)
+    {
+        m_renderedViewOutputs.frameIndex = frameIndex;
+        m_renderedViewOutputs.items.Resize(0);
     }
 
     // Assign lights and envprobes to tiles.

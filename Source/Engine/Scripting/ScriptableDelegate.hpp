@@ -391,8 +391,13 @@ public:
         {
             return false;
         }
+        
+        RC<void> strongRef = handle.delegateImpl.Lock();
+        if (strongRef != nullptr)
+        {
+            handle.removeFn(strongRef.Get(), handle.entry);
+        }
 
-        handle.removeFn(handle.delegateImpl, handle.entry);
         handle.entry = nullptr;
 
         return true;

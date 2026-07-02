@@ -2757,8 +2757,8 @@ void EditorSubsystem::InitViewport()
 
                             InputManager* inputManager = g_appContext->GetMainWindow()->GetInputManager();
 
-                            // If 'ctrl' key is down, add/remove from current selection.
-                            if (inputManager->IsKeyDown(KeyCode::KEY_LCTRL) || inputManager->IsKeyDown(KeyCode::KEY_RCTRL))
+                            // If CTRL key is down, add/remove from current selection.
+                            if (inputManager->IsCtrlDown())
                             {
                                 shouldMutateSelection = true;
                             }
@@ -3668,6 +3668,22 @@ bool EditorSubsystem::IsNodeSelected(const Handle<Node>& node) const
     }
 
     return m_selectedNodes.Find(node) != m_selectedNodes.End();
+}
+
+void EditorSubsystem::SetSelectedNodes(const Array<Handle<Node>>& nodes)
+{
+    AssertOnThread(g_simThread);
+
+    if (nodes.Empty())
+    {
+        ClearSelection();
+
+        return;
+    }
+
+    m_selectedNodes = TSet<Handle<Node>>(nodes.Begin(), nodes.End());
+    
+    OnSelectionChanged();
 }
 
 Array<Handle<Node>> EditorSubsystem::GetSelectedNodes() const

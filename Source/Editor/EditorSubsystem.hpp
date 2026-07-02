@@ -516,6 +516,9 @@ public:
     void ClearSelection();
 
     HYP_METHOD()
+    void SetSelectedNodes(const Array<Handle<Node>>& nodes);
+
+    HYP_METHOD()
     bool IsNodeSelected(const Handle<Node>& node) const;
 
     HYP_METHOD()

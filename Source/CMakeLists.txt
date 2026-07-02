@@ -237,7 +237,7 @@ if(HYP_MSVC)
   #     set(CMAKE_CXX_FLAGS "/Zc:preprocessor /Zc:__cplusplus /O2 /Oy /MD /constexpr:depth1024 /bigobj /MP4")
   # endif()
 
-  # address sanitizer
+  # address sanitizer: Enable if you 
   # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fsanitize=address")
 else()
   # for clang on windows - no min/max macros
@@ -262,7 +262,7 @@ else()
   # for full template backtrace
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftemplate-backtrace-limit=0")
 
-  # # address sanitizer and other debugging utilities
+  # # address sanitizer -- uncomment to enable
   # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
 
   # ClangCL on Windows uses link.exe, so it supports /DEBUG and /NATVIS

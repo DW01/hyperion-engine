@@ -142,14 +142,6 @@ void VulkanSwapchain::PresentFrame(VulkanFrame* frame, VulkanDeviceQueue* queue)
 {
     AssertOnThread(g_renderThread);
 
-    // Debug: ensure all images are in the PRESENT state
-#ifdef HYP_RHI_DEBUG_NAMES
-    for (VulkanGpuImage* image : m_images)
-    {
-        Assert(image->GetResourceState() == RS_PRESENT);
-    }
-#endif
-
     VulkanSemaphore* presentSemaphore = GetCurrentPresentSemaphore();
     Assert(presentSemaphore != nullptr && presentSemaphore->IsCreated());
 
@@ -310,7 +302,6 @@ RendererResult VulkanSwapchain::Create()
     for (const VulkanGpuImageRef& image : m_images)
     {
         AssertDebug(image && image->IsCreated());
-        AssertDebug(image->GetResourceState() == RS_PRESENT);
 
         FramebufferDesc framebufferDesc {};
         framebufferDesc.extent = m_extent;
@@ -525,28 +516,6 @@ RendererResult VulkanSwapchain::RetrieveImageHandles()
 
         m_images[i] = std::move(image);
     }
-
-    // Transition each image to PRESENT state immediately
-    UniquePtr<SingleTimeCommands> singleTimeCommands = RI.GetSingleTimeCommands();
-
-    singleTimeCommands->Push([&](CommandRecorder& cr)
-                             {
-                                 for (const VulkanGpuImageRef& image : m_images)
-                                 {
-                                     Assert(image.IsValid());
-
-                                     cr << InsertBarrier(image, RS_PRESENT);
-                                 }
-                             });
-
-    CheckResultOrReturn(singleTimeCommands->Execute());
-#ifdef HYP_RHI_DEBUG_NAMES
-    // Ensure all images are in the PRESENT state
-    for (VulkanGpuImage* image : m_images)
-    {
-        Assert(image->GetResourceState() == RS_PRESENT);
-    }
-#endif
 
     return {};
 }

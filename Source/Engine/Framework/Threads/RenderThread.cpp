@@ -68,6 +68,7 @@ static constexpr float BatteryMaxFrameRate = 30.0f;
 CVar<float> g_cvTargetFrameRate("Rendering.TargetFrameRate", 0);                             // 0    = no limit
 CVar<bool> g_cvLimitFrameRateOnBatteryPower("Rendering.LimitFrameRateOnBatteryPower", true); // true = enable framerate cap when on battery
 CVar<bool> g_cvLimitFrameRateWhenIdle("Rendering.LimitFrameRateWhenIdle", true);             // true = enable framerate cap when idling in standalone
+CVar<int> g_cvSkipRendering("Rendering.SkipRendering", 0); // -1 = True, set by SkipRenderingWhenIdle, 0 = False, 1 = True (manually set)
 
 #if HYP_EDITOR
 
@@ -182,13 +183,21 @@ void RenderThread::Update()
         }
     }
 
-    bool skipRenderingThisFrame = false;
-
 #if HYP_EDITOR
-    // @FIXME: We need to check if we are in editor mode, the HYP_EDITOR define is not enough. That just means it is compiled with editor support
-    if ((!mainWindow || !mainWindow->HasFocus()) && g_cvSkipRenderingWhenIdle.Get() > 0)
+    const int skipRenderingValue = g_cvSkipRendering.Get();
+    
+    if (skipRenderingValue < 1)
     {
-        skipRenderingThisFrame = true;
+        // @FIXME: We need to check if we are in editor mode, the HYP_EDITOR define is not enough. That just means it is compiled with editor support
+        if (g_cvSkipRenderingWhenIdle.Get() > 0)
+        {
+            const bool skipRenderingThisFrame = (!mainWindow || !mainWindow->HasFocus());
+
+            if ((skipRenderingValue != 0) != skipRenderingThisFrame)
+            {
+                g_cvSkipRendering.Set(skipRenderingThisFrame ? -1 : 0);
+            }
+        }
     }
 #endif
 
@@ -212,63 +221,60 @@ void RenderThread::Update()
 
     Swapchain* swapchain = nullptr;
 
-    if (!skipRenderingThisFrame)
+    if (swapchains.Any())
     {
-        if (swapchains.Any())
+        for (Swapchain* swapchain : swapchains)
         {
-            for (Swapchain* swapchain : swapchains)
-            {
-                RI.PrepareSwapchain(swapchain);
-            }
-
-            swapchain = swapchains[0];
+            RI.PrepareSwapchain(swapchain);
         }
 
-        Span<World*> worldsToRender = GetActiveWorlds();
-
-        if (worldsToRender)
-        {
-            PassBase* mainRenderer = RI.namedPasses[NamedPass::Deferred][0];
-            AssertDebug(mainRenderer != nullptr);
-
-            RenderSetup renderSetup {};
-
-            if (swapchain != nullptr)
-            {
-                renderSetup.swapchain = swapchain;
-
-                const Vec2u swapchainExtent = swapchain->GetExtent();
-
-                const float renderTargetScale = mainWindow->GetRenderTargetScale();
-                const Vec2u renderExtent = Vec2u(Vec2f(swapchainExtent) * renderTargetScale);
-
-                renderSetup.viewport = Viewport { renderExtent };
-            }
-
-            for (World* world : worldsToRender)
-            {
-                AssertDebug(world != nullptr);
-
-                renderSetup.world = world;
-
-                if (world->GetViews().Size() != 0)
-                {
-                    mainRenderer->RenderFrame(frame, renderSetup);
-                }
-            }
-
-            renderSetup.world = nullptr;
-
-            if (!RI.finalPass)
-            {
-                RI.finalPass = HYP_POOL_NEW(g_renderPool, FinalPass);
-                RI.finalPass->Create();
-            }
-
-            RI.finalPass->Render(frame, renderSetup);
-        }
+        swapchain = swapchains[0];
     }
 
+    Span<World*> worldsToRender = GetActiveWorlds();
+
+    if (worldsToRender)
+    {
+        PassBase* mainRenderer = RI.namedPasses[NamedPass::Deferred][0];
+        AssertDebug(mainRenderer != nullptr);
+
+        RenderSetup renderSetup {};
+
+        if (swapchain != nullptr)
+        {
+            renderSetup.swapchain = swapchain;
+
+            const Vec2u swapchainExtent = swapchain->GetExtent();
+
+            const float renderTargetScale = mainWindow->GetRenderTargetScale();
+            const Vec2u renderExtent = Vec2u(Vec2f(swapchainExtent) * renderTargetScale);
+
+            renderSetup.viewport = Viewport { renderExtent };
+        }
+
+        for (World* world : worldsToRender)
+        {
+            AssertDebug(world != nullptr);
+
+            renderSetup.world = world;
+
+            if (world->GetViews().Size() != 0)
+            {
+                mainRenderer->RenderFrame(frame, renderSetup);
+            }
+        }
+
+        renderSetup.world = nullptr;
+
+        if (!RI.finalPass)
+        {
+            RI.finalPass = HYP_POOL_NEW(g_renderPool, FinalPass);
+            RI.finalPass->Create();
+        }
+
+        RI.finalPass->Render(frame, renderSetup);
+    }
+    
     // update shared global descriptor sets
     for (DescriptorSet* ds : RI.globalDescriptorTable->GetSets()[frame->GetFrameIndex()])
     {

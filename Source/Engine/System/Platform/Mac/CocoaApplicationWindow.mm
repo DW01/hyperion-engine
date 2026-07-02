@@ -34,7 +34,13 @@
 using namespace Hyperion;
 
 namespace Hyperion {
+namespace PlatformUtils {
+
 KeyCode MapCocoaKeyCodeToKeyCode(unsigned short keyCode);
+
+bool IsKeyUpEvent(NSEvent* event);
+
+} // namespace PlatformUtils
 } // namespace Hyperion
 
 #pragma mark - HyperionMetalView
@@ -168,6 +174,19 @@ KeyCode MapCocoaKeyCodeToKeyCode(unsigned short keyCode);
 #define HANDLE_COCOA_EVENT(method)                                                  \
     - (void)method:(NSEvent *)nsEvent                                               \
     {                                                                               \
+        if (_hyperionWindow)                                                        \
+        {                                                                           \
+            Event event;                                                            \
+            if (_hyperionWindow->HandleNSEvent(nsEvent, event))                     \
+            {                                                                       \
+                _hyperionWindow->GetInputManager()->ProcessEvent(std::move(event)); \
+            }                                                                       \
+        }                                                                           \
+    }
+
+#define HANDLE_COCOA_EVENT_COND(method)                                             \
+    - (void)method:(NSEvent *)nsEvent                                               \
+    {                                                                               \
         if (_hyperionWindow && _hyperionWindow->UseCocoaEvents())                   \
         {                                                                           \
             Event event;                                                            \
@@ -178,23 +197,26 @@ KeyCode MapCocoaKeyCodeToKeyCode(unsigned short keyCode);
         }                                                                           \
     }
 
-HANDLE_COCOA_EVENT(mouseMoved)
-HANDLE_COCOA_EVENT(mouseDown)
-HANDLE_COCOA_EVENT(mouseUp)
-HANDLE_COCOA_EVENT(mouseDragged)
-HANDLE_COCOA_EVENT(rightMouseDown)
-HANDLE_COCOA_EVENT(rightMouseUp)
-HANDLE_COCOA_EVENT(rightMouseDragged)
-HANDLE_COCOA_EVENT(scrollWheel)
-// keyDown and keyUp must always consume the event to prevent
-// NSBeep from occurring when the event falls through the responder chain.
-// The macro-generated methods don't call [super keyDown:/keyUp:], which
-// properly marks the event as handled. When UseCocoaEvents() is false,
-// key events are handled by PollEvents in CocoaAppContext.
-HANDLE_COCOA_EVENT(keyDown)
-HANDLE_COCOA_EVENT(keyUp)
+HANDLE_COCOA_EVENT_COND(mouseMoved)
+HANDLE_COCOA_EVENT_COND(mouseDown)
+HANDLE_COCOA_EVENT_COND(mouseUp)
+HANDLE_COCOA_EVENT_COND(mouseDragged)
+HANDLE_COCOA_EVENT_COND(rightMouseDown)
+HANDLE_COCOA_EVENT_COND(rightMouseUp)
+HANDLE_COCOA_EVENT_COND(rightMouseDragged)
+HANDLE_COCOA_EVENT_COND(scrollWheel)
 
+HANDLE_COCOA_EVENT_COND(keyDown)
+HANDLE_COCOA_EVENT_COND(keyUp)
+
+// Always handle flagsChanged as cocoa event message
+// Needed as we don't receieve NSEventFlagsChanged through polling
+// (Avalonia swallows the event, I'm thinking?)
+HANDLE_COCOA_EVENT(flagsChanged)
+
+#undef HANDLE_COCOA_EVENT_COND
 #undef HANDLE_COCOA_EVENT
+                                
 
 @end
 
@@ -578,16 +600,14 @@ bool CocoaApplicationWindow::HandleNSEvent(NSEvent* nsEvent, Event& event)
 
     PlatformEvent platformEvent {};
     platformEvent.cocoaEvent.nsEvent = (void*)[nsEvent retain]; // keep it around, we release it manually in DestroyCocoaEvent()
+    
     switch ([nsEvent type])
     {
-    case NSEventTypeKeyDown:
-        event = Event(EventType::KEYDOWN, this, platformEvent);
-        event.GetEventData().Set(MapCocoaKeyCodeToKeyCode([nsEvent keyCode]));
-        return true;
-
-    case NSEventTypeKeyUp:
-        event = Event(EventType::KEYUP, this, platformEvent);
-        event.GetEventData().Set(MapCocoaKeyCodeToKeyCode([nsEvent keyCode]));
+    case NSEventTypeKeyDown:        [[fallthrough]];
+    case NSEventTypeKeyUp:          [[fallthrough]];
+    case NSEventTypeFlagsChanged:
+        event = Event(PlatformUtils::IsKeyUpEvent(nsEvent) ? EventType::KEYUP : EventType::KEYDOWN, this, platformEvent);
+        event.GetEventData().Set(PlatformUtils::MapCocoaKeyCodeToKeyCode([nsEvent keyCode]));
         return true;
 
     case NSEventTypeMouseMoved:

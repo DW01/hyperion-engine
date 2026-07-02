@@ -18,6 +18,8 @@
 #include <Core/Utilities/ForEach.hpp>
 #include <Core/Utilities/DeferredScope.hpp>
 
+#include <Core/Memory/RefCountedPtr.hpp>
+
 #include <Core/Name/Name.hpp>
 
 #include <Core/Defines.hpp>
@@ -108,21 +110,22 @@ struct DelegateHandlerEntry : DelegateHandlerEntryBase
 struct DelegateHandler
 {
     DelegateHandlerEntryBase* entry;
-    void* delegateImpl;
+    
+    Weak<void> delegateImpl;
+
     void (*removeFn)(void*, DelegateHandlerEntryBase*);
     void (*detachFn)(void*, DelegateHandler&& delegateHandler);
 
     DelegateHandler()
         : entry(nullptr),
-          delegateImpl(nullptr),
           removeFn(nullptr),
           detachFn(nullptr)
     {
     }
 
-    DelegateHandler(DelegateHandlerEntryBase* entry, void* delegateImpl, void (*removeFn)(void*, DelegateHandlerEntryBase*), void (*detachFn)(void*, DelegateHandler&& delegateHandler))
+    DelegateHandler(DelegateHandlerEntryBase* entry, Weak<void> delegateImpl, void (*removeFn)(void*, DelegateHandlerEntryBase*), void (*detachFn)(void*, DelegateHandler&& delegateHandler))
         : entry(entry),
-          delegateImpl(delegateImpl),
+          delegateImpl(std::move(delegateImpl)),
           removeFn(removeFn),
           detachFn(detachFn)
     {
@@ -133,12 +136,11 @@ struct DelegateHandler
 
     DelegateHandler(DelegateHandler&& other) noexcept
         : entry(other.entry),
-          delegateImpl(other.delegateImpl),
+          delegateImpl(std::move(other.delegateImpl)),
           removeFn(other.removeFn),
           detachFn(other.detachFn)
     {
         other.entry = nullptr;
-        other.delegateImpl = nullptr;
         other.removeFn = nullptr;
         other.detachFn = nullptr;
     }
@@ -153,12 +155,11 @@ struct DelegateHandler
         Reset();
 
         entry = other.entry;
-        delegateImpl = other.delegateImpl;
+        delegateImpl = std::move(other.delegateImpl);
         removeFn = other.removeFn;
         detachFn = other.detachFn;
 
         other.entry = nullptr;
-        other.delegateImpl = nullptr;
         other.removeFn = nullptr;
         other.detachFn = nullptr;
 
@@ -170,22 +171,22 @@ struct DelegateHandler
         Reset();
     }
 
-    HYP_FORCE_INLINE void* GetDelegate() const
-    {
-        return delegateImpl;
-    }
-
     void Reset()
     {
         if (IsValid())
         {
             HYP_CORE_ASSERT(removeFn != nullptr);
 
-            removeFn(delegateImpl, entry);
+            RC<void> strongRef = delegateImpl.Lock();
+            if (strongRef != nullptr)
+            {
+                removeFn(strongRef.Get(), entry);
+            }
         }
 
+        delegateImpl = Weak<void>();
+
         entry = nullptr;
-        delegateImpl = nullptr;
         removeFn = nullptr;
         detachFn = nullptr;
     }
@@ -196,23 +197,27 @@ struct DelegateHandler
         {
             HYP_CORE_ASSERT(detachFn != nullptr);
 
-            detachFn(delegateImpl, std::move(*this));
+            RC<void> strongRef = delegateImpl.Lock();
+            if (strongRef != nullptr)
+            {
+                detachFn(strongRef.Get(), std::move(*this));
+            }
         }
     }
 
     HYP_FORCE_INLINE bool IsValid() const
     {
-        return entry != nullptr && delegateImpl != nullptr;
+        return entry != nullptr && delegateImpl.IsValid();
     }
 
     HYP_FORCE_INLINE bool operator==(const DelegateHandler& other) const
     {
-        return entry == other.entry && delegateImpl == other.delegateImpl;
+        return entry == other.entry && delegateImpl.GetUnsafe() == other.delegateImpl.GetUnsafe();
     }
 
     HYP_FORCE_INLINE bool operator!=(const DelegateHandler& other) const
     {
-        return entry != other.entry || delegateImpl != other.delegateImpl;
+        return entry != other.entry || delegateImpl.GetUnsafe() != other.delegateImpl.GetUnsafe();
     }
 };
 
@@ -221,7 +226,7 @@ struct DelegateHandler
  *  \tparam ReturnType The return type of the handler functions.
  *  \tparam Args The argument types of the handler functions. */
 template <class ReturnType, class... Args>
-class DelegateImpl final
+class DelegateImpl final : public EnableRefCountedPtrFromThis<DelegateImpl<ReturnType, Args...>>
 {
     using ProcType = Proc<ReturnType(Args...)>;
     using ProcList = Array<DelegateHandlerEntry<ProcType>*>;
@@ -387,7 +392,8 @@ public:
 
         if (removeResult)
         {
-            handle.delegateImpl = nullptr;
+            handle.delegateImpl = Weak<void>();
+
             handle.entry = nullptr;
             handle.removeFn = nullptr;
             handle.detachFn = nullptr;
@@ -660,12 +666,12 @@ protected:
 
     DelegateHandler CreateDelegateHandler(DelegateHandlerEntry<ProcType>* entry)
     {
-        return DelegateHandler {
+        return DelegateHandler(
             entry,
-            static_cast<void*>(this),
+            Weak<void>(EnableRefCountedPtrFromThis<DelegateImpl<ReturnType, Args...>>::WeakRefCountedPtrFromThis()),
             RemoveDelegateHandlerCallback,
             DetachDelegateHandlerCallback
-        };
+        );
     }
 
     HYP_FORCE_INLINE void SwapActiveLists()
@@ -715,7 +721,7 @@ public:
     friend class DelegateHandlerSet;
 
     Delegate()
-        : m_impl(nullptr)
+        : m_impl()
     {
     }
 
@@ -723,9 +729,8 @@ public:
     Delegate& operator=(const Delegate& other) = delete;
 
     Delegate(Delegate&& other) noexcept
-        : m_impl(other.m_impl)
+        : m_impl(std::move(other.m_impl))
     {
-        other.m_impl = nullptr;
     }
 
     Delegate& operator=(Delegate&& other) noexcept = delete;
@@ -735,11 +740,8 @@ public:
         // Ensure that the delegate is not being used by any threads before deleting it
         TUniqueLock guard(m_mtx);
 
-        if (m_impl != nullptr)
-        {
-            delete m_impl;
-            m_impl = nullptr;
-        }
+        m_impl.Reset();
+
         // no need to unlock, as the spinlock is being destroyed
     }
 
@@ -784,7 +786,9 @@ public:
 
                 // check still nullptr after acquiring unique lock
                 if (!m_impl)
-                    m_impl = new DelegateImpl<ReturnType, Args...>();
+                {
+                    m_impl = MakeRefCountedPtr<DelegateImpl<ReturnType, Args...>>();
+                }
             }
 
             guard.Reset(m_mtx);
@@ -813,7 +817,9 @@ public:
 
                 // check still nullptr after acquiring unique lock
                 if (!m_impl)
-                    m_impl = new DelegateImpl<ReturnType, Args...>();
+                {
+                    m_impl = MakeRefCountedPtr<DelegateImpl<ReturnType, Args...>>();
+                }
             }
 
             guard.Reset(m_mtx);
@@ -887,7 +893,8 @@ private:
     using DelegateImplType = DelegateImpl<ReturnType, Args...>;
 
     // keep implementation pointer to reduce static memory footprint as many delegates will not have any handlers bound
-    DelegateImplType* m_impl;
+    RC<DelegateImplType> m_impl;
+
     // spinlock to protect against multiple threads creating / reading from m_impl pointer
     SharedMutex m_mtx;
 };
@@ -947,26 +954,28 @@ public:
             HYP_CORE_ASSERT(false, "Cannot remove delegate handlers from a null delegate");
             return 0;
         }
-
-        // lock the delegate object for reading
-        TSharedLock guard(delegate->m_mtx);
-
+        
         Array<DelegateHandler> delegateHandlers;
 
-        for (auto it = TMap::Begin(); it != TMap::End();)
         {
-            if (it->second.delegateImpl == delegate->m_impl)
+            TUniqueLock guard(delegate->m_mtx);
+            
+            for (auto it = TMap::Begin(); it != TMap::End();)
             {
-                delegateHandlers.PushBack(std::move(it->second));
-
-                it = TMap::Erase(it);
-
-                continue;
+                if (it->second.delegateImpl.GetUnsafe() == delegate->m_impl.Get())
+                {
+                    delegateHandlers.PushBack(std::move(it->second));
+                    
+                    it = TMap::Erase(it);
+                    
+                    continue;
+                }
+                
+                ++it;
             }
-
-            ++it;
         }
-
+        
+        // After returning, the array is cleared and the handles are destructed.
         return int(delegateHandlers.Size());
     }
 

@@ -733,8 +733,9 @@ public:
     THashTable();
     THashTable(std::initializer_list<Value> initializerList);
 
+    THashTable(const Value* iterBegin, const Value* iterEnd);
+    
     explicit THashTable(AllocatorType* pAllocator);
-    THashTable(AllocatorType* pAllocator, std::initializer_list<Value> initializerList);
 
     THashTable(const THashTable& other);
     THashTable& operator=(const THashTable& other);
@@ -1083,11 +1084,26 @@ THashTable<Value, KeyBy, AllocatorType, Policy>::THashTable()
 
 template <class Value, auto KeyBy, class AllocatorType, class Policy>
 THashTable<Value, KeyBy, AllocatorType, Policy>::THashTable(std::initializer_list<Value> initializerList)
-    : THashTable()
+    : THashTable(initializerList.begin(), initializerList.end())
 {
-    for (const auto& item : initializerList)
+}
+
+template <class Value, auto KeyBy, class AllocatorType, class Policy>
+THashTable<Value, KeyBy, AllocatorType, Policy>::THashTable(const Value* iterBegin, const Value* iterEnd)
+    : m_size(0)
+{
+    m_buckets.ResizeZeroed(InitialBucketSize);
+    
+    const size_t count = iterEnd - iterBegin;
+
+    if (count != 0)
     {
-        Insert(item);
+        Reserve(count);
+        
+        for (auto it = iterBegin; it != iterEnd; ++it)
+        {
+            Insert(*it);
+        }
     }
 }
 
@@ -1097,16 +1113,6 @@ THashTable<Value, KeyBy, AllocatorType, Policy>::THashTable(AllocatorType* pAllo
       m_nodeAllocator(pAllocator)
 {
     m_buckets.ResizeZeroed(InitialBucketSize);
-}
-
-template <class Value, auto KeyBy, class AllocatorType, class Policy>
-THashTable<Value, KeyBy, AllocatorType, Policy>::THashTable(AllocatorType* pAllocator, std::initializer_list<Value> initializerList)
-    : THashTable(pAllocator)
-{
-    for (const auto& item : initializerList)
-    {
-        Insert(item);
-    }
 }
 
 template <class Value, auto KeyBy, class AllocatorType, class Policy>
@@ -1531,8 +1537,10 @@ void THashTable<Value, KeyBy, AllocatorType, Policy>::Clear()
         }
     }
 
-    m_buckets.Clear();
-    m_buckets.ResizeZeroed(InitialBucketSize);
+    m_buckets.ResizeUninitialized(InitialBucketSize);
+    m_buckets.Refit();
+
+    Memory::Zero(m_buckets.Data(), m_buckets.ByteSize());
 
     m_size = 0;
 }
