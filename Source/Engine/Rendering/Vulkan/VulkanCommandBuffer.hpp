@@ -159,14 +159,15 @@ public:
 
     void ResetBoundDescriptorSets()
     {
-        m_boundDescriptorSets.Clear();
+        // Keep memory around
+        m_boundDescriptorSets.Resize(0);
     }
 
 private:
     VkCommandBuffer m_handle;
     VkCommandPool m_commandPool;
 
-    Array<VulkanCachedDescriptorSetBinding> m_boundDescriptorSets;
+    Array<VulkanCachedDescriptorSetBinding, VulkanAllocator> m_boundDescriptorSets;
 
     bool m_isRecording;
 

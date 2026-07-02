@@ -1291,6 +1291,8 @@ void TSlimArray<TElemType, TAllocator>::Clear()
     DestructElements();
 
     size = 0;
+
+    Refit();
 }
 
 } // namespace containers

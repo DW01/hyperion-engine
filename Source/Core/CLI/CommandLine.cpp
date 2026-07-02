@@ -425,7 +425,7 @@ TResult<CommandLineArguments> CommandLineParser::Parse(const String& commandLine
     int currentStringIndex = 0;
     String currentString;
 
-    auto AddCurrentString = [&]()
+    auto addCurrentString = [&]()
     {
         if (currentString.Any())
         {
@@ -447,7 +447,7 @@ TResult<CommandLineArguments> CommandLineParser::Parse(const String& commandLine
 
         if (std::isspace(int(currentChar)))
         {
-            AddCurrentString();
+            addCurrentString();
 
             continue;
         }
@@ -476,7 +476,7 @@ TResult<CommandLineArguments> CommandLineParser::Parse(const String& commandLine
         currentString.Append(currentChar);
     }
 
-    AddCurrentString();
+    addCurrentString();
 
     return Parse(command, args, fillDefaults);
 }

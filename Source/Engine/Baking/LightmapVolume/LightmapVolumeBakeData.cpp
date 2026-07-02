@@ -397,16 +397,9 @@ Result BakeData<LightmapVolume>::Build()
 
         // Deallocate memory for data that is no longer needed.
         m_meshVertexPositions[meshIndex].Clear();
-        m_meshVertexPositions[meshIndex].Refit();
-
         m_meshVertexNormals[meshIndex].Clear();
-        m_meshVertexNormals[meshIndex].Refit();
-
         m_meshVertexUvs[meshIndex].Clear();
-        m_meshVertexUvs[meshIndex].Refit();
-
         m_meshIndices[meshIndex].Clear();
-        m_meshIndices[meshIndex].Refit();
     }
 
     xatlas::Destroy(atlas);

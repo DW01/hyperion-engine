@@ -778,7 +778,6 @@ RendererResult RenderInterface::Initialize()
 void RenderInterface::Shutdown()
 {
     deferredFlushBuffers.Clear();
-    deferredFlushBuffers.Refit();
 
     for (uint32 i = 0; i < RingBufferDepth; i++)
     {
@@ -835,7 +834,6 @@ void RenderInterface::Shutdown()
         }
 
         namedPasses[i].Clear();
-        namedPasses[i].Refit();
     }
 
     DebugDrawer::GetInstance().Shutdown();

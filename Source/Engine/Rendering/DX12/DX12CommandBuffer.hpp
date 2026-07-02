@@ -144,7 +144,7 @@ public:
 
     void ResetBoundDescriptorSets()
     {
-        m_boundDescriptorSets.Clear();
+        m_boundDescriptorSets.Resize(0);
     }
 
     DX12GraphicsPipeline* m_boundGraphicsPipeline;

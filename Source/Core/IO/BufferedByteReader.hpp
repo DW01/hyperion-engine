@@ -498,7 +498,7 @@ public:
                         return;
                     }
 
-                    accum.Clear();
+                    accum.Clear(/* freeMemory */ false);
 
                     continue;
                 }

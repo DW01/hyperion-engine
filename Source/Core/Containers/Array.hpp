@@ -1626,7 +1626,7 @@ void TFatArray<T, AllocatorType>::Clear()
     m_size = 0;
     m_startOffset = 0;
 
-    // Refit();
+    Refit();
 }
 
 #if defined(HYP_USE_SLIM_ARRAY) && HYP_USE_SLIM_ARRAY

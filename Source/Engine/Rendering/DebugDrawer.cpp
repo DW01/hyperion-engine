@@ -650,7 +650,6 @@ void DebugDrawer::Shutdown()
     for (Array<ImmediateDrawShaderData, RenderAllocator>& data : m_cachedPartitionedShaderData)
     {
         data.Clear();
-        data.Refit();
     }
 
     for (uint32 i = 0; i < uint32(m_buffers.Size()); i++)

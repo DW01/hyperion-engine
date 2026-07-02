@@ -182,7 +182,7 @@ Result FontAtlas::RenderAtlasTextures(float mainAtlasScale, float maxScale, floa
     m_glyphMetrics.Clear();
     m_glyphMetrics.Resize(m_symbolList.Size());
 
-    const auto RenderGlyphs = [&](float scale, bool isMainAtlas) -> Result
+    const auto renderGlyphs = [&](float scale, bool isMainAtlas) -> Result
     {
         const Vec2i scaledExtent {
             MathUtil::Ceil<float, int>(float(m_cellDimensions.x) * scale),
@@ -267,7 +267,7 @@ Result FontAtlas::RenderAtlasTextures(float mainAtlasScale, float maxScale, floa
     };
 
     // main
-    if (Result result = RenderGlyphs(mainAtlasScale, true); result.HasError())
+    if (Result result = renderGlyphs(mainAtlasScale, true); result.HasError())
     {
         return result.GetError();
     }
@@ -275,7 +275,7 @@ Result FontAtlas::RenderAtlasTextures(float mainAtlasScale, float maxScale, floa
     // different scales
     for (float i = mainAtlasScale + step; i <= maxScale; i += step)
     {
-        if (auto result = RenderGlyphs(i, false); result.HasError())
+        if (auto result = renderGlyphs(i, false); result.HasError())
         {
             return result.GetError();
         }

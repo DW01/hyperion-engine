@@ -221,7 +221,6 @@ void BVHNode::Split_Internal(
         }
 
         triangleIds.Clear();
-        triangleIds.Refit();
 
         isLeafNode = false;
     }

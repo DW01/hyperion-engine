@@ -1214,49 +1214,49 @@ VulkanGraphicsPipelineRef VulkanRenderInterface::MakeGraphicsPipeline(
     const FramebufferDesc& framebufferDesc,
     const RenderableAttributeSet& attributes)
 {
-    VulkanGraphicsPipelineRef graphicsPipeline = MakeHandle<VulkanGraphicsPipeline>();
+    VulkanGraphicsPipelineRef pipeline = MakeHandle<VulkanGraphicsPipeline>();
 
     if (shaderInstance.IsValid())
     {
-        graphicsPipeline->SetShader(shaderInstance);
+        pipeline->SetShader(shaderInstance);
 #ifdef HYP_RHI_DEBUG_NAMES
-        graphicsPipeline->SetDebugName(NAME_FMT("GraphicsPipeline_{}", shaderInstance->GetDebugName().IsValid() ? *shaderInstance->GetDebugName() : "<unnamed shader>"));
+        pipeline->SetDebugName(NAME_FMT("GraphicsPipeline_{}", shaderInstance->GetDebugName().IsValid() ? *shaderInstance->GetDebugName() : "<unnamed shader>"));
 #endif
     }
 
-    graphicsPipeline->SetFramebufferDesc(framebufferDesc);
+    pipeline->SetFramebufferDesc(framebufferDesc);
 
-    graphicsPipeline->SetInputLayout(attributes.GetMeshAttributes().inputLayout);
-    graphicsPipeline->SetTopology(attributes.GetMeshAttributes().topology);
-    graphicsPipeline->SetCullMode(attributes.GetMaterialAttributes().cullFaces);
-    graphicsPipeline->SetFillMode(attributes.GetMaterialAttributes().fillMode);
-    graphicsPipeline->SetBlendFunction(attributes.GetMaterialAttributes().blendFunction);
-    graphicsPipeline->SetDepthTest(bool(attributes.GetMaterialAttributes().flags & MAF_DEPTH_TEST));
-    graphicsPipeline->SetDepthWrite(bool(attributes.GetMaterialAttributes().flags & MAF_DEPTH_WRITE));
-    graphicsPipeline->SetDepthCompareOp(attributes.GetMaterialAttributes().depthCompareOp);
-    graphicsPipeline->SetDepthClamp(bool(attributes.GetMaterialAttributes().flags & MAF_DEPTH_CLAMP));
+    pipeline->SetInputLayout(attributes.GetMeshAttributes().inputLayout);
+    pipeline->SetTopology(attributes.GetMeshAttributes().topology);
+    pipeline->SetCullMode(attributes.GetMaterialAttributes().cullFaces);
+    pipeline->SetFillMode(attributes.GetMaterialAttributes().fillMode);
+    pipeline->SetBlendFunction(attributes.GetMaterialAttributes().blendFunction);
+    pipeline->SetDepthTest(bool(attributes.GetMaterialAttributes().flags & MAF_DEPTH_TEST));
+    pipeline->SetDepthWrite(bool(attributes.GetMaterialAttributes().flags & MAF_DEPTH_WRITE));
+    pipeline->SetDepthCompareOp(attributes.GetMaterialAttributes().depthCompareOp);
+    pipeline->SetDepthClamp(bool(attributes.GetMaterialAttributes().flags & MAF_DEPTH_CLAMP));
 
     if (attributes.GetMaterialAttributes().flags & MAF_DEPTH_BIAS)
     {
-        graphicsPipeline->SetDepthBias(attributes.GetMaterialAttributes().depthBias);
-        graphicsPipeline->SetDepthBiasSlope(attributes.GetMaterialAttributes().depthBiasSlope);
+        pipeline->SetDepthBias(attributes.GetMaterialAttributes().depthBias);
+        pipeline->SetDepthBiasSlope(attributes.GetMaterialAttributes().depthBiasSlope);
     }
 
     if (attributes.GetMaterialAttributes().flags & MAF_STENCIL_TEST)
     {
-        graphicsPipeline->SetStencilFunction(attributes.GetMaterialAttributes().stencilFunction);
+        pipeline->SetStencilFunction(attributes.GetMaterialAttributes().stencilFunction);
     }
 
     // for materials that write a stencil reference value
     if (attributes.GetMaterialAttributes().stencilReference != 0)
     {
-        graphicsPipeline->SetStencilWrite(true);
+        pipeline->SetStencilWrite(true);
     }
 
     // // sanity check: newly created pipeline must match or caching will fail.
-    // AssertDebug(graphicsPipeline->MatchesSignature(attributes, framebufferDesc));
+    // AssertDebug(pipeline->MatchesSignature(attributes, framebufferDesc));
 
-    return graphicsPipeline;
+    return pipeline;
 }
 
 VulkanComputePipelineRef VulkanRenderInterface::MakeComputePipeline(const VulkanShaderInstanceRef& shaderInstance)

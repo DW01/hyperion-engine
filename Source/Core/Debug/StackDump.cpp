@@ -59,7 +59,7 @@ struct StackDump::Impl
             return;
         }
 
-        stringCache.Clear();
+        stringCache.Resize(0);
         stringCache.Reserve(rawFrames.Size());
 
 #if HYP_WINDOWS

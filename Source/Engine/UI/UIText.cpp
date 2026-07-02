@@ -129,7 +129,7 @@ static void ForEachCharacter(
             callback(characterIterator);
         }
 
-        currentWordChars.Clear();
+        currentWordChars.Resize(0);
     };
 
     for (size_t i = 0; i < length; i++)
@@ -363,7 +363,7 @@ void UIText::UpdateTextAABB()
         const Vec2i parentBounds = GetParentBounds();
         const float textSize = GetTextSize();
 
-        m_characterOffsets.Clear();
+        m_characterOffsets.Resize(0);
 
         m_textAabbWithBearing = CalculateTextAABB(*fontAtlas, m_text, parentBounds, textSize, true, nullptr);
         m_textAabbWithoutBearing = CalculateTextAABB(*fontAtlas, m_text, parentBounds, textSize, false, &m_characterOffsets);

@@ -235,7 +235,7 @@ void UIUpdateManager::Clear()
     // don't clear update queues, but remove all entries
     for (auto& kv : m_updateQueues)
     {
-        kv.second.Clear();
+        kv.second.Resize(0);
     }
 }
 

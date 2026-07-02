@@ -134,7 +134,7 @@ public:
     String(const OtherCharType* str)
         : String()
     {
-        Clear();
+        Clear(false);
         Append(str);
     }
 
@@ -156,7 +156,7 @@ public:
     template <int TOtherStringType, class = std::enable_if_t<TOtherStringType != TStringType>>
     HYP_FORCE_INLINE String& operator=(const utilities::StringView<TOtherStringType>& stringView)
     {
-        Clear();
+        Clear(false);
         Append(stringView.Data(), stringView.Data() + stringView.Size());
 
         return *this;
@@ -165,7 +165,7 @@ public:
     template <int TOtherStringType, class TOtherAllocator, class = std::enable_if_t<TOtherStringType != TStringType>>
     HYP_FORCE_INLINE String& operator=(const String<TOtherStringType, TOtherAllocator>& other)
     {
-        Clear();
+        Clear(false);
         Append(other.Data(), other.Data() + other.Size());
 
         return *this;
@@ -708,7 +708,8 @@ public:
 
     typename Base::ValueType PopBack();
     typename Base::ValueType PopFront();
-    void Clear();
+
+    void Clear(bool freeMemory = true);
 
     bool StartsWith(const String& other) const;
     bool EndsWith(const String& other) const;
@@ -1731,11 +1732,17 @@ auto String<TStringType, TAllocator>::PopBack() -> typename Base::ValueType
 }
 
 template <int TStringType, class TAllocator>
-void String<TStringType, TAllocator>::Clear()
+void String<TStringType, TAllocator>::Clear(bool freeMemory)
 {
     Base::Resize(1);
     Base::Back() = CharType { 0 }; // null-terminate
+    
     m_length = 0;
+
+    if (freeMemory)
+    {
+        Refit();
+    }
 }
 
 template <int TStringType, class TAllocator>

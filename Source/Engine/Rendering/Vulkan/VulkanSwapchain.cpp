@@ -94,10 +94,11 @@ VulkanSwapchain::~VulkanSwapchain()
 
     if (m_handle != VK_NULL_HANDLE)
     {
-        EnqueueDeletion(FunctionWrapper<Proc<void()>>([handle = m_handle]()
-                                                      {
-                                                          vkDestroySwapchainKHR(RI.GetDevice()->GetDevice(), handle, nullptr);
-                                                      }));
+        EnqueueDeletion(FunctionWrapper<Proc<void()>>(
+            [handle = m_handle]()
+            {
+                vkDestroySwapchainKHR(RI.GetDevice()->GetDevice(), handle, nullptr);
+            }));
     }
 
     m_handle = VK_NULL_HANDLE;

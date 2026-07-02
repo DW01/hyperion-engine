@@ -80,10 +80,7 @@ ProbeVolume::ProbeVolume(const BoundingBox& localBounds)
 ProbeVolume::~ProbeVolume()
 {
     m_probes.Clear();
-    m_probes.Refit();
-
     m_tetrahedra.Clear();
-    m_tetrahedra.Refit();
 }
 
 void ProbeVolume::OnAddedToWorld(World* world)
@@ -111,7 +108,6 @@ void ProbeVolume::OnAddedToWorld(World* world)
 void ProbeVolume::OnRemovedFromWorld(World* world)
 {
     m_probes.Clear();
-    m_probes.Refit();
 
     {
         TUniqueLock lock(m_cachedState.mutex);
@@ -523,11 +519,13 @@ void ProbeVolume::RemoveAllProbes(bool freeMemory)
         }
     }
 
-    m_probes.Clear();
-
     if (freeMemory)
     {
-        m_probes.Refit();
+        m_probes.Clear();
+    }
+    else
+    {
+        m_probes.Resize(0);
     }
 }
 
