@@ -109,11 +109,11 @@ public:
         EnqueueDeletion(std::move(*pPipelineRef));
     }
 
-    void Remove(GraphicsPipelineRef* pPipelineRef, bool removeFromAttrMap = true)
+    bool Remove(GraphicsPipelineRef* pPipelineRef, bool removeFromAttrMap = true)
     {
         if (!pPipelineRef)
         {
-            return;
+            return false;
         }
 
         for (auto attrMapIt = attrMap.Begin(); attrMapIt != attrMap.End(); ++attrMapIt)
@@ -153,8 +153,10 @@ public:
 
             EnqueueDeletion(std::move(*pPipelineRef));
 
-            return;
+            return true;
         }
+        
+        return false;
     }
 
     GraphicsPipelineCacheHandle Alloc(size_t& outIndex)

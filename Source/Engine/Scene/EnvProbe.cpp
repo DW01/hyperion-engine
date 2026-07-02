@@ -504,24 +504,24 @@ void EnvProbe::CreateViewData()
         CheckResult(image->Create());
     }
 
-    ShaderDesc shaderDesc;
+    MaterialAttributes materialAttributes;
 
     if (IsSkyProbe())
     {
-        shaderDesc.name = NAME("RenderSky");
+        materialAttributes.shaderName = NAME("RenderSky");
     }
     else
     {
-        shaderDesc.name = NAME("DrawCubemap");
-        shaderDesc.properties.Add(s_propForwardShading);
+        materialAttributes.shaderName = NAME("DrawCubemap");
+        materialAttributes.shaderProperties.Add(s_propForwardShading);
 
         if (m_envProbeFlags & EPF_HAS_VISIBILITY)
         {
-            shaderDesc.properties.Add(s_propWriteMoments);
+            materialAttributes.shaderProperties.Add(s_propWriteMoments);
         }
     }
 
-    AssertDebug(shaderDesc.name.IsValid());
+    AssertDebug(materialAttributes.shaderName.IsValid());
 
     for (uint16 viewIndex = 0; viewIndex < 6; viewIndex++)
     {
@@ -569,9 +569,7 @@ void EnvProbe::CreateViewData()
 
         viewDesc.overrideAttributes = RenderableAttributeSet(
             MeshAttributes {},
-            MaterialAttributes {
-                shaderDesc.name,
-                shaderDesc.properties });
+            materialAttributes);
 
         viewDesc.viewIndex = static_cast<uint8>(viewIndex);
         viewDesc.camera = m_camera;

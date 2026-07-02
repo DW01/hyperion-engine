@@ -39,7 +39,7 @@
 
 namespace Hyperion {
 
-static constexpr float CameraJitterScale = 0.5f;
+static constexpr float CameraJitterScale = 0.25f;
 
 extern CVar<bool> g_cvTAA;
 

@@ -23,6 +23,8 @@ CORE_API BoundingBox operator*(const Mat4f& transform, const BoundingBox& aabb)
 
     BoundingBox result;
 
+    // auto corners = aabb.GetCorners();
+
     for (uint8 cornerIndex = 0; cornerIndex < 8; cornerIndex++)
     {
         Vec3f corner = aabb.GetCorner(cornerIndex);

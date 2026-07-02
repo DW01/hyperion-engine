@@ -114,7 +114,8 @@ public:
                 HYP_LOG(Assets, Warning, "Ogre XML parser: `face` tag expected to have 3 attributes.");
             }
 
-            TMap<String, uint32> faceElements;
+            // Use flatmap to ensure sorting of keys
+            TFlatMap<String, uint32> faceElements;
             faceElements.Reserve(attributes.Size());
 
             for (const Pair<String, String>& it : attributes)

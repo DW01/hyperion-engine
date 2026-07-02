@@ -3075,6 +3075,7 @@ bool ShaderCompiler::CompileBundle(
         HashCode permHashCode = perm.GetPropertySetHashCode();
         permHashCode.Add(perm.GetRequiredVertexAttributes().GetHashCode());
 
+        // Create unique name for base name / permuation hash
         Handle<Shader> shader = MakeHandle<Shader>(NAME_FMT("{}_{}", decl.name, permHashCode.Value()));
         shader->baseName = decl.name;
 

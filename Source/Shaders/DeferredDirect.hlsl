@@ -523,6 +523,10 @@ PSOutput PSMain(PSInput input)
     output.output_color = float4(result);
 #endif
 
+    // // debug: draw shadow map to screen
+    // float4 shadowMapResult = shadow_maps.Sample(sampler_linear, float3(texcoord, 0));
+    // output.output_color.rgb = shadowMapResult.rgb;
+
     return output;
 }
 

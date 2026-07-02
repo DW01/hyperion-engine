@@ -402,11 +402,11 @@ void LightingPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
     cr << SetDepthWrite(false);
     cr << SetDepthTest(false);
 
-    static constexpr uint8 StencilFilterMask = (0xFF & ~LightmapStencilMask);
+    // static constexpr uint8 StencilFilterMask = (0xFF & ~LightmapStencilMask);
     
-    frame->cr << SetStencilTest(true);
-    frame->cr << SetStencilFunction(StencilFunction { SO_KEEP, SO_KEEP, SO_KEEP, SCO_EQUAL });
-    frame->cr << SetStencilState(0, StencilFilterMask, 0x0);
+    // frame->cr << SetStencilTest(true);
+    // frame->cr << SetStencilFunction(StencilFunction { SO_KEEP, SO_KEEP, SO_KEEP, SCO_EQUAL });
+    // frame->cr << SetStencilState(0, StencilFilterMask, 0x0);
 
     HYP_DEFER({
         // reset states
@@ -414,7 +414,7 @@ void LightingPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
         cr << SetStencilState(0, 0xFF, 0x0);
         cr << SetDepthWrite(true);
         cr << SetDepthTest(true);
-        cr << SetStencilTest(false);
+        // cr << SetStencilTest(false);
     });
 
     uint32 numShaderUniforms = 0;

@@ -72,11 +72,38 @@ struct CORE_API BoundingBox
 
     HYP_FORCE_INLINE constexpr Vec3f GetCorner(uint8 index) const
     {
-        return Vec3f {
-            (index & 1) ? max.x : min.x,
-            (index & 2) ? max.y : min.y,
-            (index & 4) ? max.z : min.z
-        };
+        // switch (index)
+        // {
+        // case 0:
+        //     return Vec3f(min.x, min.y, min.z);
+        // case 1:
+        //     return Vec3f(max.x, min.y, min.z);
+        // case 2:
+        //     return Vec3f(max.x, max.y, min.z);
+        // case 3:
+        //     return Vec3f(min.x, max.y, min.z);
+        // case 4:
+        //     return Vec3f(min.x, min.y, max.z);
+        // case 5:
+        //     return Vec3f(min.x, max.y, max.z);
+        // case 6:
+        //     return Vec3f(max.x, max.y, max.z);
+        // case 7:
+        //     return Vec3f(max.x, min.y, max.z);
+        // default:
+        //     // Undefined
+        //     return Vec3f(0, 0, 0);
+        // }
+        
+        uint8 a = index & 1;
+        uint8 b = (index >> 1) & 1;
+        uint8 c = (index >> 2) & 1;
+
+        return Vec3f(
+            ((a & ~c) ^ b) ? max.x : min.x,
+            (b ^ (c & a))  ? max.y : min.y,
+            c              ? max.z : min.z
+        );
     }
 
     HYP_FORCE_INLINE constexpr Vec3f GetCenter() const
