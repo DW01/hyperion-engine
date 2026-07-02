@@ -63,10 +63,7 @@ public:
     }
 
     HYP_METHOD(Scriptable)
-    virtual void OnLaunch() final;
-
-    HYP_METHOD(Scriptable)
-    virtual void OnUpdate(float delta) final;
+    void OnUpdate(float delta);
 
     HYP_METHOD()
     void Initialize();
@@ -105,15 +102,21 @@ public:
     static ScriptableDelegate<void, Game*, GameStateMode, GameStateMode> OnGameStateChange;
 
 protected:
-    virtual void Logic(float delta)
-    {
-        HYP_PURE_VIRTUAL();
-    }
-
     virtual bool OnInputEvent(const Event& event);
+
+    HYP_METHOD(Scriptable)
+    void OnLaunch();
+
+    HYP_METHOD(Scriptable)
+    void BeforeShutdown();
 
     HYP_METHOD()
     virtual void OnLaunch_Impl()
+    {
+    }
+
+    HYP_METHOD()
+    virtual void BeforeShutdown_Impl()
     {
     }
 

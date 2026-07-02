@@ -46,12 +46,25 @@ SystemMessageBox::SystemMessageBox(
     Array<MessageBoxButton>&& buttons)
     : m_type(type),
       m_title(title),
-      m_message(message),
-      m_buttons(std::move(buttons))
+      m_message(message)
 {
-    if (m_buttons.Size() > 3)
+    if (buttons.Size() > 3)
     {
         m_buttons.Resize(3);
+    }
+    else
+    {
+        m_buttons.Resize(buttons.Size());
+    }
+
+    for (int i = 0; i < 3; i++)
+    {
+        if (i == m_buttons.Size())
+        {
+            break;
+        }
+
+        m_buttons[i] = MakeRefCountedPtr<MessageBoxButton>(std::move(buttons[i]));
     }
 }
 
@@ -101,7 +114,7 @@ SystemMessageBox& SystemMessageBox::Button(const String& text, Proc<void()>&& on
         return *this;
     }
 
-    m_buttons.PushBack(MessageBoxButton { text, std::move(onClick) });
+    m_buttons.PushBack(MakeRefCountedPtr<MessageBoxButton>(MessageBoxButton { text, std::move(onClick) }));
 
     return *this;
 }
@@ -112,7 +125,7 @@ void SystemMessageBox::Show(bool showBlocking) const
 
     for (int i = 0; i < int(m_buttons.Size()); i++)
     {
-        buttonTexts[i] = m_buttons[i].text.Data();
+        buttonTexts[i] = m_buttons[i]->text.Data();
     }
 
 #ifdef HYP_MACOS
@@ -123,21 +136,19 @@ void SystemMessageBox::Show(bool showBlocking) const
     const void* buttonFuncs[3] = {};
     for (int i = 0; i < int(m_buttons.Size()); i++)
     {
-        if (!m_buttons[i].onClick.IsValid())
+        if (!m_buttons[i]->onClick.IsValid())
         {
             buttonFuncs[i] = nullptr;
 
             continue;
         }
 
-        if (isOnMainThread)
-        {
-            buttonFuncs[i] = &m_buttons[i].onClick;
-        }
-        else
-        {
-            buttonFuncs[i] = new Proc<void()>([this, i] { m_buttons[i].onClick(); });
-        }
+        // macos needs these allocated on the heap for async usage
+        // wrap button as a ref counted ptr to keep it alive as long as we need it.
+        buttonFuncs[i] = new Proc<void()>([button = m_buttons[i]]
+            {
+                button->onClick();
+            });
     }
 
     int buttonIndex = ShowMessageBox(
@@ -172,9 +183,9 @@ void SystemMessageBox::Show(bool showBlocking) const
             return;
         }
 
-        if (m_buttons[buttonIndex].onClick.IsValid())
+        if (m_buttons[buttonIndex]->onClick.IsValid())
         {
-            m_buttons[buttonIndex].onClick();
+            m_buttons[buttonIndex]->onClick();
         }
     }
 

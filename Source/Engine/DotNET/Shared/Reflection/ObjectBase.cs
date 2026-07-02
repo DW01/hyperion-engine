@@ -202,7 +202,7 @@ namespace Hyperion
         {
             if (_classPtr == IntPtr.Zero)
             {
-                throw new Exception("Class pointer is null");
+                throw new Exception("Class pointer is null for instance of type " + GetType().Name);
             }
 
             IntPtr propertyPtr = Class_GetProperty(_classPtr, ref name);
@@ -226,7 +226,7 @@ namespace Hyperion
         {
             if (_classPtr == IntPtr.Zero)
             {
-                throw new Exception("Class pointer is null");
+                throw new Exception("Class pointer is null for instance of type " + GetType().Name);
             }
 
             IntPtr methodPtr = Class_GetMethod(_classPtr, ref name);
@@ -255,7 +255,7 @@ namespace Hyperion
         {
             if (_classPtr == IntPtr.Zero)
             {
-                throw new Exception("Class pointer is null");
+                throw new Exception("Class pointer is null for instance of type " + GetType().Name);
             }
 
             Method method = GetMethod(name);
@@ -268,7 +268,7 @@ namespace Hyperion
         {
             if (_classPtr == IntPtr.Zero)
             {
-                throw new Exception("Class pointer is null");
+                throw new Exception("Class pointer is null for instance of type " + GetType().Name);
             }
 
             Method method = GetMethod(name);
@@ -280,7 +280,7 @@ namespace Hyperion
         {
             if (_classPtr == IntPtr.Zero)
             {
-                throw new Exception("Class pointer is null");
+                throw new Exception("Class pointer is null for instance of type " + GetType().Name);
             }
 
             Field? field = Class.GetField(name);
@@ -299,7 +299,7 @@ namespace Hyperion
             {
                 if (_classPtr == IntPtr.Zero)
                 {
-                    throw new Exception("Class pointer is null");
+                throw new Exception("Class pointer is null for instance of type " + GetType().Name);
                 }
 
                 if (_nativeAddress == IntPtr.Zero)

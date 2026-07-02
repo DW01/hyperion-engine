@@ -12,7 +12,7 @@ namespace Hyperion.Editor
 
         private DelegateHandler? _onProjectOpened;
         private DelegateHandler? _onProjectClosing;
-        private DelegateHandler? _onActionStackStateChanged;
+
         private DelegateHandler? _onFocusedNodeChanged;
         private DelegateHandler? _onRootNodeChanged;
         private DelegateHandler? _onChildAdded;
@@ -76,6 +76,22 @@ namespace Hyperion.Editor
             _assetBatchTask = ab.Load();
         }
 
+        protected override void BeforeShutdown()
+        {
+            Logger.Log(LogLevel.Debug, "HyperionEditorGame BeforeShutdown");
+
+            _onProjectOpened?.Remove();
+            _onProjectClosing?.Remove();
+
+            _onFocusedNodeChanged?.Remove();
+            _onRootNodeChanged?.Remove();
+            _onChildAdded?.Remove();
+            _onChildRemoved?.Remove();
+            _onActiveSceneChanged?.Remove();
+
+            _editorSubsystem = null;
+        }
+
         protected override void OnUpdate(float deltaTime)
         {
             if (_assetBatchTask != null && _assetBatchTask.IsCompleted)
@@ -120,7 +136,8 @@ namespace Hyperion.Editor
 
         private void HandleProjectOpened(EditorProject project)
         {
-            Debug.Assert(project.GameInstance != null && project.GameInstance.AssetRegistry != null);
+            Debug.Assert(project.GameInstance != null && project.GameInstance.IsValid);
+            Debug.Assert(project.GameInstance.AssetRegistry != null && project.GameInstance.AssetRegistry.IsValid);
 
             AssetRegistry = project.GameInstance.AssetRegistry;
 
@@ -199,10 +216,20 @@ namespace Hyperion.Editor
         {
             Logger.Log(LogLevel.Info, "Project closing: " + (project != null ? project.Name.ToString() : "null"));
 
-            _onActionStackStateChanged?.Remove();
-            _onActionStackStateChanged = null;
+            // Unset scene-specific event handlers, otherwise we could call a method on
+            // a disposed Scene.
 
-            // Project will not be used from managed code after this point.
+            _onRootNodeChanged?.Remove();
+            _onRootNodeChanged = null;
+
+            _onChildAdded?.Remove();
+            _onChildAdded = null;
+
+            _onChildRemoved?.Remove();
+            _onChildRemoved = null;
+
+            _onActiveSceneChanged?.Remove();
+            _onActiveSceneChanged = null;
         }
     }
 }

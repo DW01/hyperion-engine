@@ -99,7 +99,7 @@ end
 extern class EditorState
     static GetInstance() -> EditorState
     GetCurrentProject() -> EditorProject
-    SetCurrentProject(project : EditorProject) -> void
+    SetCurrentProject(project : EditorProject, isSimulationStateChange : bool) -> void
     AddTask(task : EditorTaskBase) -> void
     GetClipboardNodes() -> Array<Node>
     SetClipboardNodes(nodes : Array<Node>) -> void
@@ -1313,7 +1313,6 @@ extern class Game
     GetWorld() -> World
     SetWorld(world : World) -> void
     GetGameState() -> GameState
-    OnLaunch() -> void
     OnUpdate(delta : float) -> void
     Initialize() -> void
     Shutdown(shutdownWorld : bool) -> void
@@ -1324,7 +1323,10 @@ extern class Game
     PauseSimulation() -> void
     static OnLaunched : any
     static OnGameStateChange : any
+    OnLaunch() -> void
+    BeforeShutdown() -> void
     OnLaunch_Impl() -> void
+    BeforeShutdown_Impl() -> void
     OnUpdate_Impl(delta : float) -> void
     World : World
     GameState : GameState

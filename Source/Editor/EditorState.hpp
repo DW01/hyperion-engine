@@ -54,7 +54,7 @@ public:
     Handle<EditorProject> GetCurrentProject() const;
 
     HYP_METHOD()
-    void SetCurrentProject(const Handle<EditorProject>& project);
+    void SetCurrentProject(const Handle<EditorProject>& project, bool isSimulationStateChange);
 
     HYP_METHOD()
     void AddTask(const Handle<EditorTaskBase>& task);
@@ -70,7 +70,7 @@ public:
     void Update(float delta);
 
     HYP_FIELD()
-    ScriptableDelegate<void, Handle<EditorProject>> OnCurrentProjectChanged;
+    ScriptableDelegate<void, Handle<EditorProject>, bool /* isSimulationStateChange */ > OnCurrentProjectChanged;
 
     HYP_FIELD()
     ScriptableDelegate<void, Handle<EditorTaskBase>> OnTaskStarted;

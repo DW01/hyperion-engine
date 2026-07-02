@@ -37,7 +37,7 @@ namespace Hyperion
         public EditorProject? CurrentProject
         {
             get => this.GetCurrentProject();
-            set => this.SetCurrentProject(value);
+            set => this.SetCurrentProject(value, isSimulationStateChange: false);
         }
 
         public Node? ClipboardNode => this.GetClipboardNodes().Cast<Node>().FirstOrDefault();

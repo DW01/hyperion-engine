@@ -73,7 +73,7 @@ Handle<EditorProject> EditorState::GetCurrentProject() const
     return m_currentProject;
 }
 
-void EditorState::SetCurrentProject(const Handle<EditorProject>& project)
+void EditorState::SetCurrentProject(const Handle<EditorProject>& project, bool isSimulationStateChange)
 {
     {
         Mutex::Guard guard(m_mutex);
@@ -105,7 +105,7 @@ void EditorState::SetCurrentProject(const Handle<EditorProject>& project)
         }
     }
 
-    OnCurrentProjectChanged(project);
+    OnCurrentProjectChanged(project, isSimulationStateChange);
 }
 
 void EditorState::AddTask(const Handle<EditorTaskBase>& task)

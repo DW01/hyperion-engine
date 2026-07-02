@@ -168,15 +168,30 @@ namespace Hyperion.Editor
             _onSceneRemovedHandler?.Remove();
 
             _onCurrentProjectChanged?.Remove();
-            _onCurrentProjectChanged = editorState.GetOnCurrentProjectChangedDelegate().Bind((EditorProject newProject) =>
+            _onCurrentProjectChanged = editorState.GetOnCurrentProjectChangedDelegate().Bind((EditorProject newProject, bool isSimulationStateChange) =>
             {
                 Debug.Assert(newProject != CurrentProject);
 
                 _onSceneAddedHandler?.Remove();
                 _onSceneRemovedHandler?.Remove();
 
-                // Won't need the managed object anymore; dispose it early to ensure clean up is done in a timely manner. (as opposed to waiting for GC)
-                CurrentProject?.Dispose();
+                Logger.Log(LogLevel.Info, "Current project game state = " + (CurrentProject?.World?.GetGameState().Mode.ToString() ?? "null"));
+
+                // If we are just switching to simulate mode, we don't want to dispose the project
+                // Otherwise, when returning to edit mode, the project's managed resources would be cleaned up and cause a crash.
+                bool shouldDisposeCurrentProject = CurrentProject != null && !isSimulationStateChange;
+
+                if (shouldDisposeCurrentProject)
+                {
+                    Logger.Log(LogLevel.Info, "DISPOSING CurrentProject: " + (CurrentProject != null ? CurrentProject.Name : "null"));
+
+                    // Dispose it early to ensure clean up is done in a timely manner, rather than wait for finalization.
+                    CurrentProject?.Dispose();
+                }
+                else
+                {
+                    Logger.Log(LogLevel.Info, "NOT disposing CurrentProject (switching to simulate): " + (CurrentProject != null ? CurrentProject.Name : "null"));
+                }
 
                 CurrentProject = newProject;
 

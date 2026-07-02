@@ -11,6 +11,8 @@ namespace Hyperion
             World?.Dispose();
             AssetRegistry?.Dispose();
 
+            Logger.Log(LogLevel.Info, "Game disposed");
+
             base.Dispose(isDisposing);
         }
 
@@ -29,6 +31,11 @@ namespace Hyperion
         protected virtual void OnLaunch()
         {
             InvokeNativeMethod("OnLaunch_Impl");
+        }
+
+        protected virtual void BeforeShutdown()
+        {
+            InvokeNativeMethod("BeforeShutdown_Impl");
         }
 
         protected virtual void OnUpdate(float deltaTime)

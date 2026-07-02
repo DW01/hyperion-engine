@@ -241,18 +241,6 @@ namespace Hyperion.Editor.ViewModels
 
                 _activeScene = value;
 
-                _ = EngineManager.PostToSimThread(() =>
-                {
-                    try
-                    {
-                        _editorSubsystem.SetActiveScene(_activeScene?.Scene);
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Log(LogLevel.Warning, $"Failed to set active scene: {ex.Message}");
-                    }
-                });
-
                 OnPropertyChanged(nameof(ActiveScene));
             }
         }
@@ -273,12 +261,21 @@ namespace Hyperion.Editor.ViewModels
             SetGameModePaused = new SetGameModeCommand(GameStateMode.Paused);
             SetGameModeStopped = new SetGameModeCommand(GameStateMode.Stopped);
 
-            SetActiveSceneCommand = new RelayCommand<SceneViewModel>(scene =>
+            SetActiveSceneCommand = new RelayCommand<SceneViewModel>(sceneViewModel =>
             {
-                if (scene != null)
+                // Feed back changes to EditorSubsystem.
+                // this will eventually trigger `set ActiveScene` via our bound delegate
+                _ = EngineManager.PostToSimThread(() =>
                 {
-                    ActiveScene = scene;
-                }
+                    try
+                    {
+                        _editorSubsystem.SetActiveScene(sceneViewModel?.Scene);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log(LogLevel.Warning, $"Failed to set active scene: {ex.Message}");
+                    }
+                });
             });
 
             HyperionEditorGame? editorGame = EngineManager.EditorGame;
@@ -321,7 +318,7 @@ namespace Hyperion.Editor.ViewModels
             ContentBrowser.LoadBuckets();
             OnPropertyChanged(nameof(ContentBrowser));
 
-            HandleCurrentProjectChanged(_editorSubsystem.CurrentProject);
+            HandleCurrentProjectChanged(_editorSubsystem.CurrentProject, isSimulationStateChange: false);
 
             EditorState editorState = EditorState.Instance;
 
@@ -363,14 +360,19 @@ namespace Hyperion.Editor.ViewModels
             _isReady = true;
         }
 
+        ~MainWindowViewModel()
+        {
+            Dispose(false);
+        }
+
         public void Dispose()
         {
-            EngineManager.SceneAdded -= OnSceneAdded;
-            EngineManager.SceneRemoved -= OnSceneRemoved;
-            EngineManager.TaskStarted -= OnTaskStarted;
-            EngineManager.TaskEnded -= OnTaskEnded;
-            EngineManager.TaskProgressUpdated -= OnTaskProgressUpdated;
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
 
+        public void Dispose(bool isDisposing)
+        {
             _gameModeChangedHandler?.Remove();
             _focusedNodeChangedHandler?.Remove();
             _selectionChangedHandler?.Remove();
@@ -379,9 +381,20 @@ namespace Hyperion.Editor.ViewModels
             _selectedGizmoChangedHandler?.Remove();
             _activeSceneChangedHandler?.Remove();
             _actionStackStateChangedHandler?.Remove();
-            SceneHierarchy.SelectedNodeChanged -= OnSceneHierarchyNodeSelected;
-            SceneHierarchy.SelectionChanged -= OnSceneHierarchySelectionChanged;
-            ContentBrowser.Dispose();
+
+            if (isDisposing)
+            {
+                EngineManager.SceneAdded -= OnSceneAdded;
+                EngineManager.SceneRemoved -= OnSceneRemoved;
+                EngineManager.TaskStarted -= OnTaskStarted;
+                EngineManager.TaskEnded -= OnTaskEnded;
+                EngineManager.TaskProgressUpdated -= OnTaskProgressUpdated;
+
+                SceneHierarchy.SelectedNodeChanged -= OnSceneHierarchyNodeSelected;
+                SceneHierarchy.SelectionChanged -= OnSceneHierarchySelectionChanged;
+                
+                ContentBrowser.Dispose();
+            }
         }
 
         private void OnTaskStarted(EditorTaskBase task, bool isForegroundTask)
@@ -446,6 +459,8 @@ namespace Hyperion.Editor.ViewModels
         {
             Dispatcher.UIThread.Post(() =>
             {
+                Logger.Log(LogLevel.Info, "Changing active scene in c#");
+
                 if (!_isReady)
                 {
                     return;
@@ -454,7 +469,12 @@ namespace Hyperion.Editor.ViewModels
                 // only attach scenes that have the FOREGROUND flag
                 if (scene == null || !scene.SceneFlags.HasFlag(SceneFlags.Foreground))
                 {
-                    ActiveScene = null;
+                    _activeScene = null;
+
+                    SceneHierarchy.AttachToScene(null);
+
+                    OnPropertyChanged(nameof(ActiveScene));
+
                     return;
                 }
 
@@ -557,7 +577,7 @@ namespace Hyperion.Editor.ViewModels
             UpdatePasteHeader();
         }
 
-        private void HandleCurrentProjectChanged(EditorProject? project)
+        private void HandleCurrentProjectChanged(EditorProject? project, bool isSimulationStateChange)
         {
             // Game mode:  when project changes we also want to update the play/pause/stop buttons
             _gameModeChangedHandler?.Remove();

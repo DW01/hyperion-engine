@@ -1,3 +1,4 @@
+#include "Core/IO/ByteWriter.hpp"
 #include <Editor/EditorCommand.hpp>
 #include <Editor/EditorSubsystem.hpp>
 #include <Editor/EditorProject.hpp>
@@ -1866,6 +1867,85 @@ public:
         return "New Script";
     }
 
+    static void CreateScriptFile(EditorProject& project, ScriptAsset& scriptAsset)
+    {
+        // Create script file in filesystem:
+        bool shouldCreateFile = true;
+
+        const FilePath rootDir = GetCurrentAssetRegistry()->GetRootPath();
+        if (!rootDir.Exists())
+        {
+            HYP_LOG(Editor, Info, "Asset registry root dir at {} does not exist, saving the package to create it.", rootDir);
+
+            Result saveResult = project.Save();
+            if (saveResult.HasError())
+            {
+                HYP_LOG(Editor, Warning, "Failed to save project; script file will not be created. Reason was: {}", saveResult.GetError().GetMessage());
+
+                shouldCreateFile = false;
+            }
+            else if (!rootDir.Exists())
+            {
+                HYP_LOG(Editor, Warning, "Asset registry root dir still does not exist after saving project. Will not create script asset. (path: {})", rootDir);
+
+                shouldCreateFile = false;
+            }
+        }
+        else if (!rootDir.IsDirectory())
+        {
+            HYP_LOG(Editor, Warning, "Asset registry root dir is not a directory. Will not create script asset. (path: {})", rootDir);
+
+            shouldCreateFile = false;
+        }
+
+        const FilePath scriptsDir = rootDir / "Scripts";
+        if (!scriptsDir.Exists())
+        {
+            if (!scriptsDir.MkDir())
+            {
+                HYP_LOG(Editor, Warning, "Failed to create scripts dir at {}", scriptsDir);
+
+                shouldCreateFile = false;
+            }
+        }
+        else if (!scriptsDir.IsDirectory())
+        {
+            HYP_LOG(Editor, Warning, "Scripts dir exists but is not a directory at {}", scriptsDir);
+
+            shouldCreateFile = false;
+        }
+        
+        FilePath scriptFilePath;
+
+        if (shouldCreateFile)
+        {
+            scriptFilePath = scriptsDir / (String(*scriptAsset.GetName()) + ".hyp");
+            if (scriptFilePath.Exists())
+            {
+                HYP_LOG(Editor, Warning, "File at path {} already exists, not creating to prevent overwriting the file.", scriptFilePath);
+
+                shouldCreateFile = false;
+            }
+        }
+
+        if (shouldCreateFile)
+        {
+            static constexpr const char ScriptTemplateCode[] = "import Lib.*\n\n" \
+                "func OnAdded(entity : Entity)\n" \
+                "    // Called when added to the scene, entity is the target this script is attached to.\n" \
+                "end\n" \
+                "\n" \
+                "func Update(deltaTime : float)\n" \
+                "    // This gets called each frame when the script is active.\n" \
+                "end\n" \
+                "\n";
+
+            FileByteWriter writer { scriptFilePath };
+            writer.WriteString(ScriptTemplateCode);
+            writer.Close();
+        }
+    }
+
     virtual void Execute(EditorSubsystem* subsystem) override
     {
         const Handle<EditorProject>& currentProject = subsystem->GetCurrentProject();
@@ -1879,6 +1959,7 @@ public:
         Handle<ScriptAsset> scriptAsset = MakeHandle<ScriptAsset>(Name::Unique("NewScript"), ScriptDesc());
         InitObject(scriptAsset);
 
+
         // scriptAsset->SetSourceCode(HYP_FORMAT("// {}\n\nexport func Update(DeltaTime : float)\nend\n", scriptAsset->GetName()));
 
         Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
@@ -1888,14 +1969,18 @@ public:
                 {
                     return EditorActionFunctions {
                         .execute = Proc<void(EditorSubsystem*, EditorProject*)>(
-                            [scriptAsset](EditorSubsystem*, EditorProject*)
+                            [scriptAsset](EditorSubsystem*, EditorProject* project)
                             {
                                 GetCurrentAssetRegistry()->PutAssetUnique(scriptAsset);
+
+                                CreateScriptFile(*project, *scriptAsset);
                             }),
                         .revert = Proc<void(EditorSubsystem*, EditorProject*)>(
                             [scriptAsset](EditorSubsystem*, EditorProject*)
                             {
                                 GetCurrentAssetRegistry()->RemoveAsset(scriptAsset);
+
+                                // @TODO: Move to trash/recycling bin? And move back out of there when redo?
                             })
                     };
                 }));

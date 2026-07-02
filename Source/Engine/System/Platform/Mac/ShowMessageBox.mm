@@ -38,16 +38,13 @@ int ShowMessageBox(
             buttonTextStrings[i] = [NSString stringWithUTF8String:buttonTexts[i]];
         }
 
-        if (doAsyncCall)
+        if (buttonFuncs != NULL)
         {
-            if (buttonFuncs != NULL)
-            {
-                buttonFuncProcs[i] = (const Proc<void()>*)buttonFuncs[i];
-            }
-            else
-            {
-                buttonFuncProcs[i] = NULL;
-            }
+            buttonFuncProcs[i] = (const Proc<void()>*)buttonFuncs[i];
+        }
+        else
+        {
+            buttonFuncProcs[i] = NULL;
         }
     }
     
@@ -103,28 +100,29 @@ int ShowMessageBox(
             free(buttonTextStrings);
             buttonTextStrings = NULL;
 
-            if (doAsyncCall)
+            Assert(promise != NULL);
+
+            if (returnValue >= 0 && returnValue < 3)
             {
-                Assert(promise != NULL);
-
-                if (returnValue >= 0 && returnValue < 3)
+                const Proc<void()>* pProc = buttonFuncProcs[returnValue];
+                if (pProc != NULL)
                 {
-                    const Proc<void()>* pProc = buttonFuncProcs[returnValue];
-                    if (pProc != NULL)
-                    {
-                        (*pProc)();
-                    }
+                    (*pProc)();
                 }
-                
-                if (promise != NULL)
-                {
-                    promise->Fulfill();
-                }
+            }
+            
+            if (promise != NULL)
+            {
+                promise->Fulfill();
+            }
 
-                // delete all funcs here - necessary hack for async, see more info in MessageBox.cpp
+            // Cleanup
+            if (buttonFuncProcs != NULL)
+            {
                 for (int i = 0; i < 3; i++)
                 {
                     const Proc<void()>* pProc = buttonFuncProcs[i];
+
                     if (pProc != NULL)
                     {
                         delete pProc;

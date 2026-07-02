@@ -2239,7 +2239,7 @@ EditorSubsystem::~EditorSubsystem()
 {
     if (m_currentProject)
     {
-        g_editorState->SetCurrentProject(nullptr);
+        g_editorState->SetCurrentProject(nullptr, /* isSimulationStateChange */ false);
 
         m_currentProject->SetEditorSubsystem(nullptr);
         m_currentProject->Close();
@@ -2305,7 +2305,7 @@ void EditorSubsystem::OnRemovedFromWorld()
 
     if (m_currentProject)
     {
-        g_editorState->SetCurrentProject(nullptr);
+        g_editorState->SetCurrentProject(nullptr, /* isSimulationStateChange */ false);
 
         OnProjectClosing(m_currentProject);
 
@@ -3482,7 +3482,8 @@ void EditorSubsystem::OpenProject(const Handle<EditorProject>& project)
 
     OnProjectOpened(m_currentProject);
 
-    g_editorState->SetCurrentProject(m_currentProject);
+    const bool isSimulationStateChange = m_preSimulationProject.IsValid();
+    g_editorState->SetCurrentProject(m_currentProject, isSimulationStateChange);
 }
 
 void EditorSubsystem::ShowImportContentDialog()
