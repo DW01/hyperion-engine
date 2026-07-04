@@ -1,0 +1,24 @@
+"In Game Actions"
+{
+    "actions"
+    {
+        "InGameControls"
+        {
+            "title"                 "#Set_InGameControls"
+            "Analog"
+            {
+                "Move"              "#Action_Move"
+                "Camera"            "#Action_Camera"
+            }
+        }
+        "MenuControls"
+        {
+            "title"                 "#Set_MenuControls"
+            "Digital"
+            {
+                "MenuAccept"        "#Action_MenuAccept"
+                "MenuCancel"        "#Action_MenuCancel"
+            }
+        }
+    }
+}

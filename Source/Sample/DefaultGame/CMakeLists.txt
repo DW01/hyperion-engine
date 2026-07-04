@@ -59,7 +59,7 @@ if(CMAKE_GENERATOR MATCHES "Xcode")
   set_target_properties(${BUILD_NAME} PROPERTIES XCODE_SCHEME_LAUNCH_CONFIGURATION_NAME "${HYP_BUILD_TYPE}")
   set_target_properties(${BUILD_NAME} PROPERTIES XCODE_SCHEME_HIDE_BUILDABLE_NAME OFF)
   set_target_properties(${BUILD_NAME} PROPERTIES XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "com.hyperion.${BUILD_NAME}")
-  set_target_properties(${BUILD_NAME} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../Info.plist")
+  set_target_properties(${BUILD_NAME} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Info.plist")
   set_target_properties(${BUILD_NAME} PROPERTIES XCODE_ATTRIBUTE_LD_RUNPATH_SEARCH_PATHS "@executable_path/Frameworks")
 endif()
 
@@ -102,6 +102,19 @@ else()
       -D PLATFORM="${HYP_PLATFORM_NAME}"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/../CopyPlatformConfigs.cmake"
   )
+endif()
+
+if(HYP_PLATFORM_NAME STREQUAL "Windows")
+  # copy .vdf for steam input
+
+  add_custom_command(TARGET ${BUILD_NAME} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/game_actions.vdf"
+        "$<TARGET_FILE_DIR:${BUILD_NAME}>")
+  add_custom_command(TARGET ${BUILD_NAME} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/steam_appid.txt"
+        "$<TARGET_FILE_DIR:${BUILD_NAME}>")
 endif()
 
 # link with shared library hyperion

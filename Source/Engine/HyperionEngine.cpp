@@ -540,7 +540,7 @@ extern "C"
         g_simThreadInstance->Join();
         g_simThread = g_mainThread;
 
-        g_engineDriver->FinalizeStop();
+        g_engineDriver->Shutdown();
 
         g_streamingManager->Stop();
         g_streamingManager.Reset();
@@ -586,6 +586,7 @@ extern "C"
         g_visThreadInstance = nullptr;
 
         // Shutdown object container map - destroys all remaining ObjectBase instances
+        // @TODO Move init/shutdown into CoreApi Initialize and Dhutdown
         GetObjectContainerMap().Shutdown();
 
         // Pools / arenas

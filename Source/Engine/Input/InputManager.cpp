@@ -17,6 +17,10 @@
 
 #include <Framework/EngineGlobals.hpp>
 
+#ifdef HYP_STEAM_SDK
+#include <Input/SteamInput.hpp>
+#endif // HYP_STEAM_SDK
+
 #include <InputManager.generated.inl>
 
 namespace Hyperion {
@@ -568,6 +572,10 @@ void InputManager::MainThreadUpdate()
 {
     HYP_SCOPE;
     AssertOnThread(g_mainThread);
+
+#ifdef HYP_STEAM_SDK
+    SteamInputManager::GetInstance().Update();
+#endif // HYP_STEAM_SDK
 
     Mutex::Guard guard(m_mouseLockStatesMutex);
 

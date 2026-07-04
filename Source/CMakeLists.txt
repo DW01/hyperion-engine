@@ -685,23 +685,23 @@ if(HYP_WINDOWS)
   if(EXISTS "${THIRD_PARTY_INCLUDE_DIR}/steam/steam_api.h")
     message(STATUS "Steam SDK header found")
 
-    # ensure the sdkencryptedappticket64.lib file exists
+    # ensure the lib file exists
     # (needs to be copied there by the user)
 
-    if(EXISTS "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/sdkencryptedappticket64.lib")
-      set(COMMON_LIBRARIES ${COMMON_LIBRARIES} "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/sdkencryptedappticket64.lib")
+    if(EXISTS "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/steam_api64.lib")
+      set(COMMON_LIBRARIES ${COMMON_LIBRARIES} "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/steam_api64.lib")
     else()
-      message(WARNING "sdkencryptedappticket64.lib not found in third party libs when building with Steam SDK support")
+      message(WARNING "steam_api64.lib not found in third party libs when building with Steam SDK support")
     endif()
-    if(EXISTS "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/sdkencryptedappticket64.dll")
+    if(EXISTS "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/steam_api64.dll")
       # needs to be copied to output dir
-      file(COPY "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/sdkencryptedappticket64.dll" DESTINATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+      file(COPY "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/steam_api64.dll" DESTINATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
     else()
-      message(WARNING "sdkencryptedappticket64.dll not found in third party libs when building with Steam SDK support")
+      message(WARNING "steam_api64.dll not found in third party libs when building with Steam SDK support")
     endif()
 
     set(HYP_STEAM_SDK 1)
-    add_definitions(-DHYP_STEAM_SDK 1)
+    add_definitions(-DHYP_STEAM_SDK=1)
   endif()
 endif()
 

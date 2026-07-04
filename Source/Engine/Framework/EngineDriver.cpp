@@ -77,6 +77,10 @@
 
 #include <Input/Event.hpp>
 
+#ifdef HYP_STEAM_SDK
+#include <Input/SteamInput.hpp>
+#endif // HYP_STEAM_SDK
+
 #include <System/AppContext.hpp>
 #include <System/DirectoryInitializer.hpp>
 
@@ -209,6 +213,10 @@ void EngineDriver::Initialize()
     {
         return;
     }
+
+#ifdef HYP_STEAM_SDK
+    SteamInputManager::GetInstance().Initialize();
+#endif // HYP_STEAM_SDK
 
     SharedPtr<NetRequestThread> netRequestThread = MakeShared<NetRequestThread>();
     SetGlobalNetRequestThread(netRequestThread);
@@ -410,7 +418,7 @@ void EngineDriver::RequestStop()
     }
 }
 
-void EngineDriver::FinalizeStop()
+void EngineDriver::Shutdown()
 {
     AssertOnThread(g_mainThread);
 
@@ -450,6 +458,10 @@ void EngineDriver::FinalizeStop()
 
         SetGlobalNetRequestThread(nullptr);
     }
+
+#ifdef HYP_STEAM_SDK
+    SteamInputManager::GetInstance().Shutdown();
+#endif // HYP_STEAM_SDK
 
     m_isShuttingDown = 0;
 }
@@ -616,7 +628,7 @@ void EngineDriver::UpdateSim(float delta)
     }
 
     updateSubsystemTasks.Clear();
-#else // !HYP_PROCESS_SUBSYSTEMS_ASYNC
+#else  // !HYP_PROCESS_SUBSYSTEMS_ASYNC
     for (Subsystem* subsystem : m_subsystemsArray)
     {
         subsystem->PreUpdate(delta);
@@ -708,7 +720,7 @@ void EngineDriver::UpdateSim(float delta)
 
 #if HYP_PROCESS_VIEWS_ASYNC
         view->BeginAsyncCollection(*m_viewCollectionBatch);
-#else // !HYP_PROCESS_VIEWS_ASYNC
+#else  // !HYP_PROCESS_VIEWS_ASYNC
         view->CollectSync();
 #endif // HYP_PROCESS_VIEWS_ASYNC
     }
@@ -721,7 +733,7 @@ void EngineDriver::UpdateSim(float delta)
     {
         views[index]->EndAsyncCollection();
     }
-    
+
     AssertDebug(m_viewCollectionBatch != nullptr);
     AssertDebug(m_viewCollectionBatch->IsCompleted());
 
