@@ -1,12 +1,14 @@
 ## About Hyperion
 
-Hyperion Engine is a high performance game engine written in C++20, with a focus on modern rendering techniques such as clustered shading, gpu driven rendering, ray tracing, and a high performance Vulkan graphics backend. This project started as a fork of [an earlier engine project](https://github.com/ajmd17/apex-engine) that I started working on in 2016, but has since been almost completely rewritten and redesigned from the ground up.
-
-Additionally, we have a WIP DirectX 12 rendering backend, but it is not at par with the Vulkan implementation.
-
-#### Editor screenshot
+Hyperion Engine is a high performance game engine written in C++20, with a focus on modern rendering techniques such as clustered shading, gpu driven rendering, ray tracing. This project started as a fork of [an earlier engine project](https://github.com/ajmd17/apex-engine) that I started working on in 2016, but has since been almost completely rewritten and redesigned from the ground up. 
 
 ![Hyperion Engine Screenshot - Baked lightmaps in Editor view](/Documentation/Images/LightmapBakeEditor.png)
+
+## Platforms
+Currently, we are focusing our efforts on developing the engine for *Windows*, *macOS*, *Android*, *iOS*, and Steam Deck via Proton. Editor support is available on Windows and macOS.
+> Linux support is planned for the future but not in active development. Contributions welcome on that front if you are interested in that!
+
+To get started, check out the [Compiling the Engine](Documentation/CompilingTheEngine.md) guide to set up your development environment and compile the engine.
 
 ## Features
 - Real time global illumination and reflections via Ray tracing and screen-space options for non-RT capable hardware.
@@ -17,15 +19,7 @@ Additionally, we have a WIP DirectX 12 rendering backend, but it is not at par w
 - Shader compiler system with built in permutations support - just use `PERMUTE(...)` in your shader code to define a permutation set, and the engine will automatically compile all combinations of that permutation and make it available for use at runtime.
 - Level streaming and world partitioning system to enable efficient memory usage and larger worlds
 - Scripting via C# or our custom scripting language, HypScript.
-- Hot reloading for shaders and scripts for fast iteration time.
-
-## Platforms
-Currently, we are focusing our efforts on developing the engine for *Windows*, *macOS* and *Android*. Editor support is available on Windows and macOS.
-> Linux support is planned for the future but not in active development. Contributions welcome on that front if you are interested in that!
-
-The engine is in early access and is not yet ready for production use. But if you are feeling adventurous, we welcome you to try it out and see what you can create (or break)!
-
-To get started, check out the [Compiling the Engine](Documentation/CompilingTheEngine.md) guide to set up your development environment and compile the engine.
+- Hot reloading for shaders and scripts
 
 ## Contributing
 
