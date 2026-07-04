@@ -680,6 +680,31 @@ elseif(RENDERING_BACKEND STREQUAL "DX12")
   include_directories(BEFORE SYSTEM ${THIRD_PARTY_INCLUDE_DIR}/DirectX-Headers)
 endif()
 
+# Check if Steam sdk exists (Windows only for now).
+if(HYP_WINDOWS)
+  if(EXISTS "${THIRD_PARTY_INCLUDE_DIR}/steam/steam_api.h")
+    message(STATUS "Steam SDK header found")
+
+    # ensure the sdkencryptedappticket64.lib file exists
+    # (needs to be copied there by the user)
+
+    if(EXISTS "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/sdkencryptedappticket64.lib")
+      set(COMMON_LIBRARIES ${COMMON_LIBRARIES} "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/sdkencryptedappticket64.lib")
+    else()
+      message(WARNING "sdkencryptedappticket64.lib not found in third party libs when building with Steam SDK support")
+    endif()
+    if(EXISTS "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/sdkencryptedappticket64.dll")
+      # needs to be copied to output dir
+      file(COPY "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/sdkencryptedappticket64.dll" DESTINATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+    else()
+      message(WARNING "sdkencryptedappticket64.dll not found in third party libs when building with Steam SDK support")
+    endif()
+
+    set(HYP_STEAM_SDK 1)
+    add_definitions(-DHYP_STEAM_SDK 1)
+  endif()
+endif()
+
 # setup DXC if found
 if(EXISTS "${THIRD_PARTY_INCLUDE_DIR}/dxc/dxcapi.h")
   message(STATUS "DXC headers found, setting up DXC")
