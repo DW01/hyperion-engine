@@ -1,0 +1,58 @@
+"In Game Actions"
+{
+    "actions"
+    {
+        "InGameControls"
+        {
+            "title"                 "#Set_InGameControls"
+            
+            "StickPadGyro"
+            {
+                "Move"
+                {
+                    "title"         "#Action_Move"
+                    "input_mode"    "joystick_move"
+                }
+                "Look"
+                {
+                    "title"         "#Action_Camera"
+                    "input_mode"    "joystick_move"
+                }
+            }
+            
+            "AnalogTrigger"
+            {
+                "LeftTrigger"       "#Action_LeftTrigger"
+                "RightTrigger"      "#Action_RightTrigger"
+            }
+            
+            "Button"
+            {
+                "A"                 "#Action_A"
+                "B"                 "#Action_B"
+                "X"                 "#Action_X"
+                "Y"                 "#Action_Y"
+                "DPad_Up"           "#Action_DPad_Up"
+                "DPad_Down"         "#Action_DPad_Down"
+                "DPad_Left"         "#Action_DPad_Left"
+                "DPad_Right"        "#Action_DPad_Right"
+                "Left_Bumper"       "#Action_Left_Bumper"
+                "Right_Bumper"      "#Action_Right_Bumper"
+                "Left_Stick"        "#Action_Left_Stick"
+                "Right_Stick"       "#Action_Right_Stick"
+                "Start"             "#Action_Start"
+                "Select"            "#Action_Select"
+                "Guide"             "#Action_Guide"
+            }
+        }
+        "MenuControls"
+        {
+            "title"                 "#Set_MenuControls"
+            "Button"
+            {
+                "MenuAccept"        "#Action_MenuAccept"
+                "MenuCancel"        "#Action_MenuCancel"
+            }
+        }
+    }
+}

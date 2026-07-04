@@ -1488,6 +1488,12 @@ extern struct MotionData
     Delta : Vec2f
     IsAbsolute : bool
 end
+extern struct ControllerAnalogData
+    ControllerIndex : uint8
+    ActionIndex : uint8
+    Value : Vec2f
+    Delta : Vec2f
+end
 extern struct TouchEventData
     PointerId : int32
     MotionData : MotionData
@@ -1505,6 +1511,9 @@ extern enum EventType : uint32
     TOUCH_DOWN = 0x0500,
     TOUCH_UP = 0x0501,
     TOUCH_MOVE = 0x0502,
+    CONTROLLER_BUTTON_DOWN = 0x0600,
+    CONTROLLER_BUTTON_UP = 0x0601,
+    CONTROLLER_ANALOG_MOVE = 0x0602,
     FILE_DROP = 0x1000,
     WINDOW_MOVED = 0x0204,
     WINDOW_RESIZED = 0x0205,
@@ -1516,6 +1525,26 @@ end
 extern enum EventFlags : uint8
     NONE = 0x0,
     RELATIVE_MOUSE = 0x1
+end
+extern enum ControllerButton : uint16
+    INVALID = 0,
+    A,
+    B,
+    X,
+    Y,
+    DPad_Up,
+    DPad_Down,
+    DPad_Left,
+    DPad_Right,
+    Left_Bumper,
+    Right_Bumper,
+    Left_Trigger,
+    Right_Trigger,
+    Left_Stick,
+    Right_Stick,
+    Start,
+    Select,
+    Guide
 end
 extern struct TouchEvent
     PointerId : int32

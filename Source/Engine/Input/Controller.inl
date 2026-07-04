@@ -1,7 +1,7 @@
 inline bool IsValidController(ControllerHandle handle)
 {
     uint64 value = reinterpret_cast<uint64>(handle);
-    return (value & 0x200) != 0;
+    return (value & 0xFF) != 0;
 }
 
 inline bool IsSteamInput(ControllerHandle handle)

@@ -440,6 +440,21 @@ bool DefaultGame::OnInputEvent(const Event& event)
         }
         break;
     }
+    case EventType::CONTROLLER_BUTTON_DOWN:
+        controller->GetInputHandler()->OnControllerButtonDown(event.GetControllerButton());
+        break;
+    case EventType::CONTROLLER_BUTTON_UP:
+        controller->GetInputHandler()->OnControllerButtonUp(event.GetControllerButton());
+        break;
+    case EventType::CONTROLLER_ANALOG_MOVE:
+    {
+        const ControllerAnalogData* analogData = event.GetControllerAnalogData();
+        if (analogData)
+        {
+            controller->GetInputHandler()->OnControllerAnalogMove(*analogData);
+        }
+        break;
+    }
     default:
         break;
     }

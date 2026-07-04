@@ -695,6 +695,7 @@ if(HYP_WINDOWS)
     endif()
     if(EXISTS "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/steam_api64.dll")
       # needs to be copied to output dir
+      message(STATUS "Copying steam_api64.dll to ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
       file(COPY "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/steam_api64.dll" DESTINATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
     else()
       message(WARNING "steam_api64.dll not found in third party libs when building with Steam SDK support")

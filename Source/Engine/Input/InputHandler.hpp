@@ -20,6 +20,8 @@ namespace Hyperion {
 
 struct InputState;
 struct TouchEvent;
+struct ControllerAnalogData;
+enum class ControllerButton : uint16;
 
 HYP_CLASS(Abstract)
 class ENGINE_API InputHandlerBase : public ObjectBase
@@ -57,7 +59,7 @@ public:
 
     /*! \brief Get the current touch movement delta (joystick input)
      *  \return Vec2f where x = strafe (left/right), y = forward/back, range -1 to 1 */
-    HYP_FORCE_INLINE Vec2f GetTouchMovementDelta() const
+    HYP_FORCE_INLINE const Vec2f& GetTouchMovementDelta() const
     {
         return m_touchMovementDelta;
     }
@@ -120,10 +122,45 @@ public:
         return false;
     }
 
+    virtual bool OnControllerButtonDown(ControllerButton btn)
+    {
+        return false;
+    }
+
+    virtual bool OnControllerButtonUp(ControllerButton btn)
+    {
+        return false;
+    }
+
+    virtual bool OnControllerAnalogMove(const ControllerAnalogData& data);
+
+    HYP_FORCE_INLINE const Vec2f& GetControllerMoveDelta() const
+    {
+        return m_controllerMoveDelta;
+    }
+
+    HYP_FORCE_INLINE void SetControllerMoveDelta(const Vec2f& delta)
+    {
+        m_controllerMoveDelta = delta;
+    }
+
+    HYP_FORCE_INLINE const Vec2f& GetControllerLookDelta() const
+    {
+        return m_controllerLookDelta;
+    }
+
+    HYP_FORCE_INLINE void SetControllerLookDelta(const Vec2f& delta)
+    {
+        m_controllerLookDelta = delta;
+    }
+
 private:
     Bitset m_keyStates;
     EnumFlags<MouseButtonState> m_mouseButtonStates;
-    Vec2f m_touchMovementDelta = Vec2f::Zero();
+
+    Vec2f m_touchMovementDelta;
+    Vec2f m_controllerMoveDelta;
+    Vec2f m_controllerLookDelta;
 
 protected:
     double m_deltaTime;

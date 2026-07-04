@@ -40,11 +40,13 @@ private:
     static constexpr size_t MaxConnectedControllers = 8;
 
     void UpdateControllers();
+    void ProcessControllerInput();
 
     bool m_isInitialized;
 
     uint64 m_setHandles[64];
-    uint64 m_actionHandles[64];
+    uint64 m_analogActionHandles[64];
+    uint64 m_digitalActionHandles[64];
 
     /// Per-window states
     struct WindowState

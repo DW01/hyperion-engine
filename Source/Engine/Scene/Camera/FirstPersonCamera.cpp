@@ -161,6 +161,51 @@ bool FirstPersonCameraInputHandler::OnLoseFocus(const MouseEvent& evt)
     return true;
 }
 
+bool FirstPersonCameraInputHandler::OnControllerButtonDown(ControllerButton btn)
+{
+    switch (btn)
+    {
+    case ControllerButton::Guide:
+        m_controller->SetMode(FirstPersonCameraControllerMode::MOUSE_FREE);
+        break;
+    case ControllerButton::A:
+        m_controller->SetMode(FirstPersonCameraControllerMode::MOUSE_LOCKED);
+        break;
+    default:
+        break;
+    }
+
+    return true;
+}
+
+bool FirstPersonCameraInputHandler::OnControllerAnalogMove(const ControllerAnalogData& data)
+{
+    if (data.actionIndex == 1)
+    {
+        Camera* camera = m_controller->GetCamera();
+        if (!camera)
+        {
+            return false;
+        }
+
+        static constexpr float ControllerLookSensitivity = 100.0f;
+        const float deltaTime = static_cast<float>(m_deltaTime);
+
+        Vec2f lookDelta = data.value * ControllerLookSensitivity * deltaTime;
+
+        Vec3f dirCrossY = camera->GetSideVector();
+        camera->Rotate(camera->GetUpVector(), MathUtil::DegToRad(-lookDelta.x));
+        camera->Rotate(dirCrossY, MathUtil::DegToRad(-lookDelta.y));
+
+        if (camera->GetDirection().y > 0.98f || camera->GetDirection().y < -0.98f)
+        {
+            camera->Rotate(dirCrossY, MathUtil::DegToRad(lookDelta.y));
+        }
+    }
+
+    return InputHandlerBase::OnControllerAnalogMove(data);
+}
+
 #pragma endregion FirstPersonCameraInputHandler
 
 #pragma region FirstPersonCameraController
@@ -256,13 +301,20 @@ void FirstPersonCameraController::UpdateLogic(double delta)
         translation += dirCrossY * delta * MovementSpeed;
     }
 
-    // Touch joystick movement
-    Vec2f touchDelta = m_inputHandler->GetTouchMovementDelta();
+    const Vec2f& touchDelta = m_inputHandler->GetTouchMovementDelta();
     if (!touchDelta.IsZero())
     {
         // touchDelta.x = strafe (left/right), touchDelta.y = forward/back
         translation += direction * -touchDelta.y * delta * MovementSpeed;
         translation += dirCrossY * touchDelta.x * delta * MovementSpeed;
+    }
+
+    const Vec2f& controllerMove = m_inputHandler->GetControllerMoveDelta();
+    if (!controllerMove.IsZero())
+    {
+        static constexpr float ControllerMovementSpeed = 15.0f;
+        translation += direction * -controllerMove.y * delta * ControllerMovementSpeed;
+        translation += dirCrossY * controllerMove.x * delta * ControllerMovementSpeed;
     }
 
     m_camera->SetNextTranslation(translation);
