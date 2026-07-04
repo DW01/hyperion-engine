@@ -23,6 +23,10 @@
 #include <Input/InputManager.hpp>
 #include <Input/Event.hpp>
 
+#ifdef HYP_STEAM_SDK
+#include <Input/SteamInput.hpp>
+#endif // HYP_STEAM_SDK
+
 #include <System/AppContext.hpp>
 
 #include <semaphore>
@@ -98,6 +102,10 @@ void MainThread::Update()
             event.GetWindow()->GetInputManager()->ProcessEvent(std::move(event));
         }
     }
+
+#ifdef HYP_STEAM_SDK
+    SteamInputManager::GetInstance().Update();
+#endif // HYP_STEAM_SDK
 
     for (ApplicationWindow* window : g_appContext->GetWindows())
     {

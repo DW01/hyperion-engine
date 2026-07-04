@@ -174,6 +174,8 @@ InputManager::InputManager(ApplicationWindow* ownerWindow)
     : m_eventQueue(new InputEventQueue),
       m_mouseLockStates(),
       m_ownerWindow(ownerWindow),
+      m_controllers {},
+      m_validControllersMask(0),
       m_isMouseLocked(false),
       m_syncToVirtualPosition(false)
 {
@@ -480,6 +482,42 @@ void InputManager::RemoveMouseLockState(InputMouseLockState* mouseLockState)
     }
 }
 
+void InputManager::AddController(ControllerHandle controller)
+{
+    AssertOnThread(g_mainThread);
+
+    AssertDebug(IsValidController(controller));
+
+    const uint8 controllerIndex = GetControllerIndex(controller);
+
+    if (m_validControllersMask & (1u << controllerIndex))
+    {
+        HYP_LOG(Input, Warning, "Already has controller set at index {}, will be overwriting without proper removal beforehand!", controllerIndex);
+    }
+
+    m_controllers[controllerIndex] = controller;
+    m_validControllersMask |= (1u << controllerIndex);
+}
+
+void InputManager::RemoveController(ControllerHandle controller)
+{
+    AssertOnThread(g_mainThread);
+
+    AssertDebug(IsValidController(controller));
+
+    const uint8 controllerIndex = GetControllerIndex(controller);
+
+    if (!(m_validControllersMask & (1u << controllerIndex)))
+    {
+        HYP_LOG(Input, Warning, "No valid controller at index {}!", controllerIndex);
+
+        return;
+    }
+
+    m_controllers[controllerIndex] = InvalidControllerHandle;
+    m_validControllersMask &= ~(1u << controllerIndex);
+}
+
 void InputManager::ProcessEvent(Event&& event)
 {
     AssertOnThread(g_mainThread);
@@ -572,10 +610,6 @@ void InputManager::MainThreadUpdate()
 {
     HYP_SCOPE;
     AssertOnThread(g_mainThread);
-
-#ifdef HYP_STEAM_SDK
-    SteamInputManager::GetInstance().Update();
-#endif // HYP_STEAM_SDK
 
     Mutex::Guard guard(m_mouseLockStatesMutex);
 

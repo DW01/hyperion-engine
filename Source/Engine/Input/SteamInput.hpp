@@ -7,8 +7,13 @@
 #pragma once
 
 #include <Core/Defines.hpp>
+#include <Core/Types.hpp>
+
+#include <Core/Functional/Delegate.hpp>
 
 namespace Hyperion {
+
+class ApplicationWindow;
 
 class ENGINE_API SteamInputManager
 {
@@ -38,10 +43,21 @@ private:
 
     bool m_isInitialized;
 
-    uint64 m_controllers[MaxConnectedControllers];
-
     uint64 m_setHandles[64];
     uint64 m_actionHandles[64];
+
+    /// Per-window states
+    struct WindowState
+    {
+        ApplicationWindow* window;
+        uint64 m_controllers[MaxConnectedControllers];
+    };
+
+    static void InitializeWindowState(WindowState&, ApplicationWindow* window);
+    static void ShutdownWindowState(WindowState&);
+
+    WindowState m_windowState;
+    DelegateHandler m_onMainWindowChanged;
 };
 
 } // namespace Hyperion
