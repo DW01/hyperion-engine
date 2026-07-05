@@ -29,12 +29,12 @@ HYP_DECLARE_LOG_CHANNEL(Steam);
 
 bool IsInitialized();
 
-enum SetHandles : uint8
+enum ActionSet : uint8
 {
-    Set_InGame
+    ActionSet_FPSControls
 };
 
-enum AnalogActionHandles : uint8
+enum AnalogAction : uint8
 {
     AnalogAction_Move,
     AnalogAction_Look,
@@ -43,7 +43,7 @@ enum AnalogActionHandles : uint8
     AnalogAction_Max
 };
 
-enum DigitalActionHandles : uint8
+enum DigitalAction : uint8
 {
     DigitalAction_A,
     DigitalAction_B,
@@ -65,7 +65,7 @@ enum DigitalActionHandles : uint8
     DigitalAction_Max
 };
 
-static ControllerButton MapDigitalActionToButton(DigitalActionHandles actionIndex)
+static ControllerButton MapDigitalActionToButton(DigitalAction actionIndex)
 {
     switch (actionIndex)
     {
@@ -114,13 +114,57 @@ static inline ControllerHandle MakeSteamInputControllerHandle(uint8 controllerIn
     return reinterpret_cast<ControllerHandle>(value);
 }
 
+struct ActionSetDesc
+{
+    const char* setName;
+    const char* const* analogActions;
+    const char* const* digitalActions;
+};
+
+static constexpr const char* FPSControls_AnalogActions[] = {
+    "Move",
+    "Look",
+    "LeftTrigger",
+    "RightTrigger",
+    nullptr
+};
+
+static constexpr const char* FPSControls_DigitalActions[] = {
+    "A",
+    "B",
+    "X",
+    "Y",
+    "DPad_Up",
+    "DPad_Down",
+    "DPad_Left",
+    "DPad_Right",
+    "Left_Bumper",
+    "Right_Bumper",
+    "Left_Trigger",
+    "Right_Trigger",
+    "Left_Stick",
+    "Right_Stick",
+    "Start",
+    "Select",
+    "Guide",
+    nullptr
+};
+
+static constexpr const ActionSetDesc ActionSetDescs[] = {
+    // FPSControls
+    ActionSetDesc {
+        "FPSControls",
+        FPSControls_AnalogActions,
+        FPSControls_DigitalActions
+    }
+};
+
 SteamInputManager s_steamInputManager;
 
 SteamInputManager::SteamInputManager()
     : m_isInitialized(false),
-      m_setHandles {},
-      m_analogActionHandles {},
-      m_digitalActionHandles {},
+      m_currentActionSet(0),
+      m_actionSets {},
       m_windowState {}
 {
 }
@@ -156,30 +200,10 @@ void SteamInputManager::Initialize()
         return;
     }
 
-    m_setHandles[Set_InGame] = SteamInput()->GetActionSetHandle("FPSControls");
-
-    m_analogActionHandles[AnalogAction_Move] = SteamInput()->GetAnalogActionHandle("Move");
-    m_analogActionHandles[AnalogAction_Look] = SteamInput()->GetAnalogActionHandle("Look");
-    m_analogActionHandles[AnalogAction_LeftTrigger] = SteamInput()->GetAnalogActionHandle("LeftTrigger");
-    m_analogActionHandles[AnalogAction_RightTrigger] = SteamInput()->GetAnalogActionHandle("RightTrigger");
-
-    m_digitalActionHandles[DigitalAction_A] = SteamInput()->GetDigitalActionHandle("A");
-    m_digitalActionHandles[DigitalAction_B] = SteamInput()->GetDigitalActionHandle("B");
-    m_digitalActionHandles[DigitalAction_X] = SteamInput()->GetDigitalActionHandle("X");
-    m_digitalActionHandles[DigitalAction_Y] = SteamInput()->GetDigitalActionHandle("Y");
-    m_digitalActionHandles[DigitalAction_DPad_Up] = SteamInput()->GetDigitalActionHandle("DPad_Up");
-    m_digitalActionHandles[DigitalAction_DPad_Down] = SteamInput()->GetDigitalActionHandle("DPad_Down");
-    m_digitalActionHandles[DigitalAction_DPad_Left] = SteamInput()->GetDigitalActionHandle("DPad_Left");
-    m_digitalActionHandles[DigitalAction_DPad_Right] = SteamInput()->GetDigitalActionHandle("DPad_Right");
-    m_digitalActionHandles[DigitalAction_Left_Bumper] = SteamInput()->GetDigitalActionHandle("Left_Bumper");
-    m_digitalActionHandles[DigitalAction_Right_Bumper] = SteamInput()->GetDigitalActionHandle("Right_Bumper");
-    m_digitalActionHandles[DigitalAction_Left_Trigger] = SteamInput()->GetDigitalActionHandle("Left_Trigger");
-    m_digitalActionHandles[DigitalAction_Right_Trigger] = SteamInput()->GetDigitalActionHandle("Right_Trigger");
-    m_digitalActionHandles[DigitalAction_Left_Stick] = SteamInput()->GetDigitalActionHandle("Left_Stick");
-    m_digitalActionHandles[DigitalAction_Right_Stick] = SteamInput()->GetDigitalActionHandle("Right_Stick");
-    m_digitalActionHandles[DigitalAction_Start] = SteamInput()->GetDigitalActionHandle("Start");
-    m_digitalActionHandles[DigitalAction_Select] = SteamInput()->GetDigitalActionHandle("Select");
-    m_digitalActionHandles[DigitalAction_Guide] = SteamInput()->GetDigitalActionHandle("Guide");
+    for (size_t i = 0; i < std::size(ActionSetDescs); i++)
+    {
+        InitializeActionSet(ActionSetDescs[i], m_actionSets[i]);
+    }
 
     m_onMainWindowChanged = AppContextBase::OnCurrentWindowChanged.Bind(
         g_appContext,
@@ -238,6 +262,40 @@ void SteamInputManager::Shutdown()
     }
 }
 
+bool SteamInputManager::InitializeActionSet(const ActionSetDesc& desc, ActionSet& outSet)
+{
+    Memory::Zero(&outSet, sizeof(ActionSet));
+
+    outSet.setHandle = SteamInput()->GetActionSetHandle(desc.setName);
+
+    if (outSet.setHandle == 0)
+    {
+        return false;
+    }
+
+    for (uint32 actionIndex = 0;; actionIndex++)
+    {
+        if (!desc.analogActions[actionIndex])
+        {
+            break;
+        }
+
+        outSet.analogActionHandles[actionIndex] = SteamInput()->GetAnalogActionHandle(desc.analogActions[actionIndex]);
+    }
+
+    for (uint32 actionIndex = 0;; actionIndex++)
+    {
+        if (!desc.digitalActions[actionIndex])
+        {
+            break;
+        }
+
+        outSet.digitalActionHandles[actionIndex] = SteamInput()->GetDigitalActionHandle(desc.digitalActions[actionIndex]);
+    }
+
+    return true;
+}
+
 void SteamInputManager::Update()
 {
     AssertOnThread(g_mainThread);
@@ -245,6 +303,11 @@ void SteamInputManager::Update()
     if (!m_isInitialized)
     {
         return;
+    }
+
+    if (m_actionSets[m_currentActionSet].setHandle == 0)
+    {
+        InitializeActionSet(ActionSetDescs[m_currentActionSet], m_actionSets[m_currentActionSet]);
     }
 
     UpdateControllers();
@@ -258,10 +321,10 @@ void SteamInputManager::UpdateControllers()
         return;
     }
 
-    SteamInput()->RunFrame();
-
     // @TODO Steamworks docs recommends only calling every 10hz or less.
     SteamAPI_RunCallbacks();
+
+    SteamInput()->RunFrame();
 
     Handle<InputManager> inputManager = m_windowState.window->GetInputManager();
     Assert(inputManager.IsValid());
@@ -300,7 +363,7 @@ void SteamInputManager::UpdateControllers()
                     ControllerHandle controllerHandle = MakeSteamInputControllerHandle(controllerIndex);
                     inputManager->AddController(controllerHandle);
 
-                    SteamInput()->ActivateActionSet(steamHandle, m_setHandles[Set_InGame]);
+                    SteamInput()->ActivateActionSet(steamHandle, m_actionSets[ActionSet_FPSControls].setHandle);
 
                     HYP_LOG(Steam, Info, "Steam controller connected at index {}", controllerIndex);
 
@@ -310,7 +373,7 @@ void SteamInputManager::UpdateControllers()
         }
         else
         {
-            SteamInput()->ActivateActionSet(steamHandle, m_setHandles[Set_InGame]);
+            SteamInput()->ActivateActionSet(steamHandle, m_actionSets[ActionSet_FPSControls].setHandle);
         }
     }
 
@@ -342,6 +405,14 @@ void SteamInputManager::ProcessControllerInput()
     Handle<InputManager> inputManager = m_windowState.window->GetInputManager();
     Assert(inputManager.IsValid());
 
+    const ActionSet& actionSet = m_actionSets[m_currentActionSet];
+
+    if (!actionSet.setHandle)
+    {
+        HYP_LOG(Steam, Warning, "Invalid action set {}", ActionSetDescs[m_currentActionSet].setName);
+        return;
+    }
+
     PlatformEvent platformEvent = {};
 
     for (uint8 controllerIndex = 0; controllerIndex < MaxConnectedControllers; controllerIndex++)
@@ -356,7 +427,7 @@ void SteamInputManager::ProcessControllerInput()
         for (uint32 actionIndex = 0; actionIndex < DigitalAction_Max; actionIndex++)
         {
             const InputDigitalActionData_t actionData = SteamInput()->GetDigitalActionData(
-                steamHandle, m_digitalActionHandles[actionIndex]);
+                steamHandle, actionSet.digitalActionHandles[actionIndex]);
 
             if (actionData.bActive)
             {
@@ -367,7 +438,7 @@ void SteamInputManager::ProcessControllerInput()
                         : EventType::CONTROLLER_BUTTON_UP;
 
                     Event event(eventType, m_windowState.window, platformEvent);
-                    event.GetEventData().Set(MapDigitalActionToButton(static_cast<DigitalActionHandles>(actionIndex)));
+                    event.GetEventData().Set(MapDigitalActionToButton(static_cast<DigitalAction>(actionIndex)));
 
                     inputManager->ProcessEvent(std::move(event));
 
@@ -379,7 +450,7 @@ void SteamInputManager::ProcessControllerInput()
         for (uint32 actionIndex = 0; actionIndex < AnalogAction_Max; actionIndex++)
         {
             const InputAnalogActionData_t actionData = SteamInput()->GetAnalogActionData(
-                steamHandle, m_analogActionHandles[actionIndex]);
+                steamHandle, actionSet.analogActionHandles[actionIndex]);
 
             if (actionData.bActive)
             {

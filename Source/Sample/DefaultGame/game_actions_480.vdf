@@ -2,9 +2,9 @@
 {
     "actions"
     {
-        "InGameControls"
+        "FPSControls"
         {
-            "title"                 "#Set_InGameControls"
+            "title"                 "#Set_FPSControls"
             
             "StickPadGyro"
             {

@@ -157,6 +157,7 @@ static const Map<TaskThreadPoolName, UniquePtr<TaskThreadPool> (*)(void)> s_thre
 void HandleExit()
 {
 #ifdef HYP_STEAM_SDK
+    Steam::SteamInputManager::GetInstance().Shutdown();
     Steam::Shutdown();
 #endif // HYP_STEAM_SDK
 

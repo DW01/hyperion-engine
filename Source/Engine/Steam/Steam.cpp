@@ -28,6 +28,20 @@ void Initialize()
         return;
     }
 
+    // @TODO: Use application steam app id! 480 is a placeholder for now
+    if (SteamAPI_RestartAppIfNecessary(480))
+    {
+        std::exit(0); // we are restarting through steam.
+    }
+    else if (!SteamAPI_IsSteamRunning())
+    {
+        HYP_LOG(Steam, Info, "Steam is not currently running. Steam Input and services will not be accessible.");
+
+        return;
+    }
+
+    HYP_LOG(Steam, Info, "Initializing Steam integration...");
+
     const FilePath& baseDir = CoreApi::GetBaseDirectory();
 
     std::filesystem::path oldPath = std::filesystem::current_path();
@@ -53,6 +67,8 @@ void Shutdown()
     {
         return;
     }
+
+    HYP_LOG(Steam, Info, "Shutting down Steam...");
 
     SteamAPI_Shutdown();
 

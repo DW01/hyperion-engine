@@ -43,15 +43,22 @@ public:
 private:
     static constexpr size_t MaxConnectedControllers = 8;
 
+    struct ActionSet
+    {
+        uint64 setHandle;
+        uint64 analogActionHandles[64];
+        uint64 digitalActionHandles[64];
+    };
+
+    static bool InitializeActionSet(const struct ActionSetDesc& desc, ActionSet& outSet);
+
     void UpdateControllers();
     void ProcessControllerInput();
 
     bool m_isInitialized;
 
-    uint64 m_setHandles[8];
-
-    uint64 m_analogActionHandles[64];
-    uint64 m_digitalActionHandles[64];
+    uint8 m_currentActionSet;
+    ActionSet m_actionSets[8];
 
     /// Per-window states
     struct WindowState
