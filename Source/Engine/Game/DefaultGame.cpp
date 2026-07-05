@@ -181,6 +181,38 @@ void DefaultGame::OnLaunch_Impl()
                     m_sun->SetNumShadowMapCascades(4);
                 }
             }
+
+            auto descendants = mainScene->GetRoot()->GetDescendants();
+
+            auto zombieIt = std::find_if(
+                descendants.Begin(),
+                descendants.End(),
+                [](Node* child)
+                {
+                    Entity* entity = DynamicCast<Entity>(child);
+                    if (!entity)
+                    {
+                        return false;
+                    }
+
+                    MeshComponent* mc = entity->TryGetComponent<MeshComponent>();
+                    if (!mc)
+                    {
+                        return false;
+                    }
+
+                    if (!mc->skeleton.IsValid())
+                    {
+                        return false;
+                    }
+
+                    return true;
+                });
+
+            if (zombieIt != descendants.End())
+            {
+                (*zombieIt)->Remove();
+            }
         }
 
         StartSimulating();
