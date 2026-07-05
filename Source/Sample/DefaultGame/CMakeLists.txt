@@ -105,17 +105,6 @@ else()
 endif()
 
 if(HYP_PLATFORM_NAME STREQUAL "Windows")
-  # copy .vdf for steam input
-  file(GLOB VDF_FILES "${CMAKE_CURRENT_SOURCE_DIR}/game_actions_*.vdf")
-
-  foreach(VDF_FILE ${VDF_FILES})
-      add_custom_command(TARGET ${BUILD_NAME} POST_BUILD
-          COMMAND ${CMAKE_COMMAND} -E copy_if_newer
-              "${VDF_FILE}"
-              "$<TARGET_FILE_DIR:${BUILD_NAME}>"
-      )
-  endforeach()
-  
   add_custom_command(TARGET ${BUILD_NAME} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_newer
         "${CMAKE_CURRENT_SOURCE_DIR}/steam_appid.txt"

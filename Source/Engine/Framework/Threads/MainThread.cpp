@@ -24,7 +24,7 @@
 #include <Input/Event.hpp>
 
 #ifdef HYP_STEAM_SDK
-#include <Input/SteamInput.hpp>
+#include <Steam/SteamInput.hpp>
 #endif // HYP_STEAM_SDK
 
 #include <System/AppContext.hpp>
@@ -104,7 +104,7 @@ void MainThread::Update()
     }
 
 #ifdef HYP_STEAM_SDK
-    SteamInputManager::GetInstance().Update();
+    Steam::SteamInputManager::GetInstance().Update();
 #endif // HYP_STEAM_SDK
 
     for (ApplicationWindow* window : g_appContext->GetWindows())

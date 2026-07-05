@@ -23,21 +23,11 @@ include_directories(
 # Normalize sources/headers to absolute paths under the root
 set(CURRENT_SOURCES "")
 foreach(filepath ${hyperion-input_SOURCES})
-  if(filepath MATCHES "SteamInput" AND NOT HYP_STEAM_SDK)
-    message(STATUS "Skipping SteamInput file ${filepath} because HYP_STEAM_SDK is not set.")
-    continue()
-  endif()
-
   list(APPEND CURRENT_SOURCES "${CMAKE_SOURCE_DIR}/${filepath}")
 endforeach()
 
 set(CURRENT_HEADERS "")
 foreach(filepath ${hyperion-input_HEADERS})
-  if(filepath MATCHES "SteamInput" AND NOT HYP_STEAM_SDK)
-    message(STATUS "Skipping SteamInput file ${filepath} because HYP_STEAM_SDK is not set.")
-    continue()
-  endif()
-  
   list(APPEND CURRENT_HEADERS "${CMAKE_SOURCE_DIR}/${filepath}")
 endforeach()
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX "Source Code" FILES ${CURRENT_SOURCES} ${CURRENT_HEADERS})

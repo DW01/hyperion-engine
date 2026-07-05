@@ -78,7 +78,8 @@
 #include <Input/Event.hpp>
 
 #ifdef HYP_STEAM_SDK
-#include <Input/SteamInput.hpp>
+#include <Steam/Steam.hpp>
+#include <Steam/SteamInput.hpp>
 #endif // HYP_STEAM_SDK
 
 #include <System/AppContext.hpp>
@@ -93,6 +94,7 @@
 
 namespace Hyperion {
 
+void HandleExit();
 void HandleSignal(int signum);
 
 EngineStatTimer g_statRenderUpdate("RenderThread");
@@ -152,12 +154,20 @@ static const Map<TaskThreadPoolName, UniquePtr<TaskThreadPool> (*)(void)> s_thre
 
 #pragma endregion Thread Pool Factories
 
-void HandleSignal(int signum)
+void HandleExit()
 {
+#ifdef HYP_STEAM_SDK
+    Steam::Shutdown();
+#endif // HYP_STEAM_SDK
+
 #ifdef HYP_WINDOWS
     Win32_CleanupWindowClasses();
-#endif
+#endif // HYP_WINDOWS
+}
 
+void HandleSignal(int signum)
+{
+    // Call atexit functions
     exit(signum);
 }
 
@@ -214,8 +224,13 @@ void EngineDriver::Initialize()
         return;
     }
 
+    signal(SIGINT, HandleSignal);
+    signal(SIGSEGV, HandleSignal);
+    atexit(HandleExit);
+
 #ifdef HYP_STEAM_SDK
-    SteamInputManager::GetInstance().Initialize();
+    Steam::Initialize();
+    Steam::SteamInputManager::GetInstance().Initialize();
 #endif // HYP_STEAM_SDK
 
     SharedPtr<NetRequestThread> netRequestThread = MakeShared<NetRequestThread>();
@@ -404,6 +419,11 @@ void EngineDriver::RequestStop()
 {
     m_delegates.OnShutdown();
 
+#ifdef HYP_STEAM_SDK
+    Steam::SteamInputManager::GetInstance().Shutdown();
+    Steam::Shutdown();
+#endif // HYP_STEAM_SDK
+
     if (int32 shutdownCounter = AtomicIncrement(&m_isShuttingDown); shutdownCounter == 1)
     {
         if (g_renderThreadInstance != nullptr && g_renderThreadInstance->IsRunning())
@@ -458,10 +478,6 @@ void EngineDriver::Shutdown()
 
         SetGlobalNetRequestThread(nullptr);
     }
-
-#ifdef HYP_STEAM_SDK
-    SteamInputManager::GetInstance().Shutdown();
-#endif // HYP_STEAM_SDK
 
     m_isShuttingDown = 0;
 }

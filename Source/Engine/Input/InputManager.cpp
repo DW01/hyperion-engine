@@ -17,10 +17,6 @@
 
 #include <Framework/EngineGlobals.hpp>
 
-#ifdef HYP_STEAM_SDK
-#include <Input/SteamInput.hpp>
-#endif // HYP_STEAM_SDK
-
 #include <InputManager.generated.inl>
 
 namespace Hyperion {

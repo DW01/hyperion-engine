@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <ScenePch.hpp>
 
@@ -114,8 +114,8 @@ bool FirstPersonCameraInputHandler::OnTouchMove(const TouchEvent& evt)
         return false;
     }
 
-    static constexpr float touchSensitivity = 200.0f;
-    Vec2f touchDelta = evt.relativeDelta * touchSensitivity;
+    static constexpr float TouchSensitivity = 200.0f;
+    Vec2f touchDelta = evt.relativeDelta * TouchSensitivity;
 
     const Vec3f dirCrossY = camera->GetSideVector();
 
@@ -188,7 +188,7 @@ bool FirstPersonCameraInputHandler::OnControllerAnalogMove(const ControllerAnalo
             return false;
         }
 
-        static constexpr float ControllerLookSensitivity = 100.0f;
+        static constexpr float ControllerLookSensitivity = 8.0f;
         const float deltaTime = static_cast<float>(m_deltaTime);
 
         Vec2f lookDelta = data.value * ControllerLookSensitivity * deltaTime;
@@ -313,7 +313,7 @@ void FirstPersonCameraController::UpdateLogic(double delta)
     if (!controllerMove.IsZero())
     {
         static constexpr float ControllerMovementSpeed = 15.0f;
-        translation += direction * -controllerMove.y * delta * ControllerMovementSpeed;
+        translation += direction * controllerMove.y * delta * ControllerMovementSpeed;
         translation += dirCrossY * controllerMove.x * delta * ControllerMovementSpeed;
     }
 

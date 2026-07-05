@@ -1488,12 +1488,6 @@ extern struct MotionData
     Delta : Vec2f
     IsAbsolute : bool
 end
-extern struct ControllerAnalogData
-    ControllerIndex : uint8
-    ActionIndex : uint8
-    Value : Vec2f
-    Delta : Vec2f
-end
 extern struct TouchEventData
     PointerId : int32
     MotionData : MotionData

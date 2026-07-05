@@ -11,11 +11,15 @@
 
 #include <Core/Functional/Delegate.hpp>
 
+#include <Core/Utilities/BitField.hpp>
+
 namespace Hyperion {
 
 class ApplicationWindow;
 
-class ENGINE_API SteamInputManager
+namespace Steam {
+
+class SteamInputManager
 {
 public:
     static SteamInputManager& GetInstance();
@@ -44,7 +48,8 @@ private:
 
     bool m_isInitialized;
 
-    uint64 m_setHandles[64];
+    uint64 m_setHandles[8];
+
     uint64 m_analogActionHandles[64];
     uint64 m_digitalActionHandles[64];
 
@@ -53,6 +58,7 @@ private:
     {
         ApplicationWindow* window;
         uint64 m_controllers[MaxConnectedControllers];
+        BitField<64> digitalActionStates[MaxConnectedControllers];
     };
 
     static void InitializeWindowState(WindowState&, ApplicationWindow* window);
@@ -62,4 +68,5 @@ private:
     DelegateHandler m_onMainWindowChanged;
 };
 
+} // namespace Steam
 } // namespace Hyperion

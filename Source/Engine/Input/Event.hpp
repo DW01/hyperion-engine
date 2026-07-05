@@ -153,7 +153,7 @@ struct TouchEvent
 HYP_ENUM()
 enum class ControllerButton : uint16
 {
-    INVALID = 0,
+    None = 0,
     A,
     B,
     X,
@@ -173,22 +173,11 @@ enum class ControllerButton : uint16
     Guide
 };
 
-HYP_STRUCT()
 struct ControllerAnalogData
 {
-    HYP_STRUCT_BODY(ControllerAnalogData);
-
-    HYP_FIELD()
     uint8 controllerIndex = 0;
-
-    HYP_FIELD()
     uint8 actionIndex = 0;
-
-    HYP_FIELD()
     Vec2f value;
-
-    HYP_FIELD()
-    Vec2f delta;
 };
 
 union PlatformEvent
@@ -503,13 +492,13 @@ public:
         if (m_eventType != EventType::CONTROLLER_BUTTON_DOWN
             && m_eventType != EventType::CONTROLLER_BUTTON_UP)
         {
-            return ControllerButton::INVALID;
+            return ControllerButton::None;
         }
 
         const ControllerButton* button = m_eventData.TryGet<ControllerButton>();
         if (!button)
         {
-            return ControllerButton::INVALID;
+            return ControllerButton::None;
         }
 
         return *button;

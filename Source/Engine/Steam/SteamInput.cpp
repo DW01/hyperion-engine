@@ -4,7 +4,8 @@
  *  @licence MIT
  */
 
-#include <Input/SteamInput.hpp>
+#include <Steam/SteamInput.hpp>
+
 #include <Input/Controller.hpp>
 #include <Input/InputManager.hpp>
 #include <Input/Event.hpp>
@@ -21,70 +22,89 @@
 
 #include <steam/steam_api.h>
 
-#include <filesystem>
-
 namespace Hyperion {
+namespace Steam {
 
-ENGINE_API HYP_DEFINE_LOG_CHANNEL(Steam);
+HYP_DECLARE_LOG_CHANNEL(Steam);
 
-enum SetHandles
+bool IsInitialized();
+
+enum SetHandles : uint8
 {
     Set_InGame
 };
 
-enum AnalogActionHandles
+enum AnalogActionHandles : uint8
 {
-    AnAct_Move,
-    AnAct_Look,
-    AnAct_LeftTrigger,
-    AnAct_RightTrigger,
-    AnAct_MAX
+    AnalogAction_Move,
+    AnalogAction_Look,
+    AnalogAction_LeftTrigger,
+    AnalogAction_RightTrigger,
+    AnalogAction_Max
 };
 
-enum DigitalActionHandles
+enum DigitalActionHandles : uint8
 {
-    DigAct_A,
-    DigAct_B,
-    DigAct_X,
-    DigAct_Y,
-    DigAct_DPad_Up,
-    DigAct_DPad_Down,
-    DigAct_DPad_Left,
-    DigAct_DPad_Right,
-    DigAct_Left_Bumper,
-    DigAct_Right_Bumper,
-    DigAct_Left_Trigger,
-    DigAct_Right_Trigger,
-    DigAct_Left_Stick,
-    DigAct_Right_Stick,
-    DigAct_Start,
-    DigAct_Select,
-    DigAct_Guide,
-    DigAct_MAX
+    DigitalAction_A,
+    DigitalAction_B,
+    DigitalAction_X,
+    DigitalAction_Y,
+    DigitalAction_DPad_Up,
+    DigitalAction_DPad_Down,
+    DigitalAction_DPad_Left,
+    DigitalAction_DPad_Right,
+    DigitalAction_Left_Bumper,
+    DigitalAction_Right_Bumper,
+    DigitalAction_Left_Trigger,
+    DigitalAction_Right_Trigger,
+    DigitalAction_Left_Stick,
+    DigitalAction_Right_Stick,
+    DigitalAction_Start,
+    DigitalAction_Select,
+    DigitalAction_Guide,
+    DigitalAction_Max
 };
 
-static ControllerButton MapDigitalActionToButton(DigitalActionHandles digAct)
+static ControllerButton MapDigitalActionToButton(DigitalActionHandles actionIndex)
 {
-    switch (digAct)
+    switch (actionIndex)
     {
-    case DigAct_A:              return ControllerButton::A;
-    case DigAct_B:              return ControllerButton::B;
-    case DigAct_X:              return ControllerButton::X;
-    case DigAct_Y:              return ControllerButton::Y;
-    case DigAct_DPad_Up:        return ControllerButton::DPad_Up;
-    case DigAct_DPad_Down:      return ControllerButton::DPad_Down;
-    case DigAct_DPad_Left:      return ControllerButton::DPad_Left;
-    case DigAct_DPad_Right:     return ControllerButton::DPad_Right;
-    case DigAct_Left_Bumper:    return ControllerButton::Left_Bumper;
-    case DigAct_Right_Bumper:   return ControllerButton::Right_Bumper;
-    case DigAct_Left_Trigger:   return ControllerButton::Left_Trigger;
-    case DigAct_Right_Trigger:  return ControllerButton::Right_Trigger;
-    case DigAct_Left_Stick:     return ControllerButton::Left_Stick;
-    case DigAct_Right_Stick:    return ControllerButton::Right_Stick;
-    case DigAct_Start:          return ControllerButton::Start;
-    case DigAct_Select:         return ControllerButton::Select;
-    case DigAct_Guide:          return ControllerButton::Guide;
-    default:                    return ControllerButton::INVALID;
+    case DigitalAction_A:
+        return ControllerButton::A;
+    case DigitalAction_B:
+        return ControllerButton::B;
+    case DigitalAction_X:
+        return ControllerButton::X;
+    case DigitalAction_Y:
+        return ControllerButton::Y;
+    case DigitalAction_DPad_Up:
+        return ControllerButton::DPad_Up;
+    case DigitalAction_DPad_Down:
+        return ControllerButton::DPad_Down;
+    case DigitalAction_DPad_Left:
+        return ControllerButton::DPad_Left;
+    case DigitalAction_DPad_Right:
+        return ControllerButton::DPad_Right;
+    case DigitalAction_Left_Bumper:
+        return ControllerButton::Left_Bumper;
+    case DigitalAction_Right_Bumper:
+        return ControllerButton::Right_Bumper;
+    case DigitalAction_Left_Trigger:
+        return ControllerButton::Left_Trigger;
+    case DigitalAction_Right_Trigger:
+        return ControllerButton::Right_Trigger;
+    case DigitalAction_Left_Stick:
+        return ControllerButton::Left_Stick;
+    case DigitalAction_Right_Stick:
+        return ControllerButton::Right_Stick;
+    case DigitalAction_Start:
+        return ControllerButton::Start;
+    case DigitalAction_Select:
+        return ControllerButton::Select;
+    case DigitalAction_Guide:
+        return ControllerButton::Guide;
+    default:
+        return ControllerButton::None;
     }
 }
 
@@ -124,26 +144,9 @@ void SteamInputManager::Initialize()
         return;
     }
 
-    // @TODO init SteamAPI elsewhere.
-    // If SteamInput init fails this will be left initialized and not properly shutdown,
-    // so that needs to be fixed. Will be fixed when we move it
-
-    // @TODO
-    // SteamAPI_RestartAppIfNecessary() call in Hyp_Initialize()
-
-    const String baseDir = CoreApi::GetBaseDirectory(); 
-
-    std::filesystem::path oldPath = std::filesystem::current_path();
-    std::filesystem::current_path(baseDir.Data());
-
-    SteamErrMsg errMsg;
-    ESteamAPIInitResult steamInitResult = SteamAPI_InitEx(&errMsg);
-
-    std::filesystem::current_path(oldPath);
-
-    if (steamInitResult != k_ESteamAPIInitResult_OK)
+    if (!Steam::IsInitialized())
     {
-        HYP_LOG(Steam, Error, "Failed to initialize Steam! Error msg was: {}", (const char*)errMsg);
+        HYP_LOG(Steam, Error, "Steam API is not initialized; must be initialized before initializing Steam Input.");
         return;
     }
 
@@ -153,32 +156,32 @@ void SteamInputManager::Initialize()
         return;
     }
 
-    m_setHandles[Set_InGame] = SteamInput()->GetActionSetHandle("InGameControls");
+    m_setHandles[Set_InGame] = SteamInput()->GetActionSetHandle("FPSControls");
 
-    m_analogActionHandles[AnAct_Move] = SteamInput()->GetAnalogActionHandle("Move");
-    m_analogActionHandles[AnAct_Look] = SteamInput()->GetAnalogActionHandle("Look");
-    m_analogActionHandles[AnAct_LeftTrigger] = SteamInput()->GetAnalogActionHandle("LeftTrigger");
-    m_analogActionHandles[AnAct_RightTrigger] = SteamInput()->GetAnalogActionHandle("RightTrigger");
+    m_analogActionHandles[AnalogAction_Move] = SteamInput()->GetAnalogActionHandle("Move");
+    m_analogActionHandles[AnalogAction_Look] = SteamInput()->GetAnalogActionHandle("Look");
+    m_analogActionHandles[AnalogAction_LeftTrigger] = SteamInput()->GetAnalogActionHandle("LeftTrigger");
+    m_analogActionHandles[AnalogAction_RightTrigger] = SteamInput()->GetAnalogActionHandle("RightTrigger");
 
-    m_digitalActionHandles[DigAct_A] = SteamInput()->GetDigitalActionHandle("A");
-    m_digitalActionHandles[DigAct_B] = SteamInput()->GetDigitalActionHandle("B");
-    m_digitalActionHandles[DigAct_X] = SteamInput()->GetDigitalActionHandle("X");
-    m_digitalActionHandles[DigAct_Y] = SteamInput()->GetDigitalActionHandle("Y");
-    m_digitalActionHandles[DigAct_DPad_Up] = SteamInput()->GetDigitalActionHandle("DPad_Up");
-    m_digitalActionHandles[DigAct_DPad_Down] = SteamInput()->GetDigitalActionHandle("DPad_Down");
-    m_digitalActionHandles[DigAct_DPad_Left] = SteamInput()->GetDigitalActionHandle("DPad_Left");
-    m_digitalActionHandles[DigAct_DPad_Right] = SteamInput()->GetDigitalActionHandle("DPad_Right");
-    m_digitalActionHandles[DigAct_Left_Bumper] = SteamInput()->GetDigitalActionHandle("Left_Bumper");
-    m_digitalActionHandles[DigAct_Right_Bumper] = SteamInput()->GetDigitalActionHandle("Right_Bumper");
-    m_digitalActionHandles[DigAct_Left_Trigger] = SteamInput()->GetDigitalActionHandle("Left_Trigger");
-    m_digitalActionHandles[DigAct_Right_Trigger] = SteamInput()->GetDigitalActionHandle("Right_Trigger");
-    m_digitalActionHandles[DigAct_Left_Stick] = SteamInput()->GetDigitalActionHandle("Left_Stick");
-    m_digitalActionHandles[DigAct_Right_Stick] = SteamInput()->GetDigitalActionHandle("Right_Stick");
-    m_digitalActionHandles[DigAct_Start] = SteamInput()->GetDigitalActionHandle("Start");
-    m_digitalActionHandles[DigAct_Select] = SteamInput()->GetDigitalActionHandle("Select");
-    m_digitalActionHandles[DigAct_Guide] = SteamInput()->GetDigitalActionHandle("Guide");
+    m_digitalActionHandles[DigitalAction_A] = SteamInput()->GetDigitalActionHandle("A");
+    m_digitalActionHandles[DigitalAction_B] = SteamInput()->GetDigitalActionHandle("B");
+    m_digitalActionHandles[DigitalAction_X] = SteamInput()->GetDigitalActionHandle("X");
+    m_digitalActionHandles[DigitalAction_Y] = SteamInput()->GetDigitalActionHandle("Y");
+    m_digitalActionHandles[DigitalAction_DPad_Up] = SteamInput()->GetDigitalActionHandle("DPad_Up");
+    m_digitalActionHandles[DigitalAction_DPad_Down] = SteamInput()->GetDigitalActionHandle("DPad_Down");
+    m_digitalActionHandles[DigitalAction_DPad_Left] = SteamInput()->GetDigitalActionHandle("DPad_Left");
+    m_digitalActionHandles[DigitalAction_DPad_Right] = SteamInput()->GetDigitalActionHandle("DPad_Right");
+    m_digitalActionHandles[DigitalAction_Left_Bumper] = SteamInput()->GetDigitalActionHandle("Left_Bumper");
+    m_digitalActionHandles[DigitalAction_Right_Bumper] = SteamInput()->GetDigitalActionHandle("Right_Bumper");
+    m_digitalActionHandles[DigitalAction_Left_Trigger] = SteamInput()->GetDigitalActionHandle("Left_Trigger");
+    m_digitalActionHandles[DigitalAction_Right_Trigger] = SteamInput()->GetDigitalActionHandle("Right_Trigger");
+    m_digitalActionHandles[DigitalAction_Left_Stick] = SteamInput()->GetDigitalActionHandle("Left_Stick");
+    m_digitalActionHandles[DigitalAction_Right_Stick] = SteamInput()->GetDigitalActionHandle("Right_Stick");
+    m_digitalActionHandles[DigitalAction_Start] = SteamInput()->GetDigitalActionHandle("Start");
+    m_digitalActionHandles[DigitalAction_Select] = SteamInput()->GetDigitalActionHandle("Select");
+    m_digitalActionHandles[DigitalAction_Guide] = SteamInput()->GetDigitalActionHandle("Guide");
 
-    m_onMainWindowChanged = g_appContext->OnCurrentWindowChanged.Bind(
+    m_onMainWindowChanged = AppContextBase::OnCurrentWindowChanged.Bind(
         g_appContext,
         [this](ApplicationWindow* window)
         {
@@ -202,6 +205,10 @@ void SteamInputManager::Initialize()
     if (window != nullptr)
     {
         InitializeWindowState(m_windowState, window);
+    }
+    else
+    {
+        Memory::Zero(&m_windowState, sizeof(WindowState));
     }
 
     m_isInitialized = true;
@@ -229,8 +236,6 @@ void SteamInputManager::Shutdown()
     {
         HYP_LOG(Steam, Error, "Failed to properly shutdown Steam Input!");
     }
-
-    SteamAPI_Shutdown();
 }
 
 void SteamInputManager::Update()
@@ -319,6 +324,9 @@ void SteamInputManager::UpdateControllers()
 
             m_windowState.m_controllers[controllerIndex] = 0;
 
+            // reset states for this controller
+            m_windowState.digitalActionStates[controllerIndex] = {};
+
             HYP_LOG(Steam, Info, "Steam controller disconnected from index {}", controllerIndex);
         }
     }
@@ -339,44 +347,50 @@ void SteamInputManager::ProcessControllerInput()
     for (uint8 controllerIndex = 0; controllerIndex < MaxConnectedControllers; controllerIndex++)
     {
         const InputHandle_t steamHandle = static_cast<InputHandle_t>(m_windowState.m_controllers[controllerIndex]);
+
         if (steamHandle == 0)
         {
             continue;
         }
 
-        for (uint32 digAct = 0; digAct < DigAct_MAX; digAct++)
+        for (uint32 actionIndex = 0; actionIndex < DigitalAction_Max; actionIndex++)
         {
             const InputDigitalActionData_t actionData = SteamInput()->GetDigitalActionData(
-                steamHandle, m_digitalActionHandles[digAct]);
+                steamHandle, m_digitalActionHandles[actionIndex]);
 
             if (actionData.bActive)
             {
-                const EventType eventType = actionData.bState
-                    ? EventType::CONTROLLER_BUTTON_DOWN
-                    : EventType::CONTROLLER_BUTTON_UP;
+                if (actionData.bState != m_windowState.digitalActionStates[controllerIndex].Test(actionIndex))
+                {
+                    const EventType eventType = actionData.bState
+                        ? EventType::CONTROLLER_BUTTON_DOWN
+                        : EventType::CONTROLLER_BUTTON_UP;
 
-                Event event(eventType, m_windowState.window, platformEvent);
-                event.GetEventData().Set(MapDigitalActionToButton(static_cast<DigitalActionHandles>(digAct)));
-                
-                inputManager->ProcessEvent(std::move(event));
+                    Event event(eventType, m_windowState.window, platformEvent);
+                    event.GetEventData().Set(MapDigitalActionToButton(static_cast<DigitalActionHandles>(actionIndex)));
+
+                    inputManager->ProcessEvent(std::move(event));
+
+                    m_windowState.digitalActionStates[controllerIndex].Set(actionIndex, actionData.bState);
+                }
             }
         }
 
-        for (uint32 anAct = 0; anAct < AnAct_MAX; anAct++)
+        for (uint32 actionIndex = 0; actionIndex < AnalogAction_Max; actionIndex++)
         {
             const InputAnalogActionData_t actionData = SteamInput()->GetAnalogActionData(
-                steamHandle, m_analogActionHandles[anAct]);
+                steamHandle, m_analogActionHandles[actionIndex]);
 
             if (actionData.bActive)
             {
                 ControllerAnalogData analogData = {};
                 analogData.controllerIndex = controllerIndex;
-                analogData.actionIndex = static_cast<uint8>(anAct);
+                analogData.actionIndex = static_cast<uint8>(actionIndex);
                 analogData.value = Vec2f(actionData.x, actionData.y);
 
                 Event event(EventType::CONTROLLER_ANALOG_MOVE, m_windowState.window, platformEvent);
                 event.GetEventData().Set(analogData);
-                
+
                 inputManager->ProcessEvent(std::move(event));
             }
         }
@@ -387,15 +401,13 @@ void SteamInputManager::InitializeWindowState(WindowState& windowState, Applicat
 {
     Assert(window != nullptr);
 
-    windowState.window = window;
-
-    for (uint8 controllerIndex = 0; controllerIndex < MaxConnectedControllers; controllerIndex++)
-    {
-        windowState.m_controllers[controllerIndex] = 0;
-    }
+    static_assert(std::is_trivial_v<WindowState>);
+    Memory::Zero(&windowState, sizeof(WindowState));
 
     InputManager* inputManager = window->GetInputManager();
     Assert(inputManager != nullptr);
+
+    windowState.window = window;
 }
 
 void SteamInputManager::ShutdownWindowState(WindowState& windowState)
@@ -421,4 +433,5 @@ void SteamInputManager::ShutdownWindowState(WindowState& windowState)
     windowState.window = nullptr;
 }
 
+} // namespace Steam
 } // namespace Hyperion

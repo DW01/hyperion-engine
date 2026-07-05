@@ -774,6 +774,12 @@ function(collect_sources_and_modules dir out_sources out_headers out_modules)
     return()
   endif()
 
+  # skip Steam if HYP_STEAM_SDK is not defined
+  if(${dir} MATCHES "${CMAKE_SOURCE_DIR}/Engine/Steam" AND NOT HYP_STEAM_SDK)
+    message(STATUS "Skipping Steam directory (HYP_STEAM_SDK not defined)")
+    return()
+  endif()
+
   file(GLOB current_sources RELATIVE ${CMAKE_SOURCE_DIR}
         "${dir}/*.cpp" "${dir}/*.cxx" "${dir}/*.cc" "${dir}/*.c" "${dir}/*.mm" "${dir}/*.m")
   list(APPEND local_sources ${current_sources})

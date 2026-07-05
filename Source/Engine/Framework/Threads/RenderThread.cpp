@@ -52,8 +52,6 @@
 
 namespace Hyperion {
 
-extern void HandleSignal(int signum);
-
 extern EngineStatTimer g_statRenderUpdate;
 
 extern ThreadSignal g_renderInitSignal;
@@ -68,8 +66,8 @@ static constexpr float BatteryMaxFrameRate = 30.0f;
 CVar<float> g_cvTargetFrameRate("Rendering.TargetFrameRate", 0);                             // 0    = no limit
 CVar<bool> g_cvLimitFrameRateOnBatteryPower("Rendering.LimitFrameRateOnBatteryPower", true); // true = enable framerate cap when on battery
 CVar<bool> g_cvLimitFrameRateWhenIdle("Rendering.LimitFrameRateWhenIdle", true);             // true = enable framerate cap when idling in standalone
-CVar<int> g_cvSkipRendering("Rendering.SkipRendering", 0); // -1 = True, set by SkipRenderingWhenIdle, 0 = False, 1 = True (manually set)
-CVar<int> g_cvSkipRenderingWhenIdle("Editor.SkipRenderingWhenIdle", -1); // -1   = set dynamically based on if editor mode
+CVar<int> g_cvSkipRendering("Rendering.SkipRendering", 0);                                   // -1 = True, set by SkipRenderingWhenIdle, 0 = False, 1 = True (manually set)
+CVar<int> g_cvSkipRenderingWhenIdle("Editor.SkipRenderingWhenIdle", -1);                     // -1   = set dynamically based on if editor mode
 
 static FrameLimiter g_frameLimiter { 0 };
 
@@ -88,11 +86,6 @@ RenderThread::~RenderThread() = default;
 
 bool RenderThread::Start()
 {
-    signal(SIGINT, HandleSignal);
-    signal(SIGSEGV, HandleSignal);
-    // handle integer division by zero
-    signal(SIGFPE, HandleSignal);
-
     // -RenderOnMainThread option
     if (m_id == g_mainThread)
     {
@@ -176,7 +169,7 @@ void RenderThread::Update()
     if (EngineGlobals::IsEditor())
     {
         const int skipRenderingValue = g_cvSkipRendering.Get();
-        
+
         if (skipRenderingValue < 1)
         {
             if (g_cvSkipRenderingWhenIdle.Get() > 0)
@@ -264,7 +257,7 @@ void RenderThread::Update()
 
         RI.finalPass->Render(frame, renderSetup);
     }
-    
+
     // update shared global descriptor sets
     for (DescriptorSet* ds : RI.globalDescriptorTable->GetSets()[frame->GetFrameIndex()])
     {

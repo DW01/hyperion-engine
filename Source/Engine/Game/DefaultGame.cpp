@@ -91,15 +91,15 @@ void DefaultGame::OnLaunch_Impl()
 {
     if (UISubsystem* uiSubsystem = GetUISubsystem())
     {
-       uiSubsystem->AddDebugOverlay(MakeHandle<StatsOverlay>());
-       uiSubsystem->AddDebugOverlay(MakeHandle<ConsoleOverlay>());
+        uiSubsystem->AddDebugOverlay(MakeHandle<StatsOverlay>());
+        uiSubsystem->AddDebugOverlay(MakeHandle<ConsoleOverlay>());
     }
 
     // sky
     GetWorld()->AddSystemT<DynamicSkySystem>();
     GetWorld()->GetWorldGrid()->AddLayer(MakeHandle<TerrainWorldGridLayer>(
-       NAME("TerrainLayer"),
-       WorldGridLayerInfo { Vec3f { 0.0f, -5.0f, 0.0f } }));
+        NAME("TerrainLayer"),
+        WorldGridLayerInfo { Vec3f { 0.0f, -5.0f, 0.0f } }));
 
 #if HYP_ANDROID || HYP_IOS
     GetWorld()->AddSubsystem(MakeHandle<TouchControlsSubsystem>());
@@ -449,10 +449,12 @@ bool DefaultGame::OnInputEvent(const Event& event)
     case EventType::CONTROLLER_ANALOG_MOVE:
     {
         const ControllerAnalogData* analogData = event.GetControllerAnalogData();
+
         if (analogData)
         {
             controller->GetInputHandler()->OnControllerAnalogMove(*analogData);
         }
+
         break;
     }
     default:
