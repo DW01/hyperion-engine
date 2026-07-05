@@ -9,8 +9,6 @@
 #include <Core/Containers/Array.hpp>
 #include <Core/Containers/Bitset.hpp>
 
-#include <Core/Utilities/BitField.hpp>
-
 #include <Core/Memory/Allocator/Allocator.hpp>
 
 #include <Core/Math/MathUtil.hpp>
@@ -35,10 +33,12 @@ protected:
     struct Page
     {
         ValueStorage<T, PageSize, alignof(T)> storage;
-        BitField<PageSize> initializedBits;
+        
+        // @TODO use plain uint64 array + FOR_EACH_BIT -- elem count is compile time known
+        TBitset<AllocatorType> initializedBits;
 
         Page()
-            : initializedBits {}
+            : initializedBits()
         {
         }
 
@@ -54,12 +54,9 @@ protected:
         {
             if constexpr (!std::is_trivially_destructible_v<T>)
             {
-                if (initializedBits.CountOnes() != 0)
+                for (Bitset::BitIndex bit : initializedBits)
                 {
-                    for (size_t bit : initializedBits)
-                    {
-                        storage.GetPointer()[bit].~T();
-                    }
+                    storage.GetPointer()[bit].~T();
                 }
             }
         }
@@ -134,11 +131,11 @@ public:
             {
                 if (self->array->m_validPages.Test(p))
                 {
-                    size_t next = self->array->m_pages[p]->initializedBits.NextOneBit(e);
+                    Bitset::BitIndex next = self->array->m_pages[p]->initializedBits.NextSetBitIndex(e);
                     if (next < PageSize)
                     {
                         self->page = p;
-                        self->elem = static_cast<uint32>(next);
+                        self->elem = next;
                         self->lazyInit = false;
                         return;
                     }
@@ -199,10 +196,10 @@ public:
             {
                 if (page != ~0u && array->m_validPages.Test(page))
                 {
-                    size_t next = array->m_pages[page]->initializedBits.NextOneBit(elem + 1);
+                    Bitset::BitIndex next = array->m_pages[page]->initializedBits.NextSetBitIndex(elem + 1);
                     if (next < PageSize)
                     {
-                        elem = static_cast<uint32>(next);
+                        elem = next;
                         break;
                     }
                 }
@@ -259,23 +256,21 @@ public:
 
                 if (result.page != ~0u && array->m_validPages.Test(result.page))
                 {
-                    const BitField<PageSize>& bits = array->m_pages[result.page]->initializedBits;
+                    const Bitset& bits = array->m_pages[result.page]->initializedBits;
 
                     // Count how many set bits are after current elem in this page
                     uint32 bitsInPage = 0;
-                    size_t nextBit = bits.NextOneBit(result.elem + 1);
+                    Bitset::BitIndex nextBit = bits.NextSetBitIndex(result.elem + 1);
 
                     while (nextBit < PageSize && bitsInPage < remaining)
                     {
                         ++bitsInPage;
-
                         if (bitsInPage == remaining)
                         {
                             result.elem = nextBit;
                             return result;
                         }
-
-                        nextBit = bits.NextOneBit(nextBit + 1);
+                        nextBit = bits.NextSetBitIndex(nextBit + 1);
                     }
 
                     remaining -= bitsInPage;
@@ -448,7 +443,7 @@ public:
 
             m_pages[bit] = page;
 
-            for (size_t elem : other.m_pages[bit]->initializedBits)
+            for (Bitset::BitIndex elem : other.m_pages[bit]->initializedBits)
             {
                 new (page->storage.GetPointer() + elem) T(other.m_pages[bit]->storage.GetPointer()[elem]);
             }
@@ -486,7 +481,7 @@ public:
 
             m_pages[bit] = page;
 
-            for (size_t elem : other.m_pages[bit]->initializedBits)
+            for (Bitset::BitIndex elem : other.m_pages[bit]->initializedBits)
             {
                 new (page->storage.GetPointer() + elem) T(other.m_pages[bit]->storage.GetPointer()[elem]);
             }
@@ -558,7 +553,7 @@ public:
 
         for (Bitset::BitIndex bit : m_validPages)
         {
-            size += m_pages[bit]->initializedBits.CountOnes();
+            size += m_pages[bit]->initializedBits.Count();
         }
 
         return size;
@@ -585,9 +580,9 @@ public:
         Page* lastPage = m_pages[m_validPages.LastSetBitIndex()];
 
         HYP_CORE_ASSERT(lastPage != nullptr);
-        HYP_CORE_ASSERT(lastPage->initializedBits.CountOnes() > 0);
+        HYP_CORE_ASSERT(lastPage->initializedBits.Count() > 0);
 
-        size_t lastIndex = lastPage->initializedBits.LastOneBit();
+        size_t lastIndex = lastPage->initializedBits.LastSetBitIndex();
         HYP_CORE_ASSERT(lastIndex < PageSize);
 
         return lastPage->storage.GetPointer()[lastIndex];
@@ -600,9 +595,9 @@ public:
         Page* lastPage = m_pages[m_validPages.LastSetBitIndex()];
 
         HYP_CORE_ASSERT(lastPage != nullptr);
-        HYP_CORE_ASSERT(lastPage->initializedBits.CountOnes() > 0);
+        HYP_CORE_ASSERT(lastPage->initializedBits.Count() > 0);
 
-        size_t lastIndex = lastPage->initializedBits.LastOneBit();
+        size_t lastIndex = lastPage->initializedBits.LastSetBitIndex();
         HYP_CORE_ASSERT(lastIndex < PageSize);
 
         return lastPage->storage.GetPointer()[lastIndex];
@@ -787,7 +782,7 @@ public:
         page->storage.DestructElement(elementIndex);
         page->initializedBits.Set(elementIndex, false);
 
-        if (freeMemory && page->initializedBits.CountOnes() == 0)
+        if (freeMemory && page->initializedBits.Count() == 0)
         {
             // no elems remaining, remove the page reference.
             // page memory remains in the pool block; reclaimed at Clear/destruction.
@@ -881,13 +876,13 @@ public:
                 Page* page = m_pages[bit];
                 HYP_CORE_ASSERT(page != nullptr);
 
-                for (size_t elem : page->initializedBits)
+                for (Bitset::BitIndex elemBit : page->initializedBits)
                 {
-                    HYP_CORE_ASSERT(elem < PageSize);
-                    page->storage.DestructElement(elem);
+                    HYP_CORE_ASSERT(elemBit < PageSize);
+                    page->storage.DestructElement(elemBit);
                 }
 
-                page->initializedBits = BitField<PageSize> {};
+                page->initializedBits.Clear();
             }
         }
     }

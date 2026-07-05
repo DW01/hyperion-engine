@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -116,8 +116,11 @@ public:
 
     void Initialize();
 
+    /// Notify threads and begin shutting down
     void RequestStop();
-    void FinalizeStop();
+
+    /// Finalize shutdown procedures
+    void Shutdown();
 
     Delegate<void, World*> OnCurrentWorldChanged;
 

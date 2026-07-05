@@ -680,6 +680,32 @@ elseif(RENDERING_BACKEND STREQUAL "DX12")
   include_directories(BEFORE SYSTEM ${THIRD_PARTY_INCLUDE_DIR}/DirectX-Headers)
 endif()
 
+# Check if Steam sdk exists (Windows only for now).
+if(HYP_WINDOWS)
+  if(EXISTS "${THIRD_PARTY_INCLUDE_DIR}/steam/steam_api.h")
+    message(STATUS "Steam SDK header found")
+
+    # ensure the lib file exists
+    # (needs to be copied there by the user)
+
+    if(EXISTS "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/steam_api64.lib")
+      set(COMMON_LIBRARIES ${COMMON_LIBRARIES} "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/steam_api64.lib")
+    else()
+      message(WARNING "steam_api64.lib not found in third party libs when building with Steam SDK support")
+    endif()
+    if(EXISTS "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/steam_api64.dll")
+      # needs to be copied to output dir
+      message(STATUS "Copying steam_api64.dll to ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+      file(COPY "${CMAKE_THIRD_PARTY_LIBRARY_DIRECTORY}/steam_api64.dll" DESTINATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+    else()
+      message(WARNING "steam_api64.dll not found in third party libs when building with Steam SDK support")
+    endif()
+
+    set(HYP_STEAM_SDK 1)
+    add_definitions(-DHYP_STEAM_SDK=1)
+  endif()
+endif()
+
 # setup DXC if found
 if(EXISTS "${THIRD_PARTY_INCLUDE_DIR}/dxc/dxcapi.h")
   message(STATUS "DXC headers found, setting up DXC")
@@ -745,6 +771,12 @@ function(collect_sources_and_modules dir out_sources out_headers out_modules)
   # if the directory is system/platform/<platform not equal to HYP_PLATFORM_NAME>, skip it
   if(${dir} MATCHES "${CMAKE_SOURCE_DIR}/Engine/System/Platform/.*" AND NOT ${dir} MATCHES "${CMAKE_SOURCE_DIR}/Engine/System/Platform/${HYP_PLATFORM_NAME}")
     message(STATUS "Skipping platform directory: ${dir}")
+    return()
+  endif()
+
+  # skip Steam if HYP_STEAM_SDK is not defined
+  if(${dir} MATCHES "${CMAKE_SOURCE_DIR}/Engine/Steam" AND NOT HYP_STEAM_SDK)
+    message(STATUS "Skipping Steam directory (HYP_STEAM_SDK not defined)")
     return()
   endif()
 

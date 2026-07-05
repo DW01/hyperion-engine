@@ -8,6 +8,7 @@
 
 #include <Input/InputHandler.hpp>
 #include <Input/InputManager.hpp>
+#include <Input/Event.hpp>
 
 #include <Core/Utilities/ByteUtil.hpp>
 
@@ -85,6 +86,21 @@ bool InputHandlerBase::OnMouseUp(const MouseEvent& evt)
     m_mouseButtonStates &= ~evt.mouseButtons;
 
     // default to not handled
+    return false;
+}
+
+bool InputHandlerBase::OnControllerAnalogMove(const ControllerAnalogData& data)
+{
+    switch (data.actionIndex)
+    {
+    case 0:
+        m_controllerMoveDelta = data.value;
+        break;
+    case 1:
+        m_controllerLookDelta = data.value;
+        break;
+    }
+
     return false;
 }
 

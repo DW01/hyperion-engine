@@ -44,6 +44,8 @@ public:
     virtual bool OnClick(const MouseEvent& evt) override;
     virtual bool OnGainFocus(const MouseEvent& evt) override;
     virtual bool OnLoseFocus(const MouseEvent& evt) override;
+    virtual bool OnControllerButtonDown(ControllerButton btn) override;
+    virtual bool OnControllerAnalogMove(const ControllerAnalogData& data) override;
 
 private:
     FirstPersonCameraController* m_controller;

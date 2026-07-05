@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -22,6 +22,7 @@
 
 #include <Input/Keyboard.hpp>
 #include <Input/Mouse.hpp>
+#include <Input/Controller.hpp>
 
 namespace Hyperion {
 
@@ -145,6 +146,31 @@ public:
         return !IsButtonDown(btn);
     }
 
+    void AddController(ControllerHandle controller);
+    void RemoveController(ControllerHandle controller);
+
+    HYP_FORCE_INLINE ControllerHandle GetController(uint8 controllerIndex) const
+    {
+        return m_controllers[controllerIndex];
+    }
+
+    HYP_FORCE_INLINE bool HasAttachedController(uint8& outControllerIndex) const
+    {
+        if (m_validControllersMask == 0)
+        {
+            return false;
+        }
+
+        outControllerIndex = static_cast<uint8>(ByteUtil::LowestSetBitIndex(m_validControllersMask));
+
+        return true;
+    }
+
+    HYP_FORCE_INLINE uint8 NumAttachedControllers() const
+    {
+        return ByteUtil::BitCount(m_validControllersMask);
+    }
+
     HYP_METHOD()
     HYP_FORCE_INLINE ApplicationWindow* GetWindow() const
     {
@@ -239,6 +265,9 @@ private:
     Mutex m_mouseLockStatesMutex;
 
     ApplicationWindow* m_ownerWindow;
+
+    ControllerHandle m_controllers[MaxAttachedControllers];
+    uint8 m_validControllersMask;
 
     bool m_isMouseLocked;
     bool m_syncToVirtualPosition;

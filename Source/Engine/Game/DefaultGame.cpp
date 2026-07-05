@@ -91,15 +91,15 @@ void DefaultGame::OnLaunch_Impl()
 {
     if (UISubsystem* uiSubsystem = GetUISubsystem())
     {
-       uiSubsystem->AddDebugOverlay(MakeHandle<StatsOverlay>());
-       uiSubsystem->AddDebugOverlay(MakeHandle<ConsoleOverlay>());
+        uiSubsystem->AddDebugOverlay(MakeHandle<StatsOverlay>());
+        uiSubsystem->AddDebugOverlay(MakeHandle<ConsoleOverlay>());
     }
 
     // sky
     GetWorld()->AddSystemT<DynamicSkySystem>();
     GetWorld()->GetWorldGrid()->AddLayer(MakeHandle<TerrainWorldGridLayer>(
-       NAME("TerrainLayer"),
-       WorldGridLayerInfo { Vec3f { 0.0f, -5.0f, 0.0f } }));
+        NAME("TerrainLayer"),
+        WorldGridLayerInfo { Vec3f { 0.0f, -5.0f, 0.0f } }));
 
 #if HYP_ANDROID || HYP_IOS
     GetWorld()->AddSubsystem(MakeHandle<TouchControlsSubsystem>());
@@ -180,6 +180,38 @@ void DefaultGame::OnLaunch_Impl()
                     m_sun->SetIntensity(15.0f);
                     m_sun->SetNumShadowMapCascades(4);
                 }
+            }
+
+            auto descendants = mainScene->GetRoot()->GetDescendants();
+
+            auto zombieIt = std::find_if(
+                descendants.Begin(),
+                descendants.End(),
+                [](Node* child)
+                {
+                    Entity* entity = DynamicCast<Entity>(child);
+                    if (!entity)
+                    {
+                        return false;
+                    }
+
+                    MeshComponent* mc = entity->TryGetComponent<MeshComponent>();
+                    if (!mc)
+                    {
+                        return false;
+                    }
+
+                    if (!mc->skeleton.IsValid())
+                    {
+                        return false;
+                    }
+
+                    return true;
+                });
+
+            if (zombieIt != descendants.End())
+            {
+                (*zombieIt)->Remove();
             }
         }
 
@@ -438,6 +470,23 @@ bool DefaultGame::OnInputEvent(const Event& event)
                 controller->GetInputHandler()->OnTouchMove(touchEvent);
             }
         }
+        break;
+    }
+    case EventType::CONTROLLER_BUTTON_DOWN:
+        controller->GetInputHandler()->OnControllerButtonDown(event.GetControllerButton());
+        break;
+    case EventType::CONTROLLER_BUTTON_UP:
+        controller->GetInputHandler()->OnControllerButtonUp(event.GetControllerButton());
+        break;
+    case EventType::CONTROLLER_ANALOG_MOVE:
+    {
+        const ControllerAnalogData* analogData = event.GetControllerAnalogData();
+
+        if (analogData)
+        {
+            controller->GetInputHandler()->OnControllerAnalogMove(*analogData);
+        }
+
         break;
     }
     default:

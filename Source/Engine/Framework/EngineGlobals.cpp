@@ -14,6 +14,8 @@
 
 #include <Core/Threading/SharedMutex.hpp>
 
+#include <System/DirectoryInitializer.hpp>
+
 #include <Asset/BlobStorage.hpp>
 
 #include <Framework/EngineGlobals.hpp>

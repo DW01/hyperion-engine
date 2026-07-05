@@ -41,6 +41,11 @@ enum class EventType : uint32
     TOUCH_UP = 0x0501,
     TOUCH_MOVE = 0x0502,
 
+    // Controller events
+    CONTROLLER_BUTTON_DOWN = 0x0600,
+    CONTROLLER_BUTTON_UP = 0x0601,
+    CONTROLLER_ANALOG_MOVE = 0x0602,
+
     FILE_DROP = 0x1000,
 
     WINDOW_MOVED = 0x0204,
@@ -145,6 +150,36 @@ struct TouchEvent
     bool isLeftSide = false;
 };
 
+HYP_ENUM()
+enum class ControllerButton : uint16
+{
+    None = 0,
+    A,
+    B,
+    X,
+    Y,
+    DPad_Up,
+    DPad_Down,
+    DPad_Left,
+    DPad_Right,
+    Left_Bumper,
+    Right_Bumper,
+    Left_Trigger,
+    Right_Trigger,
+    Left_Stick,
+    Right_Stick,
+    Start,
+    Select,
+    Guide
+};
+
+struct ControllerAnalogData
+{
+    uint8 controllerIndex = 0;
+    uint8 actionIndex = 0;
+    Vec2f value;
+};
+
 union PlatformEvent
 {
 #ifdef HYP_WINDOWS
@@ -173,6 +208,8 @@ public:
         Vec2i,          // scroll
         MotionData,     // mouse movement data
         TouchEventData, // touch event data
+        ControllerButton,
+        ControllerAnalogData,
         void*>;
 
     Event()
@@ -448,6 +485,33 @@ public:
         }
 
         return touchData->motionData.delta;
+    }
+
+    HYP_FORCE_INLINE ControllerButton GetControllerButton() const
+    {
+        if (m_eventType != EventType::CONTROLLER_BUTTON_DOWN
+            && m_eventType != EventType::CONTROLLER_BUTTON_UP)
+        {
+            return ControllerButton::None;
+        }
+
+        const ControllerButton* button = m_eventData.TryGet<ControllerButton>();
+        if (!button)
+        {
+            return ControllerButton::None;
+        }
+
+        return *button;
+    }
+
+    HYP_FORCE_INLINE const ControllerAnalogData* GetControllerAnalogData() const
+    {
+        if (m_eventType != EventType::CONTROLLER_ANALOG_MOVE)
+        {
+            return nullptr;
+        }
+
+        return m_eventData.TryGet<ControllerAnalogData>();
     }
 
 private:

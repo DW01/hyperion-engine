@@ -77,6 +77,11 @@
 
 #include <Input/Event.hpp>
 
+#ifdef HYP_STEAM_SDK
+#include <Steam/Steam.hpp>
+#include <Steam/SteamInput.hpp>
+#endif // HYP_STEAM_SDK
+
 #include <System/AppContext.hpp>
 #include <System/DirectoryInitializer.hpp>
 
@@ -89,6 +94,7 @@
 
 namespace Hyperion {
 
+void HandleExit();
 void HandleSignal(int signum);
 
 EngineStatTimer g_statRenderUpdate("RenderThread");
@@ -148,12 +154,21 @@ static const Map<TaskThreadPoolName, UniquePtr<TaskThreadPool> (*)(void)> s_thre
 
 #pragma endregion Thread Pool Factories
 
-void HandleSignal(int signum)
+void HandleExit()
 {
+#ifdef HYP_STEAM_SDK
+    Steam::SteamInputManager::GetInstance().Shutdown();
+    Steam::Shutdown();
+#endif // HYP_STEAM_SDK
+
 #ifdef HYP_WINDOWS
     Win32_CleanupWindowClasses();
-#endif
+#endif // HYP_WINDOWS
+}
 
+void HandleSignal(int signum)
+{
+    // Call atexit functions
     exit(signum);
 }
 
@@ -209,6 +224,15 @@ void EngineDriver::Initialize()
     {
         return;
     }
+
+    signal(SIGINT, HandleSignal);
+    signal(SIGSEGV, HandleSignal);
+    atexit(HandleExit);
+
+#ifdef HYP_STEAM_SDK
+    Steam::Initialize();
+    Steam::SteamInputManager::GetInstance().Initialize();
+#endif // HYP_STEAM_SDK
 
     SharedPtr<NetRequestThread> netRequestThread = MakeShared<NetRequestThread>();
     SetGlobalNetRequestThread(netRequestThread);
@@ -396,6 +420,11 @@ void EngineDriver::RequestStop()
 {
     m_delegates.OnShutdown();
 
+#ifdef HYP_STEAM_SDK
+    Steam::SteamInputManager::GetInstance().Shutdown();
+    Steam::Shutdown();
+#endif // HYP_STEAM_SDK
+
     if (int32 shutdownCounter = AtomicIncrement(&m_isShuttingDown); shutdownCounter == 1)
     {
         if (g_renderThreadInstance != nullptr && g_renderThreadInstance->IsRunning())
@@ -410,7 +439,7 @@ void EngineDriver::RequestStop()
     }
 }
 
-void EngineDriver::FinalizeStop()
+void EngineDriver::Shutdown()
 {
     AssertOnThread(g_mainThread);
 
@@ -616,7 +645,7 @@ void EngineDriver::UpdateSim(float delta)
     }
 
     updateSubsystemTasks.Clear();
-#else // !HYP_PROCESS_SUBSYSTEMS_ASYNC
+#else  // !HYP_PROCESS_SUBSYSTEMS_ASYNC
     for (Subsystem* subsystem : m_subsystemsArray)
     {
         subsystem->PreUpdate(delta);
@@ -708,7 +737,7 @@ void EngineDriver::UpdateSim(float delta)
 
 #if HYP_PROCESS_VIEWS_ASYNC
         view->BeginAsyncCollection(*m_viewCollectionBatch);
-#else // !HYP_PROCESS_VIEWS_ASYNC
+#else  // !HYP_PROCESS_VIEWS_ASYNC
         view->CollectSync();
 #endif // HYP_PROCESS_VIEWS_ASYNC
     }
@@ -721,7 +750,7 @@ void EngineDriver::UpdateSim(float delta)
     {
         views[index]->EndAsyncCollection();
     }
-    
+
     AssertDebug(m_viewCollectionBatch != nullptr);
     AssertDebug(m_viewCollectionBatch->IsCompleted());
 
