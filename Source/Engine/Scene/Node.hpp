@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -19,8 +19,6 @@
 #include <Core/Reflection/ObjectBase.hpp>
 #include <Core/Reflection/Handle.hpp>
 
-#include <Scripting/ScriptableDelegate.hpp>
-
 #include <Core/Name/Name.hpp>
 
 #include <Core/Math/Transform.hpp>
@@ -33,9 +31,11 @@
 #include <Core/HashCode.hpp>
 #include <Core/Types.hpp>
 
+#include <Scripting/ScriptableDelegate.hpp>
+
 #include <Scene/EntityTag.hpp>
 
-#include <Asset/AssetObject.hpp>
+#include <Framework/EngineMemory.hpp>
 
 namespace Hyperion {
 
@@ -48,31 +48,31 @@ class EditorDelegates;
 HYP_ENUM()
 enum class TransformChangeType : uint8
 {
-    Default = 0,    //!< Default transform change, marks the node as dirty so the transform is saved and the editor is aware of the change when not in simulation mode.
-    Simulation = 1  //!< Transform change caused by physics or other simulation (e.g scripts) - should not mark the node as modified.
+    Default = 0,   //!< Default transform change, marks the node as dirty so the transform is saved and the editor is aware of the change when not in simulation mode.
+    Simulation = 1 //!< Transform change caused by physics or other simulation (e.g scripts) - should not mark the node as modified.
 };
 
 HYP_ENUM()
 enum class NodeFlags : uint32
 {
-    None = 0x0,                                                                                 //!< @edithide
+    None = 0x0, //!< @edithide
 
     IgnoreParentTranslation = 0x1,                                                              //!< @title="Ignores parent translation"
     IgnoreParentScale = 0x2,                                                                    //!< @title="Ignores parent scaling"
     IgnoreParentRotation = 0x4,                                                                 //!< @title="Ignores parent rotation"
     IgnoreParentTransform = IgnoreParentTranslation | IgnoreParentScale | IgnoreParentRotation, //!< @edithide
 
-    ExcludeFromParentBounds = 0x8,                                                              //!< @title="Does not affect parent node's bounds"
-    ExcludeFromOctree = 0x10,                                                                   //!< @title="Not included in the Scene's octree"
+    ExcludeFromParentBounds = 0x8, //!< @title="Does not affect parent node's bounds"
+    ExcludeFromOctree = 0x10,      //!< @title="Not included in the Scene's octree"
 
-    HideInSceneOutline = 0x1000,                                                                //!< @edithide
+    HideInSceneOutline = 0x1000, //!< @edithide
 
-    Mobility = 0xE000,                                                                          //!< @edithide
-    MobilityStatic = 0x2000,                                                                    //!< @edithide
-    MobilityStaticByProxy = 0x4000,                                                             //!< @edithide
-    MobilityDynamic = Mobility & ~(MobilityStatic | MobilityStaticByProxy),                     //!< @edithide
+    Mobility = 0xE000,                                                      //!< @edithide
+    MobilityStatic = 0x2000,                                                //!< @edithide
+    MobilityStaticByProxy = 0x4000,                                         //!< @edithide
+    MobilityDynamic = Mobility & ~(MobilityStatic | MobilityStaticByProxy), //!< @edithide
 
-    Default = MobilityStatic                                                                    //!< @edithide
+    Default = MobilityStatic //!< @edithide
 };
 
 HYP_MAKE_ENUM_FLAGS(NodeFlags);
@@ -347,8 +347,8 @@ public:
     HYP_DEF_STL_BEGIN_END(Base::Begin(), Base::End())
 };
 
-HYP_CLASS(PostLoad = "Node_OnPostLoad", AssetBucket = "Nodes")
-class ENGINE_API Node : public AssetObject
+HYP_CLASS(PostLoad = "Node_OnPostLoad")
+class ENGINE_API Node : public ObjectBase
 {
     friend class Scene;
     friend class Entity;
@@ -514,13 +514,13 @@ public:
         const Node* m_node;
     };
 
-    using NodeList = Array<Handle<Node>, DynamicAllocator>;
+    using NodeList = Array<Handle<Node>, SceneAllocator>;
 
     /*! \brief Construct the node, optionally taking in a name string to improve identification.
      * \param name The name of the Node.
      * \param localTransform An optional parameter representing the local-space transform of this Node.
      */
-    Node(Name name = Name::Invalid(), const Transform& localTransform = Transform(), Scene* scene = nullptr);
+    explicit Node(Name name = Name::Invalid(), const Transform& localTransform = Transform(), Scene* scene = nullptr);
 
     Node(const Node& other) = delete;
     Node& operator=(const Node& other) = delete;
@@ -536,6 +536,25 @@ public:
 
     HYP_METHOD()
     bool HasName() const;
+
+    HYP_METHOD(Property = "Name", Serialize)
+    Name GetName() const
+    {
+        return m_name;
+    }
+
+    HYP_METHOD(Property = "Name", Serialize)
+    virtual void SetName(Name name)
+    {
+        if (name == m_name)
+        {
+            return;
+        }
+
+        m_name = name;
+
+        MarkDirty();
+    }
 
     /*! \brief Get the flags of the Node.
      *  \see NodeFlagBits
@@ -877,7 +896,7 @@ public:
 #if HYP_EDITOR
     HYP_METHOD(EditorOnly)
     void MarkDirty();
-#else // !HYP_EDITOR
+#else  // !HYP_EDITOR
     static constexpr NoOpFunction<void> MarkDirty;
 #endif // HYP_EDITOR
 
@@ -906,6 +925,9 @@ protected:
 
     HYP_METHOD(Property = "Children", NoScriptBindings, Serialize)
     void SetChildren(const NodeList& children); // use setter so we can manage parent pointers
+
+    HYP_FIELD(Property = "Name", Serialize)
+    Name m_name;
 
     HYP_FIELD(Property = "NodeFlags", Serialize)
     EnumFlags<NodeFlags> m_nodeFlags;

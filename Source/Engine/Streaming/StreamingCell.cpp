@@ -13,6 +13,7 @@
 #include <Scene/WorldGrid/WorldGrid.hpp>
 
 #include <Asset/AssetReference.hpp>
+#include <Asset/AssetObject.hpp>
 
 #include <StreamingCell.generated.inl>
 

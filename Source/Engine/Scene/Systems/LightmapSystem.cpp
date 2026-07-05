@@ -31,7 +31,7 @@ void LightmapSystem::OnEntityAdded(Entity* entity)
     BoundingBoxComponent& boundingBoxComponent = entity->GetComponent<BoundingBoxComponent>();
 
     // Assign to LightmapVolume if it has a valid path to a LightmapVolume but isn't assigned to one yet
-    if (lightmapElementComponent.lightmapVolumePath.IsValid() && !lightmapElementComponent.lightmapVolume.IsValid())
+    if (lightmapElementComponent.lightmapVolumeName.IsValid() && !lightmapElementComponent.lightmapVolume.IsValid())
     {
         if (!AssignLightmapVolume(entity->GetScene(), lightmapElementComponent, boundingBoxComponent))
         {
@@ -177,7 +177,7 @@ bool LightmapSystem::AssignLightmapVolume(
         Assert(lightmapVolume != nullptr);
 
         if (lightmapElementComponent.lightmapVolume.GetUnsafe() != lightmapVolume
-            && lightmapElementComponent.lightmapVolumePath == lightmapVolume->GetPath())
+            && lightmapElementComponent.lightmapVolumeName == lightmapVolume->GetName())
         {
             const LightmapElement* lightmapElement = lightmapVolume->GetElement(lightmapElementComponent.lightmapElementId);
 

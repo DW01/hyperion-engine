@@ -33,7 +33,7 @@ struct ENGINE_API LightmapElementComponent
     LightmapElementId lightmapElementId;
 
     HYP_FIELD()
-    AssetPath lightmapVolumePath;
+    Name lightmapVolumeName;
 
     HYP_FIELD(Transient)
     WeakHandle<LightmapVolume> lightmapVolume;

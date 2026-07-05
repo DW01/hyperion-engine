@@ -76,7 +76,7 @@ public:
 
     ~EnvProbe();
 
-    Result Rename(Name name) override;
+    void SetName(Name name) override;
 
     HYP_METHOD()
     EnvProbeType GetEnvProbeType() const
@@ -215,6 +215,26 @@ public:
 
     void UpdateRenderProxy(RenderProxyEnvProbe* proxy);
 
+    void LockWriter()
+    {
+        m_mutex.LockWriter();
+    }
+
+    void UnlockWriter()
+    {
+        m_mutex.UnlockWriter();
+    }
+    
+    void LockReader()
+    {
+        m_mutex.LockReader();
+    }
+
+    void UnlockReader()
+    {
+        m_mutex.UnlockReader();
+    }
+
     AtomicFlag needsRender;
 
 protected:
@@ -269,6 +289,9 @@ protected:
 
     Handle<Texture> m_texture;
     Handle<Texture> m_visibilityTexture;
+
+    // for reading/writing back data
+    SharedMutex m_mutex;
 };
 
 HYP_CLASS()

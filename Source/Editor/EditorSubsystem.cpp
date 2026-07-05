@@ -283,7 +283,6 @@ void EditorGizmoBase::Init()
     m_node->UnlockTransform();
 
     m_node->SetNodeFlags(m_node->GetNodeFlags() | NodeFlags::HideInSceneOutline);
-    m_node->SetIsTransient(true);
 }
 
 void EditorGizmoBase::Shutdown()
@@ -1598,7 +1597,6 @@ Handle<Node> VolumeEditorGizmo::Load_Internal() const
 
     rootNode->UnlockTransform();
     rootNode->SetNodeFlags(rootNode->GetNodeFlags() | NodeFlags::HideInSceneOutline);
-    rootNode->SetIsTransient(true);
 
     // quad face rotations
     static const Quat4f s_faceRotations[VEF_Max] = {
@@ -1625,6 +1623,7 @@ Handle<Node> VolumeEditorGizmo::Load_Internal() const
     Handle<Material> material = MakeHandle<Material>(NAME("VolumeEditMaterial"), materialAttributes, materialParameters, MaterialTextures {});
     material->SetIsDynamic(true);
     InitObject(material);
+
     GetCurrentAssetRegistry()->PutAssetsDeep(material);
 
     for (int i = 0; i < VEF_Max; i++)
@@ -1657,7 +1656,6 @@ Handle<Node> VolumeEditorGizmo::Load_Internal() const
 
     rootNode->SetLocalBounds(BoundingBox(Vec3f(-1.0), Vec3f(1.0f)));
 
-    GetCurrentAssetRegistry()->PutAssetsDeep(rootNode);
     GetCurrentAssetRegistry()->SaveDirtyAssets();
 
     return rootNode;

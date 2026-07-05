@@ -84,7 +84,7 @@ String NodeTag::ToString() const
 #pragma region Node
 
 Node::Node(Name name, const Transform& localTransform, Scene* scene)
-    : AssetObject(name),
+    : m_name(name),
       m_nodeFlags(NodeFlags::Default),
       m_parentNode(nullptr),
       m_localTransform(localTransform),
@@ -155,7 +155,6 @@ Handle<Node> Node::Clone() const
     cloned->SetLocalTransform(m_localTransform, TransformChangeType::Default);
     cloned->SetLocalBounds(m_localBounds);
     cloned->SetName(m_name);
-    cloned->SetFriendlyName(m_friendlyName);
 
     for (const NodeTag& tag : m_tags)
     {
@@ -1224,7 +1223,10 @@ void Node::MarkDirty()
         return;
     }
 
-    AssetObject::MarkDirty();
+    if (m_scene != nullptr)
+    {
+        m_scene->MarkDirty();
+    }
 }
 #endif // HYP_EDITOR
 

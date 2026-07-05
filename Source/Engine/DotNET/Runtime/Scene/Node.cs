@@ -35,7 +35,7 @@ namespace Hyperion
     }
 
     [ClassBinding(Name = "Node")]
-    public class Node : AssetObject
+    public class Node : ObjectBase
     {
         public Node()
         {
@@ -52,6 +52,12 @@ namespace Hyperion
             }
 
             base.Dispose(isDisposing);
+        }
+
+        public Name Name
+        {
+            get => this.GetName();
+            set => this.SetName(value);
         }
 
         public NodeFlags Flags

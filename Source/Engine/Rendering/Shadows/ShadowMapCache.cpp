@@ -158,7 +158,6 @@ static Camera* CreateShadowCamera(Light* light, uint32 cascadeIndex)
 {
     Camera* shadowMapCamera = new Camera(int(light->GetShadowMapDimensions().x), int(light->GetShadowMapDimensions().y));
     shadowMapCamera->SetName(s_shadowMapCameraNames[cascadeIndex]);
-    shadowMapCamera->SetIsTransient(true);
 
     switch (light->GetLightType())
     {

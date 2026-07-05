@@ -39,7 +39,6 @@ void EditorViewport::Init()
     {
         m_camera = MakeHandle<Camera>();
         m_camera->SetName(NAME("EditorViewportCamera"));
-        m_camera->SetIsTransient(true);
 
         m_camera->AddTag<EntityTag::EditorCamera>();
 

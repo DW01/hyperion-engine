@@ -99,7 +99,7 @@ void Baker<ReflectionProbe>::OnCompleted_Internal()
     }
 
     // prevent writing on other threads
-    auto envProbeWriteScope = m_envProbe->GetWriteScope();
+    auto envProbeWriteScope = TUniqueResLock<EnvProbe>(*m_envProbe);
 
     const Vec2u dimensions = m_envProbe->GetDimensions();
     AssertDebug(dimensions.Volume() > 0);
@@ -160,7 +160,7 @@ void Baker<ReflectionProbe>::OnCompleted_Internal()
 
             const Handle<EnvProbe>& envProbe = cmdCasted->payload->envProbe;
 
-            auto envProbeWriteScope = envProbe->GetWriteScope();
+            auto envProbeWriteScope = TUniqueResLock<EnvProbe>(*envProbe);
 
             const Handle<Texture>& texture = envProbe->GetBakedTexture();
 

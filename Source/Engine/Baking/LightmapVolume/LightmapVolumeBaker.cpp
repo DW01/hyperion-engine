@@ -322,7 +322,8 @@ void Baker<LightmapVolume>::OnCompleted_Internal()
     const LightmapElement* lightmapElement = m_volume->GetElement(m_lightmapElementId);
     Assert(lightmapElement != nullptr);
 
-    GetCurrentAssetRegistry()->PutAssetsDeep(m_volume);
+    // Ensure references to texture assets are saved properly.
+    m_volume->MarkDirty();
 
     HYP_LOG(Lightmap, Verbose, "Lightmap baking complete! Building element with id {}, UV offset: {}, Scale: {}", m_lightmapElementId,
             lightmapElement->offsetUV, lightmapElement->scale);
@@ -469,7 +470,7 @@ void Baker<LightmapVolume>::OnCompleted_Internal()
                 LightmapElementComponent& lightmapElementComponent = entityManager->GetComponent<LightmapElementComponent>(entity);
 
                 lightmapElementComponent.lightmapVolume = MakeWeakRef(volume);
-                lightmapElementComponent.lightmapVolumePath = volume->GetPath();
+                lightmapElementComponent.lightmapVolumeName = volume->GetName();
                 lightmapElementComponent.lightmapElementId = lightmapElementId;
             }
             else
@@ -477,7 +478,7 @@ void Baker<LightmapVolume>::OnCompleted_Internal()
                 LightmapElementComponent lightmapElementComponent;
 
                 lightmapElementComponent.lightmapVolume = MakeWeakRef(volume);
-                lightmapElementComponent.lightmapVolumePath = volume->GetPath();
+                lightmapElementComponent.lightmapVolumeName = volume->GetName();
                 lightmapElementComponent.lightmapElementId = lightmapElementId;
 
                 entityManager->AddComponent<LightmapElementComponent>(entity, std::move(lightmapElementComponent));
