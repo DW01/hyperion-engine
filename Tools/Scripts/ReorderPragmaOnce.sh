@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # reorder-pragma.sh
-# Ensure the copyright comment (/* … */ or // …) appears before #pragma once.
+# Ensure the copyright comment (/* ? */ or // ?) appears before #pragma once.
 # Also collapses multiple blank lines into one in the edited portion.
 # macOS-only core utilities: bash, find, awk, diff, mv, rm, cmp.
 
@@ -35,7 +35,7 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-echo "Pragma-ordering log – $(date)" > "$LOG_FILE"
+echo "Pragma-ordering log ? $(date)" > "$LOG_FILE"
 echo "Mode: $([[ $APPLY -eq 1 ]] && echo 'APPLY' || echo 'DRY-RUN')" >> "$LOG_FILE"
 echo >> "$LOG_FILE"
 
@@ -58,7 +58,7 @@ while IFS= read -r file; do
     return (l ~ /^[[:space:]]*#pragma[[:space:]]+once/)
   }
 
-  # Pass 1 – read every line ---------------------------------------------------
+  # Pass 1 ? read every line ---------------------------------------------------
   { lines[NR] = $0 }
 
   END {
@@ -93,9 +93,9 @@ while IFS= read -r file; do
 
     # Identify full comment block starting at j ------------------------------
     comment_start_idx = j
-    if (lines[j] ~ /^[[:space:]]*\/\*/) {      # /* … */ variant
+    if (lines[j] ~ /^[[:space:]]*\/\*/) {      # /* ? */ variant
       while (j <= n && lines[j] !~ /\*\//) j++
-    } else {                                   # consecutive // … lines
+    } else {                                   # consecutive // ? lines
       while (j <= n && lines[j] ~ /^[[:space:]]*\/\//) j++
       j--
     }

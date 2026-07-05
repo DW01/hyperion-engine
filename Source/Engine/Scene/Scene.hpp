@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -36,24 +36,30 @@ class Scene;
 class EntityManager;
 class WorldGrid;
 
+// clang-format off
+
 HYP_ENUM()
 enum class SceneFlags : uint32
 {
-    NONE = 0x0,
+    NONE = 0x0,             //!< @edithide
 
-    FOREGROUND = 0x1, //!< Scene is a foreground scene (i.e., it is rendered normally).
-    BACKDROP = 0x2,   //!< Scene contains backdrop nodes (e.g skybox). Can also be FOREGROUND (not mutually exclusive)
-    DETACHED = 0x4,   //!< Scene is not attached to any World.
-    UI = 0x8,         //!< Scene is created for UI (see UIStage).
-    EDITOR = 0x10,    //!< Scene is an editor-owned scene.
+    FOREGROUND = 0x1,       //!< @title="Is foreground scene" @description="Scene is a foreground scene (i.e., it is rendered normally)."
+    BACKDROP = 0x2,         //!< @title="Is backdrop" @description="Scene contains backdrop nodes (e.g skybox). (Not mutually exclusive with Foreground)"
+    
+    /// These below are reserved for internal usage and not surfaced in-editor
+    DETACHED = 0x4,         //!< @edithide -- Scene is not attached to any World.
+    UI = 0x8,               //!< @edithide -- Scene is created for UI (see UIStage).
+    EDITOR = 0x10,          //!< @edithide -- Scene is an editor-owned scene.
 
-    STREAMED = 0x20,   //!< Allow streaming the scene in and out of the World dynamically, based on StreamingVolume proximity.
-    HAS_OCTREE = 0x40, //!< Scene uses an octree for spatial partitioning.
+    STREAMED = 0x20,        //!< @title="Is streamed in" @description="Allow the engine to load/unload from memory based on proximity to Streaming Volumes"
+    HAS_OCTREE = 0x40,      //!< @title="Uses Octree for spatial partitioning" @description="Scene uses an octree for spatial partitioning."
 
-    AUDIO_LISTENER = 0x80, //!< Scene has an audio listener (only one scene in a world should have this flag set)
+    AUDIO_LISTENER = 0x80,  //!< @title="Is primary audio listener" @description="Scene has an audio listener (only one scene in a world should have this flag set)"
 
-    DEFAULT = FOREGROUND | STREAMED | HAS_OCTREE
+    DEFAULT = FOREGROUND | STREAMED | HAS_OCTREE    //!< @edithide
 };
+
+// clang-format on
 
 HYP_MAKE_ENUM_FLAGS(SceneFlags);
 

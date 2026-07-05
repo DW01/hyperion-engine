@@ -533,10 +533,11 @@ Mesh* TriangleDebugDrawShape::GetMesh_Internal() const
 
             GetEngineAssetRegistry()->PutAsset(mesh);
 
-            onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind([m = &mesh]()
-                                                                              {
-                                                                                  m->Reset();
-                                                                              });
+            onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind(
+                [m = &mesh]()
+                {
+                    m->Reset();
+                });
         }
     } s_initializer;
 

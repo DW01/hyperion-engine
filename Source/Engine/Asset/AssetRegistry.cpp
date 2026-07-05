@@ -1039,8 +1039,8 @@ void AssetRegistry::PutAssetsDeep(const Handle<AssetObject>& targetAsset)
 
     bool shouldFollowAssetPaths = false;
 
-    Proc<void(const BoxedValue&)> Iterate;
-    Iterate = [&](const BoxedValue& current) -> void
+    ProcRef<void(const BoxedValue&)> iterate;
+    auto lambda = [&](const BoxedValue& current) -> void
     {
         if (!current.IsValid() || current.IsNull())
         {
@@ -1100,14 +1100,14 @@ void AssetRegistry::PutAssetsDeep(const Handle<AssetObject>& targetAsset)
 
         bool walked = false;
 
-        auto Functor = [&](const BoxedValue& value)
+        auto functor = [&](const BoxedValue& value)
         {
-            Iterate(value);
+            iterate(value);
 
             walked = true;
         };
 
-        WalkBoxedValue(current, Functor);
+        WalkBoxedValue(current, functor);
 
         if (walked)
         {
@@ -1133,7 +1133,7 @@ void AssetRegistry::PutAssetsDeep(const Handle<AssetObject>& targetAsset)
                             continue;
                         }
 
-                        Iterate(BoxedValue(componentRef));
+                        iterate(BoxedValue(componentRef));
                     }
                 }
             }
@@ -1228,28 +1228,22 @@ void AssetRegistry::PutAssetsDeep(const Handle<AssetObject>& targetAsset)
 
             shouldFollowAssetPaths = member.GetAttribute(Attributes::g_attrFollowAssetPath).GetBool();
 
-            Iterate(memberData);
+            iterate(memberData);
         }
 
         if (assetObject)
         {
             if (assetObject->m_assetIndex == AssetDesc::InvalidIndex)
             {
-                // if (assetObject->GetPath().IsValid())
-                //{
-                PutAsset(assetObject);
-                //}
-                // else
-                //{
-                //    PutAssetUnique(assetObject);
-                //}
+                PutAssetUnique(assetObject);
             }
 
             AssertDebug(assetObject->m_name.IsValid());
         }
     };
 
-    Iterate(BoxedValue(targetAsset));
+    iterate = lambda;
+    iterate(BoxedValue(targetAsset));
 }
 
 void AssetRegistry::RemoveAsset(const Handle<AssetObject>& asset)

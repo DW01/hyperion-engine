@@ -441,6 +441,11 @@ IRenderProxy* GetRenderProxy(const ObjectBase* resource)
 
     AssertDebug(resource != nullptr);
 
+    if (!resource)
+    {
+        return nullptr;
+    }
+
     ResourceSubtypeData& subtypeData = RI.resources->GetSubtypeData(resource->InstanceClass());
     AssertDebug(subtypeData.hasProxyData,
                 "Cannot use GetRenderProxy() for type which does not have a RenderProxy! Type name: {}",

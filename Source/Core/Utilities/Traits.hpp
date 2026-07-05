@@ -2,11 +2,12 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
 #include <type_traits>
+#include <cstdint>
 
 namespace Hyperion {
 
@@ -245,7 +246,7 @@ constexpr bool always_fail_v = false;
  */
 template <class T>
 HYP_CONCEPT BitwiseComparable = (std::has_unique_object_representations_v<std::remove_cv_t<T>>
-        && (std::is_scalar_v<std::remove_cv_t<T>> || std::is_standard_layout_v<std::remove_cv_t<T>>))
+                                 && (std::is_scalar_v<std::remove_cv_t<T>> || std::is_standard_layout_v<std::remove_cv_t<T>>))
     || std::is_void_v<std::remove_cv_t<T>>;
 
 template <class T>

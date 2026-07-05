@@ -1,6 +1,9 @@
 using Avalonia.Threading;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Hyperion;
 using Hyperion.Editor.Commands;
+using Hyperion.Editor.Views;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -246,6 +249,7 @@ namespace Hyperion.Editor.ViewModels
         }
 
         public ICommand SetActiveSceneCommand { get; private set; }
+        public ICommand AddNewSceneCommand { get; private set; }
 
         public MainWindowViewModel()
         {
@@ -274,6 +278,46 @@ namespace Hyperion.Editor.ViewModels
                     catch (Exception ex)
                     {
                         Logger.Log(LogLevel.Warning, $"Failed to set active scene: {ex.Message}");
+                    }
+                });
+            });
+
+            AddNewSceneCommand = new AsyncRelayCommand(async _ =>
+            {
+                var lifetime = Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+
+                if (lifetime?.MainWindow == null)
+                    return;
+
+                var dialog = new AddNewSceneDialog();
+                await dialog.ShowDialog(lifetime.MainWindow);
+
+                if (!dialog.Result)
+                    return;
+
+                string sceneName = dialog.ViewModel.SceneName;
+                SceneFlags sceneFlags = dialog.ViewModel.SceneFlags;
+
+                _ = EngineManager.PostToSimThread(() =>
+                {
+                    try
+                    {
+                        Scene newScene = new Scene();
+                        newScene.SetName(new Name(sceneName));
+                        newScene.SetSceneFlags(sceneFlags);
+
+                        EditorProject? project = EngineManager.CurrentProject;
+                        if (project == null)
+                        {
+                            throw new Exception("Current project is null");
+                        }
+                        project.AddScene(newScene);
+
+                        _editorSubsystem.SetActiveScene(newScene);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log(LogLevel.Warning, $"Failed to add new scene: {ex.Message}");
                     }
                 });
             });
@@ -1192,6 +1236,11 @@ namespace Hyperion.Editor.ViewModels
                     Logger.Log(LogLevel.Warning, $"Failed to add asset to scene at viewport: {ex.Message}");
                 }
             });
+        }
+
+        private void OnSceneMenuItemClick(object? sender, EventArgs e)
+        {
+            // @TODO Hide dropdown
         }
     }
 }

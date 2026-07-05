@@ -45,5 +45,11 @@ xcopy "%HYP_ROOT_DIR%Packages\%GAME_PACKAGE%" "%OUT_DIR%\Packages\%GAME_PACKAGE%
 echo Copying Shaders.ini...
 copy "%HYP_ROOT_DIR%Source\Shaders\Shaders.ini" "%OUT_DIR%\Source\Shaders\" >nul
 
+REM For development build, copy the game actions vdf and steam app id
+echo Copying development steam files...
+REM This will need to not be hardcoded obviously!
+copy "%HYP_ROOT_DIR%Source\Sample\DefaultGame\game_actions_480.vdf" "%OUT_DIR%\game_actions_480.vdf" >nul
+copy "%HYP_ROOT_DIR%Source\Sample\DefaultGame\steam_appid.txt" "%OUT_DIR%\steam_appid.txt" >nul
+
 echo Done! Packaged build created at: %OUT_DIR%
 endlocal
