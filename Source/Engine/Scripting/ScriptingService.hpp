@@ -1,7 +1,14 @@
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+ */
+
 #pragma once
+
 #include <Scripting/Script.hpp>
 
-#include <Core/Containers/Queue.hpp>
+#include <Core/Containers/Array.hpp>
 
 #include <Core/Threading/Mutex.hpp>
 #include <Core/Threading/AtomicVar.hpp>
@@ -22,15 +29,20 @@ struct ScriptEvent
     ScriptDesc* script;
 };
 
-class ENGINE_API ScriptingService
+class ScriptingService final
 {
 public:
     ScriptingService() = default;
+    
     ScriptingService(const ScriptingService& other) = delete;
     ScriptingService& operator=(const ScriptingService& other) = delete;
+    
     ScriptingService(ScriptingService&& other) noexcept = delete;
     ScriptingService& operator=(ScriptingService&& other) noexcept = delete;
+
     ~ScriptingService() = default;
+
+    bool IsEnabled() const;
 
     /*! \brief Called from sim thread */
     void Update();
@@ -43,7 +55,7 @@ public:
 private:
     bool HasEvents() const;
 
-    Queue<ScriptEvent> m_scriptEventQueue;
+    Array<ScriptEvent> m_scriptEventQueue;
     Mutex m_scriptEventQueueMutex;
     AtomicVar<uint32> m_scriptEventQueueCount;
 };

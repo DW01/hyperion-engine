@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -33,7 +33,7 @@
 
 #ifdef HYP_DX12
 #include <wrl.h> // For Microsoft::WRL::ComPtr
-#endif // HYP_DX12
+#endif           // HYP_DX12
 
 namespace Hyperion {
 
@@ -193,7 +193,7 @@ public:
             currHeaders = (currHeaders == &headers[0]) ? &headers[1] : &headers[0];
         }
 
-        virtual void* Alloc(uint32 size, uint32 alignment, EntryHeader& outHeader) = 0;
+        virtual void* Alloc(size_t size, size_t alignment, EntryHeader& outHeader) = 0;
         virtual void ResizeBuffer(size_t newMinSize) = 0;
 
         void Push(const EntryHeader& header)
@@ -209,7 +209,7 @@ public:
 
         // current headers to iterate over (changed by calling SwapHeaderBuffers())
         Array<EntryHeader>* currHeaders;
-        uint32 bufferPos;
+        size_t bufferPos;
         uint32 desiredIdx; // only for temp entry lists when we request a specific index!
     };
 
@@ -217,22 +217,18 @@ public:
     class EntryList final : public EntryListBase
     {
     public:
-        memory::ByteBuffer<AllocatorType> buffer;
+        void* raw;
+        size_t bufferSize;
 
         EntryList()
             : EntryList(~0u)
         {
         }
 
-        explicit EntryList(AllocatorType* pAllocator)
-            : EntryListBase(~0u),
-              buffer(pAllocator)
-        {
-        }
-
         explicit EntryList(uint32 desiredIdx)
             : EntryListBase(desiredIdx),
-              buffer()
+              raw(nullptr),
+              bufferSize(0)
         {
         }
 
@@ -242,20 +238,23 @@ public:
         EntryList(EntryList&&) noexcept = delete;
         EntryList& operator=(EntryList&&) noexcept = delete;
 
-        ~EntryList() override = default;
+        ~EntryList() override
+        {
+            Free();
+        }
 
-        virtual void* Alloc(uint32 size, uint32 alignment, EntryHeader& outHeader) override
+        virtual void* Alloc(size_t size, size_t alignment, EntryHeader& outHeader) override
         {
             AssertDebug(alignment <= 16);
 
-            const uint32 alignedOffset = ByteUtil::AlignAs(bufferPos, alignment);
+            const size_t alignedOffset = ByteUtil::AlignAs(bufferPos, alignment);
 
-            if (buffer.Size() < alignedOffset + size)
+            if (bufferSize < alignedOffset + size)
             {
                 ResizeBuffer(alignedOffset + size);
             }
 
-            void* ptr = buffer.Data() + alignedOffset;
+            UIntPtr ptr = reinterpret_cast<UIntPtr>(raw) + alignedOffset;
 
             bufferPos = alignedOffset + size;
 
@@ -263,12 +262,45 @@ public:
             outHeader.offset = alignedOffset;
             outHeader.size = size;
 
-            return ptr;
+            return reinterpret_cast<void*>(ptr);
         }
 
         virtual void ResizeBuffer(size_t newMinSize) override
         {
-            buffer.SetSize(newMinSize, /* zeroize */ false);
+            if (newMinSize <= bufferSize)
+            {
+                return;
+            }
+
+            newMinSize = MathUtil::NextPowerOf2(newMinSize);
+
+            AllocatorType* allocator = GetDefaultAllocatorInstance<AllocatorType>();
+            void* oldBuffer = raw;
+
+            raw = allocator->Allocate(newMinSize, 16);
+            HYP_CORE_ASSERT(raw != nullptr, "Failed to allocate memory for DeletionQueue");
+
+            if (oldBuffer != nullptr)
+            {
+                Memory::Copy(raw, oldBuffer, bufferSize);
+                allocator->Free(oldBuffer);
+            }
+
+            bufferSize = newMinSize;
+        }
+
+        void Free()
+        {
+            if (!raw)
+            {
+                return;
+            }
+
+            AllocatorType* allocator = GetDefaultAllocatorInstance<AllocatorType>();
+            allocator->Free(raw);
+
+            raw = nullptr;
+            bufferSize = 0;
         }
     };
 
@@ -309,7 +341,8 @@ public:
         static_assert(
             std::is_trivially_move_constructible_v<DeletionQueueElem<T>>
                 && std::is_trivially_move_assignable_v<DeletionQueueElem<T>>
-                && std::is_trivially_copyable_v<DeletionQueueElem<T>>, "DeletionQueueElem must be trivially moveable and trivially copyable");
+                && std::is_trivially_copyable_v<DeletionQueueElem<T>>,
+            "DeletionQueueElem must be trivially moveable and trivially copyable");
 
         EntryHeader header {};
 
@@ -378,15 +411,15 @@ static inline void EnqueueDeletion(FunctionWrapper<TFunction>&& func)
     Mutex::Guard* pGuard = nullptr;
 
     FunctionWrapper<TFunction>** ppPayload = DeletionQueue::GetInstance().AllocCustom<FunctionWrapper<TFunction>*>([](void* ptr)
-        {
-            FunctionWrapper<TFunction>* pPayload = *reinterpret_cast<FunctionWrapper<TFunction>**>(ptr);
-            AssertDebug(pPayload != nullptr);
+                                                                                                                   {
+                                                                                                                       FunctionWrapper<TFunction>* pPayload = *reinterpret_cast<FunctionWrapper<TFunction>**>(ptr);
+                                                                                                                       AssertDebug(pPayload != nullptr);
 
-            (*pPayload)();
+                                                                                                                       (*pPayload)();
 
-            delete pPayload;
-        },
-        &pGuard);
+                                                                                                                       delete pPayload;
+                                                                                                                   },
+                                                                                                                   &pGuard);
 
     *ppPayload = new FunctionWrapper<TFunction>(std::move(func));
 

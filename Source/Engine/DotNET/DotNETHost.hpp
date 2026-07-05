@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -56,7 +56,7 @@ enum class LoadAssemblyResult : int32
     OK = 0
 };
 
-class ENGINE_API DotNETHost
+class DotNETHost
 {
 public:
     struct GlobalFunctions
@@ -69,7 +69,6 @@ public:
         RemoveObjectFromCacheFunction removeObjectFromCacheFptr = nullptr;
         QueryManagedObjectCountsFunction queryManagedObjectCountsFptr = nullptr;
         GetTotalMemoryFunction getTotalMemoryFptr = nullptr;
-
     };
 
     static DotNETHost& GetInstance();
@@ -104,7 +103,6 @@ public:
     bool IsCoreAssembly(const dotnet::Assembly* assembly) const;
 
     bool IsEnabled() const;
-
     bool IsInitialized() const;
 
     /*! \brief Initializes the .NET runtime and loads core assemblies.

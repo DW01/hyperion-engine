@@ -382,8 +382,18 @@ add_definitions(-DHYP_SCRIPT=1)
 
 set(HYP_GENERATE_CSHARP_LIBRARIES true)
 
-if(NOT DEFINED HYP_COMPILE_WITH_DOTNET)
-  set(HYP_COMPILE_WITH_DOTNET 1)
+# Set to true if C# is not planned on being used for scripting
+# .NET is necessary for the editor, but for a leaner build this is recommended to disable if not using C# for scripts.
+set(HYP_DOTNET_ONLY_FOR_EDITOR true)
+
+if(NOT HYP_DOTNET_ONLY_FOR_EDITOR OR HYP_EDITOR)
+  if(NOT DEFINED HYP_COMPILE_WITH_DOTNET)
+    set(HYP_COMPILE_WITH_DOTNET 1)
+  endif()
+endif()
+
+if(HYP_DOTNET_ONLY_FOR_EDITOR)
+  add_definitions(-DHYP_DOTNET_ONLY_FOR_EDITOR=1)
 endif()
 
 if(HYP_COMPILE_WITH_DOTNET)
@@ -425,7 +435,7 @@ endif()
 set(RENDERING_BACKEND "Vulkan")
 
 if(WIN32)
-  set(ENABLE_EXPERIMENTAL_DX12_RENDERING_BACKEND true)
+  # set(ENABLE_EXPERIMENTAL_DX12_RENDERING_BACKEND true)
 
   if(ENABLE_EXPERIMENTAL_DX12_RENDERING_BACKEND)
     set(RENDERING_BACKEND "DX12")

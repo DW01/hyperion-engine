@@ -253,13 +253,16 @@ void SteamInputManager::UpdateControllers(const ActionSet& set)
         return;
     }
 
+    Handle<InputManager> inputManager = m_windowState.window->GetInputManager();
+    if (!inputManager.IsValid())
+    {
+        return;
+    }
+
     // @TODO Steamworks docs recommends only calling every 10hz or less.
     SteamAPI_RunCallbacks();
 
     SteamInput()->RunFrame();
-
-    Handle<InputManager> inputManager = m_windowState.window->GetInputManager();
-    Assert(inputManager.IsValid());
 
     InputHandle_t steamControllers[MaxConnectedControllers];
     const int controllerCount = SteamInput()->GetConnectedControllers(steamControllers);

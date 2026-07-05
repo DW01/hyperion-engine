@@ -277,7 +277,16 @@ extern "C"
 #if HYP_DOTNET && !defined(HYP_COMMANDLET_NAME)
         if (!isCommandlet)
         {
-            DotNETHost::GetInstance().Initialize(basePath, /* initFromManaged */ isEditor, s_initFromManagedCallback);
+            bool shouldInitializeDotNetHost = true;
+
+#if defined(HYP_DOTNET_ONLY_FOR_EDITOR) && HYP_DOTNET_ONLY_FOR_EDITOR
+            shouldInitializeDotNetHost = EngineGlobals::IsEditor();
+#endif // HYP_DOTNET_ONLY_FOR_EDITOR
+
+            if (shouldInitializeDotNetHost)
+            {
+                DotNETHost::GetInstance().Initialize(basePath, /* initFromManaged */ isEditor, s_initFromManagedCallback);
+            }
         }
 #endif // HYP_DOTNET
 
@@ -516,11 +525,15 @@ extern "C"
 
         g_engineDriver->RequestStop();
 
-#if HYP_DOTNET
-        DotNETHost::GetInstance().Shutdown();
-#endif // HYP_DOTNET
-
         g_mainThreadInstance->Stop();
+
+        g_renderThreadInstance->Join();
+        g_renderThread = g_mainThread;
+
+        g_simThreadInstance->Join();
+        g_simThread = g_mainThread;
+
+        g_engineDriver->Shutdown();
 
         { // shut down AssetRegistry instances
             ClearAssetRegistryStack();
@@ -533,14 +546,6 @@ extern "C"
             SetEditorAssetRegistry(Handle<AssetRegistry>::Null());
 #endif // HYP_EDITOR
         }
-
-        g_renderThreadInstance->Join();
-        g_renderThread = g_mainThread;
-
-        g_simThreadInstance->Join();
-        g_simThread = g_mainThread;
-
-        g_engineDriver->Shutdown();
 
         g_streamingManager->Stop();
         g_streamingManager.Reset();
@@ -557,6 +562,10 @@ extern "C"
 #endif // HYP_EDITOR
 
         g_appContext.Reset();
+
+#if HYP_DOTNET
+        DotNETHost::GetInstance().Shutdown();
+#endif // HYP_DOTNET
 
         ComponentInterfaceRegistry::GetInstance().Shutdown();
 
