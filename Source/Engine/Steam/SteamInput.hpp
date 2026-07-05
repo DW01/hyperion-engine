@@ -41,31 +41,36 @@ public:
     void Update();
 
 private:
-    static constexpr size_t MaxConnectedControllers = 8;
+    static constexpr uint32 MaxConnectedControllers = 8;
+    static constexpr uint32 MaxAnalogActionHandles = 16;
+    static constexpr uint32 MaxDigitalActionHandles = 32;
+    static constexpr uint32 MaxActionSetHandles = 8;
 
     struct ActionSet
     {
-        uint64 setHandle;
-        uint64 analogActionHandles[64];
-        uint64 digitalActionHandles[64];
+        uint8 index;
+        uint64 handle;
+
+        uint64 analogActionHandles[MaxAnalogActionHandles];
+        uint64 digitalActionHandles[MaxDigitalActionHandles];
     };
 
     static bool InitializeActionSet(const struct ActionSetDesc& desc, ActionSet& outSet);
 
-    void UpdateControllers();
-    void ProcessControllerInput();
+    void UpdateControllers(const ActionSet& set);
+    void ProcessControllerInput(const ActionSet& set);
 
     bool m_isInitialized;
 
     uint8 m_currentActionSet;
-    ActionSet m_actionSets[8];
+    ActionSet m_actionSets[MaxActionSetHandles];
 
     /// Per-window states
     struct WindowState
     {
         ApplicationWindow* window;
         uint64 m_controllers[MaxConnectedControllers];
-        BitField<64> digitalActionStates[MaxConnectedControllers];
+        BitField<MaxDigitalActionHandles> digitalActionStates[MaxConnectedControllers];
     };
 
     static void InitializeWindowState(WindowState&, ApplicationWindow* window);

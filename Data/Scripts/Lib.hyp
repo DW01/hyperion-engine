@@ -1521,7 +1521,7 @@ extern enum EventFlags : uint8
     RELATIVE_MOUSE = 0x1
 end
 extern enum ControllerButton : uint16
-    INVALID = 0,
+    None = 0,
     A,
     B,
     X,
