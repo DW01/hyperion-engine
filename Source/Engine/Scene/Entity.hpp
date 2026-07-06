@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -38,7 +38,7 @@ struct EntityInitInfo
     Array<EntityTag> initialTags;
 };
 
-HYP_CLASS(AssetBucket = "Entities")
+HYP_CLASS()
 class ENGINE_API Entity : public Node
 {
     HYP_OBJECT_BODY(Entity);

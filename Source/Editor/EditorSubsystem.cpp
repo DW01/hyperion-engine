@@ -29,6 +29,7 @@
 #include <Scene/ProbeVolume.hpp>
 #include <Scene/FogVolume.hpp>
 #include <Scene/EntityManager.hpp>
+#include <Scene/Prefab.hpp>
 
 #include <Scene/System.hpp>
 #include <Scene/Systems/ScriptSystem.hpp>
@@ -802,9 +803,9 @@ Handle<Node> TranslateEditorGizmo::Load_Internal() const
 {
     GlobalContextScope assetRegistryScope { AssetRegistryContext { GetEditorAssetRegistry() } };
 
-    if (Handle<Node> node = GetCurrentAssetRegistry()->GetAsset<Node>(AssetBuckets::Nodes, "TranslateGizmo"_sh); node.IsValid())
+    if (Handle<Prefab> prefab = GetCurrentAssetRegistry()->GetAsset<Prefab>(AssetBuckets::Prefabs, "TranslateGizmo"_sh); prefab.IsValid())
     {
-        return node;
+        return prefab->GetRoot();
     }
 
     return Handle<Node>::Null();
@@ -818,7 +819,7 @@ Handle<Node> RotateEditorGizmo::Load_Internal() const
 {
     GlobalContextScope assetRegistryScope { AssetRegistryContext { GetEditorAssetRegistry() } };
 
-    if (Handle<Node> node = GetCurrentAssetRegistry()->GetAsset<Node>(AssetBuckets::Nodes, "RotateGizmo"_sh); node.IsValid())
+    if (Handle<Prefab> prefab = GetCurrentAssetRegistry()->GetAsset<Prefab>(AssetBuckets::Prefabs, "RotateGizmo"_sh); prefab.IsValid())
     {
         return node;
     }
@@ -1155,7 +1156,7 @@ Handle<Node> ScaleEditorGizmo::Load_Internal() const
 {
     GlobalContextScope assetRegistryScope { AssetRegistryContext { GetEditorAssetRegistry() } };
 
-    if (Handle<Node> node = GetCurrentAssetRegistry()->GetAsset<Node>(AssetBuckets::Nodes, "ScaleGizmo"_sh); node.IsValid())
+    if (Handle<Prefab> prefab = GetCurrentAssetRegistry()->GetAsset<Prefab>(AssetBuckets::Prefabs, "ScaleGizmo"_sh); prefab.IsValid())
     {
         return node;
     }

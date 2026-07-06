@@ -48,9 +48,9 @@ ENGINE_API HYP_DEFINE_LOG_SUBCHANNEL(Scripting, Engine);
 
 #if HYP_EDITOR
 static constexpr auto EnableScriptReloading = &EngineGlobals::IsEditor;
-#else   // !HYP_EDITOR
+#else  // !HYP_EDITOR
 static constexpr std::false_type EnableScriptReloading;
-#endif  // HYP_EDITOR
+#endif // HYP_EDITOR
 
 #pragma region ScriptTracker
 
@@ -85,7 +85,7 @@ public:
         const Array<FilePath>& sourceDirectories,
         const FilePath& intermediateDirectory,
         const FilePath& binaryOutputDirectory,
-        void* callbackPtr,
+        void (*callbackPtr)(void*, ScriptEvent),
         void* callbackSelfPtr)
     {
         if (!object || !object->IsValid())
@@ -98,7 +98,7 @@ public:
             sourceDirectories,
             intermediateDirectory,
             binaryOutputDirectory,
-            callbackPtr,
+            reinterpret_cast<void*>(callbackPtr),
             callbackSelfPtr);
     }
 
@@ -301,14 +301,16 @@ void ScriptSystem::OnAddedToWorld(World* world)
             }
         }
 
+        void (*scriptTrackerCallback)(void*, ScriptEvent) = [](void* selfPtr, ScriptEvent event)
+        {
+            static_cast<ScriptingService*>(selfPtr)->PushScriptEvent(event);
+        };
+
         m_scriptTracker->Initialize(
             scriptSourceDirectories,
             EngineGlobals::GetTempDirectory() / "ScriptProjects",
             CoreApi::GetExecutablePath(),
-            [](void* selfPtr, ScriptEvent event)
-            {
-                static_cast<ScriptingService*>(selfPtr)->PushScriptEvent(event);
-            },
+            scriptTrackerCallback,
             m_scriptingService.Get());
     }
 }

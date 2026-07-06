@@ -61,7 +61,7 @@ enum EnvProbeType : uint32
     EPT_MAX
 };
 
-HYP_CLASS(AssetBucket = "EnvProbes")
+HYP_CLASS()
 class ENGINE_API EnvProbe : public VolumeBase
 {
     HYP_OBJECT_BODY(EnvProbe);
@@ -224,7 +224,7 @@ public:
     {
         m_mutex.UnlockWriter();
     }
-    
+
     void LockReader()
     {
         m_mutex.LockReader();

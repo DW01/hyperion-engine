@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -62,7 +62,7 @@ enum class LightFlags : uint32
 
 HYP_MAKE_ENUM_FLAGS(LightFlags);
 
-HYP_CLASS(AssetBucket = "Lights")
+HYP_CLASS()
 class ENGINE_API Light : public Entity
 {
     HYP_OBJECT_BODY(Light);
@@ -250,8 +250,8 @@ public:
     ShadowMapFilter GetShadowMapFilter() const
     {
         return (ShadowMapFilter)((m_lightFlags & LightFlags::ShadowFilterMask)
-                ? MathUtil::FastLog2(m_lightFlags & LightFlags::ShadowFilterMask)
-                : 0);
+                                     ? MathUtil::FastLog2(m_lightFlags & LightFlags::ShadowFilterMask)
+                                     : 0);
     }
 
     HYP_METHOD(Property = "ShadowMapFilter", Editor = true, Transient)

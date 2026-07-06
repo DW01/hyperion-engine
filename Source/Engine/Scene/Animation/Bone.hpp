@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -17,7 +17,7 @@ namespace Hyperion {
 
 class Skeleton;
 
-HYP_CLASS(AssetBucket = "Bones")
+HYP_CLASS()
 class ENGINE_API Bone : public Node
 {
     friend class Skeleton;

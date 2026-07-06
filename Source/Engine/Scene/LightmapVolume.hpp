@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -99,7 +99,7 @@ struct LightmapVolumeAtlas : AtlasPacker<LightmapElement>
     LightmapVolumeAtlas& operator=(LightmapVolumeAtlas&& other) noexcept = default;
 };
 
-HYP_CLASS(AssetBucket = "LightmapVolumes")
+HYP_CLASS()
 class ENGINE_API LightmapVolume final : public VolumeBase
 {
     HYP_OBJECT_BODY(LightmapVolume);

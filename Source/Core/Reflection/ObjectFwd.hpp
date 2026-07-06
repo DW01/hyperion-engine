@@ -378,7 +378,7 @@ static inline WeakHandle<Other> StaticCast(WeakHandle<T>&& handle)
 template <class Other, class T>
 static inline Other* DynamicCast(T* objectPtr)
 {
-    static_assert(std::is_class_v<Other>, "Other must be a class type to use with DynamicCast");
+    static_assert(std::is_class_v<Other> && (std::is_base_of_v<T, Other> || std::is_base_of_v<Other, T>), "Dynamic cast on unrelated types!");
 
     if constexpr (std::is_same_v<T, Other> || std::is_base_of_v<Other, T>)
     {
@@ -396,7 +396,7 @@ static inline Other* DynamicCast(T* objectPtr)
 template <class Other, class T>
 static inline const Other* DynamicCast(const T* objectPtr)
 {
-    static_assert(std::is_class_v<Other>, "Other must be a class type to use with DynamicCast");
+    static_assert(std::is_class_v<Other> && (std::is_base_of_v<T, Other> || std::is_base_of_v<Other, T>), "Dynamic cast on unrelated types!");
 
     if constexpr (std::is_same_v<T, Other> || std::is_base_of_v<Other, T>)
     {
@@ -414,7 +414,7 @@ static inline const Other* DynamicCast(const T* objectPtr)
 template <class Other, class T>
 static inline const Handle<Other>& DynamicCast(const Handle<T>& handle)
 {
-    static_assert(std::is_class_v<Other>, "Other must be a class type to use with DynamicCast");
+    static_assert(std::is_class_v<Other> && (std::is_base_of_v<T, Other> || std::is_base_of_v<Other, T>), "Dynamic cast on unrelated types!");
 
     if (!handle.IsValid())
     {
@@ -432,7 +432,7 @@ static inline const Handle<Other>& DynamicCast(const Handle<T>& handle)
 template <class Other, class T>
 static inline Handle<Other> DynamicCast(Handle<T>&& handle)
 {
-    static_assert(std::is_class_v<Other>, "Other must be a class type to use with DynamicCast");
+    static_assert(std::is_class_v<Other> && (std::is_base_of_v<T, Other> || std::is_base_of_v<Other, T>), "Dynamic cast on unrelated types!");
 
     if (!handle.IsValid())
     {
@@ -450,7 +450,7 @@ static inline Handle<Other> DynamicCast(Handle<T>&& handle)
 template <class Other, class T>
 static inline const WeakHandle<Other>& DynamicCast(const WeakHandle<T>& handle)
 {
-    static_assert(std::is_class_v<Other>, "Other must be a class type to use with DynamicCast");
+    static_assert(std::is_class_v<Other> && (std::is_base_of_v<T, Other> || std::is_base_of_v<Other, T>), "Dynamic cast on unrelated types!");
 
     if (!handle.IsValid())
     {
@@ -468,7 +468,7 @@ static inline const WeakHandle<Other>& DynamicCast(const WeakHandle<T>& handle)
 template <class Other, class T>
 static inline WeakHandle<Other> DynamicCast(WeakHandle<T>&& handle)
 {
-    static_assert(std::is_class_v<Other>, "Other must be a class type to use with DynamicCast");
+    static_assert(std::is_class_v<Other> && (std::is_base_of_v<T, Other> || std::is_base_of_v<Other, T>), "Dynamic cast on unrelated types!");
 
     if (!handle.IsValid())
     {
@@ -495,16 +495,16 @@ static inline bool IsA()
     static_assert(implementation_exists_v<ExpectedType>, "Implementation does not exist for the expected type! Ensure proper headers are included.");
     static_assert(implementation_exists_v<InstanceType>, "Implementation does not exist for the instance type! Ensure proper headers are included.");
 
-    static const Class* s_instanceClass = InstanceType::StaticClass();
+    static const Class* instanceClass = InstanceType::StaticClass();
 
-    if (!s_instanceClass)
+    if (!instanceClass)
     {
         return false;
     }
 
-    static const Class* s_expectedClass = ExpectedType::StaticClass();
+    static const Class* expectedClass = ExpectedType::StaticClass();
 
-    if (!s_expectedClass)
+    if (!expectedClass)
     {
         return false;
     }
@@ -515,9 +515,7 @@ static inline bool IsA()
         return true;
     }
 
-    static const bool cachedCheck = ::Hyperion::IsA(s_expectedClass, s_instanceClass);
-
-    return cachedCheck || IsA(s_expectedClass, s_instanceClass);
+    return IsA(expectedClass, instanceClass);
 }
 
 template <class ExpectedType>

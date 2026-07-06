@@ -736,7 +736,7 @@ extern struct MeshComponent
 end
 extern struct LightmapElementComponent
     LightmapElementId : any
-    LightmapVolumePath : AssetPath
+    LightmapVolumeName : Name
     LightmapVolume : any
     ShData : SphericalHarmonicsData
 end
@@ -2319,6 +2319,11 @@ extern class Scene : AssetObject
     EntityManager : EntityManager
     PreviousDelta : float
     StreamingCentroid : Vec2i
+end
+extern class Prefab : AssetObject
+    GetRoot() -> Node
+    SetRoot(root : Node) -> void
+    Root : Node
 end
 extern struct ShaderInputGroup
     Elements : Array<ShaderInputSet>

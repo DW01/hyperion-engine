@@ -11,6 +11,8 @@
 
 #include <Core/Memory/SharedPtr.hpp>
 
+#include <Core/Memory/Allocator/ThreadAllocator.hpp>
+
 #include <Core/Utilities/Uuid.hpp>
 #include <Core/Utilities/EnumFlags.hpp>
 #include <Core/Utilities/StringView.hpp>
@@ -52,28 +54,32 @@ enum class TransformChangeType : uint8
     Simulation = 1 //!< Transform change caused by physics or other simulation (e.g scripts) - should not mark the node as modified.
 };
 
+// clang-format off
+
 HYP_ENUM()
 enum class NodeFlags : uint32
 {
-    None = 0x0, //!< @edithide
+    None = 0x0,                                                                                 //!< @edithide
 
     IgnoreParentTranslation = 0x1,                                                              //!< @title="Ignores parent translation"
     IgnoreParentScale = 0x2,                                                                    //!< @title="Ignores parent scaling"
     IgnoreParentRotation = 0x4,                                                                 //!< @title="Ignores parent rotation"
     IgnoreParentTransform = IgnoreParentTranslation | IgnoreParentScale | IgnoreParentRotation, //!< @edithide
 
-    ExcludeFromParentBounds = 0x8, //!< @title="Does not affect parent node's bounds"
-    ExcludeFromOctree = 0x10,      //!< @title="Not included in the Scene's octree"
+    ExcludeFromParentBounds = 0x8,                                                              //!< @title="Does not affect parent node's bounds"
+    ExcludeFromOctree = 0x10,                                                                   //!< @title="Not included in the Scene's octree"
 
-    HideInSceneOutline = 0x1000, //!< @edithide
+    HideInSceneOutline = 0x1000,                                                                //!< @edithide
 
-    Mobility = 0xE000,                                                      //!< @edithide
-    MobilityStatic = 0x2000,                                                //!< @edithide
-    MobilityStaticByProxy = 0x4000,                                         //!< @edithide
-    MobilityDynamic = Mobility & ~(MobilityStatic | MobilityStaticByProxy), //!< @edithide
+    Mobility = 0xE000,                                                                          //!< @edithide
+    MobilityStatic = 0x2000,                                                                    //!< @edithide
+    MobilityStaticByProxy = 0x4000,                                                             //!< @edithide
+    MobilityDynamic = Mobility & ~(MobilityStatic | MobilityStaticByProxy),                     //!< @edithide
 
-    Default = MobilityStatic //!< @edithide
+    Default = MobilityStatic                                                                    //!< @edithide
 };
+
+// clang-format on
 
 HYP_MAKE_ENUM_FLAGS(NodeFlags);
 
@@ -369,6 +375,8 @@ public:
         {
             if (root != nullptr && root->GetChildren().Any())
             {
+                m_stack.Reserve(8);
+
                 // Start with first child of root
                 m_stack.PushBack({ root, 0 });
                 ++(*this);
@@ -408,29 +416,25 @@ public:
             return *this;
         }
 
-        DescendantsIterator operator++(int)
-        {
-            DescendantsIterator temp = *this;
-            ++(*this);
-            return temp;
-        }
+        // Deleted to reduce overhead and consumption of the memory allocation for stack data.
+        DescendantsIterator operator++(int) = delete;
 
-        Node* operator*() const
+        HYP_FORCE_INLINE Node* operator*() const
         {
             return m_current;
         }
 
-        Node* operator->() const
+        HYP_FORCE_INLINE Node* operator->() const
         {
             return m_current;
         }
 
-        bool operator==(const DescendantsIterator& other) const
+        HYP_FORCE_INLINE bool operator==(const DescendantsIterator& other) const
         {
             return m_current == other.m_current;
         }
 
-        bool operator!=(const DescendantsIterator& other) const
+        HYP_FORCE_INLINE bool operator!=(const DescendantsIterator& other) const
         {
             return m_current != other.m_current;
         }
@@ -443,7 +447,7 @@ public:
         };
 
         Node* m_current;
-        Array<StackEntry> m_stack;
+        Array<StackEntry, ThreadAllocator> m_stack;
     };
 
     class DescendantsView
