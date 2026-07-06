@@ -143,20 +143,20 @@ void DefaultGame::OnLaunch_Impl()
             view->SetName(NAME("DefaultGame_View"));
             GetWorld()->AddView(view);
 
-            auto pointLight = MakeHandle<PointLight>(Vec3f(0.0f, 7.0f, -2.0f), Color::Red(), 50.0f, 30.0f);
-            mainScene->GetRoot()->AddChild(pointLight);
+            // auto pointLight = MakeHandle<PointLight>(Vec3f(0.0f, 7.0f, -2.0f), Color::Red(), 50.0f, 30.0f);
+            // mainScene->GetRoot()->AddChild(pointLight);
 
             Handle<Node> textNode = MakeHandle<Node>(NAME("TextNode"));
 
             // add TextSprites
-            Handle<TextSprite> titleSprite = MakeHandle<TextSprite>(NAME("TitleText"), "Hyperion Engine");
-            titleSprite->SetWorldTranslation(Vec3f(5.0f, 5.0f, 0.0f));
+            Handle<TextSprite> titleSprite = MakeHandle<TextSprite>(NAME("TitleText"), "Look ma!");
+            titleSprite->SetWorldTranslation(Vec3f(5.0f, 11.5f, 0.0f));
             titleSprite->SetTextColor(Color::White());
             titleSprite->SetTextSize(16.0f);
             textNode->AddChild(titleSprite);
 
-            Handle<TextSprite> subtitleSprite = MakeHandle<TextSprite>(NAME("SubtitleText"), "Default Scene");
-            subtitleSprite->SetWorldTranslation(Vec3f(5.0f, 4.0f, 0.0f));
+            Handle<TextSprite> subtitleSprite = MakeHandle<TextSprite>(NAME("SubtitleText"), "No WASD!");
+            subtitleSprite->SetWorldTranslation(Vec3f(5.0f, 10.0f, 0.0f));
             subtitleSprite->SetTextColor(Color(0.8f, 0.8f, 1.0f, 1.0f));
             subtitleSprite->SetTextSize(14.0f);
             textNode->AddChild(subtitleSprite);
@@ -211,7 +211,7 @@ void DefaultGame::OnLaunch_Impl()
 
             if (zombieIt != descendants.End())
             {
-                (*zombieIt)->Remove();
+                // (*zombieIt)->Remove();
             }
         }
 
@@ -372,7 +372,7 @@ void DefaultGame::OnUpdate_Impl(float delta)
         {
             for (Node* child : textNode->GetChildren())
             {
-                child->Rotate(Quat4f::AxisAngles(Vec3f::UnitY(), MathUtil::DegToRad(10.0f * delta)));
+                child->Rotate(Quat4f::AxisAngles(Vec3f::UnitY(), MathUtil::DegToRad(30.0f * delta)));
             }
         }
     }

@@ -1301,7 +1301,7 @@ void AssetRegistry::RemoveAsset(const AssetBucket& bucket, StringHash name)
     data.assetObjectCache.EraseAt(index);
 }
 
-void AssetRegistry::LoadAssetDescs()
+bool AssetRegistry::LoadAssetDescs()
 {
     const FilePath rootPath = GetRootPath();
 
@@ -1314,7 +1314,7 @@ void AssetRegistry::LoadAssetDescs()
     if (!rootPath.Exists())
     {
         HYP_LOG(Assets, Warning, "AssetRegistry root path does not exist at {}", rootPath);
-        return;
+        return false;
     }
 
     for (const AssetBucket* bucket : AssetBuckets::AllBuckets)
@@ -1392,10 +1392,14 @@ void AssetRegistry::LoadAssetDescs()
                 assetDesc.index = data.usedIndices.FirstZeroBitIndex();
                 data.usedIndices.Set(assetDesc.index, true);
 
+                HYP_LOG(Assets, Info, "Add asset desc {} to registry {}", assetDesc.name, m_rootPath.Basename());
+
                 data.assetDescs.Add(std::move(assetDesc));
             }
         }
     }
+
+    return true;
 }
 
 void AssetRegistry::SaveDirtyAssets()

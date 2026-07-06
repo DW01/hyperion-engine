@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <HyperionPch.hpp>
 
@@ -146,10 +146,10 @@ Result BakeData<LightmapVolume>::Build()
 
 #ifdef HYP_XATLAS
     xatlas::Atlas* atlas = xatlas::Create();
-    //xatlas::SetPrint([](const char* str, ...) -> int
-    //    {
-    //        va_list args;
-    //        va_start(args, str);
+    // xatlas::SetPrint([](const char* str, ...) -> int
+    //     {
+    //         va_list args;
+    //         va_start(args, str);
 
     //        char buffer[1024] {};
     //        int sprintfResult = snprintf(buffer, 1024, str, args);
@@ -191,11 +191,11 @@ Result BakeData<LightmapVolume>::Build()
     }
 
     xatlas::PackOptions packOptions {};
-    packOptions.maxChartSize = 256;
-    packOptions.texelsPerUnit = 8.0f;
-    packOptions.padding = 4;
-    //packOptions.resolution = 512;
-    packOptions.bilinear = true;
+    // packOptions.maxChartSize = 256;
+    // packOptions.texelsPerUnit = 8.0f;
+    // packOptions.padding = 4;
+    // //packOptions.resolution = 512;
+    // packOptions.bilinear = true;
 
     xatlas::ComputeCharts(atlas);
     xatlas::PackCharts(atlas, packOptions);
@@ -222,8 +222,8 @@ Result BakeData<LightmapVolume>::Build()
         const xatlas::Mesh& atlasMesh = atlas->meshes[meshIndex];
 
         Assert(m_meshIndices[meshIndex].Size() == atlasMesh.indexCount,
-            "Mesh index size does not match atlas mesh index count! Mesh index count: {}, Atlas index count: {}",
-            m_meshIndices[meshIndex].Size(), atlasMesh.indexCount);
+               "Mesh index size does not match atlas mesh index count! Mesh index count: {}, Atlas index count: {}",
+               m_meshIndices[meshIndex].Size(), atlasMesh.indexCount);
 
         for (uint32 i = 0; i < atlasMesh.indexCount; i += 3)
         {
@@ -474,7 +474,7 @@ void BakeData<LightmapVolume>::Blur()
             float totalW = 0.0f;
 
             const int nx0 = MathUtil::Max(0, int(cx) - KernelRadius);
-            const int nx1 = MathUtil::Min(int(width)  - 1, int(cx) + KernelRadius);
+            const int nx1 = MathUtil::Min(int(width) - 1, int(cx) + KernelRadius);
             const int ny0 = MathUtil::Max(0, int(cy) - KernelRadius);
             const int ny1 = MathUtil::Min(int(height) - 1, int(cy) + KernelRadius);
 
@@ -542,9 +542,7 @@ void BakeData<LightmapVolume>::Dilate()
     const uint32 numTexels = width * height;
 
     static constexpr int offsets[8][2] = {
-        {-1, -1}, { 0, -1}, { 1, -1},
-        {-1,  0},           { 1,  0},
-        {-1,  1}, { 0,  1}, { 1,  1}
+        { -1, -1 }, { 0, -1 }, { 1, -1 }, { -1, 0 }, { 1, 0 }, { -1, 1 }, { 0, 1 }, { 1, 1 }
     };
 
     Array<Vec4f> cur0(numTexels);

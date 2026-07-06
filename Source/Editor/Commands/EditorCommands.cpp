@@ -177,6 +177,8 @@ public:
                     return;
                 }
 
+                HYP_LOG(Editor, Info, "Selected dir for open: {}", result.GetValue()[0]);
+
                 // clang-format off
                 GetThreadById(g_simThread)->GetScheduler().Enqueue(
                     [weakSubsystem = std::move(weakSubsystem), projectFilepath = std::move(result.GetValue()[0])]() mutable

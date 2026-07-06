@@ -314,6 +314,8 @@ TResult<Handle<EditorProject>> EditorProject::Load(const FilePath& filepath)
 
     const FilePath registryDir = dir;
 
+    HYP_LOG(Editor, Info, "Loading registry assets from {}", registryDir);
+
     // create registry to load assets into
     Handle<AssetRegistry> registry = MakeHandle<AssetRegistry>(
         AssetRegistryId::Game, registryDir);
@@ -321,7 +323,10 @@ TResult<Handle<EditorProject>> EditorProject::Load(const FilePath& filepath)
     registry->Initialize();
 
     // Load asset descs for the registry before attempting to load the assets themselves
-    registry->LoadAssetDescs();
+    if (!registry->LoadAssetDescs())
+    {
+        return HYP_MAKE_ERROR(Error, "Failed to load asset descs for registry! Does the path exists at {} ?", registryDir);
+    }
 
     Handle<EditorProject> project;
 

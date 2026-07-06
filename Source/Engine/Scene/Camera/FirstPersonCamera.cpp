@@ -16,7 +16,7 @@ namespace Hyperion {
 
 static constexpr float mouseSensitivity = 7000.0f;
 static constexpr float mouseBlending = 0.35f;
-static constexpr float movementSpeed = 5.0f;
+static constexpr float movementSpeed = 1.0f;
 static constexpr float movementSpeed2 = movementSpeed * 2.0f;
 static constexpr float movementBlending = 0.01f;
 
@@ -114,7 +114,7 @@ bool FirstPersonCameraInputHandler::OnTouchMove(const TouchEvent& evt)
         return false;
     }
 
-    static constexpr float TouchSensitivity = 200.0f;
+    static constexpr float TouchSensitivity = 80.0f;
     Vec2f touchDelta = evt.relativeDelta * TouchSensitivity;
 
     const Vec3f dirCrossY = camera->GetSideVector();

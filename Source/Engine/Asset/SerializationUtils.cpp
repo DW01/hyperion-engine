@@ -2016,7 +2016,7 @@ Result BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Box
 
             if (Result result = ObjectFromJSON(jsonValue.AsObject(), typeInfoClass, instance); result.HasError())
             {
-                return HYP_MAKE_ERROR(Error, "Failed to deserialize instance of \"{}\" from JSON", instanceClass->GetName());
+                return HYP_MAKE_ERROR(Error, "Failed to deserialize instance of \"{}\" from JSON: {}", instanceClass->GetName(), result.GetError().GetMessage());
             }
 
             outBoxed = std::move(instance);
