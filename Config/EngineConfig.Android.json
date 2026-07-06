@@ -9,6 +9,7 @@
     "PathTracing": false,
     "RayTracedReflections": false,
     "DDGI": false,
+    "Bloom": { "Enabled": true },
     "RayTracingEnabled": false,
     "IndirectRendering": false,
     "DepthPrepass": false,
@@ -17,9 +18,7 @@
     "LimitFrameRateOnBatteryPower": true,
     "LimitFrameRateWhenIdle": true,
     "EnableDebugDraw": true,
-    "SSR": {
-      "Enabled": false
-    },
+    "SSR": { "Enabled": true  },
     "VSync": true,
     "EnableGpuStats": true,
     "Vulkan": {

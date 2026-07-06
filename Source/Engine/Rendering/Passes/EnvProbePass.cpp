@@ -163,6 +163,7 @@ void ConvolveEnvProbeCubemap(const Handle<Texture>& inTexture, const EnvProbe& e
         cr << GenerateMipmaps(dst);
 
         cr << InsertBarrier(src->GetGpuImage(), RS_SHADER_RESOURCE);
+        cr << InsertBarrier(dst->GetGpuImage(), RS_SHADER_RESOURCE);
     }
 
     GpuImageViewRef srcImageView = RI.textureViewCache->GetOrCreate(srcTexture);

@@ -14,6 +14,7 @@
 
 #include <Scene/Entity.hpp>
 #include <Scene/EntityManager.hpp>
+#include <Scene/Prefab.hpp>
 
 #include <Scene/Components/MeshComponent.hpp>
 
@@ -151,6 +152,9 @@ static void BuildTranslateGizmo(Handle<AssetRegistry>& assetRegistry)
     const Vec4f centroidColor(0.8f, 0.8f, 0.8f, 1.0f);
     rootNode->AddChild(CreateCentroidEntity("TranslateGizmo_Centroid", centroidMesh, centroidColor));
 
+    Handle<Prefab> prefab = MakeHandle<Prefab>(NAME("TranslateGizmo"), rootNode);
+    assetRegistry->PutAssetsDeep(prefab);
+
     HYP_LOG(Engine, Info, "TranslateGizmo built and registered successfully.");
 }
 
@@ -185,6 +189,9 @@ static void BuildRotateGizmo(Handle<AssetRegistry>& assetRegistry)
     {
         rootNode->AddChild(CreateAxisEntity(s_axisNames[i], torusMesh, s_axisColors[i], i, s_axisRotations[i]));
     }
+
+    Handle<Prefab> prefab = MakeHandle<Prefab>(NAME("RotateGizmo"), rootNode);
+    assetRegistry->PutAssetsDeep(prefab);
 
     HYP_LOG(Engine, Info, "RotateGizmo built and registered successfully.");
 }
@@ -243,6 +250,9 @@ static void BuildScaleGizmo(Handle<AssetRegistry>& assetRegistry)
 
     const Vec4f centroidColor(0.8f, 0.8f, 0.8f, 1.0f);
     rootNode->AddChild(CreateCentroidEntity("ScaleGizmo_Centroid", centroidMesh, centroidColor));
+
+    Handle<Prefab> prefab = MakeHandle<Prefab>(NAME("ScaleGizmo"), rootNode);
+    assetRegistry->PutAssetsDeep(prefab);
 
     HYP_LOG(Engine, Info, "ScaleGizmo built and registered successfully.");
 }

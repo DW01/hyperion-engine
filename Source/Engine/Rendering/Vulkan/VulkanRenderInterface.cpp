@@ -90,12 +90,12 @@ public:
         EngineConfig cfg;
         cfg.Load();
 
-        bindlessTextures = renderBackend->GetDevice()->GetFeatures().SupportsBindlessTextures();
-        rayTracing = renderBackend->GetDevice()->GetFeatures().IsRayTracingSupported();
         timelineSemaphores = cfg.Get("Rendering.Vulkan.TimelineSemaphores").ToBool(/* defaultValue */ false);
-        dynamicDescriptorIndexing = renderBackend->GetDevice()->GetFeatures().SupportsDynamicDescriptorIndexing();
 
 #if !HYP_ANDROID && !HYP_IOS
+        bindlessTextures = renderBackend->GetDevice()->GetFeatures().SupportsBindlessTextures();
+        dynamicDescriptorIndexing = renderBackend->GetDevice()->GetFeatures().SupportsDynamicDescriptorIndexing();
+        rayTracing = renderBackend->GetDevice()->GetFeatures().IsRayTracingSupported();
         indirectRendering = cfg.Get("Rendering.IndirectRendering").ToBool(/* defaultValue */ true);
         parallelRendering = cfg.Get("Rendering.ParallelRendering").ToBool(/* defaultValue */ true);
 #endif

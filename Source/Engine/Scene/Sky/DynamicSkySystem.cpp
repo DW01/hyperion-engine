@@ -72,26 +72,12 @@ void DynamicSkySystem::InitializeSky()
         m_renderScene->SetOwnerThreadId(g_simThread);
         m_renderScene->Initialize();
 
-        Handle<Node> cameraNode = m_renderScene->GetRoot()->AddChild();
-
-        m_camera = m_renderScene->GetEntityManager()->AddEntity<Camera>(
-            90.0f,
-            -int(m_dimensions.x), int(m_dimensions.y),
-            0.1f, 10000.0f);
-
-        m_renderScene->GetEntityManager()->AddTag<EntityTag::PrimaryCamera>(m_camera);
-
-        m_camera->SetName(NAME("DynamicSkyCaptureCamera"));
-        m_camera->SetViewMatrix(Mat4f::LookAt(Vec3f::Zero(), Vec3f::UnitZ(), Vec3f::UnitY()));
-        InitObject(m_camera);
-        m_renderScene->GetRoot()->AddChild(m_camera);
-
         auto domeNodeAsset = g_assetManager->Load<Node>("Models/inv_sphere.obj");
 
         if (domeNodeAsset.HasValue())
         {
             Handle<Node> domeNode = domeNodeAsset->Result();
-            domeNode->Scale(Vec3f(100.0f));
+            domeNode->Scale(Vec3f(10.0f));
             domeNode->LockTransform();
 
             m_renderScene->GetRoot()->AddChild(domeNode);

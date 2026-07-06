@@ -181,25 +181,16 @@ protected:
 
         if (!g_shaderCompiler)
         {
-            HYP_LOG(Engine, Error, "ShaderCompiler is not initialized");
-            return HYP_MAKE_ERROR(Error, "ShaderCompiler is not initialized");
-        }
-
-        const ShaderCompileParams params = ParseCompileParams(args);
-
-        if (!g_shaderCompiler->CanCompileShaders(params))
-        {
-            return HYP_MAKE_ERROR(Error, "Shader compilation not supported for requested targets");
+            g_shaderCompiler = new ShaderCompiler;
         }
 
         HYP_LOG(Engine, Info, "Precompiling shaders...");
 
-        const bool success = g_shaderCompiler->LoadShaderDefinitions(/* precompileShaders */ true, params);
+        const ShaderCompileParams params = ParseCompileParams(args);
 
-        if (!success)
+        if (!g_shaderCompiler->LoadShaderDefinitions(/* precompileShaders */ true, params))
         {
-            HYP_LOG(Engine, Error, "Shader precompilation failed");
-            return HYP_MAKE_ERROR(Error, "Shader precompilation failed");
+            return HYP_MAKE_ERROR(Error, "Failed to load shader definitions");
         }
 
         HYP_LOG(Engine, Info, "Shader precompilation complete");

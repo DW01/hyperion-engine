@@ -41,7 +41,11 @@ float4 ConvolveProbe(uint2 local_coord, uint face)
     return float4(0.0, 0.0, 0.0, 0.0);
 #endif
 
+#if defined(TARGET_ANDROID) || defined(TARGET_IOS)
+    const int num_samples = NUM_SAMPLES / 4;
+#else
     const int num_samples = NUM_SAMPLES;
+#endif
 
     const float3 N = normalize(GetCubemapCoord(face, (float2(local_coord) + 0.5) / float2(out_image_dimensions)));
 
