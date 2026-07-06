@@ -821,7 +821,7 @@ Handle<Node> RotateEditorGizmo::Load_Internal() const
 
     if (Handle<Prefab> prefab = GetCurrentAssetRegistry()->GetAsset<Prefab>(AssetBuckets::Prefabs, "RotateGizmo"_sh); prefab.IsValid())
     {
-        return node;
+        return prefab->GetRoot();
     }
 
     return Handle<Node>::Null();
@@ -1158,7 +1158,7 @@ Handle<Node> ScaleEditorGizmo::Load_Internal() const
 
     if (Handle<Prefab> prefab = GetCurrentAssetRegistry()->GetAsset<Prefab>(AssetBuckets::Prefabs, "ScaleGizmo"_sh); prefab.IsValid())
     {
-        return node;
+        return prefab->GetRoot();
     }
 
     return Handle<Node>::Null();

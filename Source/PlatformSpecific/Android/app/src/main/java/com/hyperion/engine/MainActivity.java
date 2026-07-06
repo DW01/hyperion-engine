@@ -43,7 +43,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         m_gameInstance = HyperionBridge.nativeCreateGame("DefaultGame"); // @TODO: don't hardcode game class name, pull it from somewhere
         assert m_gameInstance != NULL;
 
-        Log.i(TAG, "Hyperion setGame");
+        Log.i(TAG, "Hyperion setGame : " + m_gameInstance);
 
         HyperionBridge.nativeSetGame(m_gameInstance);
 

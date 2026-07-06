@@ -86,7 +86,6 @@ def jniLibsAbiDir     = file('src/main/jniLibs/arm64-v8a')
 
 def resolvedNdkDir = android.ndkDirectory
 
-// resolve the file tree at configuration time (configuration-cache safe)
 def engineSoFiles = fileTree(engineBinariesDir).include('**/*.so')
 
 tasks.register('stageNativeLibs') {
@@ -162,16 +161,14 @@ tasks.register('stagePackageAssets', Copy) {
         // we'll need a way to trim it down first as it can get huge and bloated.
         // exclude '**/*.blob'
 
-        exclude 'SampleGame/**' // exclude this for now
+        into 'Packages'
     }
 
     from(baseConfigDir) {
-        into 'Config'
         include '*.Android.json'
         rename '(.+)\\.Android\\.json$', '$1.json'
     }
     from(baseConfigDir) {
-        into 'Config'
         include '*.json'
         exclude '*.Android.json'
         exclude '*.IOS.json'

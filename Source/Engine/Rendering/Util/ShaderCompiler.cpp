@@ -1480,7 +1480,6 @@ ShaderCompiler::ShaderCompiler()
     : m_definitions(nullptr),
       m_isPrecompilingShaders(false)
 {
-    HYP_LOG(ShaderCompiler, Info, "BaseDir = {}", CoreApi::GetBaseDirectory());
 #if HYP_DXC
     if (!s_dxcUtils)
         DxcCreateInstance(CLSID_DxcUtils, __uuidof(IDxcUtils), (void**)&s_dxcUtils);
@@ -1847,7 +1846,7 @@ bool ShaderCompiler::LoadShaderDefinitions(bool precompileShaders, const ShaderC
     // Compile all shaders ahead of time
     for (const ShaderBundleDecl& decl : m_shaderBundleDecls)
     {
-        if (!params.ShaderMatchesFilter(decl.name.ToString()))
+        if (!params.ShaderMatchesFilter(*decl.name))
         {
             continue;
         }

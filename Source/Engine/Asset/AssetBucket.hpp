@@ -111,6 +111,13 @@ static constexpr const AssetBucket* AllBuckets[] = {
     HYP_FOR_EACH_ASSET_BUCKET(HYP_ASSET_BUCKET_PTR)
 #undef HYP_ASSET_BUCKET_PTR
 };
+static constexpr const char* AllBucketNameStrings[] = {
+    nullptr, // None
+#define HYP_ASSET_BUCKET_STR(Name, Index) HYP_STR(Name),
+    HYP_FOR_EACH_ASSET_BUCKET(HYP_ASSET_BUCKET_STR)
+#undef HYP_ASSET_BUCKET_STR
+};
+
 } // namespace AssetBuckets
 
 static constexpr size_t MaxAssetBuckets = std::size(AssetBuckets::AllBuckets);
@@ -137,19 +144,12 @@ inline constexpr const AssetBucket& GetAssetBucketByName(StringHash nameHash)
 
 inline const char* GetAssetBucketName(const uint32 bucketIndex)
 {
-    static constexpr const char* s_names[MaxAssetBuckets] = {
-        nullptr, // 0 = None
-#define HYP_ASSET_BUCKET_NAME(Name, Index) #Name,
-        HYP_FOR_EACH_ASSET_BUCKET(HYP_ASSET_BUCKET_NAME)
-#undef HYP_ASSET_BUCKET_NAME
-    };
-
     if (bucketIndex == 0 || bucketIndex >= MaxAssetBuckets)
     {
         return nullptr;
     }
 
-    return s_names[bucketIndex];
+    return AssetBuckets::AllBucketNameStrings[bucketIndex];
 }
 
 #undef HYP_FOR_EACH_ASSET_BUCKET

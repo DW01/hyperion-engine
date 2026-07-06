@@ -372,8 +372,9 @@ if(NOT HYP_ANDROID AND NOT HYP_IOS)
   add_definitions(-DHYP_ENABLE_SHADER_RELOAD=1)
 endif()
 
-# build libraries as static for these platforms or in final build
-if(HYP_IOS OR HYP_ANDROID OR HYPERION_BUILD_RELEASE_FINAL)
+# build libraries as static for iOS or in final build
+# android needs shared lib
+if((HYP_IOS OR HYPERION_BUILD_RELEASE_FINAL) AND NOT HYP_ANDROID)
   set(HYP_BUILD_STATIC 1)
 
   add_definitions(-DHYP_BUILD_STATIC=1)

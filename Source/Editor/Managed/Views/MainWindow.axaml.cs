@@ -591,7 +591,12 @@ namespace Hyperion.Editor
 
                 EngineManager.DisableMainLoop = false;
 
-                if (!e.Cancel)
+                if (e.Cancel)
+                {
+                    // @TODO Implement windows-only hack here for removing the parent hwnd -- otherwise we get that nasty crash when closing the editor
+                    // we'll need to remove the parent hwnd on close, add it back in here.
+                }
+                else
                 {
                     EngineManager.Shutdown();
                 }
