@@ -190,6 +190,7 @@ namespace Hyperion.Editor
                 }
                 else
                 {
+                    // @FIXME We have ourself a bug here, when opening a proj i'm seeing this logged.
                     Logger.Log(LogLevel.Info, "NOT disposing CurrentProject (switching to simulate): " + (CurrentProject != null ? CurrentProject.Name : "null"));
                 }
 

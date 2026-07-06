@@ -19,8 +19,8 @@ class Class;
 
 #define HYP_FOR_EACH_ASSET_BUCKET(X) \
     X(Meshes, 1)                     \
-    X(Materials, 2)                  \
-    X(Textures, 3)                   \
+    X(Textures, 2)                   \
+    X(Materials, 3)                  \
     X(InstancedMeshData, 4)          \
     X(Animations, 5)                 \
     X(AnimationTracks, 6)            \

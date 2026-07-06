@@ -338,26 +338,6 @@ extern "C"
 
         LoadShaderPropertyDictionary();
 
-        g_shaderCompiler = new ShaderCompiler;
-        if (!g_shaderCompiler->LoadShaderDefinitions())
-        {
-            HYP_LOG(Engine, Error, "Failed to load shader definitions!");
-        }
-
-#if HYP_WINDOWS
-        g_appContext = MakeHandle<Win32AppContext>("Hyperion", cliArgs);
-#elif HYP_MACOS
-        g_appContext = MakeHandle<CocoaAppContext>("Hyperion", cliArgs);
-#elif HYP_ANDROID
-        g_appContext = MakeHandle<AndroidAppContext>("Hyperion", cliArgs);
-#elif HYP_IOS
-        g_appContext = MakeHandle<IOSAppContext>("Hyperion", cliArgs);
-#else  // !HYP_WINDOWS && !HYP_MACOS && !HYP_ANDROID && !HYP_IOS
-        HYP_FAIL("AppContext not implemented for this platform");
-#endif // HYP_WINDOWS || HYP_MACOS || HYP_ANDROID || HYP_IOS
-
-        g_engineDriver->Initialize();
-
         if (isCommandlet)
         {
             const ANSIString commandletName = cliArgs["exec"].ToString().ToAnsi();
@@ -459,6 +439,26 @@ extern "C"
 
             return 0;
         }
+
+        g_shaderCompiler = new ShaderCompiler;
+        if (!g_shaderCompiler->LoadShaderDefinitions())
+        {
+            HYP_LOG(Engine, Error, "Failed to load shader definitions!");
+        }
+
+#if HYP_WINDOWS
+        g_appContext = MakeHandle<Win32AppContext>("Hyperion", cliArgs);
+#elif HYP_MACOS
+        g_appContext = MakeHandle<CocoaAppContext>("Hyperion", cliArgs);
+#elif HYP_ANDROID
+        g_appContext = MakeHandle<AndroidAppContext>("Hyperion", cliArgs);
+#elif HYP_IOS
+        g_appContext = MakeHandle<IOSAppContext>("Hyperion", cliArgs);
+#else  // !HYP_WINDOWS && !HYP_MACOS && !HYP_ANDROID && !HYP_IOS
+        HYP_FAIL("AppContext not implemented for this platform");
+#endif // HYP_WINDOWS || HYP_MACOS || HYP_ANDROID || HYP_IOS
+
+        g_engineDriver->Initialize();
 
         EnumFlags<WindowFlags> windowFlags = WindowFlags::EVENTS_POLLING;
 

@@ -1,3 +1,5 @@
+STATIC(MAX_LIGHTS, 4)
+
 #define PATHTRACER
 
 #include "../../include/Defines.hlsli"

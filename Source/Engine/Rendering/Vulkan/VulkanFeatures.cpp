@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <VulkanPch.hpp>
 
@@ -14,8 +14,8 @@ namespace Hyperion {
 
 VulkanFeatures::VulkanFeatures()
     : m_physicalDevice(nullptr),
-      m_properties { },
-      m_features { }
+      m_properties {},
+      m_features {}
 {
 }
 

@@ -1617,6 +1617,12 @@ bool ShaderCompiler::HandleBundle(
 {
     Assert(inOutBundle.IsValid());
 
+    // To force fresh every time:
+    if (m_isPrecompilingShaders)
+    {
+        return CompileBundle(decl, shaderRequest, inOutBundle);
+    }
+
     if (CanCompileShaders())
     {
         // Check that each version specified is present in the ShaderBundle.
@@ -1709,7 +1715,7 @@ bool ShaderCompiler::LoadBundle(
     if (!m_definitions || !m_definitions->IsValid())
     {
         // load for first time if no definitions loaded
-        if (!LoadShaderDefinitions())
+        if (!LoadShaderDefinitions(m_isPrecompilingShaders))
         {
             HYP_LOG(ShaderCompiler, Error, "Failed to load shader definitions");
             return false;
@@ -1902,6 +1908,7 @@ bool ShaderCompiler::CanCompileShaders(const ShaderCompileParams& params) const
     {
         // Not precompiling and CompileOnTheFly is false, so we act like we don't know how to compile shaders
         // Experts call this "weaponized incompetence".
+        HYP_LOG(ShaderCompiler, Warning, "CompileOnTheFly is off, will be unable to compile shaders");
         return false;
     }
 
@@ -1916,6 +1923,8 @@ bool ShaderCompiler::CanCompileShaders(const ShaderCompileParams& params) const
         return true;
     }
 #endif
+
+    HYP_LOG(ShaderCompiler, Warning, "Not linked with DXC");
 
     return false;
 }
@@ -2782,43 +2791,45 @@ bool ShaderCompiler::CompileBundle(
 
     ShaderVariantPerms permsToCompile = declaredPerms;
 
-    // For precompiling shaders, we allow targetting multiple platforms, not just the current (host) platform
+    // For precompiling shaders, we allow targeting multiple platforms, not just the current (host) platform.
+    // We explicitly list valid (platform, backend) pairs instead of using value groups so that
+    // invalid combinations (e.g. DX12 on Android) are never generated.
+    struct PlatformBackendPair
+    {
+        Name platform;
+        Name backend;
+    };
+    Array<PlatformBackendPair> targetPairs;
+
     if (m_isPrecompilingShaders)
     {
-        Array<ShaderProperty::Value> platformValues;
+        const bool shouldCompileVulkan = m_compileParams.targetBackends[ShaderCompileTargetBackend::Vulkan];
+        const bool shouldCompileDX12 = m_compileParams.targetBackends[ShaderCompileTargetBackend::DX12];
+
+        auto addForPlatform = [&](Name platformName)
+        {
+            if (shouldCompileVulkan)
+                targetPairs.PushBack({ platformName, NAME("VULKAN") });
+        };
 
         if (m_compileParams.targetPlatforms[ShaderCompileTargetPlatform::Windows])
-            platformValues.PushBack(ShaderProperty::Value(NAME("WINDOWS")));
+        {
+            addForPlatform(NAME("WINDOWS"));
+            if (shouldCompileDX12)
+                targetPairs.PushBack({ NAME("WINDOWS"), NAME("DX12") });
+        }
 
         if (m_compileParams.targetPlatforms[ShaderCompileTargetPlatform::Mac])
-            platformValues.PushBack(ShaderProperty::Value(NAME("MAC")));
+            addForPlatform(NAME("MAC"));
 
         if (m_compileParams.targetPlatforms[ShaderCompileTargetPlatform::Linux])
-            platformValues.PushBack(ShaderProperty::Value(NAME("LINUX")));
+            addForPlatform(NAME("LINUX"));
 
         if (m_compileParams.targetPlatforms[ShaderCompileTargetPlatform::Android])
-            platformValues.PushBack(ShaderProperty::Value(NAME("ANDROID")));
+            addForPlatform(NAME("ANDROID"));
 
         if (m_compileParams.targetPlatforms[ShaderCompileTargetPlatform::IOS])
-            platformValues.PushBack(ShaderProperty::Value(NAME("IOS")));
-
-        if (platformValues.Any())
-        {
-            declaredPerms.AddValueGroup(NAME("TARGET"), platformValues);
-        }
-
-        Array<ShaderProperty::Value> backendValues;
-
-        if (m_compileParams.targetBackends[ShaderCompileTargetBackend::Vulkan])
-            backendValues.PushBack(ShaderProperty::Value(NAME("VULKAN")));
-
-        if (m_compileParams.targetBackends[ShaderCompileTargetBackend::DX12])
-            backendValues.PushBack(ShaderProperty::Value(NAME("DX12")));
-
-        if (backendValues.Any())
-        {
-            declaredPerms.AddValueGroup(NAME("BACKEND"), backendValues);
-        }
+            addForPlatform(NAME("IOS"));
     }
     else
     {
@@ -3352,7 +3363,20 @@ bool ShaderCompiler::CompileBundle(
     };
 
     // compile shader with each permutation of properties
-    ForEachPermutation(permsToCompile, CompilePermFunctor, true);
+    if (m_isPrecompilingShaders && targetPairs.Any())
+    {
+        for (const PlatformBackendPair& pair : targetPairs)
+        {
+            ShaderVariantPerms perm = permsToCompile;
+            perm.Set(ShaderProperty(NAME("TARGET"), pair.platform));
+            perm.Set(ShaderProperty(NAME("BACKEND"), pair.backend));
+            ForEachPermutation(perm, CompilePermFunctor, true);
+        }
+    }
+    else
+    {
+        ForEachPermutation(permsToCompile, CompilePermFunctor, true);
+    }
 
     outBundle->MarkDirty();
 

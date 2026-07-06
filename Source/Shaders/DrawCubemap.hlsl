@@ -2,7 +2,6 @@
 #include "include/Shared.hlsli"
 #include "include/Scene.hlsli"
 
-STATIC(VIEW_COUNT, 6)
 STATIC(MAX_LIGHTS, 4)
 
 PERMUTE(MODE_SHADOWS)

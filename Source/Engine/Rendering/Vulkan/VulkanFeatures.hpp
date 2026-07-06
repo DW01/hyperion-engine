@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 #include <Rendering/Vulkan/VulkanResult.hpp>
@@ -331,9 +331,9 @@ public:
             const VkFormat vkFormat = ToVkFormat(format);
 
             if (AnyOf(details.formats, [&](auto&& surfaceFormat)
-                    {
-                        return surfaceFormat.format == vkFormat && predicate(surfaceFormat);
-                    }))
+                      {
+                          return surfaceFormat.format == vkFormat && predicate(surfaceFormat);
+                      }))
             {
                 return format;
             }

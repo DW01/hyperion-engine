@@ -1,7 +1,5 @@
 #include "../include/Defines.hlsli"
 
-STATIC(VIEW_COUNT, 6)
-
 #define HYP_DO_NOT_DEFINE_DESCRIPTOR_SETS
 
 #include "../include/Scene.hlsli"

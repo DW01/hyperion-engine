@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -122,7 +122,7 @@ public:
     void RemoveAsset(const Handle<AssetObject>& asset);
     void RemoveAsset(const AssetBucket& bucket, StringHash name);
 
-    void LoadAssetDescs();
+    bool LoadAssetDescs();
     void SaveDirtyAssets();
 
     void RemoveCached();

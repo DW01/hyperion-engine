@@ -28,8 +28,8 @@ namespace Hyperion
         // !!! Ensure this is kept up to date with AssetBucket.hpp !!!
         public static readonly AssetBucket None              = new(0);
         public static readonly AssetBucket Meshes            = new(1);
-        public static readonly AssetBucket Materials         = new(2);
-        public static readonly AssetBucket Textures          = new(3);
+        public static readonly AssetBucket Textures          = new(2);
+        public static readonly AssetBucket Materials         = new(3);
         public static readonly AssetBucket InstancedMeshData = new(4);
         public static readonly AssetBucket Animations        = new(5);
         public static readonly AssetBucket AnimationTracks   = new(6);
@@ -48,7 +48,7 @@ namespace Hyperion
 
         public static readonly AssetBucket[] AllBuckets =
         [
-            Meshes, Materials, Textures, InstancedMeshData,
+            Meshes, Textures, Materials, InstancedMeshData,
             Animations, AnimationTracks, Skeletons, Worlds, Scenes,
             Shaders, ShaderBundles, FontAtlases, PhysicsShapes,
             Scripts, RawData, Prefabs

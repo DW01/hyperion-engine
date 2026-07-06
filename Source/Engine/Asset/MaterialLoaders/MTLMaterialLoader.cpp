@@ -531,7 +531,7 @@ Map<String, Handle<Material>> MTLMaterialLoader::ParseMtl_Internal(LoaderState& 
 
             if (it.name.Any())
             {
-                texture->SetName(CreateNameFromDynamicString(it.name.Split('/', '\\').Back()));
+                texture->SetName(CreateNameFromDynamicString(StringUtil::StripExtension(it.name.Split('/', '\\').Back())));
             }
 
             TextureDesc textureDesc = texture->GetTextureDesc();

@@ -107,7 +107,7 @@ static HYP_FORCE_INLINE bool IsGeometryPassShader(StringHash shaderNameHash)
 #pragma region ParallelRenderingState
 
 // per-thread CommandRecorder
-//using ThreadedCommandRecorder = TCommandRecorder<ThreadAllocator>;
+// using ThreadedCommandRecorder = TCommandRecorder<ThreadAllocator>;
 using ThreadedCommandRecorder = TCommandRecorder<DynamicAllocator>;
 
 // Holds shared data for ParallelRenderingState instances to reduce memory usage
@@ -299,6 +299,8 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
 
     const bool isPathTracer = g_cvPathTracing.Get();
 
+    // @TODO DRY this up
+    // Shouldn't depend on the names of shaders to conditionally handle stuff!
     const bool isCubemap = IsCubemapShader(shaderNameHash);
     const bool isGeometryPass = IsGeometryPassShader(shaderNameHash);
 
@@ -313,7 +315,7 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
     {
         stencilReferenceValue = (attributes.GetMaterialAttributes().stencilReference & ~LightmapStencilMask);
     }
-    
+
     if (isSky)
     {
         stencilReferenceValue = SkyStencilMask;
@@ -342,10 +344,7 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
         newShaderProperties.Set(Props::s_propInstancing, hasInstancing);
     }
 
-    // @TODO DRY this up
-    // Shouldn't depend on the names of shaders to conditionally handle stuff!
-
-    if (shaderNameHash == "GeometryPass"_sh)
+    if (isGeometryPass)
     {
         if (hasDeferredLighting != currentShaderProperties.Test(Props::s_propShadingTypeDeferred))
         {

@@ -827,10 +827,6 @@ void Class::Initialize()
             m_parent = GetClass(m_parentName);
         }
 
-        printf("parent class for %s = %s\n",
-               m_name.LookupString(),
-               m_parentName.LookupString());
-
         HYP_CORE_ASSERT(m_parent != nullptr, "Invalid parent class: {}", m_parentName);
 
         if (!IsDynamic())
