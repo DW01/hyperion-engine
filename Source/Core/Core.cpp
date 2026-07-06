@@ -62,6 +62,7 @@ CORE_API const FilePath& GetBaseDirectory()
         {
             const CommandLineArguments& cliArgs = GetCommandLineArguments();
 
+#ifndef HYP_ANDROID
             auto it = cliArgs.Find("BaseDir");
             if (it != cliArgs.End())
             {
@@ -81,9 +82,9 @@ CORE_API const FilePath& GetBaseDirectory()
 
 #if HYP_WINDOWS
                     baseDir = String::Join(pathParts, '\\');
-#else
+#else   // !HYP_WINDOWS
                     baseDir = String::Join(pathParts, '/');
-#endif
+#endif  // HYP_WINDOW
                 }
                 else
                 {
@@ -92,6 +93,7 @@ CORE_API const FilePath& GetBaseDirectory()
 
                 return;
             }
+#endif // HYP_ANDROID
 
             baseDir = GetExecutablePath();
         }

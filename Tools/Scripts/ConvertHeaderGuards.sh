@@ -36,7 +36,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # start / truncate log
-echo "Include-guard conversion log – $(date)" > "$LOG_FILE"
+echo "Include-guard conversion log ? $(date)" > "$LOG_FILE"
 echo "Mode: $([[ $APPLY -eq 1 ]] && echo 'APPLY' || echo 'DRY-RUN')" >> "$LOG_FILE"
 echo >> "$LOG_FILE"
 

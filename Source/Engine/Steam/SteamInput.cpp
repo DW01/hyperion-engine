@@ -52,24 +52,24 @@ static constexpr const char* FPSControls_AnalogActions[] = {
 };
 
 static constexpr Pair<const char*, ControllerButton> FPSControls_DigitalActions[] = {
-    { "A",              ControllerButton::A },
-    { "B",              ControllerButton::B },
-    { "X",              ControllerButton::X },
-    { "Y",              ControllerButton::Y },
-    { "DPad_Up",        ControllerButton::DPad_Up },
-    { "DPad_Down",      ControllerButton::DPad_Down },
-    { "DPad_Left",      ControllerButton::DPad_Left },
-    { "DPad_Right",     ControllerButton::DPad_Right },
-    { "Left_Bumper",    ControllerButton::Left_Bumper },
-    { "Right_Bumper",   ControllerButton::Right_Bumper },
-    { "Left_Trigger",   ControllerButton::Left_Trigger },
-    { "Right_Trigger",  ControllerButton::Right_Trigger },
-    { "Left_Stick",     ControllerButton::Left_Stick },
-    { "Right_Stick",    ControllerButton::Right_Stick },
-    { "Start",          ControllerButton::Start },
-    { "Select",         ControllerButton::Select },
-    { "Guide",          ControllerButton::Guide },
-    { nullptr,          ControllerButton::None }
+    { "A", ControllerButton::A },
+    { "B", ControllerButton::B },
+    { "X", ControllerButton::X },
+    { "Y", ControllerButton::Y },
+    { "DPad_Up", ControllerButton::DPad_Up },
+    { "DPad_Down", ControllerButton::DPad_Down },
+    { "DPad_Left", ControllerButton::DPad_Left },
+    { "DPad_Right", ControllerButton::DPad_Right },
+    { "Left_Bumper", ControllerButton::Left_Bumper },
+    { "Right_Bumper", ControllerButton::Right_Bumper },
+    { "Left_Trigger", ControllerButton::Left_Trigger },
+    { "Right_Trigger", ControllerButton::Right_Trigger },
+    { "Left_Stick", ControllerButton::Left_Stick },
+    { "Right_Stick", ControllerButton::Right_Stick },
+    { "Start", ControllerButton::Start },
+    { "Select", ControllerButton::Select },
+    { "Guide", ControllerButton::Guide },
+    { nullptr, ControllerButton::None }
 };
 
 static constexpr const ActionSetDesc ActionSetDescs[] = {
@@ -77,8 +77,7 @@ static constexpr const ActionSetDesc ActionSetDescs[] = {
     ActionSetDesc {
         "FPSControls",
         FPSControls_AnalogActions,
-        FPSControls_DigitalActions
-    }
+        FPSControls_DigitalActions }
 };
 
 SteamInputManager s_steamInputManager;
@@ -235,7 +234,7 @@ void SteamInputManager::Update()
     {
         if (!InitializeActionSet(ActionSetDescs[m_currentActionSet], actionSet))
         {
-            HYP_LOG(Steam, Warning, "Invalid action set {}", ActionSetDescs[m_currentActionSet].setName);
+            HYP_LOG(Steam, Verbose, "Invalid action set {}", ActionSetDescs[m_currentActionSet].setName);
             return;
         }
 
@@ -253,13 +252,16 @@ void SteamInputManager::UpdateControllers(const ActionSet& set)
         return;
     }
 
+    Handle<InputManager> inputManager = m_windowState.window->GetInputManager();
+    if (!inputManager.IsValid())
+    {
+        return;
+    }
+
     // @TODO Steamworks docs recommends only calling every 10hz or less.
     SteamAPI_RunCallbacks();
 
     SteamInput()->RunFrame();
-
-    Handle<InputManager> inputManager = m_windowState.window->GetInputManager();
-    Assert(inputManager.IsValid());
 
     InputHandle_t steamControllers[MaxConnectedControllers];
     const int controllerCount = SteamInput()->GetConnectedControllers(steamControllers);

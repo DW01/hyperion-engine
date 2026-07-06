@@ -142,7 +142,6 @@ static void BuildTranslateGizmo(Handle<AssetRegistry>& assetRegistry)
     rootNode->SetName(NAME("TranslateGizmo"));
     rootNode->SetWorldScale(2.5f);
     rootNode->SetNodeFlags(rootNode->GetNodeFlags() | NodeFlags::HideInSceneOutline);
-    rootNode->SetIsTransient(false);
 
     for (int i = 0; i < 3; i++)
     {
@@ -151,8 +150,6 @@ static void BuildTranslateGizmo(Handle<AssetRegistry>& assetRegistry)
 
     const Vec4f centroidColor(0.8f, 0.8f, 0.8f, 1.0f);
     rootNode->AddChild(CreateCentroidEntity("TranslateGizmo_Centroid", centroidMesh, centroidColor));
-
-    GetCurrentAssetRegistry()->PutAssetsDeep(rootNode);
 
     HYP_LOG(Engine, Info, "TranslateGizmo built and registered successfully.");
 }
@@ -183,14 +180,11 @@ static void BuildRotateGizmo(Handle<AssetRegistry>& assetRegistry)
     rootNode->SetName(NAME("RotateGizmo"));
     rootNode->SetWorldScale(2.5f);
     rootNode->SetNodeFlags(rootNode->GetNodeFlags() | NodeFlags::HideInSceneOutline);
-    rootNode->SetIsTransient(false);
 
     for (int i = 0; i < 3; i++)
     {
         rootNode->AddChild(CreateAxisEntity(s_axisNames[i], torusMesh, s_axisColors[i], i, s_axisRotations[i]));
     }
-
-    GetCurrentAssetRegistry()->PutAssetsDeep(rootNode);
 
     HYP_LOG(Engine, Info, "RotateGizmo built and registered successfully.");
 }
@@ -241,7 +235,6 @@ static void BuildScaleGizmo(Handle<AssetRegistry>& assetRegistry)
     rootNode->SetName(NAME("ScaleGizmo"));
     rootNode->SetWorldScale(2.5f);
     rootNode->SetNodeFlags(rootNode->GetNodeFlags() | NodeFlags::HideInSceneOutline);
-    rootNode->SetIsTransient(false);
 
     for (int i = 0; i < 3; i++)
     {
@@ -250,8 +243,6 @@ static void BuildScaleGizmo(Handle<AssetRegistry>& assetRegistry)
 
     const Vec4f centroidColor(0.8f, 0.8f, 0.8f, 1.0f);
     rootNode->AddChild(CreateCentroidEntity("ScaleGizmo_Centroid", centroidMesh, centroidColor));
-
-    GetCurrentAssetRegistry()->PutAssetsDeep(rootNode);
 
     HYP_LOG(Engine, Info, "ScaleGizmo built and registered successfully.");
 }

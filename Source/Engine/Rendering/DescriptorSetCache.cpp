@@ -16,6 +16,9 @@
 
 namespace Hyperion {
 
+// Disabled for now to diagnose some device-specific crashes (mainly mobile)
+static constexpr bool ShouldDestroyDescriptorSets = false;
+
 DescriptorSetCache::DescriptorSetCache()
 {
 }
@@ -49,7 +52,7 @@ void DescriptorSetCache::OnFrameStart()
     {
         AllocatedDescriptorSet& allocated = *it;
         AssertDebug(frameCounter >= allocated.frameCounter);
-        
+
         if (frameCounter - allocated.frameCounter < NumFramesInFlight)
         {
             break;
@@ -81,35 +84,38 @@ void DescriptorSetCache::OnFrameEnd()
 {
     AssertOnThread(g_renderThread);
 
-    // Remove unused allocs after being unused in a while.
-    static constexpr uint32 NumFramesBeforeDiscard = 2000;
-
-    const uint32 frameCounter = GetFrameCounter();
-
-    // Note, we don't destroy empty layout slots, as we may need them again for recycling
-    // used descriptor sets
-    for (auto layoutIt = m_allocsByLayout.Begin(); layoutIt != m_allocsByLayout.End(); ++layoutIt)
+    if constexpr (ShouldDestroyDescriptorSets)
     {
-        auto& list = layoutIt->second;
+        // Remove unused allocs after being unused in a while.
+        static constexpr uint32 NumFramesBeforeDiscard = 2000;
 
-        for (auto jt = list.Begin(); jt != list.End();)
+        const uint32 frameCounter = GetFrameCounter();
+
+        // Note, we don't destroy empty layout slots, as we may need them again for recycling
+        // used descriptor sets
+        for (auto layoutIt = m_allocsByLayout.Begin(); layoutIt != m_allocsByLayout.End(); ++layoutIt)
         {
-            AllocatedDescriptorSet& allocated = *jt;
-            AssertDebug(frameCounter >= allocated.frameCounter);
-            
-            if (frameCounter - allocated.frameCounter >= NumFramesBeforeDiscard)
+            auto& list = layoutIt->second;
+
+            for (auto jt = list.Begin(); jt != list.End();)
             {
-                // we don't need to enqueue deletion, it isn't used by the gpu.
-                // We can just delete it by means of Erase(), as NumFramesBeforeDiscard is AT LEAST NumFramesInFlight
-                // And if it isn't... Then that's a problem!
-                static_assert(NumFramesBeforeDiscard >= NumFramesInFlight);
+                AllocatedDescriptorSet& allocated = *jt;
+                AssertDebug(frameCounter >= allocated.frameCounter);
 
-                jt = list.Erase(jt);
+                if (frameCounter - allocated.frameCounter >= NumFramesBeforeDiscard)
+                {
+                    // we don't need to enqueue deletion, it isn't used by the gpu.
+                    // We can just delete it by means of Erase(), as NumFramesBeforeDiscard is AT LEAST NumFramesInFlight
+                    // And if it isn't... Then that's a problem!
+                    static_assert(NumFramesBeforeDiscard >= NumFramesInFlight);
 
-                continue;
+                    jt = list.Erase(jt);
+
+                    continue;
+                }
+
+                ++jt;
             }
-
-            ++jt;
         }
     }
 }

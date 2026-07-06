@@ -10,6 +10,8 @@ HYP_ANDROID=0
 HYP_REGENERATE=0
 HYP_NOWAIT=0
 
+USE_NINJA=0
+
 CONFIG="Release"
 
 CURR_PLATFORM="$(uname -s)"
@@ -27,9 +29,14 @@ for arg in "$@"; do
         CURR_PLATFORM="IOS"
     elif [[ "$arg" == "Xcode" ]]; then
         XCODE=1
-    elif [[ "$arg" == "android" ]]; then
+    elif [[ "$arg" == "Android" ]]; then
         HYP_ANDROID=1
         CURR_PLATFORM="Android"
+    elif [[ "$arg" == "Linux" ]]; then
+        HYP_LINUX=1
+        CURR_PLATFORM="Linux"
+    elif [[ "$arg" == "ninja" ]]; then
+        USE_NINJA=1
     elif [[ "$arg" == "regenerate" ]]; then
         HYP_REGENERATE=1
     elif [[ "$arg" == "nowait" ]]; then
@@ -46,6 +53,9 @@ done
 if [[ $HYP_ANDROID -eq 1 ]]; then
     mkdir -p "Build/Android/$CONFIG"
     pushd "Build/Android/$CONFIG"
+elif [[ $HYP_LINUX -eq 1 ]]; then
+    mkdir -p "Build/Linux/$CONFIG"
+    pushd "Build/Linux/$CONFIG"
 else
     mkdir -p "Build/$CURR_PLATFORM/$CONFIG"
     pushd "Build/$CURR_PLATFORM/$CONFIG"
@@ -65,7 +75,6 @@ else
 fi
 
 if [[ $DO_CMAKE -eq 1 ]]; then
-
     HYP_ROOT_DIR_ABS="$(realpath "$SCRIPT_DIR/../..")"
     printf "Using Hyperion root directory: %s\n" "$HYP_ROOT_DIR_ABS"
 
@@ -124,9 +133,12 @@ if [[ $DO_CMAKE -eq 1 ]]; then
     elif [[ $XCODE -eq 1 ]]; then
         printf "Building with Xcode...\n"
         cmake -G Xcode ../../../Source -DCMAKE_OSX_SYSROOT=macosx -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 $HYP_CMAKE_PARAMS
-    else
+    elif [[ $USE_NINJA -eq 1 ]]; then
         printf "Building with Ninja...\n"
         cmake -G Ninja ../../../Source $HYP_CMAKE_PARAMS
+    else
+        printf "Building with default cmake generator...\n"
+        cmake ../../../Source $HYP_CMAKE_PARAMS
     fi
 fi
 

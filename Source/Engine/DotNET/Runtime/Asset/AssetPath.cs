@@ -23,7 +23,7 @@ namespace Hyperion
         public uint BucketIndex => (bucketIndexAndRegistryId >> 3);
 
         public bool Valid => assetName.Valid
-            && BucketIndex != AssetBucket.InvalidBucket;
+            && BucketIndex != AssetBucket.InvalidIndex;
 
         public override string ToString()
         {

@@ -16,6 +16,8 @@
 #include <Scene/FogVolume.hpp>
 #include <Scene/Sprite.hpp>
 #include <Scene/TextSprite.hpp>
+#include <Scene/Node.hpp>
+#include <Scene/Prefab.hpp>
 
 #include <Scene/Camera/Camera.hpp>
 
@@ -2057,14 +2059,21 @@ public:
             return;
         }
 
-        Handle<Node> assetNode = DynamicCast<Node>(asset);
-        if (!assetNode.IsValid())
+        Handle<Prefab> prefab = DynamicCast<Prefab>(asset);
+        if (!prefab.IsValid())
         {
-            HYP_LOG(Editor, Warning, "EditorCommandAddAsset: asset '{}' in bucket {} is not valid", assetName, GetAssetBucketName(bucketIndex));
+            HYP_LOG(Editor, Warning, "EditorCommandAddAsset: Expected prefab, got {}", asset->InstanceClass()->GetName());
             return;
         }
 
-        Handle<Node> clonedNode = assetNode->Clone();
+        Handle<Node> node = prefab->GetRoot();
+        if (!node.IsValid())
+        {
+            HYP_LOG(Editor, Warning, "EditorCommandAddAsset: Prefab has invalid node: {}", prefab->GetName());
+            return;
+        }
+
+        Handle<Node> clonedNode = node->Clone();
         if (!clonedNode.IsValid())
         {
             HYP_LOG(Editor, Error, "EditorCommandAddAsset: failed to clone asset '{}'", assetName);

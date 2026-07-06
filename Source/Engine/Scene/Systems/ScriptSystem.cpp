@@ -47,10 +47,10 @@ namespace Hyperion {
 ENGINE_API HYP_DEFINE_LOG_SUBCHANNEL(Scripting, Engine);
 
 #if HYP_EDITOR
-constexpr bool EnableScriptReloading = true;
-#else
-constexpr bool EnableScriptReloading = false;
-#endif
+static constexpr auto EnableScriptReloading = &EngineGlobals::IsEditor;
+#else  // !HYP_EDITOR
+static constexpr std::false_type EnableScriptReloading;
+#endif // HYP_EDITOR
 
 #pragma region ScriptTracker
 
@@ -85,7 +85,7 @@ public:
         const Array<FilePath>& sourceDirectories,
         const FilePath& intermediateDirectory,
         const FilePath& binaryOutputDirectory,
-        void* callbackPtr,
+        void (*callbackPtr)(void*, ScriptEvent),
         void* callbackSelfPtr)
     {
         if (!object || !object->IsValid())
@@ -98,7 +98,7 @@ public:
             sourceDirectories,
             intermediateDirectory,
             binaryOutputDirectory,
-            callbackPtr,
+            reinterpret_cast<void*>(callbackPtr),
             callbackSelfPtr);
     }
 
@@ -157,7 +157,7 @@ bool ScriptSystem::RequiresSimThread() const
 
 bool ScriptSystem::AllowUpdate() const
 {
-    return EnableScriptReloading;
+    return EnableScriptReloading();
 }
 
 void ScriptSystem::OnAddedToWorld(World* world)
@@ -169,118 +169,121 @@ void ScriptSystem::OnAddedToWorld(World* world)
 
     m_delegateHandlers.Add(
         NAME("OnGameStateChange"),
-        gameInstance->OnGameStateChange.Bind(gameInstance, [this](Game* gameInstance, GameStateMode previousGameStateMode, GameStateMode currentGameStateMode)
-                                             {
-                                                 AssertOnThread(g_simThread);
+        gameInstance->OnGameStateChange.Bind(
+            gameInstance,
+            [this](Game* gameInstance, GameStateMode previousGameStateMode, GameStateMode currentGameStateMode)
+            {
+                AssertOnThread(g_simThread);
 
-                                                 HandleGameStateChanged(currentGameStateMode, previousGameStateMode);
-                                             }));
+                HandleGameStateChanged(currentGameStateMode, previousGameStateMode);
+            }));
 
-    if constexpr (EnableScriptReloading)
+    if (EnableScriptReloading())
     {
         m_scriptingService = MakeUnique<ScriptingService>();
 
         m_delegateHandlers.Add(
             NAME("OnScriptStateChanged"),
-            m_scriptingService->OnScriptStateChanged.Bind([this](const ScriptDesc& inScriptDesc)
-                                                          {
-                                                              AssertOnThread(g_simThread);
+            m_scriptingService->OnScriptStateChanged.Bind(
+                [this](const ScriptDesc& inScriptDesc)
+                {
+                    AssertOnThread(g_simThread);
 
-                                                              switch (inScriptDesc.language)
-                                                              {
-                                                              case ScriptLanguage::CSharp:
-                                                                  // Compilation is driven from C#
-                                                                  if (!(inScriptDesc.compileStatus & uint32(ScriptCompileStatus::Compiled)))
-                                                                  {
-                                                                      return;
-                                                                  }
-                                                                  break;
-                                                              case ScriptLanguage::HypScript:
-                                                                  // Compilation is driven from C++
-                                                                  if (!(inScriptDesc.compileStatus & uint32(ScriptCompileStatus::Processing)))
-                                                                  {
-                                                                      return;
-                                                                  }
-                                                                  break;
-                                                              default:
-                                                                  break;
-                                                              }
+                    switch (inScriptDesc.language)
+                    {
+                    case ScriptLanguage::CSharp:
+                        // Compilation is driven from C#
+                        if (!(inScriptDesc.compileStatus & uint32(ScriptCompileStatus::Compiled)))
+                        {
+                            return;
+                        }
+                        break;
+                    case ScriptLanguage::HypScript:
+                        // Compilation is driven from C++
+                        if (!(inScriptDesc.compileStatus & uint32(ScriptCompileStatus::Processing)))
+                        {
+                            return;
+                        }
+                        break;
+                    default:
+                        break;
+                    }
 
-                                                              World* world = GetWorld();
-                                                              Assert(world != nullptr);
+                    World* world = GetWorld();
+                    Assert(world != nullptr);
 
-                                                              if (!world)
-                                                              {
-                                                                  return;
-                                                              }
+                    if (!world)
+                    {
+                        return;
+                    }
 
-                                                              const GameState& gameState = world->GetGameState();
+                    const GameState& gameState = world->GetGameState();
 
-                                                              for (Scene* scene : world->GetScenes())
-                                                              {
-                                                                  for (auto [entity, scriptComponent] : scene->GetEntityManager()->GetEntitySet<ScriptComponent>().GetScopedView(GetComponentInfos()))
-                                                                  {
-                                                                      const Handle<ScriptAsset>& scriptAsset = scriptComponent.script;
-                                                                      Assert(scriptAsset != nullptr);
+                    for (Scene* scene : world->GetScenes())
+                    {
+                        for (auto [entity, scriptComponent] : scene->GetEntityManager()->GetEntitySet<ScriptComponent>().GetScopedView(GetComponentInfos()))
+                        {
+                            const Handle<ScriptAsset>& scriptAsset = scriptComponent.script;
+                            Assert(scriptAsset != nullptr);
 
-                                                                      auto writeScope = scriptAsset->GetWriteScope();
+                            auto writeScope = scriptAsset->GetWriteScope();
 
-                                                                      ScriptDesc& scriptDesc = scriptAsset->GetScriptDesc();
+                            ScriptDesc& scriptDesc = scriptAsset->GetScriptDesc();
 
-                                                                      bool matchesScript = false;
+                            bool matchesScript = false;
 
-                                                                      if (inScriptDesc.language == ScriptLanguage::HypScript)
-                                                                      {
-                                                                          Handle<AssetRegistry> registry = scriptAsset->GetAssetRegistry();
+                            if (inScriptDesc.language == ScriptLanguage::HypScript)
+                            {
+                                Handle<AssetRegistry> registry = scriptAsset->GetAssetRegistry();
 
-                                                                          if (registry.IsValid())
-                                                                          {
-                                                                              const FilePath incomingPath(inScriptDesc.path.Data());
-                                                                              const FilePath expectedSourcePath = registry->GetRootPath() / "Scripts" / (scriptAsset->GetName().ToString() + ".hyp");
+                                if (registry.IsValid())
+                                {
+                                    const FilePath incomingPath(inScriptDesc.path.Data());
+                                    const FilePath expectedSourcePath = registry->GetRootPath() / "Scripts" / (scriptAsset->GetName().ToString() + ".hyp");
 
-                                                                              // Compare paths - handles both absolute and relative path forms
-                                                                              if (incomingPath == expectedSourcePath
-                                                                                  || incomingPath.EndsWith(expectedSourcePath)
-                                                                                  || expectedSourcePath.EndsWith(incomingPath))
-                                                                              {
-                                                                                  matchesScript = true;
-                                                                              }
-                                                                          }
-                                                                      }
-                                                                      else
-                                                                      {
-                                                                          if (Memory::StrCmp(inScriptDesc.assemblyPath.Data(), scriptDesc.assemblyPath.Data(), MathUtil::Min(ArraySize(inScriptDesc.assemblyPath), ArraySize(scriptDesc.assemblyPath))) == 0)
-                                                                          {
-                                                                              matchesScript = true;
-                                                                          }
-                                                                      }
+                                    // Compare paths - handles both absolute and relative path forms
+                                    if (incomingPath == expectedSourcePath
+                                        || incomingPath.EndsWith(expectedSourcePath)
+                                        || expectedSourcePath.EndsWith(incomingPath))
+                                    {
+                                        matchesScript = true;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                if (Memory::StrCmp(inScriptDesc.assemblyPath.Data(), scriptDesc.assemblyPath.Data(), MathUtil::Min(ArraySize(inScriptDesc.assemblyPath), ArraySize(scriptDesc.assemblyPath))) == 0)
+                                {
+                                    matchesScript = true;
+                                }
+                            }
 
-                                                                      if (matchesScript)
-                                                                      {
-                                                                          HYP_LOG(Scripting, Info, "ScriptSystem: Reloading script for entity {}", entity->Id());
+                            if (matchesScript)
+                            {
+                                HYP_LOG(Scripting, Info, "ScriptSystem: Reloading script for entity {}", entity->Id());
 
-                                                                          scriptComponent.flags |= ScriptComponentFlags::RELOADING;
+                                scriptComponent.flags |= ScriptComponentFlags::RELOADING;
 
-                                                                          scriptDesc.uuid = inScriptDesc.uuid;
-                                                                          scriptDesc.compileStatus = inScriptDesc.compileStatus;
-                                                                          scriptDesc.hotReloadVersion = inScriptDesc.hotReloadVersion;
-                                                                          scriptDesc.lastModifiedTimestamp = inScriptDesc.lastModifiedTimestamp;
+                                scriptDesc.uuid = inScriptDesc.uuid;
+                                scriptDesc.compileStatus = inScriptDesc.compileStatus;
+                                scriptDesc.hotReloadVersion = inScriptDesc.hotReloadVersion;
+                                scriptDesc.lastModifiedTimestamp = inScriptDesc.lastModifiedTimestamp;
 
-                                                                          writeScope.Reset();
+                                writeScope.Reset();
 
-                                                                          EntityScripting::ShutdownEntityScript(entity, scriptComponent, gameState);
+                                EntityScripting::ShutdownEntityScript(entity, scriptComponent, gameState);
 
-                                                                          scriptComponent.assembly.Reset();
+                                scriptComponent.assembly.Reset();
 
-                                                                          EntityScripting::InitializeEntityScript(entity, scriptComponent, gameState);
+                                EntityScripting::InitializeEntityScript(entity, scriptComponent, gameState);
 
-                                                                          scriptComponent.flags &= ~ScriptComponentFlags::RELOADING;
+                                scriptComponent.flags &= ~ScriptComponentFlags::RELOADING;
 
-                                                                          HYP_LOG(Scripting, Info, "ScriptSystem: Script reloaded for entity #{}", entity->Id());
-                                                                      }
-                                                                  }
-                                                              }
-                                                          }));
+                                HYP_LOG(Scripting, Info, "ScriptSystem: Script reloaded for entity #{}", entity->Id());
+                            }
+                        }
+                    }
+                }));
 
         m_scriptTracker = MakeUnique<ScriptTracker>();
 
@@ -298,14 +301,16 @@ void ScriptSystem::OnAddedToWorld(World* world)
             }
         }
 
+        void (*scriptTrackerCallback)(void*, ScriptEvent) = [](void* selfPtr, ScriptEvent event)
+        {
+            static_cast<ScriptingService*>(selfPtr)->PushScriptEvent(event);
+        };
+
         m_scriptTracker->Initialize(
             scriptSourceDirectories,
             EngineGlobals::GetTempDirectory() / "ScriptProjects",
             CoreApi::GetExecutablePath(),
-            reinterpret_cast<void*>(+[](void* selfPtr, ScriptEvent event)
-                                    {
-                                        static_cast<ScriptingService*>(selfPtr)->PushScriptEvent(event);
-                                    }),
+            scriptTrackerCallback,
             m_scriptingService.Get());
     }
 }
@@ -317,7 +322,7 @@ void ScriptSystem::OnRemovedFromWorld(World* world)
     m_delegateHandlers.Remove("OnGameStateChange"_sh);
     m_delegateHandlers.Remove("OnScriptStateChanged"_sh);
 
-    if constexpr (EnableScriptReloading)
+    if (EnableScriptReloading())
     {
         if (m_scriptTracker)
         {
@@ -359,7 +364,7 @@ void ScriptSystem::OnEntityRemoved(Entity* entity)
 
 void ScriptSystem::Process(float delta, Span<Handle<Scene>> scenes)
 {
-    if constexpr (EnableScriptReloading)
+    if (EnableScriptReloading())
     {
         if (m_scriptingService)
         {

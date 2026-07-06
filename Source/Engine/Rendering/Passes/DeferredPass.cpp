@@ -1146,6 +1146,7 @@ void FogVolumePass::Create()
     AssertOnThread(g_renderThread);
 
     m_volumeMesh = MeshBuilder::Cube(true);
+    m_volumeMesh->SetIsTransient(true);
     m_volumeMesh->SetFlags(MeshFlags::ViewIndependent);
     m_volumeMesh->SetName(NAME("FogVolumeMesh"));
     m_volumeMesh->UploadGpuData();
@@ -2403,6 +2404,7 @@ void DeferredPass::CreateViewTopLevelAccelerationStructures(View* view, RayTraci
 
     // Hack to fix driver crash when building TLAS with no meshes
     Handle<Mesh> defaultMesh = MeshBuilder::Cube(true);
+    defaultMesh->SetIsTransient(true);
     defaultMesh->SetFlags(MeshFlags::ViewIndependent);
     defaultMesh->UploadGpuData();
 

@@ -325,8 +325,6 @@ void RenderThread::operator()()
 
     if (!isRenderOnMainThread)
     {
-        InitThreadAllocator();
-
         while (!m_stopRequested.LoadVolatile())
         {
             HYP_PROFILE_BEGIN;

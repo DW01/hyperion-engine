@@ -28,7 +28,7 @@ if [ ${#files[@]} -eq 0 ]; then
     done < <(find "$search_dir" -type f \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' \) -print0)
 fi
 
-# Optional snake→camel conversion.
+# Optional snake?camel conversion.
 if (( convert )); then
     for f in "${files[@]}"; do
         perl -0777 -i -pe '
@@ -67,7 +67,7 @@ if (( convert )); then
                 elsif ($id =~ /^([mgs]_)(.+)$/) {
                     $q . $1 . camel($2);
                 }
-                # Plain snake_case → camelCase.
+                # Plain snake_case ? camelCase.
                 else {
                     $q . camel($id);
                 }

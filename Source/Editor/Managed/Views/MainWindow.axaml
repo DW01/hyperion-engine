@@ -213,6 +213,7 @@
                             <Border Grid.Row="0" Classes="panel-header">
                                 <Grid VerticalAlignment="Center" ColumnDefinitions="*,Auto">
                                     <DropDownButton
+                                        x:Name="SceneDropDown"
                                         Grid.Column="0"
                                         HorizontalAlignment="Left"
                                         VerticalAlignment="Center"
@@ -225,16 +226,25 @@
                                                 Text="{Binding ActiveScene.Name, FallbackValue='No Active Scene'}" />
                                         </StackPanel>
                                         <DropDownButton.Flyout>
-                                            <MenuFlyout ItemsSource="{Binding Scenes}">
-                                                <MenuFlyout.ItemTemplate>
-                                                    <DataTemplate x:DataType="vm:SceneViewModel">
-                                                        <MenuItem
-                                                            Command="{Binding DataContext.SetActiveSceneCommand, ElementName=Root}"
-                                                            CommandParameter="{Binding}"
-                                                            Header="{Binding Name}" />
-                                                    </DataTemplate>
-                                                </MenuFlyout.ItemTemplate>
-                                            </MenuFlyout>
+                                            <Flyout Placement="Bottom">
+                                                <StackPanel MinWidth="150">
+                                                    <ItemsControl ItemsSource="{Binding Scenes}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:SceneViewModel">
+                                                                <MenuItem
+                                                                    Command="{Binding DataContext.SetActiveSceneCommand, ElementName=Root}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Header="{Binding Name}" />
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+
+                                                    <Separator />
+                                                    <MenuItem
+                                                        Command="{Binding DataContext.AddNewSceneCommand, ElementName=Root}"
+                                                        Header="Add New Scene..." />
+                                                </StackPanel>
+                                            </Flyout>
                                         </DropDownButton.Flyout>
                                     </DropDownButton>
                                     <Button
@@ -243,7 +253,7 @@
                                         Padding="8,2"
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center"
-                                        Content="Add New...">
+                                        Content="Add to scene...">
                                         <Button.Flyout>
                                             <MenuFlyout>
                                                 <MenuItem
@@ -653,7 +663,7 @@
                                                     Grid.Column="4"
                                                     Padding="8,2"
                                                     VerticalAlignment="Center"
-                                                    Content="Add New...">
+                                                    Content="New content...">
                                                     <Button.Flyout>
                                                         <MenuFlyout>
                                                             <MenuItem Command="{Binding ContentBrowser.NewScriptCommand}" Header="New Script" />

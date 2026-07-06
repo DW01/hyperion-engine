@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <RenderingPch.hpp>
 
@@ -221,9 +221,9 @@ void ConvolveEnvProbeCubemap(const Handle<Texture>& inTexture, const EnvProbe& e
         cr << InsertBarrier(prefilteredEnvMap->GetGpuImage(), RS_COPY_DST, subResource);
 
         cr << CopyImage(dstTexture->GetGpuImage(), prefilteredEnvMap->GetGpuImage(),
-            Vec3u::Zero(), Vec3u::Zero(),
-            Vec3u(mipExtent, 1),
-            subResource, subResource);
+                        Vec3u::Zero(), Vec3u::Zero(),
+                        Vec3u(mipExtent, 1),
+                        subResource, subResource);
 
         // put prefiltered map back into shader read
         cr << InsertBarrier(prefilteredEnvMap->GetGpuImage(), RS_SHADER_RESOURCE, subResource);
@@ -233,58 +233,60 @@ void ConvolveEnvProbeCubemap(const Handle<Texture>& inTexture, const EnvProbe& e
     if (envProbe.IsBaked())
     {
         HYP_LOG(Rendering, Verbose, "Enquueing readback of convolved EnvProbe {}.", envProbe.GetName());
-        prefilteredEnvMap->EnqueueReadback([envProbeWeak = MakeWeakRef(&envProbe), prefilteredEnvMap](GpuBuffer& buffer)
-        {
-            Handle<EnvProbe> envProbeStrong = envProbeWeak.Lock();
-            if (!envProbeStrong.IsValid())
+        prefilteredEnvMap->EnqueueReadback(
+            [envProbeWeak = MakeWeakRef(&envProbe), prefilteredEnvMap](GpuBuffer& buffer)
             {
-                HYP_LOG(Rendering, Warning, "EnvProbe was destroyed before readback of convolved data completed, skipping write to cpu-side data.");
-                return;
-            }
-
-            HYP_LOG(Rendering, Info, "Readback of convolved EnvProbe {} completed, size {} bytes", envProbeStrong->GetName(), buffer.Size());
-
-            auto textureWriteScope = prefilteredEnvMap->GetWriteScope();
-
-            TextureDesc desc = prefilteredEnvMap->GetTextureDesc();
-            AssertDebug(desc.extent.Volume() != 0 && desc.extent.Volume() <= 2048*2048);
-
-            // sanity check
-            Assert(buffer.Size() == desc.GetByteSize(/* allMips */ true));
-
-            ConstByteView view;
-            view.first = static_cast<const ubyte*>(buffer.Map());
-            view.last = view.first + buffer.Size();
-
-            // set all mip offsets.
-            desc.mipOffsets = {};
-
-            const uint8 numMips = desc.NumMips();
-
-            size_t mipOffset = 0;
-            for (uint8 mipIndex = 0; mipIndex < numMips; mipIndex++)
-            {
-                const size_t mipByteSize = desc.GetMipByteSize(mipIndex, /* includeArrayLayers */ true);
-
-                if (mipIndex > 0)
+                Handle<EnvProbe> envProbeStrong = envProbeWeak.Lock();
+                if (!envProbeStrong.IsValid())
                 {
-                    desc.mipOffsets[mipIndex - 1] = uint32(mipOffset);
+                    HYP_LOG(Rendering, Warning, "EnvProbe was destroyed before readback of convolved data completed, skipping write to cpu-side data.");
+                    return;
                 }
 
-                mipOffset += mipByteSize;
-            }
+                HYP_LOG(Rendering, Info, "Readback of convolved EnvProbe {} completed, size {} bytes", envProbeStrong->GetName(), buffer.Size());
 
-            // Update image data and desc
-            prefilteredEnvMap->SetTextureDesc(desc);
-            prefilteredEnvMap->SetImageData(view);
+                auto textureWriteScope = prefilteredEnvMap->GetWriteScope();
 
-            textureWriteScope.Reset();
+                TextureDesc desc = prefilteredEnvMap->GetTextureDesc();
+                AssertDebug(desc.extent.Volume() != 0 && desc.extent.Volume() <= 2048 * 2048);
 
-            auto envProbeWriteScope = envProbeStrong->GetWriteScope();
-            envProbeStrong->SetBakedTexture(prefilteredEnvMap);
-        }, /* allMips */ true);
+                // sanity check
+                Assert(buffer.Size() == desc.GetByteSize(/* allMips */ true));
+
+                ConstByteView view;
+                view.first = static_cast<const ubyte*>(buffer.Map());
+                view.last = view.first + buffer.Size();
+
+                // set all mip offsets.
+                desc.mipOffsets = {};
+
+                const uint8 numMips = desc.NumMips();
+
+                size_t mipOffset = 0;
+                for (uint8 mipIndex = 0; mipIndex < numMips; mipIndex++)
+                {
+                    const size_t mipByteSize = desc.GetMipByteSize(mipIndex, /* includeArrayLayers */ true);
+
+                    if (mipIndex > 0)
+                    {
+                        desc.mipOffsets[mipIndex - 1] = uint32(mipOffset);
+                    }
+
+                    mipOffset += mipByteSize;
+                }
+
+                // Update image data and desc
+                prefilteredEnvMap->SetTextureDesc(desc);
+                prefilteredEnvMap->SetImageData(view);
+
+                textureWriteScope.Reset();
+
+                auto envProbeWriteScope = TUniqueResLock<EnvProbe>(*envProbeStrong);
+                envProbeStrong->SetBakedTexture(prefilteredEnvMap);
+            },
+            /* allMips */ true);
     }
-    
+
     if (envProbe.IsA<SkyProbe>() || envProbe.IsA<ReflectionProbe>())
     {
         // Update in env probes texture array if bound
@@ -540,7 +542,8 @@ void ComputeEnvProbeSphericalHarmonics(const EnvProbe& envProbe, const Texture& 
 
                 // Readback happens after the frame is finished.
                 // Hand over the payload to the delegate handler.
-                frame->OnFrameEnd.Bind([pPayload = cmdCasted->payload](...)
+                frame->OnFrameEnd.Bind(
+                    [pPayload = cmdCasted->payload](...)
                     {
                         ReadbackSphericalHarmonicsPayload& payload = *pPayload;
 
@@ -560,9 +563,9 @@ void ComputeEnvProbeSphericalHarmonics(const EnvProbe& envProbe, const Texture& 
                                 outSH[j * 3 + 1] = inSH[j].y;
                                 outSH[j * 3 + 2] = inSH[j].z;
                             }
-                            
+
                             // SetSphericalHarmonicsData() marks it dirty so we don't need to do that here.
-                            auto envProbeWriteScope = payload.envProbe->GetWriteScope();
+                            auto envProbeWriteScope = TUniqueResLock<EnvProbe>(*payload.envProbe);
                             payload.envProbe->SetSphericalHarmonicsData(shData);
                         }
 
@@ -617,7 +620,7 @@ void UpdateEnvProbeVisibilityTexture(Frame* frame, EnvProbe* envProbe, bool shou
 
     Attachment* srcTexture = framebuffer->GetAttachment(1);
     AssertDebug(srcTexture != nullptr);
-    
+
     Texture* dstTexture = envProbe->GetVisibilityTexture();
     Assert(dstTexture != nullptr);
 
@@ -703,8 +706,7 @@ void UpdateEnvProbeVisibilityTexture(Frame* frame, EnvProbe* envProbe, bool shou
         cr << DispatchCompute(Vec3u {
             (dstExtent.x + 7) / 8,
             (dstExtent.y + 7) / 8,
-            6
-        });
+            6 });
     }
 
     cr << InsertBarrier(dstTexture->GetGpuImage(), RS_SHADER_RESOURCE);
@@ -730,36 +732,37 @@ void UpdateEnvProbeVisibilityTexture(Frame* frame, EnvProbe* envProbe, bool shou
 
         cr << InsertBarrier(envProbesDepthImage, RS_SHADER_RESOURCE, dstSubResource);
     }
-    
+
     cr << InsertBarrier(dstTexture->GetGpuImage(), RS_SHADER_RESOURCE);
 
     if (shouldReadback)
     {
         // read back the texture to CPU
-        dstTexture->EnqueueReadback([envProbeWeak = MakeWeakRef(envProbe), visTexture = MakeStrongRef(dstTexture)](GpuBuffer& buffer)
-        {
-            Handle<EnvProbe> envProbeStrong = envProbeWeak.Lock();
-            if (!envProbeStrong.IsValid())
+        dstTexture->EnqueueReadback(
+            [envProbeWeak = MakeWeakRef(envProbe), visTexture = MakeStrongRef(dstTexture)](GpuBuffer& buffer)
             {
-                HYP_LOG(Rendering, Warning, "EnvProbe was destroyed before readback of vis data completed, skipping write to cpu-side data.");
-                return;
-            }
+                Handle<EnvProbe> envProbeStrong = envProbeWeak.Lock();
+                if (!envProbeStrong.IsValid())
+                {
+                    HYP_LOG(Rendering, Warning, "EnvProbe was destroyed before readback of vis data completed, skipping write to cpu-side data.");
+                    return;
+                }
 
-            HYP_LOG(Rendering, Info, "Readback of visibility texture for EnvProbe {} completed, size {} bytes", envProbeStrong->GetName(), buffer.Size());
+                HYP_LOG(Rendering, Info, "Readback of visibility texture for EnvProbe {} completed, size {} bytes", envProbeStrong->GetName(), buffer.Size());
 
-            auto textureWriteScope = visTexture->GetWriteScope();
+                auto textureWriteScope = visTexture->GetWriteScope();
 
-            ConstByteView view;
-            view.first = static_cast<const ubyte*>(buffer.Map());
-            view.last = view.first + buffer.Size();
+                ConstByteView view;
+                view.first = static_cast<const ubyte*>(buffer.Map());
+                view.last = view.first + buffer.Size();
 
-            visTexture->SetImageData(view);
+                visTexture->SetImageData(view);
 
-            textureWriteScope.Reset();
+                textureWriteScope.Reset();
 
-            auto envProbeWriteScope = envProbeStrong->GetWriteScope();
-            envProbeStrong->SetVisibilityTexture(visTexture);
-        });
+                auto envProbeWriteScope = TUniqueResLock<EnvProbe>(*envProbeStrong);
+                envProbeStrong->SetVisibilityTexture(visTexture);
+            });
     }
 }
 
@@ -844,27 +847,30 @@ void ReflectionProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSet
     // special checks for Sky + caching result based on light position + intensity
     if (envProbe->IsA<SkyProbe>())
     {
-        if (!renderSetup.light)
+        if (renderSetup.light)
+        {
+            RenderProxyLight* lightProxy = static_cast<RenderProxyLight*>(GetRenderProxy(renderSetup.light));
+            AssertDebug(lightProxy != nullptr);
+
+#if HYP_DEBUG_MODE
+            AssertDebug(Resources::GetBinding(renderSetup.light) != ~0u);
+#endif
+
+            if (lightProxy->bufferData.positionIntensity != pd->cachedLightDirIntensity)
+            {
+                needsRerender = true;
+            }
+
+            // cache it to save on rendering later
+            pd->cachedLightDirIntensity = lightProxy->bufferData.positionIntensity;
+        }
+        else
         {
             HYP_LOG_ONCE(Rendering, Warning, "No directional light bound while rendering SkyProbe {}", envProbe->Id());
 
+            // set to NAN to always resolve to false for comparison, until a valid light is found
             pd->cachedLightDirIntensity = MathUtil::NaN<Vec4f>();
         }
-
-        RenderProxyLight* lightProxy = static_cast<RenderProxyLight*>(GetRenderProxy(renderSetup.light));
-        AssertDebug(lightProxy != nullptr);
-
-#if HYP_DEBUG_MODE
-        AssertDebug(Resources::GetBinding(renderSetup.light) != ~0u);
-#endif
-
-        if (lightProxy->bufferData.positionIntensity != pd->cachedLightDirIntensity)
-        {
-            needsRerender = true;
-        }
-
-        // cache it to save on rendering later
-        pd->cachedLightDirIntensity = lightProxy->bufferData.positionIntensity;
     }
     else if (envProbe->IsA<ReflectionProbe>())
     {
@@ -876,7 +882,7 @@ void ReflectionProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSet
     const EnumFlags<EnvProbeFlags> envProbeFlags = EnvProbeHelpers::GetFlagsFromProxy(*envProbeProxy);
 
     const bool isRealtime = bool(envProbeFlags & EPF_REALTIME);
-    
+
     uint8 renderedViews = 0;
 
     for (uint8 viewIndex = 0; viewIndex < 6; viewIndex++)
@@ -891,10 +897,7 @@ void ReflectionProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSet
 
         HYP_DEFER({ rpl.EndRead(); });
 
-        if (needsRerender ||
-            rpl.GetMeshEntities().GetDiff().NeedsUpdate() ||
-            rpl.GetLights().GetDiff().NeedsUpdate() ||
-            (isRealtime && rpl.GetSkeletons().GetDiff().NeedsUpdate()))
+        if (needsRerender || rpl.GetMeshEntities().GetDiff().NeedsUpdate() || rpl.GetLights().GetDiff().NeedsUpdate() || (isRealtime && rpl.GetSkeletons().GetDiff().NeedsUpdate()))
         {
             RenderProbeView(frame, rs, envProbe);
 
@@ -967,7 +970,7 @@ void IrradianceProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSet
 
     RenderProxyEnvProbe* envProbeProxy = static_cast<RenderProxyEnvProbe*>(GetRenderProxy(irradianceProbe));
     AssertDebug(envProbeProxy != nullptr);
-    
+
     const EnumFlags<EnvProbeFlags> envProbeFlags = EnvProbeHelpers::GetFlagsFromProxy(*envProbeProxy);
 
     const bool isRealtime = bool(envProbeFlags & EPF_REALTIME);
@@ -986,9 +989,7 @@ void IrradianceProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSet
         rpl.BeginRead();
         HYP_DEFER({ rpl.EndRead(); });
 
-        if (!needsRerender &&
-            !rpl.GetMeshEntities().GetDiff().NeedsUpdate() &&
-            !rpl.GetLights().GetDiff().NeedsUpdate())
+        if (!needsRerender && !rpl.GetMeshEntities().GetDiff().NeedsUpdate() && !rpl.GetLights().GetDiff().NeedsUpdate())
         {
             continue;
         }

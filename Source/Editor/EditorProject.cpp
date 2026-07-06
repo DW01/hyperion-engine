@@ -125,9 +125,13 @@ void EditorProject::AddScene(const Handle<Scene>& scene)
         return;
     }
 
-    AssertDebug(m_gameInstance != nullptr && m_gameInstance->GetWorld() != nullptr);
+    AssertDebug(m_gameInstance != nullptr);
 
-    m_gameInstance->GetWorld()->AddScene(scene, /* addToStreamingLayer */ true);
+    World* world = m_gameInstance->GetWorld();
+    AssertDebug(world != nullptr);
+
+    world->AddScene(scene, /* addToStreamingLayer */ true);
+    world->MarkDirty();
 }
 
 void EditorProject::RemoveScene(Scene* scene)
@@ -137,9 +141,13 @@ void EditorProject::RemoveScene(Scene* scene)
         return;
     }
 
-    AssertDebug(m_gameInstance != nullptr && m_gameInstance->GetWorld() != nullptr);
+    AssertDebug(m_gameInstance != nullptr);
 
-    m_gameInstance->GetWorld()->RemoveScene(scene, /* removeFromStreamingLayer */ true);
+    World* world = m_gameInstance->GetWorld();
+    AssertDebug(world != nullptr);
+
+    world->RemoveScene(scene, /* removeFromStreamingLayer */ true);
+    world->MarkDirty();
 }
 
 FilePath EditorProject::GetProjectsDirectory() const

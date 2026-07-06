@@ -103,7 +103,6 @@ void DynamicSkySystem::InitializeSky()
         m_skyboxEntity = MakeHandle<Entity>();
         m_skyboxEntity->SetName(NAME("Skybox"));
         m_skyboxEntity->Scale(150.0f);
-        m_skyboxEntity->SetIsTransient(true);
         InitObject(m_skyboxEntity);
 
         if (VisibilityStateComponent* vis = m_skyboxEntity->TryGetComponent<VisibilityStateComponent>())

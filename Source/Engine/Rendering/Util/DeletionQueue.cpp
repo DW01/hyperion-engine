@@ -156,22 +156,22 @@ void DeletionQueue::Shutdown()
         // concat all lists and take ownership of the data
         for (EntryHeader& header : itHeaders)
         {
-            const uint32 newAlignedOffset = ByteUtil::AlignAs(currentEntryList.bufferPos, 16);
+            const size_t newAlignedOffset = ByteUtil::AlignAs(currentEntryList.bufferPos, 16);
 
-            void* vp = entryList.buffer.Data() + header.offset;
+            void* vp = reinterpret_cast<void*>(reinterpret_cast<UIntPtr>(entryList.raw) + header.offset);
 
-            if (currentEntryList.buffer.Size() < newAlignedOffset + header.size)
+            if (currentEntryList.bufferSize < newAlignedOffset + header.size)
             {
                 currentEntryList.ResizeBuffer(newAlignedOffset + header.size);
             }
 
             if (header.moveFn)
             {
-                header.moveFn(reinterpret_cast<void*>(currentEntryList.buffer.Data() + newAlignedOffset), vp);
+                header.moveFn(reinterpret_cast<void*>(reinterpret_cast<UIntPtr>(currentEntryList.raw) + newAlignedOffset), vp);
             }
             else
             {
-                Memory::Move(currentEntryList.buffer.Data() + newAlignedOffset, vp, header.size);
+                Memory::Move(reinterpret_cast<void*>(reinterpret_cast<UIntPtr>(currentEntryList.raw) + newAlignedOffset), vp, header.size);
             }
 
             header.offset = newAlignedOffset;
@@ -184,7 +184,7 @@ void DeletionQueue::Shutdown()
         entryList.currHeaders->Clear();
         entryList.currHeaders = &entryList.headers[0];
 
-        entryList.buffer.Clear();
+        entryList.Free();
         entryList.bufferPos = 0;
 
         it = m_tempEntryLists.Erase(it);
@@ -257,10 +257,10 @@ int DeletionQueue::Iterate(int maxIter)
 
         if (header.destructFn)
         {
-            AssertDebug(header.offset < entryList.buffer.Size());
-            AssertDebug(header.size <= entryList.buffer.Size() - header.offset);
+            AssertDebug(header.offset < entryList.bufferSize);
+            AssertDebug(header.size <= entryList.bufferSize - header.offset);
 
-            header.destructFn(reinterpret_cast<void*>(entryList.buffer.Data() + header.offset));
+            header.destructFn(reinterpret_cast<void*>(reinterpret_cast<UIntPtr>(entryList.raw) + header.offset));
         }
 
         it = headers.Erase(it); // remove the entry from the list
@@ -276,7 +276,7 @@ int DeletionQueue::Iterate(int maxIter)
     if (headers.Empty())
     {
         // clear buffer if all entries have been deleted
-        entryList.buffer.Clear();
+        entryList.Free();
         entryList.bufferPos = 0;
     }
     else
@@ -288,7 +288,7 @@ int DeletionQueue::Iterate(int maxIter)
             EntryHeader& header = headers[headerIdx];
 
             AssertDebug(header.offset >= firstOffset);
-            AssertDebug(entryList.buffer.Size() >= header.offset + header.size);
+            AssertDebug(entryList.bufferSize >= header.offset + header.size);
             header.offset -= firstOffset;
         }
 
@@ -296,14 +296,14 @@ int DeletionQueue::Iterate(int maxIter)
 
         // Move elements to the front of the buffer
         Memory::Move(
-            entryList.buffer.Data(),
-            entryList.buffer.Data() + firstOffset,
+            entryList.raw,
+            reinterpret_cast<void*>(reinterpret_cast<UIntPtr>(entryList.raw) + firstOffset),
             newSize);
 
         // compact the buffer to the new size, if size is 20% larger than it needs to be
-        if (entryList.buffer.Size() > newSize * 1.2)
+        if (entryList.bufferSize > newSize * 1.2)
         {
-            entryList.buffer.SetSize(newSize);
+            entryList.ResizeBuffer(newSize);
         }
 
         entryList.bufferPos = newSize;
@@ -343,7 +343,7 @@ size_t DeletionQueue::ForceDeleteAll(uint32 bufferIndex)
             if (header.destructFn)
             {
                 // swap while we force destruct
-                header.destructFn(reinterpret_cast<void*>(entryList.buffer.Data() + header.offset));
+                header.destructFn(reinterpret_cast<void*>(reinterpret_cast<UIntPtr>(entryList.raw) + header.offset));
             }
         }
 
@@ -358,7 +358,7 @@ size_t DeletionQueue::ForceDeleteAll(uint32 bufferIndex)
     entryList.currHeaders = &entryList.headers[0];
 
     // clear buffer if all entries have been deleted
-    entryList.buffer.Clear();
+    entryList.Free();
     entryList.bufferPos = 0;
 
     return numTotalDestroyed;
@@ -374,7 +374,7 @@ void DeletionQueue::UpdateCounter(uint32 bufferIndex)
     Counter& counter = m_counters[bufferIndex];
 
     counter.numElements = entryList.currHeaders->Size();
-    counter.numTotalBytes = entryList.buffer.Size();
+    counter.numTotalBytes = entryList.bufferSize;
 }
 
 void DeletionQueue::Flush()
@@ -435,20 +435,20 @@ void DeletionQueue::UpdateEntryListQueue()
         {
             const uint32 newAlignedOffset = ByteUtil::AlignAs(currentEntryList.bufferPos, 16);
 
-            void* vp = entryList.buffer.Data() + header.offset;
+            void* vp = reinterpret_cast<void*>(reinterpret_cast<UIntPtr>(entryList.raw) + header.offset);
 
-            if (currentEntryList.buffer.Size() < newAlignedOffset + header.size)
+            if (currentEntryList.bufferSize < newAlignedOffset + header.size)
             {
                 currentEntryList.ResizeBuffer(newAlignedOffset + header.size);
             }
 
             if (header.moveFn)
             {
-                header.moveFn(reinterpret_cast<void*>(currentEntryList.buffer.Data() + newAlignedOffset), vp);
+                header.moveFn(reinterpret_cast<void*>(reinterpret_cast<UIntPtr>(currentEntryList.raw) + newAlignedOffset), vp);
             }
             else
             {
-                Memory::Move(currentEntryList.buffer.Data() + newAlignedOffset, vp, header.size);
+                Memory::Move(reinterpret_cast<void*>(reinterpret_cast<UIntPtr>(currentEntryList.raw) + newAlignedOffset), vp, header.size);
             }
 
             header.offset = newAlignedOffset;
@@ -461,7 +461,7 @@ void DeletionQueue::UpdateEntryListQueue()
         entryList.currHeaders->Clear();
         entryList.currHeaders = &entryList.headers[0];
 
-        entryList.buffer.Clear();
+        entryList.Free();
         entryList.bufferPos = 0;
 
         it = m_tempEntryLists.Erase(it);

@@ -37,7 +37,7 @@ enum class SpriteType : uint32
     Max
 };
 
-HYP_CLASS(AssetBucket = "Sprites")
+HYP_CLASS()
 class ENGINE_API Sprite : public Entity
 {
     HYP_OBJECT_BODY(Sprite);

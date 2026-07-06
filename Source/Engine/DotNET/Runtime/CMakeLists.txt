@@ -90,7 +90,7 @@ if(HYP_GENERATE_CSHARP_LIBRARIES)
     # find dotnet executable
     find_program(DOTNET_EXE dotnet)
     if(NOT DOTNET_EXE)
-      message(FATAL_ERROR "dotnet executable not found. Please install the .NET SDK to build C# projects.")
+      message(SEND_ERROR "dotnet executable not found. Please install the .NET SDK to build C# projects.")
     endif()
 
     # Clear MSBuildSdksPath environment variable if set to prevent SDK resolution issues

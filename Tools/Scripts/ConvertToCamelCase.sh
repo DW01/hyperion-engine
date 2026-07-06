@@ -6,7 +6,7 @@ files=()
 exclude_patterns=()
 search_dir="codegen"
 
-# ── arg parsing ──────────────────────────────────────────────────────────────
+# ?? arg parsing ??????????????????????????????????????????????????????????????
 while (( $# )); do
     case "$1" in
         --convert) convert=1; shift ;;
@@ -25,7 +25,7 @@ while (( $# )); do
     esac
 done
 
-# ── collect source files when none given -------------------------------------
+# ?? collect source files when none given -------------------------------------
 if [ ${#files[@]} -eq 0 ]; then
     while IFS= read -r -d '' f; do
         skip=0
@@ -38,7 +38,7 @@ if [ ${#files[@]} -eq 0 ]; then
     \) -print0)
 fi
 
-# ── conversion pass ----------------------------------------------------------
+# ?? conversion pass ----------------------------------------------------------
 if (( convert )); then
     total=${#files[@]}
     bar_len=20
@@ -116,7 +116,7 @@ if (( convert )); then
         printf "\r\033[K[%d/%d] [%-*s] %3d%% %s" \
                "$idx" "$total" "$bar_len" "$bar" "$percent" "$f"
     done
-    echo -e "\nDone – processed $total file(s)."
+    echo -e "\nDone ? processed $total file(s)."
 else
     echo "Nothing to do (run with --convert)."
 fi

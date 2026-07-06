@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <AssetPch.hpp>
 
@@ -82,9 +82,9 @@ static void AddMaterial(MaterialLibrary& library, const String& tag)
     int counter = 0;
 
     while (AnyOf(library.materials, [&uniqueTag](const MaterialDef& materialDef)
-        {
-            return materialDef.tag == uniqueTag;
-        }))
+                 {
+                     return materialDef.tag == uniqueTag;
+                 }))
     {
         uniqueTag = tag + String::ToString(++counter);
     }
@@ -154,8 +154,8 @@ Map<String, Handle<Material>> MTLMaterialLoader::ParseMtl_Internal(LoaderState& 
         Pair<String, TextureMapping> { "map_ka", TextureMapping { .key = MaterialTextureKey::Metalness, .srgb = false, .filterMode = TFM_LINEAR_MIPMAP } },
         Pair<String, TextureMapping> { "map_ks", TextureMapping { .key = MaterialTextureKey::Metalness, .srgb = false, .filterMode = TFM_LINEAR_MIPMAP } },
         Pair<String, TextureMapping> { "map_ns", TextureMapping { .key = MaterialTextureKey::Roughness, .srgb = false, .filterMode = TFM_LINEAR_MIPMAP } },
-        Pair<String, TextureMapping> { "map_height", TextureMapping { .key = MaterialTextureKey::Parallax, .srgb = false, .filterMode = TFM_LINEAR_MIPMAP } }, /* custom */
-        Pair<String, TextureMapping> { "map_ao", TextureMapping { .key = MaterialTextureKey::AmbientOcclusion, .srgb = false, .filterMode = TFM_LINEAR_MIPMAP } }            /* custom */
+        Pair<String, TextureMapping> { "map_height", TextureMapping { .key = MaterialTextureKey::Parallax, .srgb = false, .filterMode = TFM_LINEAR_MIPMAP } },    /* custom */
+        Pair<String, TextureMapping> { "map_ao", TextureMapping { .key = MaterialTextureKey::AmbientOcclusion, .srgb = false, .filterMode = TFM_LINEAR_MIPMAP } } /* custom */
     };
 
     Tokens tokens;
@@ -232,14 +232,14 @@ Map<String, Handle<Material>> MTLMaterialLoader::ParseMtl_Internal(LoaderState& 
         //     continue;
         // }
 
-            /*! Ns exponent
+        /*! Ns exponent
 
-            Specifies the specular exponent for the current material.  This defines
-            the focus of the specular highlight.
+        Specifies the specular exponent for the current material.  This defines
+        the focus of the specular highlight.
 
-            "exponent" is the value for the specular exponent.  A high exponent
-            results in a tight, concentrated highlight.  Ns values normally range
-            from 0 to 1000. */
+        "exponent" is the value for the specular exponent.  A high exponent
+        results in a tight, concentrated highlight.  Ns values normally range
+        from 0 to 1000. */
         if (tokens[0] == "ns")
         {
             if (tokens.Size() < 2)
@@ -306,7 +306,7 @@ Map<String, Handle<Material>> MTLMaterialLoader::ParseMtl_Internal(LoaderState& 
 
             const float dissolve = MathUtil::Clamp(StringUtil::Parse<float>(tokens[valueIndex].Data()), 0.0f, 1.0f);
 
-            auto &material = LastMaterial(library);
+            auto& material = LastMaterial(library);
             material.parameters.albedo.w = dissolve;
 
             continue;
@@ -338,12 +338,11 @@ Map<String, Handle<Material>> MTLMaterialLoader::ParseMtl_Internal(LoaderState& 
             const float transparency = MathUtil::Clamp(StringUtil::Parse<float>(tokens[valueIndex].Data()), 0.0f, 1.0f);
             const float dissolve = 1.0f - transparency;
 
-            auto &material = LastMaterial(library);
+            auto& material = LastMaterial(library);
             material.parameters.albedo.w = dissolve;
 
             continue;
         }
-
 
         /*! illum illum_#
 
@@ -412,8 +411,7 @@ Map<String, Handle<Material>> MTLMaterialLoader::ParseMtl_Internal(LoaderState& 
 
             LastMaterial(library).textures.PushBack(TextureDef {
                 .mapping = textureIt->second,
-                .name = name
-            });
+                .name = name });
 
             continue;
         }
@@ -477,8 +475,13 @@ Map<String, Handle<Material>> MTLMaterialLoader::ParseMtl_Internal(LoaderState& 
 
             if (numEnqueued != 0)
             {
-                texturesBatch->LoadAsync();
-                loadedTextures = texturesBatch->AwaitResults();
+                // Loading synchronously, currently having issues with tasks having circular dependencies
+                // @FIXME revisit
+                loadedTextures = texturesBatch->ForceLoad();
+                delete texturesBatch;
+
+                // texturesBatch->LoadAsync();
+                // loadedTextures = texturesBatch->AwaitResults();
             }
             else
             {

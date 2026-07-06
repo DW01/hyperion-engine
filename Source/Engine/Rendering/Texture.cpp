@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <RenderingPch.hpp>
 
@@ -46,17 +46,17 @@ extern ThreadSignal g_renderInitSignal;
 
 const FixedArray<Pair<Vec3f, Vec3f>, 6> Texture::s_cubemapDirections = {
     // +x
-    Pair<Vec3f, Vec3f> { Vec3f{ 1.0f,  0.0f,  0.0f}, Vec3f{ 0.0f,  1.0f,  0.0f} },
+    Pair<Vec3f, Vec3f> { Vec3f { 1.0f, 0.0f, 0.0f }, Vec3f { 0.0f, 1.0f, 0.0f } },
     // -x
-    Pair<Vec3f, Vec3f> { Vec3f{-1.0f,  0.0f,  0.0f}, Vec3f{ 0.0f,  1.0f,  0.0f} },
+    Pair<Vec3f, Vec3f> { Vec3f { -1.0f, 0.0f, 0.0f }, Vec3f { 0.0f, 1.0f, 0.0f } },
     // +y
-    Pair<Vec3f, Vec3f> { Vec3f{ 0.0f,  1.0f,  0.0f}, Vec3f{ 0.0f,  0.0f, -1.0f} },
+    Pair<Vec3f, Vec3f> { Vec3f { 0.0f, 1.0f, 0.0f }, Vec3f { 0.0f, 0.0f, -1.0f } },
     // -y
-    Pair<Vec3f, Vec3f> { Vec3f{ 0.0f, -1.0f,  0.0f}, Vec3f{ 0.0f,  0.0f,  1.0f} },
+    Pair<Vec3f, Vec3f> { Vec3f { 0.0f, -1.0f, 0.0f }, Vec3f { 0.0f, 0.0f, 1.0f } },
     // +z
-    Pair<Vec3f, Vec3f> { Vec3f{ 0.0f,  0.0f,  1.0f}, Vec3f{ 0.0f,  1.0f,  0.0f} },
+    Pair<Vec3f, Vec3f> { Vec3f { 0.0f, 0.0f, 1.0f }, Vec3f { 0.0f, 1.0f, 0.0f } },
     // -z
-    Pair<Vec3f, Vec3f> { Vec3f{ 0.0f,  0.0f, -1.0f}, Vec3f{ 0.0f,  1.0f,  0.0f} }
+    Pair<Vec3f, Vec3f> { Vec3f { 0.0f, 0.0f, -1.0f }, Vec3f { 0.0f, 1.0f, 0.0f } }
 };
 
 static const Name s_nameTextureDefault = NAME("<unnamed texture>");
@@ -88,7 +88,7 @@ static bool CheckImageData(Texture& texture, GpuImage& image)
     if (largestMipData.Size() != image.GetByteSize())
     {
         HYP_LOG(Streaming, Warning, "Streamed texture data buffer size mismatch for texture asset {}! Expected: {}, Got: {}",
-            texture.GetName(), image.GetByteSize(), largestMipData.Size());
+                texture.GetName(), image.GetByteSize(), largestMipData.Size());
 
         return false;
     }
@@ -133,22 +133,37 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
             case TextureType::Texture2D:
                 switch (nonSrgbFormat)
                 {
-                case TextureFormat::R8:      FillPlaceholderBuffer_Tex2D<TextureFormat::R8>(image.GetExtent().GetXY(), *placeholderBuffer); break;
-                case TextureFormat::RGBA8:   FillPlaceholderBuffer_Tex2D<TextureFormat::RGBA8>(image.GetExtent().GetXY(), *placeholderBuffer); break;
-                case TextureFormat::RGBA16F: FillPlaceholderBuffer_Tex2D<TextureFormat::RGBA16F>(image.GetExtent().GetXY(), *placeholderBuffer); break;
-                case TextureFormat::RGBA32F: FillPlaceholderBuffer_Tex2D<TextureFormat::RGBA32F>(image.GetExtent().GetXY(), *placeholderBuffer); break;
-                default: break;
+                case TextureFormat::R8:
+                    FillPlaceholderBuffer_Tex2D<TextureFormat::R8>(image.GetExtent().GetXY(), *placeholderBuffer);
+                    break;
+                case TextureFormat::RGBA8:
+                    FillPlaceholderBuffer_Tex2D<TextureFormat::RGBA8>(image.GetExtent().GetXY(), *placeholderBuffer);
+                    break;
+                case TextureFormat::RGBA16F:
+                    FillPlaceholderBuffer_Tex2D<TextureFormat::RGBA16F>(image.GetExtent().GetXY(), *placeholderBuffer);
+                    break;
+                case TextureFormat::RGBA32F:
+                    FillPlaceholderBuffer_Tex2D<TextureFormat::RGBA32F>(image.GetExtent().GetXY(), *placeholderBuffer);
+                    break;
+                default:
+                    break;
                 }
                 break;
             case TextureType::Cubemap:
                 switch (nonSrgbFormat)
                 {
-                case TextureFormat::R8:      FillPlaceholderBuffer_Cubemap<TextureFormat::R8>(image.GetExtent().GetXY(), *placeholderBuffer); break;
-                case TextureFormat::RGBA8:   FillPlaceholderBuffer_Cubemap<TextureFormat::RGBA8>(image.GetExtent().GetXY(), *placeholderBuffer); break;
-                default: break;
+                case TextureFormat::R8:
+                    FillPlaceholderBuffer_Cubemap<TextureFormat::R8>(image.GetExtent().GetXY(), *placeholderBuffer);
+                    break;
+                case TextureFormat::RGBA8:
+                    FillPlaceholderBuffer_Cubemap<TextureFormat::RGBA8>(image.GetExtent().GetXY(), *placeholderBuffer);
+                    break;
+                default:
+                    break;
                 }
                 break;
-            default: break;
+            default:
+                break;
             }
         }
 
@@ -165,12 +180,12 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
 
 #ifdef HYP_DX12
         auto AlignUp = [](uint32 value, uint32 alignment) -> uint32
-            {
-                return (value + alignment - 1) & ~(alignment - 1);
-            };
+        {
+            return (value + alignment - 1) & ~(alignment - 1);
+        };
 
         // We will build a new padded buffer o upload to the staging buffer
-        uint32 paddedMipOffsets[TextureDesc::MaxMips] = {0};
+        uint32 paddedMipOffsets[TextureDesc::MaxMips] = { 0 };
         uint32 paddedTotalSize = 0;
 
         for (uint8 mipIndex = 0; mipIndex < numMips; mipIndex++)
@@ -300,8 +315,7 @@ Texture::Texture()
           Vec3u { 1, 1, 1 },
           TFM_NEAREST,
           TFM_NEAREST,
-          TWM_CLAMP_TO_EDGE
-      })
+          TWM_CLAMP_TO_EDGE })
 {
 }
 
@@ -352,7 +366,7 @@ RendererResult Texture::Create()
         }
 
         GpuImageRef gpuImage = RI.MakeImage(m_textureDesc);
-        
+
 #ifdef HYP_RHI_DEBUG_NAMES
         Name assetName = GetName();
         if (assetName.IsValid())
@@ -697,8 +711,7 @@ static void UnpadDX12ReadbackData(const TextureDesc& desc, const ubyte* paddedDa
                 Memory::Copy(
                     tightData + tightOffset + (row * tightRowPitch),
                     paddedData + paddedOffset + (row * alignedRowPitch),
-                    tightRowPitch
-                );
+                    tightRowPitch);
             }
 
             paddedOffset += layerStep;
@@ -736,7 +749,8 @@ void Texture::Readback(GpuBufferRef& outBuffer, bool allMips)
 
     UniquePtr<SingleTimeCommands> singleTimeCommands = RI.GetSingleTimeCommands();
 
-    singleTimeCommands->Push([this, &outBuffer, allMips](CommandRecorder& cr)
+    singleTimeCommands->Push(
+        [this, &outBuffer, allMips](CommandRecorder& cr)
         {
             const ResourceState previousResourceState = m_gpuImage->GetResourceState();
 
@@ -886,43 +900,43 @@ void Texture::EnqueueReadback(Proc<void(GpuBuffer&)>&& callback, bool allMips)
 
             currentFrame->OnFrameEnd
                 .Bind([payload = _this->payload](...)
-                {
+                      {
 #ifdef HYP_DX12
-                    {
-                        const TextureDesc& desc = payload->image->GetTextureDesc();
+                          {
+                              const TextureDesc& desc = payload->image->GetTextureDesc();
 
-                        const size_t tightSize = desc.GetByteSize(payload->allMips);
+                              const size_t tightSize = desc.GetByteSize(payload->allMips);
 
-                        ByteBuffer tightBuffer;
-                        tightBuffer.SetSize(tightSize);
+                              ByteBuffer tightBuffer;
+                              tightBuffer.SetSize(tightSize);
 
-                        UnpadDX12ReadbackData(desc, static_cast<const ubyte*>(payload->readbackBuffer->Map()), tightBuffer.Data(), payload->allMips);
+                              UnpadDX12ReadbackData(desc, static_cast<const ubyte*>(payload->readbackBuffer->Map()), tightBuffer.Data(), payload->allMips);
 
-                        if (payload->readbackBuffer.IsValid())
-                        {
-                            payload->readbackBuffer->Unmap();
+                              if (payload->readbackBuffer.IsValid())
+                              {
+                                  payload->readbackBuffer->Unmap();
 
-                            EnqueueDeletion(std::move(payload->readbackBuffer));
-                        }
+                                  EnqueueDeletion(std::move(payload->readbackBuffer));
+                              }
 
-                        payload->readbackBuffer = RI.MakeGpuBuffer(GpuBufferType::ReadbackBuffer, tightSize);
-                        payload->readbackBuffer->SetIsCpuAccessible(true);
+                              payload->readbackBuffer = RI.MakeGpuBuffer(GpuBufferType::ReadbackBuffer, tightSize);
+                              payload->readbackBuffer->SetIsCpuAccessible(true);
 
-                        if (CheckResult(payload->readbackBuffer->Create()))
-                        {
-                            payload->readbackBuffer->Copy(tightSize, tightBuffer.Data());
-                            payload->readbackBuffer->Flush(0, tightSize);
-                        }
-                    }
+                              if (CheckResult(payload->readbackBuffer->Create()))
+                              {
+                                  payload->readbackBuffer->Copy(tightSize, tightBuffer.Data());
+                                  payload->readbackBuffer->Flush(0, tightSize);
+                              }
+                          }
 #endif
 
-                    payload->callback(*payload->readbackBuffer);
+                          payload->callback(*payload->readbackBuffer);
 
-                    EnqueueDeletion(std::move(payload->readbackBuffer));
-                    EnqueueDeletion(std::move(payload->image));
+                          EnqueueDeletion(std::move(payload->readbackBuffer));
+                          EnqueueDeletion(std::move(payload->image));
 
-                    PoolDelete(*g_renderPool, payload);
-                })
+                          PoolDelete(*g_renderPool, payload);
+                      })
                 .Detach();
         }
     };
@@ -975,13 +989,13 @@ Vec4f Texture::Sample(Vec3f uvw, uint32 faceIndex)
     if (index + (bytesPerComponent * numComponents) > largestMipSize)
     {
         HYP_LOG_ONCE(Texture, Warning,
-            "Sample() call would attempt to read out of bounds of data for Texture {} ({})!\n"
-            "Texture format: {}, Texel index: {}, texture data buffer size: {}, coord: {}, dimensions: {}, num faces: {}, bytes per component: {}, num components: {}",
-            GetName(), Id(),
-            EnumToString(textureDesc.format),
-            index, largestMipSize,
-            coord, textureDesc.extent, NumArrayLayers(),
-            bytesPerComponent, numComponents);
+                     "Sample() call would attempt to read out of bounds of data for Texture {} ({})!\n"
+                     "Texture format: {}, Texel index: {}, texture data buffer size: {}, coord: {}, dimensions: {}, num faces: {}, bytes per component: {}, num components: {}",
+                     GetName(), Id(),
+                     EnumToString(textureDesc.format),
+                     index, largestMipSize,
+                     coord, textureDesc.extent, NumArrayLayers(),
+                     bytesPerComponent, numComponents);
 
         return Vec4f::Zero();
     }

@@ -269,7 +269,7 @@ void LightmapVolume::OnAddedToWorld(World* world)
         for (auto [entity, lightmapElementComponent] : scene->GetEntityManager()->GetEntitySet<LightmapElementComponent>().GetScopedView(DataAccessFlags::ACCESS_RW))
         {
             if (lightmapElementComponent.lightmapVolume.GetUnsafe() != this
-                && lightmapElementComponent.lightmapVolumePath == GetPath())
+                && lightmapElementComponent.lightmapVolumeName == GetName())
             {
                 // Verify the element ID exists in this volume before assigning
                 const LightmapElement* lightmapElement = GetElement(lightmapElementComponent.lightmapElementId);

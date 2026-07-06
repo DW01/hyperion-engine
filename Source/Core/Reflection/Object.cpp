@@ -22,7 +22,6 @@
 #ifdef HYP_DOTNET
 #include <DotNET/ManagedClass.hpp>
 #include <DotNET/ManagedObject.hpp>
-#include <DotNET/DotNETHost.hpp>
 #endif // HYP_DOTNET
 
 #ifdef HYP_SCRIPT
@@ -53,9 +52,7 @@ ObjectInitializerGuardBase::ObjectInitializerGuardBase(TypedObjPtr ptr)
     AssertDebug(target != nullptr, "ObjectInitializerGuardBase: TypedObjPtr is not valid!");
 
     // Push NONE to prevent our current flags from polluting allocations that happen in the constructor
-    PushGlobalContext(ObjectInitializerContext {
-        ptr.GetClass(),
-        ObjectInitializerFlags::NONE });
+    PushGlobalContext(ObjectInitializerContext { ptr.GetClass(), ObjectInitializerFlags::NONE });
 }
 
 ObjectInitializerGuardBase::~ObjectInitializerGuardBase()
@@ -97,7 +94,7 @@ ObjectInitializerGuardBase::~ObjectInitializerGuardBase()
                 {
                     scriptObjectResource->SetScriptObjectData_DotNet(ScriptObjectData_DotNet { nullptr, managedClass });
                 }
-                
+
                 scriptObjectResource->AddReader();
 
                 int64 readers, writers;
@@ -108,7 +105,7 @@ ObjectInitializerGuardBase::~ObjectInitializerGuardBase()
             {
                 HYP_LOG(Core, Verbose, "Class '{}' has no .NET class associated with it", cls->GetName());
             }
-#endif
+#endif // !HYP_DOTNET
 
 #ifdef HYP_SCRIPT
             if (!scriptObjectResource)
@@ -257,7 +254,9 @@ int32 ObjectBase::Release()
 #ifdef HYP_DOTNET
 dotnet::ManagedObject* ObjectBase::GetManagedObject() const
 {
-    return m_scriptObjectResource ? ScriptObjectFunctions::GetManagedObject(m_scriptObjectResource) : nullptr;
+    return m_scriptObjectResource
+        ? ScriptObjectFunctions::GetManagedObject(m_scriptObjectResource)
+        : nullptr;
 }
 #endif
 
@@ -306,7 +305,7 @@ CORE_API void TypedObjPtr::IncRef(bool weak)
     }
     else
     {
-        casted->GetObjectHeader_Internal()->IncRefStrong();
+        casted->AddRef();
     }
 }
 
@@ -322,7 +321,7 @@ CORE_API void TypedObjPtr::DecRef(bool weak)
     }
     else
     {
-        casted->GetObjectHeader_Internal()->DecRefStrong();
+        casted->Release();
     }
 }
 

@@ -322,16 +322,18 @@ Mesh* BoxDebugDrawShape::GetMesh_Internal() const
         MeshInitializer()
         {
             mesh = MeshBuilder::Cube();
+            mesh->SetIsTransient(true);
             mesh->SetFlags(MeshFlags::ViewIndependent);
             mesh->SetName(NAME("BoxDebugDrawShape"));
             mesh->UploadGpuData();
 
             GetEngineAssetRegistry()->PutAsset(mesh);
 
-            onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind([m = &mesh]()
-                                                                              {
-                                                                                  m->Reset();
-                                                                              });
+            onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind(
+                [m = &mesh]()
+                {
+                    m->Reset();
+                });
         }
     } s_initializer;
 
@@ -531,10 +533,11 @@ Mesh* TriangleDebugDrawShape::GetMesh_Internal() const
 
             GetEngineAssetRegistry()->PutAsset(mesh);
 
-            onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind([m = &mesh]()
-                                                                              {
-                                                                                  m->Reset();
-                                                                              });
+            onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind(
+                [m = &mesh]()
+                {
+                    m->Reset();
+                });
         }
     } s_initializer;
 

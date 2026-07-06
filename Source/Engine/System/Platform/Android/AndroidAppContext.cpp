@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <SystemPch.hpp>
 
@@ -11,9 +11,9 @@
 #include <Input/InputManager.hpp>
 #include <Input/Event.hpp>
 
-#include <Core/threading/Threads.hpp>
+#include <Core/Threading/Threads.hpp>
 
-#include <Core/debug/Debug.hpp>
+#include <Core/Debug/Debug.hpp>
 
 #include <android/looper.h>
 
@@ -24,8 +24,8 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_android.h>
 
-#include <Rendering/vulkan/VulkanInstance.hpp>
-#include <Rendering/vulkan/VulkanRenderInterface.hpp>
+#include <Rendering/Vulkan/VulkanInstance.hpp>
+#include <Rendering/Vulkan/VulkanRenderInterface.hpp>
 #endif
 
 namespace Hyperion {
@@ -148,7 +148,6 @@ void AndroidLooperThread::InitializeLooper()
         this);
 
     Assert(addFdResult == 1, "Failed to add wake pipe to Android looper (result={})", addFdResult);
-
 }
 
 void AndroidLooperThread::ShutdownLooper()

@@ -229,9 +229,15 @@ void EngineDriver::Initialize()
     signal(SIGSEGV, HandleSignal);
     atexit(HandleExit);
 
+    const CommandLineArguments& cliArgs = CoreApi::GetCommandLineArguments();
+    const bool isCommandlet = cliArgs["exec"].ToBool();
+
 #ifdef HYP_STEAM_SDK
-    Steam::Initialize();
-    Steam::SteamInputManager::GetInstance().Initialize();
+    if (!isCommandlet)
+    {
+        Steam::Initialize();
+        Steam::SteamInputManager::GetInstance().Initialize();
+    }
 #endif // HYP_STEAM_SDK
 
     SharedPtr<NetRequestThread> netRequestThread = MakeShared<NetRequestThread>();

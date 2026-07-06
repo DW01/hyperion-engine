@@ -76,8 +76,8 @@ EnvProbe::EnvProbe(EnvProbeType envProbeType, const BoundingBox& aabb, const Vec
     : m_dimensions(dimensions),
       m_envProbeType(envProbeType),
       m_envProbeFlags(DefaultEnvProbeFlags[envProbeType]),
-      m_camera(nullptr),
-      m_shData {}
+      m_shData {},
+      m_camera(nullptr)
 {
     SetLocalBounds(aabb);
 
@@ -87,6 +87,9 @@ EnvProbe::EnvProbe(EnvProbeType envProbeType, const BoundingBox& aabb, const Vec
 
 EnvProbe::~EnvProbe()
 {
+    // ensure locks are released before destruction ensues
+    TUniqueResLock<EnvProbe> resLock(*this);
+
     if (AnyOf(m_views, &Handle<View>::IsValid))
     {
         EnqueueDeletion(std::move(m_views));
@@ -106,14 +109,14 @@ void EnvProbe::Init()
     SetReady(true);
 }
 
-Result EnvProbe::Rename(Name name)
+void EnvProbe::SetName(Name name)
 {
-    Result result = AssetObject::Rename(name);
-
-    if (result.HasError())
+    if (name == m_name)
     {
-        return result.GetError();
+        return;
     }
+
+    Entity::SetName(name);
 
     if (m_texture.IsValid())
     {
@@ -127,10 +130,8 @@ Result EnvProbe::Rename(Name name)
 
     if (m_camera != nullptr)
     {
-        m_camera->Rename(NAME_FMT("{}_Capture", name));
+        m_camera->SetName(NAME_FMT("{}_Capture", name));
     }
-
-    return {};
 }
 
 void EnvProbe::CreateCamera()

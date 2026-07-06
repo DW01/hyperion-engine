@@ -35,6 +35,8 @@ if(NOT DEFINED HYP_PLATFORM_NAME)
   endif()
 endif()
 
+message(STATUS "Platform name: ${HYP_PLATFORM_NAME}")
+
 # use params passed in
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${HYP_LIBRARY_OUTPUT_DIRECTORY}/${HYP_PLATFORM_NAME}/${CMAKE_BUILD_TYPE})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
@@ -71,8 +73,6 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   set(HYP_GCC 1)
   set(HYP_CLANG_OR_GCC 1)
 endif()
-
-message(STATUS "HYP_PLATFORM_NAME = ${HYP_PLATFORM_NAME}")
 
 if(HYP_PLATFORM_NAME STREQUAL "Windows")
   set(CSHARP_CONSTANTS "HYP_WINDOWS")
@@ -271,8 +271,10 @@ else()
   # for full template backtrace
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftemplate-backtrace-limit=0")
 
-  # no ast recovery or spelling correction/suggestion
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Xclang -fno-recovery-ast -fno-spell-checking")
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # no ast recovery or spelling correction/suggestion for clang
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Xclang -fno-recovery-ast -fno-spell-checking")
+  endif()
 
   # # address sanitizer -- uncomment to enable
   # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
@@ -370,8 +372,9 @@ if(NOT HYP_ANDROID AND NOT HYP_IOS)
   add_definitions(-DHYP_ENABLE_SHADER_RELOAD=1)
 endif()
 
-# build libraries as static for these platforms or in final build
-if(HYP_IOS OR HYP_ANDROID OR HYPERION_BUILD_RELEASE_FINAL)
+# build libraries as static for iOS or in final build
+# android needs shared lib
+if((HYP_IOS OR HYPERION_BUILD_RELEASE_FINAL) AND NOT HYP_ANDROID)
   set(HYP_BUILD_STATIC 1)
 
   add_definitions(-DHYP_BUILD_STATIC=1)
@@ -382,8 +385,18 @@ add_definitions(-DHYP_SCRIPT=1)
 
 set(HYP_GENERATE_CSHARP_LIBRARIES true)
 
-if(NOT DEFINED HYP_COMPILE_WITH_DOTNET)
-  set(HYP_COMPILE_WITH_DOTNET 1)
+# Set to true if C# is not planned on being used for scripting
+# .NET is necessary for the editor, but for a leaner build this is recommended to disable if not using C# for scripts.
+set(HYP_DOTNET_ONLY_FOR_EDITOR true)
+
+if(NOT HYP_DOTNET_ONLY_FOR_EDITOR OR HYP_EDITOR)
+  if(NOT DEFINED HYP_COMPILE_WITH_DOTNET)
+    set(HYP_COMPILE_WITH_DOTNET 1)
+  endif()
+endif()
+
+if(HYP_DOTNET_ONLY_FOR_EDITOR)
+  add_definitions(-DHYP_DOTNET_ONLY_FOR_EDITOR=1)
 endif()
 
 if(HYP_COMPILE_WITH_DOTNET)
@@ -425,7 +438,7 @@ endif()
 set(RENDERING_BACKEND "Vulkan")
 
 if(WIN32)
-  set(ENABLE_EXPERIMENTAL_DX12_RENDERING_BACKEND true)
+  # set(ENABLE_EXPERIMENTAL_DX12_RENDERING_BACKEND true)
 
   if(ENABLE_EXPERIMENTAL_DX12_RENDERING_BACKEND)
     set(RENDERING_BACKEND "DX12")

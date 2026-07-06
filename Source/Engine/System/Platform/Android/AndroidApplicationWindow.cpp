@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <SystemPch.hpp>
 
@@ -11,9 +11,9 @@
 #include <Input/InputManager.hpp>
 #include <Input/Event.hpp>
 
-#include <Core/threading/Threads.hpp>
+#include <Core/Threading/Threads.hpp>
 
-#include <Core/debug/Debug.hpp>
+#include <Core/Debug/Debug.hpp>
 
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
@@ -23,8 +23,8 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_android.h>
 
-#include <Rendering/vulkan/VulkanInstance.hpp>
-#include <Rendering/vulkan/VulkanRenderInterface.hpp>
+#include <Rendering/Vulkan/VulkanInstance.hpp>
+#include <Rendering/Vulkan/VulkanRenderInterface.hpp>
 #endif
 
 namespace Hyperion {
@@ -35,75 +35,144 @@ static KeyCode MapAndroidKeyCodeToKeyCode(int32_t androidKeyCode)
 {
     switch (androidKeyCode)
     {
-    case AKEYCODE_A: return KeyCode::KEY_A;
-    case AKEYCODE_B: return KeyCode::KEY_B;
-    case AKEYCODE_C: return KeyCode::KEY_C;
-    case AKEYCODE_D: return KeyCode::KEY_D;
-    case AKEYCODE_E: return KeyCode::KEY_E;
-    case AKEYCODE_F: return KeyCode::KEY_F;
-    case AKEYCODE_G: return KeyCode::KEY_G;
-    case AKEYCODE_H: return KeyCode::KEY_H;
-    case AKEYCODE_I: return KeyCode::KEY_I;
-    case AKEYCODE_J: return KeyCode::KEY_J;
-    case AKEYCODE_K: return KeyCode::KEY_K;
-    case AKEYCODE_L: return KeyCode::KEY_L;
-    case AKEYCODE_M: return KeyCode::KEY_M;
-    case AKEYCODE_N: return KeyCode::KEY_N;
-    case AKEYCODE_O: return KeyCode::KEY_O;
-    case AKEYCODE_P: return KeyCode::KEY_P;
-    case AKEYCODE_Q: return KeyCode::KEY_Q;
-    case AKEYCODE_R: return KeyCode::KEY_R;
-    case AKEYCODE_S: return KeyCode::KEY_S;
-    case AKEYCODE_T: return KeyCode::KEY_T;
-    case AKEYCODE_U: return KeyCode::KEY_U;
-    case AKEYCODE_V: return KeyCode::KEY_V;
-    case AKEYCODE_W: return KeyCode::KEY_W;
-    case AKEYCODE_X: return KeyCode::KEY_X;
-    case AKEYCODE_Y: return KeyCode::KEY_Y;
-    case AKEYCODE_Z: return KeyCode::KEY_Z;
-    case AKEYCODE_0: return KeyCode::KEY_0;
-    case AKEYCODE_1: return KeyCode::KEY_1;
-    case AKEYCODE_2: return KeyCode::KEY_2;
-    case AKEYCODE_3: return KeyCode::KEY_3;
-    case AKEYCODE_4: return KeyCode::KEY_4;
-    case AKEYCODE_5: return KeyCode::KEY_5;
-    case AKEYCODE_6: return KeyCode::KEY_6;
-    case AKEYCODE_7: return KeyCode::KEY_7;
-    case AKEYCODE_8: return KeyCode::KEY_8;
-    case AKEYCODE_9: return KeyCode::KEY_9;
-    case AKEYCODE_F1:  return KeyCode::KEY_F1;
-    case AKEYCODE_F2:  return KeyCode::KEY_F2;
-    case AKEYCODE_F3:  return KeyCode::KEY_F3;
-    case AKEYCODE_F4:  return KeyCode::KEY_F4;
-    case AKEYCODE_F5:  return KeyCode::KEY_F5;
-    case AKEYCODE_F6:  return KeyCode::KEY_F6;
-    case AKEYCODE_F7:  return KeyCode::KEY_F7;
-    case AKEYCODE_F8:  return KeyCode::KEY_F8;
-    case AKEYCODE_F9:  return KeyCode::KEY_F9;
-    case AKEYCODE_F10: return KeyCode::KEY_F10;
-    case AKEYCODE_F11: return KeyCode::KEY_F11;
-    case AKEYCODE_F12: return KeyCode::KEY_F12;
-    case AKEYCODE_SPACE:         return KeyCode::KEY_SPACE;
-    case AKEYCODE_ENTER:         return KeyCode::KEY_RETURN;
-    case AKEYCODE_TAB:           return KeyCode::KEY_TAB;
-    case AKEYCODE_DEL:           return KeyCode::KEY_BACKSPACE;
-    case AKEYCODE_CAPS_LOCK:     return KeyCode::KEY_CAPSLOCK;
-    case AKEYCODE_GRAVE:         return KeyCode::KEY_TILDE;
-    case AKEYCODE_ESCAPE:        return KeyCode::KEY_ESCAPE;
-    case AKEYCODE_SHIFT_LEFT:    return KeyCode::KEY_LSHIFT;
-    case AKEYCODE_SHIFT_RIGHT:   return KeyCode::KEY_RSHIFT;
-    case AKEYCODE_CTRL_LEFT:     return KeyCode::KEY_LCTRL;
-    case AKEYCODE_CTRL_RIGHT:    return KeyCode::KEY_RCTRL;
-    case AKEYCODE_ALT_LEFT:      return KeyCode::KEY_LALT;
-    case AKEYCODE_ALT_RIGHT:     return KeyCode::KEY_RALT;
-    case AKEYCODE_DPAD_LEFT:     return KeyCode::KEY_LEFT;
-    case AKEYCODE_DPAD_RIGHT:    return KeyCode::KEY_RIGHT;
-    case AKEYCODE_DPAD_UP:       return KeyCode::KEY_UP;
-    case AKEYCODE_DPAD_DOWN:     return KeyCode::KEY_DOWN;
-    case AKEYCODE_COMMA:         return KeyCode::KEY_COMMA;
-    case AKEYCODE_MINUS:         return KeyCode::KEY_DASH;
-    case AKEYCODE_PERIOD:        return KeyCode::KEY_PERIOD;
-    default:                     return KeyCode::KEY_UNKNOWN;
+    case AKEYCODE_A:
+        return KeyCode::KEY_A;
+    case AKEYCODE_B:
+        return KeyCode::KEY_B;
+    case AKEYCODE_C:
+        return KeyCode::KEY_C;
+    case AKEYCODE_D:
+        return KeyCode::KEY_D;
+    case AKEYCODE_E:
+        return KeyCode::KEY_E;
+    case AKEYCODE_F:
+        return KeyCode::KEY_F;
+    case AKEYCODE_G:
+        return KeyCode::KEY_G;
+    case AKEYCODE_H:
+        return KeyCode::KEY_H;
+    case AKEYCODE_I:
+        return KeyCode::KEY_I;
+    case AKEYCODE_J:
+        return KeyCode::KEY_J;
+    case AKEYCODE_K:
+        return KeyCode::KEY_K;
+    case AKEYCODE_L:
+        return KeyCode::KEY_L;
+    case AKEYCODE_M:
+        return KeyCode::KEY_M;
+    case AKEYCODE_N:
+        return KeyCode::KEY_N;
+    case AKEYCODE_O:
+        return KeyCode::KEY_O;
+    case AKEYCODE_P:
+        return KeyCode::KEY_P;
+    case AKEYCODE_Q:
+        return KeyCode::KEY_Q;
+    case AKEYCODE_R:
+        return KeyCode::KEY_R;
+    case AKEYCODE_S:
+        return KeyCode::KEY_S;
+    case AKEYCODE_T:
+        return KeyCode::KEY_T;
+    case AKEYCODE_U:
+        return KeyCode::KEY_U;
+    case AKEYCODE_V:
+        return KeyCode::KEY_V;
+    case AKEYCODE_W:
+        return KeyCode::KEY_W;
+    case AKEYCODE_X:
+        return KeyCode::KEY_X;
+    case AKEYCODE_Y:
+        return KeyCode::KEY_Y;
+    case AKEYCODE_Z:
+        return KeyCode::KEY_Z;
+    case AKEYCODE_0:
+        return KeyCode::KEY_0;
+    case AKEYCODE_1:
+        return KeyCode::KEY_1;
+    case AKEYCODE_2:
+        return KeyCode::KEY_2;
+    case AKEYCODE_3:
+        return KeyCode::KEY_3;
+    case AKEYCODE_4:
+        return KeyCode::KEY_4;
+    case AKEYCODE_5:
+        return KeyCode::KEY_5;
+    case AKEYCODE_6:
+        return KeyCode::KEY_6;
+    case AKEYCODE_7:
+        return KeyCode::KEY_7;
+    case AKEYCODE_8:
+        return KeyCode::KEY_8;
+    case AKEYCODE_9:
+        return KeyCode::KEY_9;
+    case AKEYCODE_F1:
+        return KeyCode::KEY_F1;
+    case AKEYCODE_F2:
+        return KeyCode::KEY_F2;
+    case AKEYCODE_F3:
+        return KeyCode::KEY_F3;
+    case AKEYCODE_F4:
+        return KeyCode::KEY_F4;
+    case AKEYCODE_F5:
+        return KeyCode::KEY_F5;
+    case AKEYCODE_F6:
+        return KeyCode::KEY_F6;
+    case AKEYCODE_F7:
+        return KeyCode::KEY_F7;
+    case AKEYCODE_F8:
+        return KeyCode::KEY_F8;
+    case AKEYCODE_F9:
+        return KeyCode::KEY_F9;
+    case AKEYCODE_F10:
+        return KeyCode::KEY_F10;
+    case AKEYCODE_F11:
+        return KeyCode::KEY_F11;
+    case AKEYCODE_F12:
+        return KeyCode::KEY_F12;
+    case AKEYCODE_SPACE:
+        return KeyCode::KEY_SPACE;
+    case AKEYCODE_ENTER:
+        return KeyCode::KEY_RETURN;
+    case AKEYCODE_TAB:
+        return KeyCode::KEY_TAB;
+    case AKEYCODE_DEL:
+        return KeyCode::KEY_BACKSPACE;
+    case AKEYCODE_CAPS_LOCK:
+        return KeyCode::KEY_CAPSLOCK;
+    case AKEYCODE_GRAVE:
+        return KeyCode::KEY_TILDE;
+    case AKEYCODE_ESCAPE:
+        return KeyCode::KEY_ESCAPE;
+    case AKEYCODE_SHIFT_LEFT:
+        return KeyCode::KEY_LSHIFT;
+    case AKEYCODE_SHIFT_RIGHT:
+        return KeyCode::KEY_RSHIFT;
+    case AKEYCODE_CTRL_LEFT:
+        return KeyCode::KEY_LCTRL;
+    case AKEYCODE_CTRL_RIGHT:
+        return KeyCode::KEY_RCTRL;
+    case AKEYCODE_ALT_LEFT:
+        return KeyCode::KEY_LALT;
+    case AKEYCODE_ALT_RIGHT:
+        return KeyCode::KEY_RALT;
+    case AKEYCODE_DPAD_LEFT:
+        return KeyCode::KEY_LEFT;
+    case AKEYCODE_DPAD_RIGHT:
+        return KeyCode::KEY_RIGHT;
+    case AKEYCODE_DPAD_UP:
+        return KeyCode::KEY_UP;
+    case AKEYCODE_DPAD_DOWN:
+        return KeyCode::KEY_DOWN;
+    case AKEYCODE_COMMA:
+        return KeyCode::KEY_COMMA;
+    case AKEYCODE_MINUS:
+        return KeyCode::KEY_DASH;
+    case AKEYCODE_PERIOD:
+        return KeyCode::KEY_PERIOD;
+    default:
+        return KeyCode::KEY_UNKNOWN;
     }
 }
 

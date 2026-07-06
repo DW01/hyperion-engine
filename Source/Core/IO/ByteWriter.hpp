@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -214,7 +214,7 @@ public:
           m_file(fopen(filepath.Data(), "wb"))
     {
     }
-    
+
     FileByteWriter(const FilePath& filepath, const char* mode)
         : m_filepath(filepath),
           m_file(fopen(filepath.Data(), mode))
@@ -281,7 +281,8 @@ public:
         if (truncate)
         {
 #ifdef HYP_UNIX
-            ftruncate(fileno(m_file), static_cast<off_t>(position));
+            int result = ftruncate(fileno(m_file), static_cast<off_t>(position));
+            (void)result;
 #elif defined(HYP_WINDOWS)
             _chsize_s(_fileno(m_file), static_cast<long>(position));
 #else
@@ -354,7 +355,7 @@ public:
         HYP_CORE_ASSERT(opened, "Failed to open memory mapped file!");
 
         HYP_CORE_ASSERT(m_mappedFile->GetMode() == MemoryMappedFile::Mode::READ_WRITE,
-            "MemoryMappedByteWriter requires a read/write mapping");
+                        "MemoryMappedByteWriter requires a read/write mapping");
 
         const bool mapped = m_mappedFile->MapRange(offset, size, m_mappedView);
         HYP_CORE_ASSERT(mapped, "Failed to map memory range");
@@ -375,7 +376,7 @@ public:
         HYP_CORE_ASSERT(opened, "Failed to open memory mapped file: %s", filepath.Data());
 
         HYP_CORE_ASSERT(m_mappedFile->GetMode() == MemoryMappedFile::Mode::READ_WRITE,
-            "MemoryMappedByteWriter requires a read/write mapping");
+                        "MemoryMappedByteWriter requires a read/write mapping");
 
         const bool mapped = m_mappedFile->MapRange(offset, size, m_mappedView);
         HYP_CORE_ASSERT(mapped, "Failed to map memory range: %s", filepath.Data());
@@ -458,7 +459,7 @@ private:
         auto* dst = static_cast<ubyte*>(m_mappedView.Data());
 
         HYP_CORE_ASSERT(m_pos + size <= m_mappedView.Size(),
-            "Attempting to write past the end of the mapped file");
+                        "Attempting to write past the end of the mapped file");
 
         if (dst == nullptr)
         {

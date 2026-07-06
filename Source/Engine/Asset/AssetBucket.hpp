@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -15,29 +15,27 @@ namespace Hyperion {
 
 class Class;
 
+// clang-format off
+
 #define HYP_FOR_EACH_ASSET_BUCKET(X) \
-    X(Meshes,               1)       \
-    X(Materials,            2)       \
-    X(Textures,             3)       \
-    X(Lights,               4)       \
-    X(InstancedMeshData,    5)       \
-    X(Animations,           6)       \
-    X(AnimationTracks,      7)       \
-    X(Skeletons,            8)       \
-    X(Worlds,               9)       \
-    X(Scenes,               10)      \
-    X(Nodes,                11)      \
-    X(Entities,             12)      \
-    X(Bones,                13)      \
-    X(EnvProbes,            14)      \
-    X(LightmapVolumes,      15)      \
-    X(Shaders,              16)      \
-    X(ShaderBundles,        17)      \
-    X(FontAtlases,          18)      \
-    X(PhysicsShapes,        19)      \
-    X(Scripts,              20)      \
-    X(Sprites,              21)      \
-    X(RawData,              22)
+    X(Meshes, 1)                     \
+    X(Materials, 2)                  \
+    X(Textures, 3)                   \
+    X(InstancedMeshData, 4)          \
+    X(Animations, 5)                 \
+    X(AnimationTracks, 6)            \
+    X(Skeletons, 7)                  \
+    X(Worlds, 8)                     \
+    X(Scenes, 9)                     \
+    X(Shaders, 10)                   \
+    X(ShaderBundles, 11)             \
+    X(FontAtlases, 12)               \
+    X(PhysicsShapes, 13)             \
+    X(Scripts, 14)                   \
+    X(RawData, 15)                   \
+    X(Prefabs, 16)
+
+// clang-format on
 
 const char* GetAssetBucketName(const uint32 bucketIndex);
 
@@ -48,9 +46,8 @@ public:
     HYP_STRUCT_BODY(AssetBucket);
 
 public:
-
     static constexpr uint32 InvalidIndex = 0;
-    
+
     constexpr AssetBucket()
         : m_index(InvalidIndex)
     {
@@ -101,19 +98,26 @@ private:
 };
 
 namespace AssetBuckets {
-    inline constexpr AssetBucket None(0);
+inline constexpr AssetBucket None(0);
 
 #define HYP_ASSET_BUCKET_DEF(Name, Index) \
     inline constexpr AssetBucket Name(Index);
-    HYP_FOR_EACH_ASSET_BUCKET(HYP_ASSET_BUCKET_DEF)
+HYP_FOR_EACH_ASSET_BUCKET(HYP_ASSET_BUCKET_DEF)
 #undef HYP_ASSET_BUCKET_DEF
 
-    static constexpr const AssetBucket* AllBuckets[] = {
-        &None,
+static constexpr const AssetBucket* AllBuckets[] = {
+    &None,
 #define HYP_ASSET_BUCKET_PTR(Name, Index) &Name,
-        HYP_FOR_EACH_ASSET_BUCKET(HYP_ASSET_BUCKET_PTR)
+    HYP_FOR_EACH_ASSET_BUCKET(HYP_ASSET_BUCKET_PTR)
 #undef HYP_ASSET_BUCKET_PTR
-    };
+};
+static constexpr const char* AllBucketNameStrings[] = {
+    nullptr, // None
+#define HYP_ASSET_BUCKET_STR(Name, Index) HYP_STR(Name),
+    HYP_FOR_EACH_ASSET_BUCKET(HYP_ASSET_BUCKET_STR)
+#undef HYP_ASSET_BUCKET_STR
+};
+
 } // namespace AssetBuckets
 
 static constexpr size_t MaxAssetBuckets = std::size(AssetBuckets::AllBuckets);
@@ -129,7 +133,8 @@ inline constexpr const AssetBucket& GetAssetBucketByName(StringHash nameHash)
     switch (nameHash.hashCode)
     {
 #define HYP_ASSET_BUCKET_CASE(Name, Index) \
-    case Name##Hash: return AssetBuckets::Name;
+    case Name##Hash:                       \
+        return AssetBuckets::Name;
         HYP_FOR_EACH_ASSET_BUCKET(HYP_ASSET_BUCKET_CASE)
 #undef HYP_ASSET_BUCKET_CASE
     }
@@ -139,19 +144,12 @@ inline constexpr const AssetBucket& GetAssetBucketByName(StringHash nameHash)
 
 inline const char* GetAssetBucketName(const uint32 bucketIndex)
 {
-    static constexpr const char* s_names[MaxAssetBuckets] = {
-        nullptr, // 0 = None
-#define HYP_ASSET_BUCKET_NAME(Name, Index) #Name,
-        HYP_FOR_EACH_ASSET_BUCKET(HYP_ASSET_BUCKET_NAME)
-#undef HYP_ASSET_BUCKET_NAME
-    };
-
     if (bucketIndex == 0 || bucketIndex >= MaxAssetBuckets)
     {
         return nullptr;
     }
 
-    return s_names[bucketIndex];
+    return AssetBuckets::AllBucketNameStrings[bucketIndex];
 }
 
 #undef HYP_FOR_EACH_ASSET_BUCKET

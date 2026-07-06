@@ -736,7 +736,7 @@ extern struct MeshComponent
 end
 extern struct LightmapElementComponent
     LightmapElementId : any
-    LightmapVolumePath : AssetPath
+    LightmapVolumeName : Name
     LightmapVolume : any
     ShData : SphericalHarmonicsData
 end
@@ -889,6 +889,380 @@ extern class TouchControlsSubsystem : Subsystem
     SetDeadzone(deadzone : float) -> void
 end
 extern class BakerSubsystem : Subsystem
+end
+extern class Node
+    Clone() -> Node
+    HasName() -> bool
+    GetName() -> Name
+    SetName(name : Name) -> void
+    GetNodeFlags() -> NodeFlags
+    SetNodeFlags(flags : NodeFlags) -> void
+    GetParent() -> Node
+    IsOrHasParent(node : Node) -> bool
+    FindParentWithName(name : string) -> Node
+    IsRoot() -> bool
+    GetScene() -> Scene
+    SetScene(scene : Scene, moveToDetached : bool) -> void
+    GetWorld() -> World
+    GetLocalBounds() -> BoundingBox
+    SetLocalBounds(aabb : BoundingBox) -> void
+    AddChild(node : Node) -> Node
+    RemoveAt(index : uint32, moveToDetached : bool) -> bool
+    Remove(moveToDetached : bool) -> bool
+    RemoveAllChildren(moveToDetached : bool) -> void
+    NumChildren() -> uint32
+    GetChild(index : uint32) -> Node
+    Select(selector : string) -> Node
+    SetLocalTransform(transform : Transform, changeType : TransformChangeType) -> void
+    GetLocalTransform() -> Transform
+    GetLocalTranslation() -> Vec3f
+    SetLocalTranslation(translation : Vec3f, changeType : TransformChangeType) -> void
+    Translate(translation : Vec3f) -> void
+    GetLocalScale() -> Vec3f
+    SetLocalScale(scale : Vec3f, changeType : TransformChangeType) -> void
+    Scale(scale : Vec3f) -> void
+    GetLocalRotation() -> Quat4f
+    SetLocalRotation(rotation : Quat4f, changeType : TransformChangeType) -> void
+    Rotate(rotation : Quat4f) -> void
+    GetWorldMatrix() -> Mat4f
+    GetWorldTranslation() -> Vec3f
+    SetWorldTranslation(translation : Vec3f, changeType : TransformChangeType) -> void
+    GetWorldScale() -> Vec3f
+    SetWorldScale(scale : Vec3f, changeType : TransformChangeType) -> void
+    GetWorldRotation() -> Quat4f
+    SetWorldRotation(rotation : Quat4f, changeType : TransformChangeType) -> void
+    IsTransformLocked() -> bool
+    GetLocalBoundsWithChildren() -> BoundingBox
+    GetWorldBounds() -> BoundingBox
+    UpdateWorldTransform(updateChildTransforms : bool) -> void
+    CalculateDepth() -> uint32
+    FindSelfIndex() -> uint32
+    FindChildByName(name : any) -> Node
+    MarkDirty() -> void
+    static OnChildAdded : any
+    static OnChildRemoved : any
+    static TransformUpdated : any
+    Name : Name
+    NodeFlags : NodeFlags
+    ParentNode : Node
+    ChildNodes : any
+    LocalTransform : Transform
+    WorldMatrix : Mat4f
+    LocalBounds : BoundingBox
+    Scene : Scene
+    Tags : NodeTagSet
+end
+extern struct NodeTag
+    Name : Name
+    Data : any
+end
+extern struct NodeTagSet
+end
+extern enum TransformChangeType : uint8
+    Default = 0,
+    Simulation = 1
+end
+extern enum NodeFlags : uint32
+    None = 0x0,
+    IgnoreParentTranslation = 0x1,
+    IgnoreParentScale = 0x2,
+    IgnoreParentRotation = 0x4,
+    IgnoreParentTransform = ((IgnoreParentTranslation | IgnoreParentScale) | IgnoreParentRotation),
+    ExcludeFromParentBounds = 0x8,
+    ExcludeFromOctree = 0x10,
+    HideInSceneOutline = 0x1000,
+    Mobility = 0xE000,
+    MobilityStatic = 0x2000,
+    MobilityStaticByProxy = 0x4000,
+    MobilityDynamic = (Mobility & ~(MobilityStatic | MobilityStaticByProxy)),
+    Default = MobilityStatic
+end
+extern class Bone : Node
+    Skeleton : Skeleton
+    BoneName : Name
+    BoneMatrix : Mat4f
+    Keyframe : Keyframe
+    BindingTransform : Transform
+    PoseTransform : Transform
+    WorldBoneTranslation : Vec3f
+    WorldBoneRotation : Quat4f
+    InvBindingRotation : Quat4f
+end
+extern class InstancedMeshProxy : Node
+end
+extern class Entity : Node
+    Clone() -> Node
+    GetEntityManager() -> EntityManager
+    ReceivesUpdate() -> bool
+    SetReceivesUpdate(receivesUpdate : bool) -> void
+end
+extern class Camera : Entity
+    GetCameraFlags() -> CameraFlags
+    SetCameraFlags(flags : CameraFlags) -> void
+    GetCameraControllers() -> Array<CameraController>
+    GetCameraController() -> CameraController
+    HasActiveCameraController() -> bool
+    AddCameraController(cameraController : CameraController, index : int) -> void
+    RemoveCameraController(cameraController : CameraController) -> bool
+    GetDimensions() -> Vec2i
+    SetDimensions(dimensions : Vec2i) -> void
+    GetNearClip() -> float
+    SetNearClip(_near : float) -> void
+    GetFarClip() -> float
+    SetFarClip(_far : float) -> void
+    GetFOV() -> float
+    SetFOV(fov : float) -> void
+    GetDirection() -> Vec3f
+    SetDirection(direction : Vec3f) -> void
+    GetUpVector() -> Vec3f
+    SetUpVector(up : Vec3f) -> void
+    GetOrthoRect() -> CameraOrthoRect
+    SetOrthoRect(orthoRect : CameraOrthoRect) -> void
+    GetSideVector() -> Vec3f
+    GetTarget() -> Vec3f
+    SetTarget(target : Vec3f) -> void
+    Rotate(axis : Vec3f, radians : float) -> void
+    GetFrustum() -> Frustum
+    SetFrustum(frustum : Frustum) -> void
+    GetViewMatrix() -> Mat4f
+    SetViewMatrix(viewMat : Mat4f) -> void
+    GetProjectionMatrix() -> Mat4f
+    SetProjectionMatrix(projMat : Mat4f) -> void
+    GetViewProjectionMatrix() -> Mat4f
+    SetViewProjectionMatrix(viewMat : Mat4f, projMat : Mat4f) -> void
+    GetPreviousViewProjectionMatrix() -> Mat4f
+    TransformScreenToNDC(screen : Vec2f) -> Vec3f
+    TransformNDCToWorld(ndc : Vec3f) -> Vec4f
+    TransformWorldToNDC(world : Vec3f) -> Vec3f
+    TransformWorldToScreen(world : Vec3f) -> Vec2f
+    TransformNDCToScreen(ndc : Vec3f) -> Vec2f
+    TransformScreenToWorld(screen : Vec2f) -> Vec4f
+    GetPixelSize() -> Vec2f
+    MatchWindowSizeRatio : float
+    CameraControllers : Array<CameraController>
+    Fov : float
+    OrthoRect : CameraOrthoRect
+    SetCameraControllers(cameraControllers : Array<CameraController>) -> void
+end
+extern class CameraController
+    GetInputHandler() -> InputHandlerBase
+    SetInputHandler(inputHandler : InputHandlerBase) -> void
+    GetCamera() -> Camera
+    GetProjectionMode() -> CameraProjectionMode
+    IsMouseLockAllowed() -> bool
+    IsMouseLockRequested() -> bool
+    SetTranslation(translation : Vec3f) -> void
+    SetNextTranslation(translation : Vec3f) -> void
+    SetDirection(direction : Vec3f) -> void
+    SetUpVector(up : Vec3f) -> void
+    Camera : Camera
+    InputHandler : InputHandlerBase
+    ProjectionMode : CameraProjectionMode
+end
+extern class NullCameraController : CameraController
+end
+extern enum CameraFlags : uint32
+    NONE = 0x0,
+    MatchWindowSize = 0x1,
+    HasStreamingVolume = 0x2
+end
+extern struct CameraOrthoRect
+    Left : float
+    Right : float
+    Bottom : float
+    Top : float
+end
+extern enum CameraProjectionMode : uint32
+    NONE = 0,
+    PERSPECTIVE = 1,
+    ORTHOGRAPHIC = 2
+end
+extern class PerspectiveCameraController : CameraController
+end
+extern class FollowCameraController : PerspectiveCameraController
+end
+extern class CameraTrackController : PerspectiveCameraController
+end
+extern class OrthoCameraController : CameraController
+end
+extern class UICameraController : OrthoCameraController
+end
+extern class VolumeBase : Entity
+end
+extern class ProbeVolume : VolumeBase
+    GetGridSize() -> Vec3u
+    SetGridSize(gridSize : Vec3u) -> void
+    CreateProbes() -> void
+    GridSize : Vec3u
+    Probes : Array<IrradianceProbe>
+    Tetrahedra : Array<Tetrahedron>
+end
+extern struct Tetrahedron
+    ProbeIndices : Array<uint32>
+    Neighbours : Array<int32>
+    InvEdgeMatrix : Mat3f
+end
+extern class ParticleVolume : VolumeBase
+    Texture : Texture
+    Mesh : Mesh
+    MaxParticles : uint32
+    Origin : Vec3f
+    StartSize : float
+    Radius : float
+    Randomness : float
+    Lifespan : float
+    HasPhysics : bool
+end
+extern class LightmapVolume : VolumeBase
+    Rebake() -> void
+    RadianceAtlasTextures : Array<Texture>
+    IrradianceAtlasTextures : Array<Texture>
+    Atlases : Array<LightmapVolumeAtlas>
+end
+extern struct LightmapVolumeAtlas
+    AtlasDimensions : any
+    Elements : any
+    FreeSpaces : any
+end
+extern class FogVolume : VolumeBase
+    GetVolumeTexture() -> Texture
+    SetTextures(volumeTexture : Texture, noiseTexture : Texture) -> void
+    Rebake() -> void
+    VolumeTexture : Texture
+    NoiseTexture : Texture
+end
+extern class EnvProbe : VolumeBase
+    GetEnvProbeType() -> EnvProbeType
+    GetEnvProbeFlags() -> EnvProbeFlags
+    SetEnvProbeFlags(envProbeFlags : EnvProbeFlags) -> void
+    IsReflectionProbe() -> bool
+    IsSkyProbe() -> bool
+    IsAmbientProbe() -> bool
+    IsBaked() -> bool
+    SetIsBaked(isBaked : bool) -> void
+    IsRealtime() -> bool
+    GetOrigin(fromCenter : bool) -> Vec3f
+    SetOrigin(origin : Vec3f, fromCenter : bool) -> void
+    GetCamera() -> Camera
+    GetBakedTexture() -> Texture
+    SetBakedTexture(texture : Texture) -> void
+    GetVisibilityTexture() -> Texture
+    SetVisibilityTexture(visibilityTexture : Texture) -> void
+    Dimensions : Vec2u
+    EnvProbeType : EnvProbeType
+    EnvProbeFlags : EnvProbeFlags
+    ShData : SphericalHarmonicsData
+end
+extern class IrradianceProbe : EnvProbe
+    RecomputeIrradiance() -> void
+end
+extern class SkyProbe : EnvProbe
+    GetSkyboxCubemap() -> Texture
+end
+extern class ReflectionProbe : EnvProbe
+    BakeCubemap() -> void
+end
+extern enum EnvProbeType : uint32
+    EPT_INVALID = ~0u,
+    EPT_SKY = 0,
+    EPT_REFLECTION,
+    EPT_AMBIENT,
+    EPT_MAX
+end
+extern enum EnvProbeFlags : uint32
+    EPF_NONE = 0x0,
+    EPF_PARALLAX_CORRECTED = 0x1,
+    EPF_BAKED = 0x2,
+    EPF_REALTIME = 0x4,
+    EPF_ORIGIN_FROM_CENTER = 0x8,
+    EPF_HAS_VISIBILITY = 0x10
+end
+extern class Sprite : Entity
+end
+extern enum SpriteType : uint32
+    None = 0,
+    Point2D,
+    Spot3D,
+    Crosshair,
+    EnvProbe,
+    LightmapVolume,
+    Camera,
+    Text,
+    Max
+end
+extern class TextSprite : Sprite
+    SetText(text : string) -> void
+    GetText() -> string
+    SetTextColor(color : Color) -> void
+    GetTextColor() -> Color
+    SetTextSize(textSize : float) -> void
+    GetTextSize() -> float
+    SetFontAtlas(fontAtlas : FontAtlas) -> void
+    GetFontAtlas() -> FontAtlas
+end
+extern class Light : Entity
+    GetLightType() -> LightType
+    GetLightFlags() -> LightFlags
+    SetLightFlags(flags : LightFlags) -> void
+    GetNormal() -> Vec3f
+    SetNormal(normal : Vec3f) -> void
+    GetAreaSize() -> Vec2f
+    SetAreaSize(areaSize : Vec2f) -> void
+    GetColor() -> Color
+    SetColor(color : Color) -> void
+    GetIntensity() -> float
+    SetIntensity(intensity : float) -> void
+    GetRadius() -> float
+    SetRadius(radius : float) -> void
+    GetFalloff() -> float
+    SetFalloff(falloff : float) -> void
+    GetSpotAngles() -> Vec2f
+    SetSpotAngles(spotAngles : Vec2f) -> void
+    GetMaterial() -> Material
+    SetMaterial(material : Material) -> void
+    GetShadowMapDimensions() -> Vec2u
+    SetShadowMapDimensions(shadowMapDimensions : Vec2u) -> void
+    GetNumShadowMapCascades() -> uint32
+    SetNumShadowMapCascades(numShadowMapCascades : uint32) -> void
+    GetBakedShadowMap() -> Texture
+    SetBakedShadowMap(shadowMap : Texture) -> void
+    GetShadowMapFilter() -> ShadowMapFilter
+    SetShadowMapFilter(shadowMapFilter : ShadowMapFilter) -> void
+    BakeStaticShadows() -> void
+    RemoveBakedShadows() -> void
+    CanBakeStaticShadows() -> bool
+    Type : LightType
+    LightFlags : LightFlags
+    ShadowMapDimensions : Vec2u
+    NumShadowMapCascades : uint32
+end
+extern class PointLight : Light
+end
+extern class SpotLight : Light
+end
+extern class AreaRectLight : Light
+end
+extern class DirectionalLight : Light
+    GetDirection() -> Vec3f
+    SetDirection(direction : Vec3f) -> void
+end
+extern enum LightType : uint32
+    Directional = 0,
+    Point,
+    Spot,
+    AreaRect,
+    Max
+end
+extern enum LightFlags : uint32
+    None = 0x0,
+    ShadowCaster = 0x1,
+    ShadowPCF = 0x2,
+    ShadowContactHardening = 0x4,
+    ShadowVariance = 0x8,
+    ShadowFilterMask = ((ShadowPCF | ShadowContactHardening) | ShadowVariance),
+    CacheStaticShadowMaps = 0x10,
+    BakeStaticShadows = 0x20,
+    Default = (ShadowCaster | ShadowPCF)
 end
 extern struct TagComponentBase
     Value : EntityTag
@@ -1483,6 +1857,26 @@ extern class NullInputHandler : InputHandlerBase
 end
 extern class CharacterControllerInputHandler : InputHandlerBase
 end
+extern class FirstPersonCameraController : PerspectiveCameraController
+    GetMode() -> FirstPersonCameraControllerMode
+    SetMode(mode : FirstPersonCameraControllerMode) -> void
+    IsMouseLockAllowed() -> bool
+end
+extern enum FirstPersonCameraControllerMode : uint32
+    MOUSE_LOCKED = 0,
+    MOUSE_FREE = 1
+end
+extern class FirstPersonCameraInputHandler : InputHandlerBase
+end
+extern class EditorCameraController : FirstPersonCameraController
+end
+extern enum EditorCameraControllerMode : uint32
+    INACTIVE = 0,
+    FOCUSED = 1,
+    MOUSE_LOCKED = 2
+end
+extern class EditorCameraInputHandler : InputHandlerBase
+end
 extern struct MotionData
     Position : Vec2f
     Delta : Vec2f
@@ -1926,396 +2320,10 @@ extern class Scene : AssetObject
     PreviousDelta : float
     StreamingCentroid : Vec2i
 end
-extern class Node : AssetObject
-    Clone() -> Node
-    HasName() -> bool
-    GetNodeFlags() -> NodeFlags
-    SetNodeFlags(flags : NodeFlags) -> void
-    GetParent() -> Node
-    IsOrHasParent(node : Node) -> bool
-    FindParentWithName(name : string) -> Node
-    IsRoot() -> bool
-    GetScene() -> Scene
-    SetScene(scene : Scene, moveToDetached : bool) -> void
-    GetWorld() -> World
-    GetLocalBounds() -> BoundingBox
-    SetLocalBounds(aabb : BoundingBox) -> void
-    AddChild(node : Node) -> Node
-    RemoveAt(index : uint32, moveToDetached : bool) -> bool
-    Remove(moveToDetached : bool) -> bool
-    RemoveAllChildren(moveToDetached : bool) -> void
-    NumChildren() -> uint32
-    GetChild(index : uint32) -> Node
-    Select(selector : string) -> Node
-    SetLocalTransform(transform : Transform, changeType : TransformChangeType) -> void
-    GetLocalTransform() -> Transform
-    GetLocalTranslation() -> Vec3f
-    SetLocalTranslation(translation : Vec3f, changeType : TransformChangeType) -> void
-    Translate(translation : Vec3f) -> void
-    GetLocalScale() -> Vec3f
-    SetLocalScale(scale : Vec3f, changeType : TransformChangeType) -> void
-    Scale(scale : Vec3f) -> void
-    GetLocalRotation() -> Quat4f
-    SetLocalRotation(rotation : Quat4f, changeType : TransformChangeType) -> void
-    Rotate(rotation : Quat4f) -> void
-    GetWorldMatrix() -> Mat4f
-    GetWorldTranslation() -> Vec3f
-    SetWorldTranslation(translation : Vec3f, changeType : TransformChangeType) -> void
-    GetWorldScale() -> Vec3f
-    SetWorldScale(scale : Vec3f, changeType : TransformChangeType) -> void
-    GetWorldRotation() -> Quat4f
-    SetWorldRotation(rotation : Quat4f, changeType : TransformChangeType) -> void
-    IsTransformLocked() -> bool
-    GetLocalBoundsWithChildren() -> BoundingBox
-    GetWorldBounds() -> BoundingBox
-    UpdateWorldTransform(updateChildTransforms : bool) -> void
-    CalculateDepth() -> uint32
-    FindSelfIndex() -> uint32
-    FindChildByName(name : any) -> Node
-    MarkDirty() -> void
-    static OnChildAdded : any
-    static OnChildRemoved : any
-    static TransformUpdated : any
-    NodeFlags : NodeFlags
-    ParentNode : Node
-    ChildNodes : any
-    LocalTransform : Transform
-    WorldMatrix : Mat4f
-    LocalBounds : BoundingBox
-    Scene : Scene
-    Tags : NodeTagSet
-end
-extern struct NodeTag
-    Name : Name
-    Data : any
-end
-extern struct NodeTagSet
-end
-extern enum TransformChangeType : uint8
-    Default = 0,
-    Simulation = 1
-end
-extern enum NodeFlags : uint32
-    None = 0x0,
-    IgnoreParentTranslation = 0x1,
-    IgnoreParentScale = 0x2,
-    IgnoreParentRotation = 0x4,
-    IgnoreParentTransform = ((IgnoreParentTranslation | IgnoreParentScale) | IgnoreParentRotation),
-    ExcludeFromParentBounds = 0x8,
-    ExcludeFromOctree = 0x10,
-    HideInSceneOutline = 0x1000,
-    Mobility = 0xE000,
-    MobilityStatic = 0x2000,
-    MobilityStaticByProxy = 0x4000,
-    MobilityDynamic = (Mobility & ~(MobilityStatic | MobilityStaticByProxy)),
-    Default = MobilityStatic
-end
-extern class Bone : Node
-    Skeleton : Skeleton
-    BoneName : Name
-    BoneMatrix : Mat4f
-    Keyframe : Keyframe
-    BindingTransform : Transform
-    PoseTransform : Transform
-    WorldBoneTranslation : Vec3f
-    WorldBoneRotation : Quat4f
-    InvBindingRotation : Quat4f
-end
-extern class InstancedMeshProxy : Node
-end
-extern class Entity : Node
-    Clone() -> Node
-    GetEntityManager() -> EntityManager
-    ReceivesUpdate() -> bool
-    SetReceivesUpdate(receivesUpdate : bool) -> void
-end
-extern class Camera : Entity
-    GetCameraFlags() -> CameraFlags
-    SetCameraFlags(flags : CameraFlags) -> void
-    GetCameraControllers() -> Array<CameraController>
-    GetCameraController() -> CameraController
-    HasActiveCameraController() -> bool
-    AddCameraController(cameraController : CameraController, index : int) -> void
-    RemoveCameraController(cameraController : CameraController) -> bool
-    GetDimensions() -> Vec2i
-    SetDimensions(dimensions : Vec2i) -> void
-    GetNearClip() -> float
-    SetNearClip(_near : float) -> void
-    GetFarClip() -> float
-    SetFarClip(_far : float) -> void
-    GetFOV() -> float
-    SetFOV(fov : float) -> void
-    GetDirection() -> Vec3f
-    SetDirection(direction : Vec3f) -> void
-    GetUpVector() -> Vec3f
-    SetUpVector(up : Vec3f) -> void
-    GetOrthoRect() -> CameraOrthoRect
-    SetOrthoRect(orthoRect : CameraOrthoRect) -> void
-    GetSideVector() -> Vec3f
-    GetTarget() -> Vec3f
-    SetTarget(target : Vec3f) -> void
-    Rotate(axis : Vec3f, radians : float) -> void
-    GetFrustum() -> Frustum
-    SetFrustum(frustum : Frustum) -> void
-    GetViewMatrix() -> Mat4f
-    SetViewMatrix(viewMat : Mat4f) -> void
-    GetProjectionMatrix() -> Mat4f
-    SetProjectionMatrix(projMat : Mat4f) -> void
-    GetViewProjectionMatrix() -> Mat4f
-    SetViewProjectionMatrix(viewMat : Mat4f, projMat : Mat4f) -> void
-    GetPreviousViewProjectionMatrix() -> Mat4f
-    TransformScreenToNDC(screen : Vec2f) -> Vec3f
-    TransformNDCToWorld(ndc : Vec3f) -> Vec4f
-    TransformWorldToNDC(world : Vec3f) -> Vec3f
-    TransformWorldToScreen(world : Vec3f) -> Vec2f
-    TransformNDCToScreen(ndc : Vec3f) -> Vec2f
-    TransformScreenToWorld(screen : Vec2f) -> Vec4f
-    GetPixelSize() -> Vec2f
-    MatchWindowSizeRatio : float
-    CameraControllers : Array<CameraController>
-    Fov : float
-    OrthoRect : CameraOrthoRect
-    SetCameraControllers(cameraControllers : Array<CameraController>) -> void
-end
-extern class CameraController
-    GetInputHandler() -> InputHandlerBase
-    SetInputHandler(inputHandler : InputHandlerBase) -> void
-    GetCamera() -> Camera
-    GetProjectionMode() -> CameraProjectionMode
-    IsMouseLockAllowed() -> bool
-    IsMouseLockRequested() -> bool
-    SetTranslation(translation : Vec3f) -> void
-    SetNextTranslation(translation : Vec3f) -> void
-    SetDirection(direction : Vec3f) -> void
-    SetUpVector(up : Vec3f) -> void
-    Camera : Camera
-    InputHandler : InputHandlerBase
-    ProjectionMode : CameraProjectionMode
-end
-extern class NullCameraController : CameraController
-end
-extern enum CameraFlags : uint32
-    NONE = 0x0,
-    MatchWindowSize = 0x1,
-    HasStreamingVolume = 0x2
-end
-extern struct CameraOrthoRect
-    Left : float
-    Right : float
-    Bottom : float
-    Top : float
-end
-extern enum CameraProjectionMode : uint32
-    NONE = 0,
-    PERSPECTIVE = 1,
-    ORTHOGRAPHIC = 2
-end
-extern class PerspectiveCameraController : CameraController
-end
-extern class FollowCameraController : PerspectiveCameraController
-end
-extern class FirstPersonCameraController : PerspectiveCameraController
-    GetMode() -> FirstPersonCameraControllerMode
-    SetMode(mode : FirstPersonCameraControllerMode) -> void
-    IsMouseLockAllowed() -> bool
-end
-extern enum FirstPersonCameraControllerMode : uint32
-    MOUSE_LOCKED = 0,
-    MOUSE_FREE = 1
-end
-extern class FirstPersonCameraInputHandler : InputHandlerBase
-end
-extern class EditorCameraController : FirstPersonCameraController
-end
-extern enum EditorCameraControllerMode : uint32
-    INACTIVE = 0,
-    FOCUSED = 1,
-    MOUSE_LOCKED = 2
-end
-extern class EditorCameraInputHandler : InputHandlerBase
-end
-extern class CameraTrackController : PerspectiveCameraController
-end
-extern class OrthoCameraController : CameraController
-end
-extern class UICameraController : OrthoCameraController
-end
-extern class VolumeBase : Entity
-end
-extern class ProbeVolume : VolumeBase
-    GetGridSize() -> Vec3u
-    SetGridSize(gridSize : Vec3u) -> void
-    CreateProbes() -> void
-    GridSize : Vec3u
-    Probes : Array<IrradianceProbe>
-    Tetrahedra : Array<Tetrahedron>
-end
-extern struct Tetrahedron
-    ProbeIndices : Array<uint32>
-    Neighbours : Array<int32>
-    InvEdgeMatrix : Mat3f
-end
-extern class ParticleVolume : VolumeBase
-    Texture : Texture
-    Mesh : Mesh
-    MaxParticles : uint32
-    Origin : Vec3f
-    StartSize : float
-    Radius : float
-    Randomness : float
-    Lifespan : float
-    HasPhysics : bool
-end
-extern class LightmapVolume : VolumeBase
-    Rebake() -> void
-    RadianceAtlasTextures : Array<Texture>
-    IrradianceAtlasTextures : Array<Texture>
-    Atlases : Array<LightmapVolumeAtlas>
-end
-extern struct LightmapVolumeAtlas
-    AtlasDimensions : any
-    Elements : any
-    FreeSpaces : any
-end
-extern class FogVolume : VolumeBase
-    GetVolumeTexture() -> Texture
-    SetTextures(volumeTexture : Texture, noiseTexture : Texture) -> void
-    Rebake() -> void
-    VolumeTexture : Texture
-    NoiseTexture : Texture
-end
-extern class EnvProbe : VolumeBase
-    GetEnvProbeType() -> EnvProbeType
-    GetEnvProbeFlags() -> EnvProbeFlags
-    SetEnvProbeFlags(envProbeFlags : EnvProbeFlags) -> void
-    IsReflectionProbe() -> bool
-    IsSkyProbe() -> bool
-    IsAmbientProbe() -> bool
-    IsBaked() -> bool
-    SetIsBaked(isBaked : bool) -> void
-    IsRealtime() -> bool
-    GetOrigin(fromCenter : bool) -> Vec3f
-    SetOrigin(origin : Vec3f, fromCenter : bool) -> void
-    GetCamera() -> Camera
-    GetBakedTexture() -> Texture
-    SetBakedTexture(texture : Texture) -> void
-    GetVisibilityTexture() -> Texture
-    SetVisibilityTexture(visibilityTexture : Texture) -> void
-    Dimensions : Vec2u
-    EnvProbeType : EnvProbeType
-    EnvProbeFlags : EnvProbeFlags
-    ShData : SphericalHarmonicsData
-end
-extern class IrradianceProbe : EnvProbe
-    RecomputeIrradiance() -> void
-end
-extern class SkyProbe : EnvProbe
-    GetSkyboxCubemap() -> Texture
-end
-extern class ReflectionProbe : EnvProbe
-    BakeCubemap() -> void
-end
-extern enum EnvProbeType : uint32
-    EPT_INVALID = ~0u,
-    EPT_SKY = 0,
-    EPT_REFLECTION,
-    EPT_AMBIENT,
-    EPT_MAX
-end
-extern enum EnvProbeFlags : uint32
-    EPF_NONE = 0x0,
-    EPF_PARALLAX_CORRECTED = 0x1,
-    EPF_BAKED = 0x2,
-    EPF_REALTIME = 0x4,
-    EPF_ORIGIN_FROM_CENTER = 0x8,
-    EPF_HAS_VISIBILITY = 0x10
-end
-extern class Sprite : Entity
-end
-extern enum SpriteType : uint32
-    None = 0,
-    Point2D,
-    Spot3D,
-    Crosshair,
-    EnvProbe,
-    LightmapVolume,
-    Camera,
-    Text,
-    Max
-end
-extern class TextSprite : Sprite
-    SetText(text : string) -> void
-    GetText() -> string
-    SetTextColor(color : Color) -> void
-    GetTextColor() -> Color
-    SetTextSize(textSize : float) -> void
-    GetTextSize() -> float
-    SetFontAtlas(fontAtlas : FontAtlas) -> void
-    GetFontAtlas() -> FontAtlas
-end
-extern class Light : Entity
-    GetLightType() -> LightType
-    GetLightFlags() -> LightFlags
-    SetLightFlags(flags : LightFlags) -> void
-    GetNormal() -> Vec3f
-    SetNormal(normal : Vec3f) -> void
-    GetAreaSize() -> Vec2f
-    SetAreaSize(areaSize : Vec2f) -> void
-    GetColor() -> Color
-    SetColor(color : Color) -> void
-    GetIntensity() -> float
-    SetIntensity(intensity : float) -> void
-    GetRadius() -> float
-    SetRadius(radius : float) -> void
-    GetFalloff() -> float
-    SetFalloff(falloff : float) -> void
-    GetSpotAngles() -> Vec2f
-    SetSpotAngles(spotAngles : Vec2f) -> void
-    GetMaterial() -> Material
-    SetMaterial(material : Material) -> void
-    GetShadowMapDimensions() -> Vec2u
-    SetShadowMapDimensions(shadowMapDimensions : Vec2u) -> void
-    GetNumShadowMapCascades() -> uint32
-    SetNumShadowMapCascades(numShadowMapCascades : uint32) -> void
-    GetBakedShadowMap() -> Texture
-    SetBakedShadowMap(shadowMap : Texture) -> void
-    GetShadowMapFilter() -> ShadowMapFilter
-    SetShadowMapFilter(shadowMapFilter : ShadowMapFilter) -> void
-    BakeStaticShadows() -> void
-    RemoveBakedShadows() -> void
-    CanBakeStaticShadows() -> bool
-    Type : LightType
-    LightFlags : LightFlags
-    ShadowMapDimensions : Vec2u
-    NumShadowMapCascades : uint32
-end
-extern class PointLight : Light
-end
-extern class SpotLight : Light
-end
-extern class AreaRectLight : Light
-end
-extern class DirectionalLight : Light
-    GetDirection() -> Vec3f
-    SetDirection(direction : Vec3f) -> void
-end
-extern enum LightType : uint32
-    Directional = 0,
-    Point,
-    Spot,
-    AreaRect,
-    Max
-end
-extern enum LightFlags : uint32
-    None = 0x0,
-    ShadowCaster = 0x1,
-    ShadowPCF = 0x2,
-    ShadowContactHardening = 0x4,
-    ShadowVariance = 0x8,
-    ShadowFilterMask = ((ShadowPCF | ShadowContactHardening) | ShadowVariance),
-    CacheStaticShadowMaps = 0x10,
-    BakeStaticShadows = 0x20,
-    Default = (ShadowCaster | ShadowPCF)
+extern class Prefab : AssetObject
+    GetRoot() -> Node
+    SetRoot(root : Node) -> void
+    Root : Node
 end
 extern struct ShaderInputGroup
     Elements : Array<ShaderInputSet>

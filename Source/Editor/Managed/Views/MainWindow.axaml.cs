@@ -68,6 +68,12 @@ namespace Hyperion.Editor
 
             DataContext = new MainWindowViewModel();
 
+            if (this.FindControl<DropDownButton>("SceneDropDown") is { } dropDown
+                && dropDown.Flyout is Flyout flyout)
+            {
+                flyout.Opened += OnSceneFlyoutOpened;
+            }
+
             _bottomPanelGrid = this.FindControl<Grid>("BottomPanelGrid");
             _bottomPanelSplitter = this.FindControl<GridSplitter>("BottomPanelSplitter");
             _contentBrowserPanel = this.FindControl<Control>("ContentBrowserPanel");
@@ -585,7 +591,12 @@ namespace Hyperion.Editor
 
                 EngineManager.DisableMainLoop = false;
 
-                if (!e.Cancel)
+                if (e.Cancel)
+                {
+                    // @TODO Implement windows-only hack here for removing the parent hwnd -- otherwise we get that nasty crash when closing the editor
+                    // we'll need to remove the parent hwnd on close, add it back in here.
+                }
+                else
                 {
                     EngineManager.Shutdown();
                 }
@@ -607,6 +618,35 @@ namespace Hyperion.Editor
 
             var topLevel = GetTopLevel(this);
             topLevel?.RequestAnimationFrame(OnFrame);
+        }
+
+        private bool _flyoutHandlerAttached;
+
+        private void OnSceneFlyoutOpened(object? sender, EventArgs e)
+        {
+            if (_flyoutHandlerAttached
+                || this.FindControl<DropDownButton>("SceneDropDown") is not { } dropDown
+                || dropDown.Flyout is not Flyout flyout
+                || flyout.Content is not StackPanel panel)
+            {
+                return;
+            }
+
+            panel.AddHandler(
+                InputElement.PointerReleasedEvent,
+                OnSceneFlyoutPointerReleased,
+                RoutingStrategies.Bubble,
+                handledEventsToo: true);
+
+            _flyoutHandlerAttached = true;
+        }
+
+        private void OnSceneFlyoutPointerReleased(object? sender, Avalonia.Input.PointerReleasedEventArgs e)
+        {
+            if (this.FindControl<DropDownButton>("SceneDropDown") is { } btn)
+            {
+                btn.Flyout?.Hide();
+            }
         }
 
         // protected override void OnKeyDown(Avalonia.Input.KeyEventArgs e)
