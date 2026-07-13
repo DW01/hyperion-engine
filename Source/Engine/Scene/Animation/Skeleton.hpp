@@ -102,9 +102,7 @@ public:
     }
 
 private:
-    void Init() override;
-
-    HYP_FIELD(Property = "RootBone", SaveAsReference = false)
+    HYP_FIELD(Property = "RootBone")
     Handle<Bone> m_rootBone;
 
     HYP_FIELD(Property = "Animations")

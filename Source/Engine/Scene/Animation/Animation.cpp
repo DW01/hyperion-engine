@@ -16,6 +16,9 @@
 
 #include <Core/Math/MathUtil.hpp>
 
+#include <Core/IO/ByteWriter.hpp>
+#include <Core/IO/ByteReader.hpp>
+
 #include <Animation.generated.inl>
 
 namespace Hyperion {
@@ -181,20 +184,6 @@ Animation::Animation(Name name)
 {
 }
 
-void Animation::Init()
-{
-    HYP_SCOPE;
-
-    for (const Handle<AnimationTrack>& track : m_tracks)
-    {
-        track->SetPersistentRequested(true);
-
-        InitObject(track);
-    }
-
-    SetReady(true);
-}
-
 void Animation::AddTrack(const Handle<AnimationTrack>& track)
 {
     HYP_SCOPE;
@@ -204,11 +193,6 @@ void Animation::AddTrack(const Handle<AnimationTrack>& track)
         return;
     }
 
-    if (IsInitCalled())
-    {
-        InitObject(track);
-    }
-
     track->SetPersistentRequested(true);
 
     m_tracks.PushBack(track);
@@ -216,16 +200,9 @@ void Animation::AddTrack(const Handle<AnimationTrack>& track)
 
 void Animation::SetTracks(const Array<Handle<AnimationTrack>>& tracks)
 {
-    HYP_SCOPE;
-
-    if (IsInitCalled())
+    for (const Handle<AnimationTrack>& track : tracks)
     {
-        for (const Handle<AnimationTrack>& track : tracks)
-        {
-            track->SetPersistentRequested(true);
-
-            InitObject(track);
-        }
+        track->SetPersistentRequested(true);
     }
 
     m_tracks = tracks;
@@ -233,7 +210,6 @@ void Animation::SetTracks(const Array<Handle<AnimationTrack>>& tracks)
 
 void Animation::Apply(Skeleton* skeleton, float time)
 {
-    HYP_SCOPE;
     Assert(skeleton != nullptr);
 
     for (const Handle<AnimationTrack>& track : m_tracks)

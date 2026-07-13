@@ -336,22 +336,20 @@ struct RenderProxyMaterial : IRenderProxy
 
 struct SkeletonShaderData
 {
-    static constexpr size_t maxBones = 256;
-
-    Mat4f bones[maxBones];
+    Mat4f bones[MaxBonesPerSkeleton];
 };
 
 struct RenderProxySkeleton : IRenderProxy
 {
     RenderProxySkeleton()
     {
-        for (size_t i = 0; i < SkeletonShaderData::maxBones; ++i)
+        for (uint32 i = 0; i < MaxBonesPerSkeleton; ++i)
         {
             bufferData.bones[i] = Mat4f::Identity();
         }
     }
 
-    WeakHandle<Skeleton> skeleton;
+    Skeleton* skeleton = nullptr;
     SkeletonShaderData bufferData {};
 };
 
