@@ -224,7 +224,30 @@ public:
             return SIZE_MAX;
         }
 
-        return Base::IndexOf(*graphicsPipelinePtr);
+        // <page size> * sizeof(GraphicsPipelineRef)
+        static constexpr size_t PageStorageSizeBytes = (1u << Base::PageSizeBits) * sizeof(GraphicsPipelineRef);
+
+        //  - the underlying reference may be null if it has been destroyed,
+        //    but the pointer itself is still valid as long as the cache handle exists.
+        //  - therefore, we need to check if the pointer is within the bounds of any of the pages and calculate
+        //    the index based on the page's storage address.
+        for (Bitset::BitIndex pageIdx : Base::m_validPages)
+        {
+            typename Base::Page* page = Base::m_pages[pageIdx];
+            AssertDebug(page != nullptr);
+
+            if (UIntPtr(graphicsPipelinePtr) < UIntPtr(&page->storage) || UIntPtr(graphicsPipelinePtr) >= UIntPtr(&page->storage) + PageStorageSizeBytes)
+            {
+                continue; // pointer not in this page
+            }
+
+            // calculate the index of the graphics pipeline, using the offset relative to the page's storage address
+            // to get the index within the page.
+            // then, we add the page index multiplied by the page size to get the absolute index in the SparsePagedArray.
+            return (pageIdx << Base::PageSizeBits) + ((UIntPtr(graphicsPipelinePtr) - UIntPtr(&page->storage)) / sizeof(GraphicsPipelineRef));
+        }
+
+        return SIZE_MAX;
     }
 
     AtomicIndexAllocator indexAllocator;
