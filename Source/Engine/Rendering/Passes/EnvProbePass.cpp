@@ -544,37 +544,37 @@ void ComputeEnvProbeSphericalHarmonics(const EnvProbe& envProbe, const Texture& 
                 // Readback happens after the frame is finished.
                 // Hand over the payload to the delegate handler.
                 frame->OnFrameEnd.Bind(
-                    [pPayload = cmdCasted->payload](...)
-                    {
-                        ReadbackSphericalHarmonicsPayload& payload = *pPayload;
+                                     [pPayload = cmdCasted->payload](...)
+                                     {
+                                         ReadbackSphericalHarmonicsPayload& payload = *pPayload;
 
-                        Vec4f raw[9];
-                        Assert(payload.readbackBuffer.IsValid() && payload.readbackBuffer->Size() >= sizeof(raw));
-                        payload.readbackBuffer->Read(sizeof(raw), raw);
+                                         Vec4f raw[9];
+                                         Assert(payload.readbackBuffer.IsValid() && payload.readbackBuffer->Size() >= sizeof(raw));
+                                         payload.readbackBuffer->Read(sizeof(raw), raw);
 
-                        { // Read back the SH coefficients from the GPU buffer and store on the EnvProbe.
-                            SphericalHarmonicsData shData;
+                                         { // Read back the SH coefficients from the GPU buffer and store on the EnvProbe.
+                                             SphericalHarmonicsData shData;
 
-                            // Copy data from raw
-                            float* outSH = shData.values;
-                            const Vec4f* inSH = raw;
-                            for (uint32 j = 0; j < 9; j++)
-                            {
-                                outSH[j * 3 + 0] = inSH[j].x;
-                                outSH[j * 3 + 1] = inSH[j].y;
-                                outSH[j * 3 + 2] = inSH[j].z;
-                            }
+                                             // Copy data from raw
+                                             float* outSH = shData.values;
+                                             const Vec4f* inSH = raw;
+                                             for (uint32 j = 0; j < 9; j++)
+                                             {
+                                                 outSH[j * 3 + 0] = inSH[j].x;
+                                                 outSH[j * 3 + 1] = inSH[j].y;
+                                                 outSH[j * 3 + 2] = inSH[j].z;
+                                             }
 
-                            // SetSphericalHarmonicsData() marks it dirty so we don't need to do that here.
-                            auto envProbeWriteScope = TUniqueResLock<EnvProbe>(*payload.envProbe);
-                            payload.envProbe->SetSphericalHarmonicsData(shData);
-                        }
+                                             // SetSphericalHarmonicsData() marks it dirty so we don't need to do that here.
+                                             auto envProbeWriteScope = TUniqueResLock<EnvProbe>(*payload.envProbe);
+                                             payload.envProbe->SetSphericalHarmonicsData(shData);
+                                         }
 
-                        EnqueueDeletion(std::move(payload.shBuffer));
-                        EnqueueDeletion(std::move(payload.readbackBuffer));
+                                         EnqueueDeletion(std::move(payload.shBuffer));
+                                         EnqueueDeletion(std::move(payload.readbackBuffer));
 
-                        delete pPayload;
-                    })
+                                         delete pPayload;
+                                     })
                     .Detach();
 
                 // not necessary but just to aid in debugging
@@ -873,9 +873,9 @@ void ReflectionProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSet
             pd->cachedLightDirIntensity = MathUtil::NaN<Vec4f>();
         }
     }
-    else if (envProbe->IsA<ReflectionProbe>())
+    else
     {
-        needsRerender |= (pd->cachedProbeOrigin == envProbeProxy->bufferData.worldPosition.GetXYZ());
+        needsRerender |= (pd->cachedProbeOrigin != envProbeProxy->bufferData.worldPosition.GetXYZ());
     }
 
     pd->cachedProbeOrigin = envProbeProxy->bufferData.worldPosition.GetXYZ();
@@ -898,7 +898,10 @@ void ReflectionProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSet
 
         HYP_DEFER({ rpl.EndRead(); });
 
-        if (needsRerender || rpl.GetMeshEntities().GetDiff().NeedsUpdate() || rpl.GetLights().GetDiff().NeedsUpdate() || (isRealtime && rpl.GetSkeletons().GetDiff().NeedsUpdate()))
+        if (needsRerender
+            || rpl.GetMeshEntities().GetDiff().NeedsUpdate()
+            || rpl.GetLights().GetDiff().NeedsUpdate()
+            || (isRealtime && rpl.GetSkeletons().GetDiff().NeedsUpdate()))
         {
             RenderProbeView(frame, rs, envProbe);
 
@@ -1021,12 +1024,9 @@ void IrradianceProbePass::RenderProbeView(Frame* frame, const RenderSetup& rende
     AssertDebug(view != nullptr);
 
     RenderCollector& renderCollector = GetRenderCollector(view);
+    HYP_LOG(Rendering, Info, "Render EnvProbe {}, num total draw calls: {}", envProbe->Id(), renderCollector.NumDrawCallsCollected());
 
-#if HYP_DEBUG_MODE
-    HYP_LOG(Rendering, Verbose, "Render EnvProbe {}, num total draw calls: {}", envProbe->Id(), renderCollector.NumDrawCallsCollected());
-#endif
-
-    renderCollector.ExecuteDrawCalls(frame, renderSetup, RenderBucketMask<RenderBucket::Opaque, RenderBucket::Lightmapped, RenderBucket::Translucent>);
+    renderCollector.ExecuteDrawCalls(frame, renderSetup, RenderBucketMask<RenderBucket::Opaque, RenderBucket::Lightmapped>);
 }
 
 #pragma endregion IrradianceProbePass

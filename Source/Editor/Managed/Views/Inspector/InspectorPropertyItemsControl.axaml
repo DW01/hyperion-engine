@@ -119,6 +119,30 @@
                     </StackPanel>
                 </StackPanel>
             </DataTemplate>
+            <DataTemplate x:DataType="vm:BoundingBoxPropertyViewModel">
+                <Expander Margin="0,1,0,1" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
+                    <Expander.Header>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+                                <TextBlock Classes="inspector-name" Text="{Binding Label}" />
+                                <TextBlock Opacity="0.55" Text="{Binding Value}" />
+                            </StackPanel>
+                            <Button
+                                Grid.Column="1"
+                                Classes="reset-icon"
+                                ToolTip.Tip="Reset to empty"
+                                Command="{Binding ResetCommand}">
+                                <Path
+                                    Width="11"
+                                    Height="11"
+                                    Stretch="Uniform"
+                                    Data="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" />
+                            </Button>
+                        </Grid>
+                    </Expander.Header>
+                    <local:InspectorPropertyItemsControl IsVisible="{Binding HasSubProperties}" ItemsSource="{Binding SubProperties}" />
+                </Expander>
+            </DataTemplate>
             <DataTemplate x:DataType="vm:StructPropertyViewModel">
                 <Expander Margin="0,1,0,1" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
                     <Expander.Header>

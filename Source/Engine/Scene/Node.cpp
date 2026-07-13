@@ -52,14 +52,6 @@ ScriptableDelegate<void, Node*> Node::TransformUpdated;
 extern Handle<EditorState> g_editorState;
 #endif
 
-void Node_OnPostLoad(Node& node)
-{
-    if (!g_engineDriver->IsShuttingDown())
-    {
-        node.SetScene(GetDetachedSceneForThread(g_simThread));
-    }
-}
-
 #pragma region NodeTag
 
 String NodeTag::ToString() const

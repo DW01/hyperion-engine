@@ -14,7 +14,9 @@ namespace Hyperion {
 
 class Node;
 
-HYP_CLASS(AssetBucket = "Prefabs")
+extern void Prefab_OnPostLoad(class Prefab&);
+
+HYP_CLASS(AssetBucket = "Prefabs", PostLoad = "Prefab_OnPostLoad")
 class ENGINE_API Prefab final : public AssetObject
 {
     HYP_OBJECT_BODY(Prefab);
@@ -28,13 +30,10 @@ public:
 
     ~Prefab() override = default;
 
-    HYP_METHOD(Property = "Root", Serialize)
-    const Handle<Node>& GetRoot() const
-    {
-        return m_root;
-    }
+    HYP_METHOD()
+    const Handle<Node>& GetRoot() const;
 
-    HYP_METHOD(Property = "Root", Serialize)
+    HYP_METHOD()
     void SetRoot(const Handle<Node>& root);
 
 private:

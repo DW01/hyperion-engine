@@ -873,6 +873,11 @@ void TonemapPass::Render(Frame* frame, const RenderSetup& rs)
 
     CommandRecorder& cr = frame->cr;
 
+    // Filter out Debug draws! We don't want them tonemapped or with bloom applied.
+    cr << SetStencilTest(true);
+    cr << SetStencilFunction(StencilFunction { SO_KEEP, SO_KEEP, SO_KEEP, SCO_EQUAL });
+    cr << SetStencilState(0, DebugStencilMask, 0x0);
+
     DeferredPassData* dpd = DynamicCast<DeferredPassData>(rs.passData);
     AssertDebug(dpd != nullptr);
 
@@ -942,6 +947,8 @@ void TonemapPass::Render(Frame* frame, const RenderSetup& rs)
     cr << SetShaderUniform(numShaderUniforms++, "WorldsBuffer"_sh, RI.namedBuffers[NamedBuffer::Worlds]);
 
     RenderFullScreenQuad(frame, rs);
+
+    cr << SetStencilTest(false);
 
     End(frame, rs);
 }
@@ -1021,6 +1028,10 @@ void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
     cr << SetDepthTest(false);
     cr << SetDepthWrite(false);
 
+    // We store irradiance weight from the Indirect pass which samples EnvProbes.
+    // EnvProbes take priority over lightmap volumes.
+    // So we want to apply: 1.0 - irradianceWeight
+    // cr << SetCurrentBlendFunction(BlendFunction(BMF_ONE, BMF_ONE_MINUS_SRC_ALPHA, BMF_ONE, BMF_ZERO));
     cr << SetCurrentBlendFunction(BlendFunction::Additive());
 
     // cr << SetStencilTest(true);
@@ -2944,8 +2955,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         frame->cr << SetDepthCompareOp(DCO_LESS_OR_EQUAL);
     }
 
-    // if no opaque objects will be rendered, we need to clear the color target anyway
-    // as other passes are using load ops
+    frame->cr << ClearFramebuffer(opaquePassFramebuffer, 0x1);
+
     if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Any()
         || (!g_cvEnableLightmapVolumes.Get() && renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any()))
     {
@@ -2957,10 +2968,6 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         {
             renderCollector.ExecuteDrawCalls(frame, rs, RenderBucketMask<RenderBucket::Lightmapped>);
         }
-    }
-    else
-    {
-        frame->cr << ClearFramebuffer(opaquePassFramebuffer, 0x1);
     }
 
     if (performDepthPrepass)

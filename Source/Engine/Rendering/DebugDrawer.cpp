@@ -26,6 +26,7 @@
 #include <Rendering/Buffers.hpp>
 #include <Rendering/RawBufferAllocator.hpp>
 #include <Rendering/CBufferAllocator.hpp>
+#include <Rendering/StencilMasks.hpp>
 
 #include <Rendering/Passes/DeferredPass.hpp>
 
@@ -877,6 +878,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
 
     cr << SetCurrentShader(shaderDesc);
     cr << SetCurrentViewport(viewport);
+    cr << SetStencilState(DebugStencilMask, 0x0, 0xFF);
 
     HYP_DEFER({
         // reset states
@@ -919,7 +921,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
 
         uint32 numToDraw = 0;
 
-        auto CommitCurrentDraws = [&]()
+        auto commitCurrentDraws = [&]()
         {
             if (numToDraw != 0)
             {
@@ -1002,7 +1004,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
                 if (numToDraw != 0)
                 {
                     AssertDebug(attributes.GetMeshAttributes().inputLayout.mask != 0);
-                    CommitCurrentDraws();
+                    commitCurrentDraws();
                 }
 
                 AssertDebug(drawCommand->attributes.GetMeshAttributes().inputLayout.mask != 0);
@@ -1015,7 +1017,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
 
         if (numToDraw != 0)
         {
-            CommitCurrentDraws();
+            commitCurrentDraws();
         }
     }
 

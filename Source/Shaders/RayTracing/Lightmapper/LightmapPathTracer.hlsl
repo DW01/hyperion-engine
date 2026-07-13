@@ -62,8 +62,8 @@ DECLARE_BUFFER(LightmapPathTracer, CBuffer) cbuffer CBuffer
 #define RAY_OFFSET 0.05
 
 #ifdef MODE_IRRADIANCE
-#define NUM_BOUNCES 6
-#define NUM_SAMPLES 16
+#define NUM_BOUNCES 8
+#define NUM_SAMPLES 64
 #define ENVIRONMENT_INTENSITY 1.0
 #elif defined(MODE_FULL)
 #define NUM_BOUNCES 8

@@ -8,10 +8,27 @@
 
 #include <Scene/Prefab.hpp>
 #include <Scene/Node.hpp>
+#include <Scene/DetachedScene.hpp>
+
+#include <Framework/EngineGlobals.hpp>
+#include <Framework/EngineDriver.hpp>
 
 #include <Prefab.generated.inl>
 
 namespace Hyperion {
+
+void Prefab_OnPostLoad(Prefab& prefab)
+{
+    if (!g_engineDriver->IsShuttingDown())
+    {
+        const Handle<Node>& root = prefab.GetRoot();
+
+        if (root.IsValid())
+        {
+            root->SetScene(GetDetachedSceneForThread(g_simThread));
+        }
+    }
+}
 
 Prefab::Prefab()
     : Prefab(Name::Invalid())
@@ -22,6 +39,10 @@ Prefab::Prefab(Name name, const Handle<Node>& root)
     : AssetObject(name),
       m_root(root)
 {
+}
+const Handle<Node>& Prefab::GetRoot() const
+{
+    return m_root;
 }
 
 void Prefab::SetRoot(const Handle<Node>& root)

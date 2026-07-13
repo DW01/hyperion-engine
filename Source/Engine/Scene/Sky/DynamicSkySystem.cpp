@@ -12,6 +12,7 @@
 #include <Scene/View.hpp>
 #include <Scene/Scene.hpp>
 #include <Scene/EnvProbe.hpp>
+#include <Scene/Prefab.hpp>
 #include <Scene/EntityManager.hpp>
 
 #include <Scene/Components/TransformComponent.hpp>
@@ -72,15 +73,21 @@ void DynamicSkySystem::InitializeSky()
         m_renderScene->SetOwnerThreadId(g_simThread);
         m_renderScene->Initialize();
 
-        auto domeNodeAsset = g_assetManager->Load<Node>("Models/inv_sphere.obj");
+        auto domePrefabResult = g_assetManager->Load<Prefab>("Models/inv_sphere.obj");
 
-        if (domeNodeAsset.HasValue())
+        if (domePrefabResult.HasValue())
         {
-            Handle<Node> domeNode = domeNodeAsset->Result();
+            Handle<Node> domeNode = domePrefabResult->Result()->GetRoot();
+            Assert(domeNode.IsValid());
+
             domeNode->Scale(Vec3f(10.0f));
             domeNode->LockTransform();
 
             m_renderScene->GetRoot()->AddChild(domeNode);
+        }
+        else
+        {
+            HYP_LOG(Scene, Error, "Failed to load skydome model!");
         }
     }
 

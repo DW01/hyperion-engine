@@ -243,22 +243,22 @@ public:
     Camera(int width, int height, float left, float right, float bottom, float top, float _near, float _far);
     ~Camera() override;
 
-    HYP_METHOD(Property = "Flags", Editor = true)
+    HYP_METHOD(Property = "Flags", Editor = true, Serialize = true)
     EnumFlags<CameraFlags> GetCameraFlags() const
     {
         return m_cameraFlags;
     }
 
-    HYP_METHOD(Property = "Flags", Editor = true)
+    HYP_METHOD(Property = "Flags", Editor = true, Serialize = true)
     void SetCameraFlags(EnumFlags<CameraFlags> flags);
 
-    HYP_METHOD(Property = "CameraControllers")
+    HYP_METHOD(Property = "CameraControllers", Serialize = true)
     const Array<Handle<CameraController>>& GetCameraControllers() const
     {
         return m_cameraControllers;
     }
 
-    HYP_METHOD()
+    HYP_METHOD(Property = "CameraControllers", Serialize = true)
     const Handle<CameraController>& GetCameraController() const
     {
         return m_cameraControllers.Back();
@@ -312,13 +312,13 @@ public:
         UpdateViewProjectionMatrix();
     }
 
-    HYP_METHOD(Property = "Dimensions")
+    HYP_METHOD(Property = "Dimensions", Editor = true, Serialize = true)
     Vec2i GetDimensions() const
     {
         return Vec2i { m_width, m_height };
     }
 
-    HYP_METHOD(Property = "Dimensions")
+    HYP_METHOD(Property = "Dimensions", Editor = true, Serialize = true)
     void SetDimensions(Vec2i dimensions)
     {
         m_width = dimensions.x;
@@ -327,39 +327,39 @@ public:
         UpdateProjectionMatrix();
     }
 
-    HYP_METHOD(Property = "NearClip", Editor = true)
+    HYP_METHOD(Property = "NearClip", Editor = true, Serialize = true)
     float GetNearClip() const
     {
         return m_near;
     }
 
-    HYP_METHOD(Property = "NearClip", Editor = true)
+    HYP_METHOD(Property = "NearClip", Editor = true, Serialize = true)
     void SetNearClip(float _near)
     {
         m_near = _near;
     }
 
-    HYP_METHOD(Property = "FarClip", Editor = true)
+    HYP_METHOD(Property = "FarClip", Editor = true, Serialize = true)
     float GetFarClip() const
     {
         return m_far;
     }
 
-    HYP_METHOD(Property = "FarClip", Editor = true)
+    HYP_METHOD(Property = "FarClip", Editor = true, Serialize = true)
     void SetFarClip(float _far)
     {
         m_far = _far;
     }
 
     // perspective only
-    HYP_METHOD(Property = "FOV", Editor = true)
+    HYP_METHOD(Property = "FOV", Editor = true, Serialize = true)
     float GetFOV() const
     {
         return m_fov;
     }
 
     // perspective only
-    HYP_METHOD(Property = "FOV", Editor = true)
+    HYP_METHOD(Property = "FOV", Editor = true, Serialize = true)
     void SetFOV(float fov)
     {
         m_fov = fov;
@@ -367,31 +367,31 @@ public:
 
     void SetNextTranslation(const Vec3f& translation);
 
-    HYP_METHOD(Property = "Direction", Editor = true)
+    HYP_METHOD(Property = "Direction", Editor = true, Serialize = true)
     const Vec3f& GetDirection() const
     {
         return m_direction;
     }
 
-    HYP_METHOD(Property = "Direction", Editor = true)
+    HYP_METHOD(Property = "Direction", Editor = true, Serialize = true)
     void SetDirection(const Vec3f& direction);
 
-    HYP_METHOD(Property = "UpVector", Editor = true)
+    HYP_METHOD(Property = "UpVector", Editor = true, Serialize = true)
     const Vec3f& GetUpVector() const
     {
         return m_up;
     }
 
-    HYP_METHOD(Property = "UpVector", Editor = true)
+    HYP_METHOD(Property = "UpVector", Editor = true, Serialize = true)
     void SetUpVector(const Vec3f& up);
 
-    HYP_METHOD(Property = "OrthoRect", Editor = true)
+    HYP_METHOD(Property = "OrthoRect", Editor = true, Serialize = true)
     const CameraOrthoRect& GetOrthoRect() const
     {
         return m_orthoRect;
     }
 
-    HYP_METHOD(Property = "OrthoRect", Editor = true)
+    HYP_METHOD(Property = "OrthoRect", Editor = true, Serialize = true)
     void SetOrthoRect(const CameraOrthoRect& orthoRect)
     {
         m_orthoRect = orthoRect;
@@ -424,34 +424,34 @@ public:
         return m_streamingVolume;
     }
 
-    HYP_METHOD(Property = "Frustum", Editor = true)
+    HYP_METHOD(Property = "Frustum", Editor = true, Serialize = false)
     const Frustum& GetFrustum() const
     {
         return m_frustum;
     }
 
-    HYP_METHOD(Property = "Frustum", Editor = true)
+    HYP_METHOD(Property = "Frustum", Editor = true, Serialize = false)
     void SetFrustum(const Frustum& frustum)
     {
         m_frustum = frustum;
     }
 
-    HYP_METHOD(Property = "ViewMatrix", Editor = true)
+    HYP_METHOD(Property = "ViewMatrix", Editor = true, Serialize = false)
     const Mat4f& GetViewMatrix() const
     {
         return m_viewMat;
     }
 
-    HYP_METHOD(Property = "ViewMatrix", Editor = true)
+    HYP_METHOD(Property = "ViewMatrix", Editor = true, Serialize = false)
     void SetViewMatrix(const Mat4f& viewMat);
 
-    HYP_METHOD(Property = "ViewMatrix", Editor = true)
+    HYP_METHOD(Property = "ViewMatrix", Editor = true, Serialize = false)
     const Mat4f& GetProjectionMatrix() const
     {
         return m_projMat;
     }
 
-    HYP_METHOD(Property = "ViewMatrix", Editor = true)
+    HYP_METHOD(Property = "ViewMatrix", Editor = true, Serialize = false)
     void SetProjectionMatrix(const Mat4f& projMat);
 
     HYP_METHOD()

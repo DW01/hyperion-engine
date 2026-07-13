@@ -106,7 +106,7 @@ namespace Hyperion.Editor
                 {
                     Assert.Throw(guy.Value != null);
 
-                    Node n = _editorSubsystem!.GetActiveScene().RootNode.AddChild((Node)guy.Value);
+                    Node n = _editorSubsystem!.GetActiveScene().RootNode.AddChild(((Prefab)guy.Value).Root);
                     n.LocalScale = new Vec3f(0.5f);
                 }
 
@@ -117,7 +117,7 @@ namespace Hyperion.Editor
                     Logger.Log(LogLevel.Debug, "Test model asset loaded successfully.");
                     Assert.Throw(testModelAsset.Value != null);
 
-                    Node n = _editorSubsystem!.GetActiveScene().RootNode.AddChild((Node)testModelAsset.Value);
+                    Node n = _editorSubsystem!.GetActiveScene().RootNode.AddChild(((Prefab)testModelAsset.Value).Root);
                     n.LocalScale = new Vec3f(3.0f);
                 }
                 else

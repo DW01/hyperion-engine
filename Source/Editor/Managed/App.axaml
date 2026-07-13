@@ -186,6 +186,28 @@
             <Setter Property="Foreground" Value="White" />
         </Style>
 
+        <Style Selector="Button.reset-icon">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="CornerRadius" Value="9" />
+        </Style>
+        <Style Selector="Button.reset-icon:pointerover">
+            <Setter Property="Background" Value="{StaticResource Brush.BorderLight}" />
+        </Style>
+        <Style Selector="Button.reset-icon:pressed">
+            <Setter Property="Background" Value="{StaticResource Brush.AccentMuted}" />
+        </Style>
+        <Style Selector="Button.reset-icon Path">
+            <Setter Property="Fill" Value="{StaticResource Brush.TextMuted}" />
+        </Style>
+        <Style Selector="Button.reset-icon:pointerover Path">
+            <Setter Property="Fill" Value="{StaticResource Brush.Text}" />
+        </Style>
+
         <Style Selector="TextBox">
             <Setter Property="Background" Value="#1E1F22" />
             <Setter Property="Foreground" Value="#E6E6E6" />

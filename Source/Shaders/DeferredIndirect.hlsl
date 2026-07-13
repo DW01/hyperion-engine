@@ -272,7 +272,8 @@ PSOutput PSMain(PSInput input)
     result = float3(ao, ao, ao);
 #endif
 
-    output.output_color = float4(result, 1.0);
+    // store irradiance weight in the alpha channel so we can lerp with lightmaps
+    output.output_color = float4(result, 1.0);//irradiance.a);
 
     return output;
 }

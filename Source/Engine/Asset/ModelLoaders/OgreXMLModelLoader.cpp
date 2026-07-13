@@ -13,6 +13,7 @@
 #include <Scene/Node.hpp>
 #include <Scene/World.hpp>
 #include <Scene/Scene.hpp>
+#include <Scene/Prefab.hpp>
 #include <Scene/DetachedScene.hpp>
 
 #include <Scene/Animation/Skeleton.hpp>
@@ -389,7 +390,7 @@ AssetLoadResult OgreXMLModelLoader::LoadAsset(LoaderState& state) const
         top->AddChild(std::move(node));
     }
 
-    return LoadedAsset { top };
+    return LoadedAsset { MakeHandle<Prefab>(top->GetName(), top) };
 }
 
 } // namespace Hyperion

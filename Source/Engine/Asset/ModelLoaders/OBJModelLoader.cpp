@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <AssetPch.hpp>
 
@@ -18,6 +18,7 @@
 #include <Scene/World.hpp>
 #include <Scene/Node.hpp>
 #include <Scene/Scene.hpp>
+#include <Scene/Prefab.hpp>
 #include <Scene/DetachedScene.hpp>
 
 #include <Scene/EntityManager.hpp>
@@ -78,9 +79,9 @@ static void AddMesh(OBJModel& model, const String& name, const String& material)
     int counter = 0;
 
     while (AnyOf(model.meshes, [&uniqueName](const OBJMesh& objMesh)
-        {
-            return objMesh.name == uniqueName;
-        }))
+                 {
+                     return objMesh.name == uniqueName;
+                 }))
     {
         uniqueName = name + String::ToString(++counter);
     }
@@ -142,7 +143,7 @@ Vector GetIndexedVertexProperty(int64 vertexIndex, const Array<Vector>& vectors)
     if (vertexAbsolute < 0 || vertexAbsolute >= int64(vectors.Size()))
     {
         HYP_LOG(Assets, Warning, "Vertex index of {} (absolute: {}) is out of bounds ({})",
-            vertexIndex, vertexAbsolute, vectors.Size());
+                vertexIndex, vertexAbsolute, vectors.Size());
 
         return Vector();
     }
@@ -217,8 +218,8 @@ OBJModel OBJModelLoader::LoadModel(LoaderState& state)
             OBJMesh& lastMesh = LastMesh(model);
 
             /* we don't support per-face material so we compromise by setting the mesh's material
-                * to the last 'usemtl' value when we hit the face command.
-                */
+             * to the last 'usemtl' value when we hit the face command.
+             */
             if (!activeMaterial.Empty())
             {
                 lastMesh.material = activeMaterial;
@@ -390,14 +391,12 @@ LoadedAsset OBJModelLoader::BuildModel(LoaderState& state, OBJModel& model)
                 {
                     vertex.SetPosition(GetIndexedVertexProperty(objIndex.vertex, model.positions));
 
-
                     meshAabb = meshAabb.Union(vertex.GetPosition());
                 }
 
                 if (hasNormals)
                 {
                     vertex.SetNormal(GetIndexedVertexProperty(objIndex.normal, model.normals));
-
                 }
 
                 if (hasTexcoords)
@@ -450,9 +449,9 @@ LoadedAsset OBJModelLoader::BuildModel(LoaderState& state, OBJModel& model)
 
         mesh->SetMeshData(meshDesc, meshData);
 
-        //mesh->CalculateNormals();
+        // mesh->CalculateNormals();
 
-        //mesh->SetOriginalFilepath(FilePath::Relative(state.filepath, state.assetManager->GetBasePath()));
+        // mesh->SetOriginalFilepath(FilePath::Relative(state.filepath, state.assetManager->GetBasePath()));
 
         GetCurrentAssetRegistry()->PutAssetUnique(mesh);
 
@@ -509,7 +508,7 @@ LoadedAsset OBJModelLoader::BuildModel(LoaderState& state, OBJModel& model)
         top->AddChild(entity);
     }
 
-    return LoadedAsset { top };
+    return LoadedAsset { MakeHandle<Prefab>(top->GetName(), top) };
 }
 
 } // namespace Hyperion

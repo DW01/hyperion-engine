@@ -10,6 +10,7 @@
 #include <Scene/EnvProbe.hpp>
 #include <Scene/Scene.hpp>
 #include <Scene/View.hpp>
+#include <Scene/Prefab.hpp>
 #include <Scene/FogVolume.hpp>
 #include <Scene/EntityManager.hpp>
 #include <Scene/ComponentInterface.hpp>
@@ -326,7 +327,9 @@ void DefaultGame::OnLaunch_Impl()
 
     if (testbedAsset.IsValid())
     {
-        Handle<Node> testbedNode = testbedAsset.ExtractAs<Handle<Node>>();
+        Handle<Prefab> testbedPrefab = testbedAsset.ExtractAs<Handle<Prefab>>();
+
+        Handle<Node> testbedNode = testbedPrefab->GetRoot()->Clone();
         testbedNode->Scale(3.0f);
 
         // scene->GetRoot()->AddChild(testbedNode);

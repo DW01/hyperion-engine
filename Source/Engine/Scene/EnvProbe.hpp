@@ -268,10 +268,10 @@ protected:
 
     void EnqueueViewsUpdate();
 
-    HYP_FIELD(Property = "Dimensions")
+    HYP_FIELD(Property = "Dimensions", EditHide, Serialize)
     Vec2u m_dimensions;
 
-    HYP_FIELD(Property = "EnvProbeType")
+    HYP_FIELD(Property = "EnvProbeType", EditHide, Serialize = false)
     EnvProbeType m_envProbeType;
 
     HYP_FIELD(Property = "EnvProbeFlags")

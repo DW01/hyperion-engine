@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -18,7 +18,7 @@ template <>
 class BakeData<ReflectionProbe> : public BakeDataBase
 {
 public:
-    using BitmapType = Bitmap_RGBA8;
+    using BitmapType = Bitmap_RGBA16F;
 
     BakeData()
         : m_envProbe(nullptr)

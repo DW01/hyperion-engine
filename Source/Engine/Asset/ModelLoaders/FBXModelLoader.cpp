@@ -14,6 +14,7 @@
 #include <Scene/Entity.hpp>
 #include <Scene/World.hpp>
 #include <Scene/Scene.hpp>
+#include <Scene/Prefab.hpp>
 #include <Scene/DetachedScene.hpp>
 #include <Scene/Node.hpp>
 
@@ -1924,7 +1925,7 @@ AssetLoadResult FBXModelLoader::LoadAsset(LoaderState& state) const
     top->SetLocalRotation(Quat4f::AxisAngles(Vec3f(1.0f, 0.0f, 0.0f), MathUtil::DegToRad(-90.0f)));
     top->Scale(0.01f);
 
-    return LoadedAsset { top };
+    return LoadedAsset { MakeHandle<Prefab>(top->GetName(), top) };
 }
 
 } // namespace Hyperion

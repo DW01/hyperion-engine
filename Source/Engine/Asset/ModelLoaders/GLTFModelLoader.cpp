@@ -21,6 +21,7 @@
 #include <Scene/World.hpp>
 #include <Scene/Node.hpp>
 #include <Scene/Scene.hpp>
+#include <Scene/Prefab.hpp>
 #include <Scene/DetachedScene.hpp>
 
 #include <Scene/EntityManager.hpp>
@@ -1134,7 +1135,7 @@ LoadedAsset BuildModel(LoaderState& state, cgltf_data& data)
         root->AddChild(child);
     }
 
-    return LoadedAsset { root };
+    return LoadedAsset { MakeHandle<Prefab>(root->GetName(), root) };
 }
 
 } // namespace

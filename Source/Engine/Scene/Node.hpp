@@ -193,8 +193,6 @@ struct NodeTag
 
 struct NodeUnlockTransformScope;
 
-extern void Node_OnPostLoad(Node& node);
-
 HYP_STRUCT()
 class NodeTagSet : HashTable<NodeTag, &NodeTag::name>
 {
@@ -350,7 +348,7 @@ public:
     HYP_DEF_STL_BEGIN_END(Base::Begin(), Base::End())
 };
 
-HYP_CLASS(PostLoad = "Node_OnPostLoad")
+HYP_CLASS()
 class ENGINE_API Node : public ObjectBase
 {
     friend class Scene;

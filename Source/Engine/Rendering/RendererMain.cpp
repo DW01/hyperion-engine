@@ -290,6 +290,7 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
     const bool hasForwardLighting = (bucket == RenderBucket::Translucent || bucket == RenderBucket::Sky || bucket == RenderBucket::Debug);
     const bool hasLightmaps = (bucket == RenderBucket::Lightmapped);
     const bool isSky = (bucket == RenderBucket::Sky);
+    const bool isDebug = (bucket == RenderBucket::Debug);
 
     const bool hasDeferredLighting = !hasForwardLighting && !hasLightmaps;
 
@@ -319,6 +320,10 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
     if (isSky)
     {
         stencilReferenceValue = SkyStencilMask;
+    }
+    else if (isDebug)
+    {
+        // stencilReferenceValue = DebugStencilMask;
     }
 
     if (stencilReferenceValue != attributes.GetMaterialAttributes().stencilReference)
@@ -1509,7 +1514,6 @@ RenderCollector::~RenderCollector()
     parallelRenderingStates = {};
 }
 
-#if HYP_DEBUG_MODE
 size_t RenderCollector::NumDrawCallsCollected() const
 {
     size_t numDrawCalls = 0;
@@ -1525,7 +1529,6 @@ size_t RenderCollector::NumDrawCallsCollected() const
 
     return numDrawCalls;
 }
-#endif
 
 void RenderCollector::Clear(bool freeMemory)
 {

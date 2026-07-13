@@ -252,9 +252,9 @@ void TerrainStreamingCell::OnLoaded_Impl()
         meshComponent->mesh = m_mesh;
         meshComponent->material = m_material;
     }
-    
+
     // terrain cells share a mesh, we can use instancing for them
-    //meshComponent->enableAutoInstancing = true;
+    // meshComponent->enableAutoInstancing = true;
 
     entityManager->AddTag<EntityTag::UpdateRenderProxy>(entity);
 
@@ -263,14 +263,6 @@ void TerrainStreamingCell::OnLoaded_Impl()
     m_node->AddChild(entity);
     m_node->SetLocalTransform(transform);
     m_node->SetIsStatic(true);
-
-    // auto result = AssetManager::GetInstance()->Load<Node>("models/sphere16.obj");
-    // Assert(result.HasValue());
-
-    // m_node = m_scene->GetRoot()->AddChild();
-    // m_node->AddChild(result.GetValue().Result()->GetChild(0));
-    // // m_node->Scale(30.0f);
-    // m_node->SetWorldTranslation(transform.GetTranslation());
 }
 
 void TerrainStreamingCell::OnRemoved_Impl()

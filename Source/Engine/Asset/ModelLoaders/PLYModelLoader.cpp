@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <AssetPch.hpp>
 
@@ -10,6 +10,7 @@
 
 #include <Rendering/Mesh.hpp>
 
+#include <Scene/Node.hpp>
 #include <Scene/Node.hpp>
 
 #include <Core/Utilities/StringUtil.hpp>

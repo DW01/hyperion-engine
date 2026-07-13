@@ -142,6 +142,8 @@ void EnvProbe::CreateCamera()
         return;
     }
 
+    const BoundingBox worldBounds = GetWorldBounds();
+
     // Try to find existing child of type Camera, if we are loading this EnvProbe
     auto cameraIt = GetChildren().FindIf(&ObjectBase::IsA<Camera>);
     if (cameraIt != GetChildren().End())
@@ -150,24 +152,26 @@ void EnvProbe::CreateCamera()
 
         InitObject(m_camera);
 
-        return;
+        m_camera->SetNearClip(EnvProbeCameraNearClip);
+        m_camera->SetFarClip(worldBounds.GetRadius());
+    }
+    else
+    {
+        Handle<Camera> camera = MakeHandle<Camera>(
+            90.0f,
+            int(m_dimensions.x), int(m_dimensions.y),
+            EnvProbeCameraNearClip, worldBounds.GetRadius());
+
+        camera->SetName(NAME_FMT("{}_Capture", GetName()));
+        AddChild(camera);
+
+        m_camera = camera.Get();
     }
 
-    const BoundingBox worldBounds = GetWorldBounds();
+    m_camera->SetReceivesUpdate(false); // Don't automatically update
+    m_camera->SetViewMatrix(Mat4f::LookAt(worldBounds.GetCenter(), worldBounds.GetCenter() + Vec3f::UnitZ(), Vec3f::UnitY()));
 
-    Handle<Camera> camera = MakeHandle<Camera>(
-        90.0f,
-        int(m_dimensions.x), int(m_dimensions.y),
-        EnvProbeCameraNearClip, worldBounds.GetRadius());
-
-    camera->SetReceivesUpdate(false); // Don't automatically update
-    camera->SetName(NAME_FMT("{}_Capture", GetName()));
-    camera->SetViewMatrix(Mat4f::LookAt(worldBounds.GetCenter(), worldBounds.GetCenter() + Vec3f::UnitZ(), Vec3f::UnitY()));
-
-    InitObject(camera);
-    AddChild(camera);
-
-    m_camera = camera;
+    InitObject(m_camera);
 }
 
 void EnvProbe::RemoveCamera()
@@ -335,7 +339,7 @@ void EnvProbe::OnAddedToWorld(World* world)
             {
                 m_texture = MakeHandle<Texture>(TextureDesc {
                     TextureType::Texture2D,
-                    TextureFormat::RGBA8,
+                    TextureFormat::RGBA16F,
                     Vec3u { m_dimensions, 1 },
                     TFM_LINEAR_MIPMAP,
                     TFM_LINEAR,
@@ -447,7 +451,7 @@ void EnvProbe::CreateViewData()
     // Color target
     AttachmentDesc& colorDesc = attachmentDescs.PushBack(AttachmentDesc {
         TextureType::Cubemap,
-        TextureFormat::RGBA8,
+        TextureFormat::RGBA16F,
         LoadOperation::CLEAR,
         StoreOperation::STORE });
 

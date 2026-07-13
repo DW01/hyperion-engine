@@ -9,5 +9,11 @@ namespace Hyperion
         public Prefab()
         {
         }
+
+        public Node? Root
+        {
+            get => this.GetRoot();      // Extension
+            set => this.SetRoot(value); // Extension
+        }
     }
 }
