@@ -6,7 +6,7 @@
 
 #include <HyperionPch.hpp>
 
-#include <Baking/ReflectionProbe/ReflectionProbeBakeData.hpp>
+#include <Baking/EnvProbe/EnvProbeBakeData.hpp>
 
 #include <Rendering/Texture.hpp>
 
@@ -16,7 +16,7 @@ namespace Hyperion {
 
 namespace Baking {
 
-Result BakeData<ReflectionProbe>::Build()
+Result BakeData<EnvProbe>::Build()
 {
     Assert(m_envProbe != nullptr);
 
@@ -68,7 +68,7 @@ Result BakeData<ReflectionProbe>::Build()
     return {};
 }
 
-auto BakeData<ReflectionProbe>::ToBitmap() const -> BitmapType
+auto BakeData<EnvProbe>::ToBitmap() const -> BitmapType
 {
     Assert(m_envProbe != nullptr);
 
@@ -113,7 +113,7 @@ auto BakeData<ReflectionProbe>::ToBitmap() const -> BitmapType
     return bitmap;
 }
 
-auto BakeData<ReflectionProbe>::ToVisibilityBitmap() const -> VisibilityBitmapType
+auto BakeData<EnvProbe>::ToVisibilityBitmap() const -> VisibilityBitmapType
 {
     Assert(m_envProbe != nullptr);
 

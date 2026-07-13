@@ -8,7 +8,6 @@
 #include <Core/Reflection/Class.hpp>
 
 #include <Core/Containers/SparsePagedArray.hpp>
-#include <Core/Containers/SparseArray2.hpp>
 #include <Core/Containers/StridedBuffer.hpp>
 
 namespace Hyperion {
@@ -25,7 +24,7 @@ struct SubtypeResourceBindings
 {
     const Class* resourceClass;
     StructuredBuffer* sbuffer;
-    SparseArray<uint32, RenderAllocator> bindingIndices;
+    SparsePagedArray<uint32, 256, RenderAllocator> bindingIndices;
 
     SubtypeResourceBindings(const Class* resourceClass, StructuredBuffer* sbuffer)
         : resourceClass(resourceClass),
@@ -72,7 +71,7 @@ void SetBinding(ObjectBase* resource, uint32 binding)
 
     if (binding == UINT32_MAX)
     {
-        bindings.bindingIndices.Delete(resourceId.ToIndex());
+        bindings.bindingIndices.EraseAt(resourceId.ToIndex());
 
         return;
     }

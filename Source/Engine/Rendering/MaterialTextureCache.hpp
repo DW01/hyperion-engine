@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <Core/Containers/SparseArray2.hpp>
+#include <Core/Containers/SparsePagedArray.hpp>
 
 #include <Rendering/RenderTypes.hpp>
 
@@ -19,7 +19,7 @@ enum class MaterialTextureKey : uint64;
 class MaterialTextureCache
 {
 public:
-    using MaterialImageViewsMap = SparseArray<Array<GpuImageViewRef, RenderAllocator>, RenderAllocator>;
+    using MaterialImageViewsMap = SparsePagedArray<Array<GpuImageViewRef, RenderAllocator>, 64, RenderAllocator>;
 
     MaterialTextureCache();
 

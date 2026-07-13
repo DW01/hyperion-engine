@@ -211,6 +211,8 @@ public:
     HYP_METHOD(Property = "SHData", NoScriptBindings)
     void SetSphericalHarmonicsData(const SphericalHarmonicsData& shData);
 
+    virtual void Invalidate(bool forceRerender = false);
+
     virtual void Update(float delta) override;
 
     void UpdateRenderProxy(RenderProxyEnvProbe* proxy);
@@ -255,8 +257,6 @@ protected:
     {
         return !IsRealtime();
     }
-
-    virtual void Invalidate(bool forceRerender = false);
 
     void CreateCamera();
     void RemoveCamera();
@@ -384,10 +384,7 @@ public:
 private:
 #if HYP_EDITOR
     HYP_METHOD(EditorOnly, EditAction = "Recompute Irradiance")
-    void RecomputeIrradiance()
-    {
-        Invalidate(true);
-    }
+    void RecomputeIrradiance();
 #endif // HYP_EDITOR
 
     void Invalidate(bool forceRerender = false) override;

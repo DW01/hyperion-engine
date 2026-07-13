@@ -227,9 +227,9 @@ void EnvProbe::SetEnvProbeFlags(EnumFlags<EnvProbeFlags> envProbeFlags)
     }
     else
     {
-        // If it is a ReflectionProbe, mark EPF_BAKED if not realtime -
-        // reflection probes are baked through the Baker system
-        if (m_envProbeType == EPT_REFLECTION)
+        // Reflection and irradiance probes are baked through the Baker system
+        // when not realtime.
+        if (m_envProbeType == EPT_REFLECTION || m_envProbeType == EPT_AMBIENT)
         {
             envProbeFlags |= EPF_BAKED;
         }
@@ -677,7 +677,11 @@ void EnvProbe::Update(float delta)
     {
         // Update face view frustum.
         View* view = m_views[viewIndex];
-        AssertDebug(view != nullptr);
+
+        if (!view)
+        {
+            continue;
+        }
 
         const Mat4f& viewMatrix = matrices[viewIndex];
 
@@ -984,7 +988,7 @@ void ReflectionProbe::BakeCubemap()
         lightmapperSubsystem = world->AddSubsystem<BakerSubsystem>();
     }
 
-    lightmapperSubsystem->EnqueueBake(MakeStrongRef(this));
+    lightmapperSubsystem->EnqueueBake(StaticCast<EnvProbe>(MakeStrongRef(this)));
 }
 
 #endif
@@ -1014,6 +1018,39 @@ void SkyProbe::Init()
 #pragma endregion SkyProbe
 
 #pragma region IrradianceProbe
+
+#if HYP_EDITOR
+
+void IrradianceProbe::RecomputeIrradiance()
+{
+    if (IsBaked())
+    {
+        World* world = GetWorld();
+        AssertDebug(world != nullptr);
+
+        if (!world)
+        {
+            HYP_LOG(Editor, Error, "Cannot bake {}: not attached to a World", Id());
+
+            return;
+        }
+
+        BakerSubsystem* lightmapperSubsystem = world->GetSubsystem<BakerSubsystem>();
+
+        if (!lightmapperSubsystem)
+        {
+            lightmapperSubsystem = world->AddSubsystem<BakerSubsystem>();
+        }
+
+        lightmapperSubsystem->EnqueueBake(StaticCast<EnvProbe>(MakeStrongRef(this)));
+    }
+    else
+    {
+        Invalidate(true);
+    }
+}
+
+#endif // HYP_EDITOR
 
 void IrradianceProbe::Invalidate(bool forceRerender)
 {

@@ -37,7 +37,7 @@ enum MaterialAttributeFlags : uint8
 HYP_MAKE_ENUM_FLAGS(MaterialAttributeFlags);
 
 HYP_STRUCT()
-struct MaterialAttributes
+struct MaterialAttributes final
 {
     HYP_STRUCT_BODY(MaterialAttributes);
 
@@ -119,7 +119,7 @@ struct MaterialAttributes
 };
 
 HYP_STRUCT()
-struct MeshAttributes
+struct MeshAttributes final
 {
     HYP_STRUCT_BODY(MeshAttributes);
 
@@ -204,7 +204,7 @@ struct RenderableAttributeHandle
     }
 };
 
-class RenderableAttributeSet
+class RenderableAttributeSet final
 {
     MeshAttributes m_meshAttributes;
     MaterialAttributes m_materialAttributes;

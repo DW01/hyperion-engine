@@ -2,27 +2,25 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
 #include <Baking/Baker.hpp>
 
-#include <Baking/ReflectionProbe/ReflectionProbeBakeData.hpp>
+#include <Baking/EnvProbe/EnvProbeBakeData.hpp>
 
 #include <Scene/EnvProbe.hpp>
 
 namespace Hyperion {
 
-class ReflectionProbe;
-
 namespace Baking {
 
 template <>
-class Baker<ReflectionProbe> final : public BakerBase
+class Baker<EnvProbe> final : public BakerBase
 {
 public:
-    Baker(BakerConfig&& config, const Handle<ReflectionProbe>& envProbe);
+    Baker(BakerConfig&& config, const Handle<EnvProbe>& envProbe);
 
     Baker(const Baker& other) = delete;
     Baker& operator=(const Baker& other) = delete;
@@ -56,7 +54,7 @@ public:
 
     virtual const TypeInfo& GetInnerType() const
     {
-        return TypeOf<ReflectionProbe>();
+        return TypeOf<EnvProbe>();
     }
 
 protected:
@@ -72,8 +70,8 @@ protected:
     virtual Result Build_Internal() override;
     virtual void OnCompleted_Internal() override;
 
-    Handle<ReflectionProbe> m_envProbe;
-    BakeData<ReflectionProbe> m_bakeData;
+    Handle<EnvProbe> m_envProbe;
+    BakeData<EnvProbe> m_bakeData;
 };
 
 } // namespace Baking

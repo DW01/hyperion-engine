@@ -25,7 +25,7 @@ class World;
 class Scene;
 class Camera;
 class Texture;
-class ReflectionProbe;
+class EnvProbe;
 class InputManager;
 class UIStage;
 class UIObject;
@@ -57,7 +57,7 @@ public:
     }
 
     explicit GenerateLightmapsEditorTask(const Handle<LightmapVolume>& volume);
-    explicit GenerateLightmapsEditorTask(const Handle<ReflectionProbe>& probe);
+    explicit GenerateLightmapsEditorTask(const Handle<EnvProbe>& probe);
 
     explicit GenerateLightmapsEditorTask(const Array<Handle<ObjectBase>>& sources);
 

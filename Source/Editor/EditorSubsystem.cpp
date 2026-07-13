@@ -129,7 +129,7 @@ GenerateLightmapsEditorTask::GenerateLightmapsEditorTask(const Handle<LightmapVo
 {
 }
 
-GenerateLightmapsEditorTask::GenerateLightmapsEditorTask(const Handle<ReflectionProbe>& probe)
+GenerateLightmapsEditorTask::GenerateLightmapsEditorTask(const Handle<EnvProbe>& probe)
     : GenerateLightmapsEditorTask(Array<Handle<ObjectBase>> { { StaticCast<ObjectBase>(probe) } })
 {
 }
@@ -143,7 +143,7 @@ GenerateLightmapsEditorTask::GenerateLightmapsEditorTask(const Array<Handle<Obje
         ObjectBase* source = *it;
 
         if (!source->IsA(LightmapVolume::StaticClass())
-            && !source->IsA(ReflectionProbe::StaticClass())
+            && !source->IsA(EnvProbe::StaticClass())
             && !source->IsA(FogVolume::StaticClass()))
         {
             HYP_LOG(Editor, Error, "GenerateLightmapsEditorTask source is not a LightmapVolume or EnvProbe: \"{}\"", source->InstanceClass()->GetName());
@@ -191,9 +191,9 @@ void GenerateLightmapsEditorTask::Start()
         {
             task = lightmapperSubsystem->EnqueueBake(StaticCast<LightmapVolume>(source));
         }
-        else if (source->IsA<ReflectionProbe>())
+        else if (source->IsA<EnvProbe>())
         {
-            task = lightmapperSubsystem->EnqueueBake(StaticCast<ReflectionProbe>(source));
+            task = lightmapperSubsystem->EnqueueBake(StaticCast<EnvProbe>(source));
         }
         else if (source->IsA<FogVolume>())
         {

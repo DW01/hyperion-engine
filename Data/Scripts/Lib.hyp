@@ -2042,6 +2042,7 @@ extern enum LightmapShadingType : uint32
     RADIANCE,
     FULL,
     SHADOW,
+    DISTANCE,
     MAX
 end
 extern struct BakerConfig

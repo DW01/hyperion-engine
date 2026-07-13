@@ -16,6 +16,7 @@
 #include <Core/FileSystem/FilePath.hpp>
 
 #include <Core/Containers/Set.hpp>
+#include <Core/Containers/SparsePagedArray.hpp>
 
 #include <Core/Utilities/StringView.hpp>
 #include <Core/Utilities/ForEach.hpp>
@@ -59,7 +60,7 @@ extern StringHash AssetObject_KeyByFunction(const Handle<AssetObject>& assetObje
 using AssetDescSet = HashTable<AssetDesc, &AssetDesc_KeyByFunction, AssetAllocator>;
 
 // Maps from AssetDesc id -> AssetObject handle
-using AssetObjectCache = SparsePagedArray<Handle<AssetObject>, 64, AssetAllocator>;
+using AssetObjectCache = SparsePagedArray<Handle<AssetObject>, 256, AssetAllocator>;
 
 HYP_CLASS()
 class ENGINE_API AssetRegistry final : public ObjectBase

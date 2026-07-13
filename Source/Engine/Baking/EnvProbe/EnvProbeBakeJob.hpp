@@ -2,25 +2,25 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
 #include <Baking/BakeJob.hpp>
 
-#include <Baking/ReflectionProbe/ReflectionProbeBakeData.hpp>
+#include <Baking/EnvProbe/EnvProbeBakeData.hpp>
 
 namespace Hyperion {
 
-class ReflectionProbe;
+class EnvProbe;
 
 namespace Baking {
 
 template <>
-class BakeJob<ReflectionProbe> : public BakeJobBase
+class BakeJob<EnvProbe> : public BakeJobBase
 {
 public:
-    explicit BakeJob(BakeJobParams&& params, const Handle<ReflectionProbe>& envProbe, BakeData<ReflectionProbe>* bakeData)
+    explicit BakeJob(BakeJobParams&& params, const Handle<EnvProbe>& envProbe, BakeData<EnvProbe>* bakeData)
         : BakeJobBase(std::move(params)),
           m_envProbe(envProbe),
           m_bakeData(bakeData)
@@ -29,12 +29,12 @@ public:
 
     virtual ~BakeJob() override;
 
-    HYP_FORCE_INLINE const Handle<ReflectionProbe>& GetEnvProbe() const
+    HYP_FORCE_INLINE const Handle<EnvProbe>& GetEnvProbe() const
     {
         return m_envProbe;
     }
 
-    virtual BakeData<ReflectionProbe>& GetBakeData() override
+    virtual BakeData<EnvProbe>& GetBakeData() override
     {
         return *m_bakeData;
     }
@@ -43,8 +43,8 @@ protected:
     virtual void Start_Internal() override;
     virtual void Process_Internal(bool* outIsReadyToProcess) override;
 
-    Handle<ReflectionProbe> m_envProbe;
-    BakeData<ReflectionProbe>* m_bakeData;
+    Handle<EnvProbe> m_envProbe;
+    BakeData<EnvProbe>* m_bakeData;
 };
 
 } // namespace Baking

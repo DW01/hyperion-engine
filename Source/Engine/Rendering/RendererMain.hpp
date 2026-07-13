@@ -106,9 +106,9 @@ public:
     void Clear(bool freeMemory = true);
 
     // map entity id to previous attribute handle (for draw call collection)
-    SparseArray<RenderableAttributeHandle, RenderAllocator> previousAttributes;
+    SparsePagedArray<RenderableAttributeHandle, 64, RenderAllocator> previousAttributes;
 
-    using BinnedDrawCallCollections = SparsePagedArray<DrawCallCollection, 128, RenderAllocator>;
+    using BinnedDrawCallCollections = SparsePagedArray<DrawCallCollection, 64, RenderAllocator>;
     FixedArray<BinnedDrawCallCollections, NumRenderBuckets> mappingsByBucket;
 
     struct ParallelRenderingStateLL

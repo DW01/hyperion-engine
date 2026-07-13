@@ -112,7 +112,7 @@ public:
         {
             if (const auto& skyProbes = rpl->GetEnvProbes().GetElements<SkyProbe>(); skyProbes.Any())
             {
-                renderSetup.envProbe = skyProbes.Front();
+                renderSetup.envProbe = *skyProbes.Begin();
             }
         }
 

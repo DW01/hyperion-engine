@@ -1520,7 +1520,7 @@ size_t RenderCollector::NumDrawCallsCollected() const
 
     for (const auto& mappings : mappingsByBucket)
     {
-        for (DrawCallCollection& drawCallCollection : mappings)
+        for (const DrawCallCollection& drawCallCollection : mappings)
         {
             numDrawCalls += drawCallCollection.drawCalls.Size()
                 + drawCallCollection.instancedDrawCalls.Size();
@@ -2088,7 +2088,7 @@ void RenderCollector::CollectRenderables(uint32 bucketBits)
                         && meshProxy->mesh->GetVertexBuffer() != nullptr
                         && meshProxy->mesh->GetIndexBuffer() != nullptr);
 
-            AssertDebug(meshProxy->material != nullptr && meshProxy->material->IsReady());
+            AssertDebug(meshProxy->material != nullptr);
 
             DrawCallID drawCallId { meshProxy->mesh->Id(), meshProxy->material->Id() };
 
@@ -2241,7 +2241,7 @@ void RenderCollector::BuildRenderGroups(View* view, RenderProxyList& renderProxy
                 continue;
             }
 
-            prevDrawCallCollection->meshProxies.Delete(id.ToIndex());
+            prevDrawCallCollection->meshProxies.EraseAt(id.ToIndex());
             prevDrawCallCollection = nullptr;
 
             // Add proxy to group
@@ -2301,9 +2301,9 @@ void RenderCollector::BuildRenderGroups(View* view, RenderProxyList& renderProxy
             Assert(drawCallCollection.batchAllocator != nullptr && drawCallCollection.isInit);
 
             AssertDebug(drawCallCollection.meshProxies.HasIndex(idx));
-            drawCallCollection.meshProxies.Delete(idx);
+            drawCallCollection.meshProxies.EraseAt(idx);
 
-            previousAttributes.Delete(idx);
+            previousAttributes.EraseAt(idx);
         }
     }
 

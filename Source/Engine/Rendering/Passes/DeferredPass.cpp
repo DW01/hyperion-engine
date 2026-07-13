@@ -3039,7 +3039,7 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
                 auto& skyProbes = rpl.GetEnvProbes().GetElements<SkyProbe>();
                 if (skyProbes.Any())
                 {
-                    rayTracingRS.envProbe = skyProbes.Front();
+                    rayTracingRS.envProbe = *skyProbes.Begin();
                 }
 
                 if (useRayTracingReflections)

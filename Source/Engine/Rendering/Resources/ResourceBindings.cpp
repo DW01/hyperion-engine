@@ -296,7 +296,7 @@ void OnBindingChanged_Material(Material* material, uint32 prev, uint32 next)
 
         RenderProxyMaterial* proxyCasted = static_cast<RenderProxyMaterial*>(proxy);
 
-        auto& imageViews = RI.materialTextureCache->imageViews.Emplace(next);
+        auto& imageViews = *RI.materialTextureCache->imageViews.Emplace(next);
 
         if (imageViews.Size() < proxyCasted->boundTextures.Size())
         {

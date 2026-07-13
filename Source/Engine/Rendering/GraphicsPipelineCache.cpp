@@ -38,13 +38,14 @@ namespace Hyperion {
 
 // discard a graphics pipeline that hasn't been used after this number of frames
 static constexpr uint32 GraphicsPipelineDiscardFrames = 100;
+static constexpr size_t CachedPipelinesPerPage = 256;
 
 #pragma region CachedPipelinesMap
 
-class CachedPipelinesMap : public SparsePagedArray<GraphicsPipelineRef, 1024, RenderAllocator>
+class CachedPipelinesMap : public SparsePagedArray<GraphicsPipelineRef, CachedPipelinesPerPage, RenderAllocator>
 {
 public:
-    using Base = SparsePagedArray<GraphicsPipelineRef, 1024, RenderAllocator>;
+    using Base = SparsePagedArray<GraphicsPipelineRef, CachedPipelinesPerPage, RenderAllocator>;
 
     using RefCountMap = Map<size_t, uint32, RenderAllocator>;
 
@@ -168,7 +169,11 @@ public:
 
         refCountMap[outIndex] = 0;
 
-        return GraphicsPipelineCacheHandle(&*Base::Set(outIndex, GraphicsPipelineRef::Null()));
+        Base::Set(outIndex, GraphicsPipelineRef::Null());
+
+        Base::Iterator iter(this, outIndex / CachedPipelinesPerPage, outIndex % CachedPipelinesPerPage);
+
+        return GraphicsPipelineCacheHandle(&*iter);
     }
 
     void RemoveSlotIfUnused(size_t index)
@@ -187,7 +192,7 @@ public:
                 }
 
                 // all pointers should now be invalidated.
-                Base::EraseAt(index, /* freeMemory */ true);
+                Base::EraseAt(index);
 
                 // allow this slot to be reused.
                 indexAllocator.Free(index);
@@ -219,30 +224,7 @@ public:
             return SIZE_MAX;
         }
 
-        // <page size> * sizeof(GraphicsPipelineRef)
-        constexpr size_t pageStorageSizeBytes = (1u << Base::PageSizeBits) * sizeof(GraphicsPipelineRef);
-
-        //  - the underlying reference may be null if it has been destroyed,
-        //    but the pointer itself is still valid as long as the cache handle exists.
-        //  - therefore, we need to check if the pointer is within the bounds of any of the pages and calculate
-        //    the index based on the page's storage address.
-        for (Bitset::BitIndex pageIdx : Base::m_validPages)
-        {
-            typename Base::Page* page = Base::m_pages[pageIdx];
-            AssertDebug(page != nullptr);
-
-            if (UIntPtr(graphicsPipelinePtr) < UIntPtr(&page->storage) || UIntPtr(graphicsPipelinePtr) >= UIntPtr(&page->storage) + pageStorageSizeBytes)
-            {
-                continue; // pointer not in this page
-            }
-
-            // calculate the index of the graphics pipeline, using the offset relative to the page's storage address
-            // to get the index within the page.
-            // then, we add the page index multiplied by the page size to get the absolute index in the SparsePagedArray.
-            return (pageIdx << Base::PageSizeBits) + ((UIntPtr(graphicsPipelinePtr) - UIntPtr(&page->storage)) / sizeof(GraphicsPipelineRef));
-        }
-
-        return SIZE_MAX;
+        return Base::IndexOf(*graphicsPipelinePtr);
     }
 
     AtomicIndexAllocator indexAllocator;

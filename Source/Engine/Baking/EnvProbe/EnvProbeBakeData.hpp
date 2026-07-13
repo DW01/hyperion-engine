@@ -10,12 +10,12 @@
 
 namespace Hyperion {
 
-class ReflectionProbe;
+class EnvProbe;
 
 namespace Baking {
 
 template <>
-class BakeData<ReflectionProbe> : public BakeDataBase
+class BakeData<EnvProbe> : public BakeDataBase
 {
 public:
     using BitmapType = Bitmap_RGBA16F;
@@ -26,7 +26,7 @@ public:
     {
     }
 
-    BakeData(Span<const BakeEntity> bakeEntities, ReflectionProbe* envProbe)
+    BakeData(Span<const BakeEntity> bakeEntities, EnvProbe* envProbe)
         : BakeDataBase(bakeEntities),
           m_envProbe(envProbe)
     {
@@ -46,7 +46,7 @@ public:
     VisibilityBitmapType ToVisibilityBitmap() const;
 
 protected:
-    ReflectionProbe* m_envProbe;
+    EnvProbe* m_envProbe;
     Array<LightmapRay> m_rays;
 };
 
