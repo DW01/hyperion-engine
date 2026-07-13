@@ -45,6 +45,20 @@ enum class MeshFlags : uint32
 
 HYP_MAKE_ENUM_FLAGS(MeshFlags);
 
+static constexpr uint8 MaxMeshLods = 4;
+
+HYP_STRUCT()
+struct MeshLodDesc
+{
+    HYP_STRUCT_BODY(MeshLodDesc);
+
+    HYP_FIELD(Serialize)
+    uint32 numVertices = 0;
+
+    HYP_FIELD(Serialize)
+    uint32 numIndices = 0;
+};
+
 HYP_STRUCT()
 struct MeshDesc
 {
@@ -54,13 +68,41 @@ struct MeshDesc
     MeshAttributes meshAttributes;
 
     HYP_FIELD(Serialize)
-    uint32 numVertices = 0;
+    FixedArray<MeshLodDesc, MaxMeshLods> lods = {};
 
-    HYP_FIELD(Serialize)
-    uint32 numIndices = 0;
+    HYP_FORCE_INLINE uint8 GetNumLods() const
+    {
+        for (uint8 i = 0; i < MaxMeshLods; i++)
+        {
+            if (lods[i].numIndices == 0)
+            {
+                return i + 1;
+            }
+        }
+
+        return MaxMeshLods;
+    }
 };
 
-/*! \brief Represents a 3D mesh in the engine, containing vertex data, indices, and rendering attributes. */
+HYP_STRUCT()
+struct MeshLodData
+{
+    HYP_STRUCT_BODY(MeshLodData);
+
+    HYP_FIELD(Serialize)
+    BlobDataReference vertexData;
+
+    HYP_FIELD(Serialize)
+    BlobDataReference indexData;
+};
+
+struct MeshDataView
+{
+    VertexArrayView vertices[MaxMeshLods];
+    ConstByteView indices[MaxMeshLods];
+};
+
+/*! \brief Contains vertices and indices for all associated levels-of-detail of a section of a model */
 HYP_CLASS(AssetBucket = "Meshes")
 class ENGINE_API Mesh final : public AssetObject
 {
@@ -71,8 +113,8 @@ public:
 
     Mesh();
 
-    Mesh(const VertexArrayView& vertexData, const ByteBuffer& indexData, Topology topology, const VertexInputLayoutDesc& inputLayout);
-    Mesh(const VertexArrayView& vertexData, const ByteBuffer& indexData, Topology topology = TOP_TRIANGLES);
+    Mesh(const MeshDataView& meshData, Topology topology, const VertexInputLayoutDesc& inputLayout);
+    explicit Mesh(const MeshDataView& meshData, Topology topology = TOP_TRIANGLES);
 
     ~Mesh() override;
 
@@ -90,13 +132,12 @@ public:
 
     void SetMeshData(
         const MeshDesc& meshDesc,
-        const VertexArrayView& vertices,
-        Span<const ubyte> indices);
+        const MeshDataView& meshData);
 
     HYP_METHOD()
-    HYP_FORCE_INLINE uint32 NumIndices() const
+    HYP_FORCE_INLINE uint32 NumIndices(uint8 lodIndex) const
     {
-        return m_meshDesc.numIndices;
+        return m_meshDesc.lods[lodIndex].numIndices;
     }
 
     /*! \note Only to be called from render thread or render task */
@@ -150,21 +191,21 @@ public:
         return m_meshDesc;
     }
 
-    VertexArrayView GetVertexData() const;
-    void SetVertexData(const VertexArrayView& view);
+    VertexArrayView GetVertexData(uint8 lodIndex) const;
+    void SetVertexData(uint8 lodIndex, const VertexArrayView& view);
 
-    HYP_FORCE_INLINE Span<ubyte> GetIndexData()
+    HYP_FORCE_INLINE Span<ubyte> GetIndexData(uint8 lodIndex)
     {
-        Assert(m_indexData.raw != nullptr, "Index data not loaded!");
-        return Span<ubyte>(reinterpret_cast<ubyte*>(m_indexData.raw), m_indexData.size);
+        Assert(m_lodData[lodIndex].indexData.raw != nullptr, "Index data not loaded!");
+        return Span<ubyte>(reinterpret_cast<ubyte*>(m_lodData[lodIndex].indexData.raw), m_lodData[lodIndex].indexData.size);
     }
 
-    HYP_FORCE_INLINE Span<const ubyte> GetIndexData() const
+    HYP_FORCE_INLINE Span<const ubyte> GetIndexData(uint8 lodIndex) const
     {
-        return const_cast<Mesh*>(this)->GetIndexData();
+        return const_cast<Mesh*>(this)->GetIndexData(lodIndex);
     }
 
-    void SetIndexData(Span<const ubyte> indexData);
+    void SetIndexData(uint8 lodIndex, Span<const ubyte> indexData);
 
     BoundingBox CalculateAABB() const;
 
@@ -185,8 +226,18 @@ protected:
 
     void CollectBlobDataReferences(Array<Tuple<const char*, uint16, BlobDataReference*>>& outReferences) override
     {
-        outReferences.EmplaceBack("VB", 1, &m_vertexData);
-        outReferences.EmplaceBack("IB", 1, &m_indexData);
+        for (uint8 lodIndex = 0; lodIndex < MaxMeshLods; lodIndex++)
+        {
+            if (m_lodData[lodIndex].vertexData.size != 0)
+            {
+                outReferences.EmplaceBack("VB", 1, &m_lodData[lodIndex].vertexData);
+            }
+
+            if (m_lodData[lodIndex].indexData.size != 0)
+            {
+                outReferences.EmplaceBack("IB", 1, &m_lodData[lodIndex].indexData);
+            }
+        }
 
         if (m_bvhData.size != 0)
         {
@@ -199,10 +250,7 @@ private:
     MeshDesc m_meshDesc;
 
     HYP_FIELD(Serialize)
-    BlobDataReference m_vertexData;
-
-    HYP_FIELD(Serialize)
-    BlobDataReference m_indexData;
+    FixedArray<MeshLodData, MaxMeshLods> m_lodData;
 
     HYP_FIELD(Serialize)
     BlobDataReference m_bvhData;

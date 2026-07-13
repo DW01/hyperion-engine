@@ -1,0 +1,81 @@
+{
+  "$Class": "Mesh",
+  "AABB": {
+    "Min": [-1, -1, 0],
+    "Max": [1, 1, 0]
+  },
+  "MeshDesc": {
+    "MeshAttributes": {
+      "InputLayout": {
+        "Mask": 7
+      },
+      "Topology": 0,
+      "IndexBufferElemType": 4
+    },
+    "Lods": [{
+        "$Class": "MeshLodDesc",
+        "NumVertices": 4,
+        "NumIndices": 6
+      }, {
+        "$Class": "MeshLodDesc",
+        "NumVertices": 0,
+        "NumIndices": 0
+      }, {
+        "$Class": "MeshLodDesc",
+        "NumVertices": 0,
+        "NumIndices": 0
+      }, {
+        "$Class": "MeshLodDesc",
+        "NumVertices": 0,
+        "NumIndices": 0
+      }]
+  },
+  "LodData": [{
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "Editor://Meshes/MeshBuilder_Quad.VB",
+        "Size": 128
+      },
+      "IndexData": {
+        "Key": "Editor://Meshes/MeshBuilder_Quad.IB",
+        "Size": 24
+      }
+    }, {
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "",
+        "Size": 0
+      },
+      "IndexData": {
+        "Key": "",
+        "Size": 0
+      }
+    }, {
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "",
+        "Size": 0
+      },
+      "IndexData": {
+        "Key": "",
+        "Size": 0
+      }
+    }, {
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "",
+        "Size": 0
+      },
+      "IndexData": {
+        "Key": "",
+        "Size": 0
+      }
+    }],
+  "BvhData": {
+    "Key": "Editor://Meshes/MeshBuilder_Quad.BVH",
+    "Size": 26737
+  },
+  "Flags": 0,
+  "Name": "MeshBuilder_Quad",
+  "FriendlyName": "MeshBuilderQuad"
+}

@@ -13,6 +13,7 @@
 #include <Scene/Node.hpp>
 #include <Scene/World.hpp>
 #include <Scene/Scene.hpp>
+#include <Scene/Prefab.hpp>
 #include <Scene/DetachedScene.hpp>
 
 #include <Scene/Animation/Skeleton.hpp>
@@ -326,18 +327,22 @@ AssetLoadResult OgreXMLModelLoader::LoadAsset(LoaderState& state) const
         meshDesc.meshAttributes.inputLayout = { VT_Simple | VT_Skeletal };
         meshDesc.meshAttributes.indexBufferElemType = GET_UNSIGNED_INT;
         meshDesc.meshAttributes.topology = TOP_TRIANGLES;
-        meshDesc.numVertices = uint32(model.vertexData.ByteSize() / sizeof(FatVertex));
-        meshDesc.numIndices = uint32(subMesh.indices.Size());
+        meshDesc.lods[0].numVertices = uint32(model.vertexData.ByteSize() / sizeof(FatVertex));
+        meshDesc.lods[0].numIndices = uint32(subMesh.indices.Size());
 
         Handle<Mesh> mesh = MakeHandle<Mesh>();
         mesh->SetName(assetName);
 
         VertexArrayView vertexArrayView {};
         vertexArrayView.floatData = model.vertexData.Data();
-        vertexArrayView.vertexCount = meshDesc.numVertices;
+        vertexArrayView.vertexCount = meshDesc.lods[0].numVertices;
         vertexArrayView.layoutDesc = meshDesc.meshAttributes.inputLayout;
 
-        mesh->SetMeshData(meshDesc, vertexArrayView, subMesh.indices.ToByteView());
+        MeshDataView meshData {};
+        meshData.vertices[0] = vertexArrayView;
+        meshData.indices[0] = subMesh.indices.ToByteView();
+
+        mesh->SetMeshData(meshDesc, meshData);
         // mesh->SetOriginalFilepath(FilePath::Relative(state.filepath, state.assetManager->GetBasePath()));
 
         GetCurrentAssetRegistry()->PutAsset(mesh);
@@ -385,7 +390,7 @@ AssetLoadResult OgreXMLModelLoader::LoadAsset(LoaderState& state) const
         top->AddChild(std::move(node));
     }
 
-    return LoadedAsset { top };
+    return LoadedAsset { MakeHandle<Prefab>(top->GetName(), top) };
 }
 
 } // namespace Hyperion

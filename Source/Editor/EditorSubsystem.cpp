@@ -129,7 +129,7 @@ GenerateLightmapsEditorTask::GenerateLightmapsEditorTask(const Handle<LightmapVo
 {
 }
 
-GenerateLightmapsEditorTask::GenerateLightmapsEditorTask(const Handle<ReflectionProbe>& probe)
+GenerateLightmapsEditorTask::GenerateLightmapsEditorTask(const Handle<EnvProbe>& probe)
     : GenerateLightmapsEditorTask(Array<Handle<ObjectBase>> { { StaticCast<ObjectBase>(probe) } })
 {
 }
@@ -143,7 +143,7 @@ GenerateLightmapsEditorTask::GenerateLightmapsEditorTask(const Array<Handle<Obje
         ObjectBase* source = *it;
 
         if (!source->IsA(LightmapVolume::StaticClass())
-            && !source->IsA(ReflectionProbe::StaticClass())
+            && !source->IsA(EnvProbe::StaticClass())
             && !source->IsA(FogVolume::StaticClass()))
         {
             HYP_LOG(Editor, Error, "GenerateLightmapsEditorTask source is not a LightmapVolume or EnvProbe: \"{}\"", source->InstanceClass()->GetName());
@@ -191,9 +191,9 @@ void GenerateLightmapsEditorTask::Start()
         {
             task = lightmapperSubsystem->EnqueueBake(StaticCast<LightmapVolume>(source));
         }
-        else if (source->IsA<ReflectionProbe>())
+        else if (source->IsA<EnvProbe>())
         {
-            task = lightmapperSubsystem->EnqueueBake(StaticCast<ReflectionProbe>(source));
+            task = lightmapperSubsystem->EnqueueBake(StaticCast<EnvProbe>(source));
         }
         else if (source->IsA<FogVolume>())
         {
@@ -1582,84 +1582,32 @@ Handle<Node> VolumeEditorGizmo::Load_Internal() const
 {
     GlobalContextScope assetRegistryScope { AssetRegistryContext { GetEditorAssetRegistry() } };
 
-    // if (Handle<Node> node = GetCurrentAssetRegistry()->GetAsset<Node>(AssetBuckets::Nodes, "VolumeEditGizmo"_sh); node.IsValid())
-    //{
-    //     return node;
-    // }
-
-    // return Handle<Node>::Null();
-
-    // @TODO Save in editor registry and load
-
-    const Vec4f volumeColor = Vec4f(0.3f, 0.0f, 0.28f, 0.25f);
-
-    Handle<Node> rootNode = MakeHandle<Node>();
-    rootNode->SetName(NAME("VolumeEditGizmo"));
-
-    rootNode->UnlockTransform();
-    rootNode->SetNodeFlags(rootNode->GetNodeFlags() | NodeFlags::HideInSceneOutline);
-
-    // quad face rotations
-    static const Quat4f s_faceRotations[VEF_Max] = {
-        Quat4f::AxisAngles(Vec3f::UnitY(), -MathUtil::pi<float> * 0.5f),
-        Quat4f::AxisAngles(Vec3f::UnitY(), MathUtil::pi<float> * 0.5f),
-        Quat4f::AxisAngles(Vec3f::UnitX(), MathUtil::pi<float> * 0.5f),
-        Quat4f::AxisAngles(Vec3f::UnitX(), -MathUtil::pi<float> * 0.5f),
-        Quat4f::AxisAngles(Vec3f::UnitY(), MathUtil::pi<float>),
-        Quat4f::Identity()
-    };
-
-    Handle<Mesh> quadMesh = MeshBuilder::Quad();
-    InitObject(quadMesh);
-
-    MaterialAttributes materialAttributes;
-    materialAttributes.bucket = RenderBucket::Debug;
-    materialAttributes.blendFunction = BlendFunction::Additive();
-    materialAttributes.cullFaces = FCM_NONE;
-    materialAttributes.flags = MAF_NONE;
-
-    MaterialParameters materialParameters;
-    materialParameters.albedo = volumeColor;
-
-    Handle<Material> material = MakeHandle<Material>(NAME("VolumeEditMaterial"), materialAttributes, materialParameters, MaterialTextures {});
-    material->SetIsDynamic(true);
-    InitObject(material);
-
-    GetCurrentAssetRegistry()->PutAssetsDeep(material);
-
-    for (int i = 0; i < VEF_Max; i++)
+    if (Handle<Prefab> prefab = GetCurrentAssetRegistry()->GetAsset<Prefab>(AssetBuckets::Prefabs, "VolumeEditGizmo"_sh); prefab.IsValid())
     {
-        Handle<Entity> faceEntity = MakeHandle<Entity>(NAME_FMT("VolumeFace_{}", i));
-        faceEntity->SetIsDynamic(true);
-        faceEntity->UnlockTransform();
-        faceEntity->SetLocalRotation(s_faceRotations[i]);
+        Handle<Node> rootNode = prefab->GetRoot();
 
-        faceEntity->Node::AddTag(NodeTag(NAME("VolumeFaceIndex"), i));
-
-        rootNode->AddChild(faceEntity);
-
-        faceEntity->AddComponent<MeshComponent>(MeshComponent { quadMesh, material });
-        faceEntity->SetLocalBounds(quadMesh->GetAABB());
-
-        VisibilityStateComponent* visibilityState = faceEntity->TryGetComponent<VisibilityStateComponent>();
-
-        if (visibilityState)
+        if (rootNode.IsValid())
         {
-            visibilityState->flags |= VisibilityStateFlags::ALWAYS_VISIBLE;
-        }
-        else
-        {
-            faceEntity->AddComponent<VisibilityStateComponent>(VisibilityStateComponent { VisibilityStateFlags::ALWAYS_VISIBLE });
+            for (const Handle<Node>& child : rootNode->GetChildren())
+            {
+                if (Entity* entity = DynamicCast<Entity>(child.Get()))
+                {
+                    if (VisibilityStateComponent* visibilityState = entity->TryGetComponent<VisibilityStateComponent>())
+                    {
+                        visibilityState->flags |= VisibilityStateFlags::ALWAYS_VISIBLE;
+                    }
+                    else
+                    {
+                        entity->AddComponent<VisibilityStateComponent>(VisibilityStateComponent { VisibilityStateFlags::ALWAYS_VISIBLE });
+                    }
+                }
+            }
         }
 
-        faceEntity->Node::AddTag(NodeTag(NAME("TransformWidgetElementColor"), volumeColor));
+        return rootNode;
     }
 
-    rootNode->SetLocalBounds(BoundingBox(Vec3f(-1.0), Vec3f(1.0f)));
-
-    GetCurrentAssetRegistry()->SaveDirtyAssets();
-
-    return rootNode;
+    return Handle<Node>::Null();
 }
 
 void VolumeEditorGizmo::SetFocusedNode(const Handle<Node>& focusedNode)
@@ -3405,7 +3353,7 @@ void EditorSubsystem::NewProject()
     sun->SetName(NAME("SunLight"));
     sun->SetDirection(Vec3f(-0.2f, 0.8f, 0.2f).Normalize());
     sun->SetColor(Color(Vec4f(1.0f, 0.9f, 0.8f, 1.0f)));
-    sun->SetIntensity(40.0f);
+    sun->SetIntensity(10.0f);
     InitObject(sun);
 
     mainScene->GetRoot()->AddChild(sun);

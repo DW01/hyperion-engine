@@ -14,6 +14,7 @@
 #include <Scene/Entity.hpp>
 #include <Scene/World.hpp>
 #include <Scene/Scene.hpp>
+#include <Scene/Prefab.hpp>
 #include <Scene/DetachedScene.hpp>
 #include <Scene/Node.hpp>
 
@@ -279,8 +280,8 @@ struct FBXMesh
             meshDesc.meshAttributes.inputLayout = vertexArrayView.layoutDesc;
             meshDesc.meshAttributes.indexBufferElemType = GET_UNSIGNED_INT;
             meshDesc.meshAttributes.topology = TOP_TRIANGLES;
-            meshDesc.numVertices = uint32(vertexArrayView.vertexCount);
-            meshDesc.numIndices = uint32(indices.Size());
+            meshDesc.lods[0].numVertices = uint32(vertexArrayView.vertexCount);
+            meshDesc.lods[0].numIndices = uint32(indices.Size());
 
             /*bounds = meshData.CalculateAABB();
 
@@ -293,9 +294,13 @@ struct FBXMesh
             //     vertex.SetPosition(vertex.GetPosition() - boundsCenter);
             // }
 
+            MeshDataView data {};
+            data.vertices[0] = vertexArrayView;
+            data.indices[0] = indices.ToByteView();
+
             Handle<Mesh> mesh = MakeHandle<Mesh>();
             mesh->SetName(CreateNameFromDynamicString(name));
-            mesh->SetMeshData(meshDesc, vertexArrayView, indices.ToByteView());
+            mesh->SetMeshData(meshDesc, data);
 
             result.Set(std::move(mesh));
         }
@@ -1920,7 +1925,7 @@ AssetLoadResult FBXModelLoader::LoadAsset(LoaderState& state) const
     top->SetLocalRotation(Quat4f::AxisAngles(Vec3f(1.0f, 0.0f, 0.0f), MathUtil::DegToRad(-90.0f)));
     top->Scale(0.01f);
 
-    return LoadedAsset { top };
+    return LoadedAsset { MakeHandle<Prefab>(top->GetName(), top) };
 }
 
 } // namespace Hyperion

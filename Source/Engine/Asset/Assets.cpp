@@ -50,6 +50,7 @@ namespace Hyperion {
 
 class Skeleton;
 class AudioSource;
+class Prefab;
 
 #pragma region AssetCollector
 
@@ -261,15 +262,15 @@ void AssetManager::RegisterDefaultLoaders()
 
     HYP_LOG(Assets, Verbose, "AssetManager Base Path: {}", GetBasePath());
 
-    Register<OBJModelLoader, Node>("obj");
-    Register<OgreXMLModelLoader, Node>("mesh.xml");
+    Register<OBJModelLoader, Prefab>("obj");
+    Register<OgreXMLModelLoader, Prefab>("mesh.xml");
     Register<OgreXMLSkeletonLoader, Skeleton>("skeleton.xml");
     Register<TextureLoader, Texture>(
         "png", "jpg", "jpeg", "tga",
         "bmp", "psd", "gif", "hdr", "tif");
     Register<WAVAudioLoader, AudioSource>("wav");
-    Register<FBXModelLoader, Node>("fbx");
-    Register<GLTFModelLoader, Node>("gltf", "glb");
+    Register<FBXModelLoader, Prefab>("fbx");
+    Register<GLTFModelLoader, Prefab>("gltf", "glb");
     // Register<PLYModelLoader, PLYModel>("ply");
     Register<JSONLoader, Value>("json");
     // freetype font loader

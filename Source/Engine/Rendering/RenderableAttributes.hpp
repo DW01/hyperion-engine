@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -24,20 +24,20 @@ enum class ShaderCacheId : uint64;
 HYP_ENUM()
 enum MaterialAttributeFlags : uint8
 {
-    MAF_NONE = 0x0,
+    MAF_NONE = 0x0, //!< @edithide
 
-    MAF_DEPTH_WRITE = 0x1,
-    MAF_DEPTH_TEST = 0x2,
-    MAF_DEPTH_BIAS = 0x4,  //!< Enable depth bias settings.
-    MAF_DEPTH_CLAMP = 0x8,
-    MAF_STENCIL_TEST = 0x10,
-    MAF_ALPHA_DISCARD = 0x20
+    MAF_DEPTH_WRITE = 0x1,   //!< @title="Depth write" @description="Enable depth write for objects with this material"
+    MAF_DEPTH_TEST = 0x2,    //!< @title="Depth test" @description="Enable depth testing for objects with this material"
+    MAF_DEPTH_BIAS = 0x4,    //!< @title="Depth bias" @description="Enable depth bias settings"
+    MAF_DEPTH_CLAMP = 0x8,   //!< @title="Depth clamp" @description="Depth clamp enablement - objects with depth outside of the 0..1 range will be clamped at those values respectively, rather than clipped."
+    MAF_STENCIL_TEST = 0x10, //!< @title="Stencil test" @description="Enable objects with this material to be used in stencil test"
+    MAF_ALPHA_DISCARD = 0x20 //!< @title="Has alpha discard" @description="Objects with this material will have pixels culled, where they have an opacity below a specified threshold (set on the Material object)"
 };
 
 HYP_MAKE_ENUM_FLAGS(MaterialAttributeFlags);
 
 HYP_STRUCT()
-struct MaterialAttributes
+struct MaterialAttributes final
 {
     HYP_STRUCT_BODY(MaterialAttributes);
 
@@ -119,7 +119,7 @@ struct MaterialAttributes
 };
 
 HYP_STRUCT()
-struct MeshAttributes
+struct MeshAttributes final
 {
     HYP_STRUCT_BODY(MeshAttributes);
 
@@ -204,7 +204,7 @@ struct RenderableAttributeHandle
     }
 };
 
-class RenderableAttributeSet
+class RenderableAttributeSet final
 {
     MeshAttributes m_meshAttributes;
     MaterialAttributes m_materialAttributes;

@@ -26,6 +26,7 @@
 #include <Rendering/Buffers.hpp>
 #include <Rendering/RawBufferAllocator.hpp>
 #include <Rendering/CBufferAllocator.hpp>
+#include <Rendering/StencilMasks.hpp>
 
 #include <Rendering/Passes/DeferredPass.hpp>
 
@@ -512,8 +513,8 @@ Mesh* TriangleDebugDrawShape::GetMesh_Internal() const
 
             MeshDesc meshDesc {};
             meshDesc.meshAttributes.inputLayout = { VT_Simple };
-            meshDesc.numIndices = uint32(indices.Size());
-            meshDesc.numVertices = uint32(vertices.Size());
+            meshDesc.lods[0].numIndices = uint32(indices.Size());
+            meshDesc.lods[0].numVertices = uint32(vertices.Size());
 
             mesh = MakeHandle<Mesh>();
             mesh->SetFlags(MeshFlags::ViewIndependent);
@@ -528,7 +529,11 @@ Mesh* TriangleDebugDrawShape::GetMesh_Internal() const
                 reinterpret_cast<const ubyte*>(indices.Data()),
                 indices.Size() * sizeof(uint32));
 
-            mesh->SetMeshData(meshDesc, vertexArrayView, indicesByteView);
+            MeshDataView meshData {};
+            meshData.vertices[0] = vertexArrayView;
+            meshData.indices[0] = indicesByteView;
+
+            mesh->SetMeshData(meshDesc, meshData);
             mesh->UploadGpuData();
 
             GetEngineAssetRegistry()->PutAsset(mesh);
@@ -873,6 +878,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
 
     cr << SetCurrentShader(shaderDesc);
     cr << SetCurrentViewport(viewport);
+    cr << SetStencilState(DebugStencilMask, 0x0, 0xFF);
 
     HYP_DEFER({
         // reset states
@@ -915,7 +921,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
 
         uint32 numToDraw = 0;
 
-        auto CommitCurrentDraws = [&]()
+        auto commitCurrentDraws = [&]()
         {
             if (numToDraw != 0)
             {
@@ -964,7 +970,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
 
                     cr << BindVertexBuffer(mesh->GetVertexBuffer());
                     cr << BindIndexBuffer(mesh->GetIndexBuffer());
-                    cr << DrawIndexed(mesh->NumIndices(), numToDraw);
+                    cr << DrawIndexed(mesh->NumIndices(0), numToDraw);
 
                     ++totalDrawCalls;
                     totalInstancedDraws += numToDraw;
@@ -998,7 +1004,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
                 if (numToDraw != 0)
                 {
                     AssertDebug(attributes.GetMeshAttributes().inputLayout.mask != 0);
-                    CommitCurrentDraws();
+                    commitCurrentDraws();
                 }
 
                 AssertDebug(drawCommand->attributes.GetMeshAttributes().inputLayout.mask != 0);
@@ -1011,7 +1017,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
 
         if (numToDraw != 0)
         {
-            CommitCurrentDraws();
+            commitCurrentDraws();
         }
     }
 

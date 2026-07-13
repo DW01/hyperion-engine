@@ -6,7 +6,7 @@
 #include "../../include/Noise.hlsli"
 #include "../../include/Packing.hlsli"
 
-PERMUTE(MODE, IRRADIANCE, RADIANCE, FULL, SHADOW);
+PERMUTE(MODE, IRRADIANCE, RADIANCE, FULL, SHADOW, DISTANCE);
 
 DECLARE_SAMPLER(LightmapPathTracer, SamplerNearest) SamplerState sampler_nearest;
 DECLARE_SAMPLER(LightmapPathTracer, SamplerLinear) SamplerState sampler_linear;
@@ -62,12 +62,12 @@ DECLARE_BUFFER(LightmapPathTracer, CBuffer) cbuffer CBuffer
 #define RAY_OFFSET 0.05
 
 #ifdef MODE_IRRADIANCE
-#define NUM_BOUNCES 4
-#define NUM_SAMPLES 8
+#define NUM_BOUNCES 8
+#define NUM_SAMPLES 64
 #define ENVIRONMENT_INTENSITY 1.0
 #elif defined(MODE_FULL)
-#define NUM_BOUNCES 4
-#define NUM_SAMPLES 64
+#define NUM_BOUNCES 8
+#define NUM_SAMPLES 256
 #define ENVIRONMENT_INTENSITY 1.0
 #else
 #define NUM_BOUNCES 1
@@ -638,6 +638,36 @@ void RayGenMain()
     {
         // if the ray misses, write a depth value to indicate that the fragment is in light
         finalColor = float4(0.0, 0.0, 0.0, 1.0);
+    }
+#elif defined(MODE_DISTANCE)
+    // Trace a single ray per texel and record the hit distance as VSM moments (dist, dist^2).
+    // Used to bake visibility textures for reflection probes.
+    payload.distance = -1.0;
+    payload.throughput = float4(1.0, 1.0, 1.0, 1.0);
+    payload.emissive = float4(0.0, 0.0, 0.0, 0.0);
+    payload.normal = float3(0.0, 0.0, 0.0);
+
+    RayDesc rayDesc;
+    rayDesc.Origin = ray.origin + ray.direction * RAY_OFFSET;
+    rayDesc.Direction = ray.direction;
+    rayDesc.TMin = 0.1;
+    rayDesc.TMax = 1500.0;
+
+    TraceRay(tlas, flags, 0xff, 0, 1, 0, rayDesc, payload);
+
+    float4 finalColor;
+
+    if (payload.distance > 0.0)
+    {
+        float dist = payload.distance;
+        finalColor = float4(dist, dist * dist, 0.0, 1.0);
+    }
+    else
+    {
+        // Miss: no occluder in this direction. Use a large distance so VSM
+        // visibility resolves to 1.0 (fully visible).
+        static const float missDistance = 10000.0;
+        finalColor = float4(missDistance, missDistance * missDistance, 0.0, 1.0);
     }
 #else
     // shouldn't get here; output green so it's really obvious

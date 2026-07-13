@@ -8,6 +8,7 @@
 
 #include <Core/Containers/Map.hpp>
 #include <Core/Containers/Array.hpp>
+#include <Core/Containers/SparsePagedArray.hpp>
 
 #include <Core/Utilities/IndexAllocator.hpp>
 
@@ -37,12 +38,13 @@ public:
         AssertDebug(handle.IsValid());
         AssertDebug(m_entries.HasIndex(handle.GetIndex()));
 
+        // we know it has the index (we assert it)
         return m_entries.Get(handle.GetIndex());
     }
 
 private:
     Map<HashCode, Array<uint32, RenderAllocator>, RenderAllocator> m_lookupByHash;
-    SparsePagedArray<RenderableAttributeSet, 1024, RenderAllocator> m_entries;
+    SparsePagedArray<RenderableAttributeSet, 64, RenderAllocator> m_entries;
     IndexAllocator m_indexAllocator;
 };
 

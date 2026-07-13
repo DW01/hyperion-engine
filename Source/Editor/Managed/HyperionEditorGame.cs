@@ -73,7 +73,7 @@ namespace Hyperion.Editor
 
             // tmp debug
             AssetBatch ab = new();
-            ab.Add("test_model", "Models/LivingRoom/living_room.obj");//SanMiguel/san-miguel-low-poly.obj");//SponzaGltf/Sponza.gltf"); //"Models/testbed/testbed.obj");
+            ab.Add("test_model", "Models/SponzaGltf/Sponza.gltf");//"Models/SanMiguel/san-miguel-low-poly.obj");//LivingRoom/living_room.obj");//// //"Models/testbed/testbed.obj");
             ab.Add("guy", "models/ZombieGuy/guy.mesh.xml");
             _assetBatchTask = ab.Load();
         }
@@ -106,7 +106,7 @@ namespace Hyperion.Editor
                 {
                     Assert.Throw(guy.Value != null);
 
-                    Node n = _editorSubsystem!.GetActiveScene().RootNode.AddChild((Node)guy.Value);
+                    Node n = _editorSubsystem!.GetActiveScene().RootNode.AddChild(((Prefab)guy.Value).Root);
                     n.LocalScale = new Vec3f(0.5f);
                 }
 
@@ -117,8 +117,8 @@ namespace Hyperion.Editor
                     Logger.Log(LogLevel.Debug, "Test model asset loaded successfully.");
                     Assert.Throw(testModelAsset.Value != null);
 
-                    Node n = _editorSubsystem!.GetActiveScene().RootNode.AddChild((Node)testModelAsset.Value);
-                    n.LocalScale = new Vec3f(6.0f);
+                    Node n = _editorSubsystem!.GetActiveScene().RootNode.AddChild(((Prefab)testModelAsset.Value).Root);
+                    n.LocalScale = new Vec3f(3.0f);
                 }
                 else
                 {

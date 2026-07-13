@@ -112,7 +112,7 @@ public:
         {
             if (const auto& skyProbes = rpl->GetEnvProbes().GetElements<SkyProbe>(); skyProbes.Any())
             {
-                renderSetup.envProbe = skyProbes.Front();
+                renderSetup.envProbe = *skyProbes.Begin();
             }
         }
 
@@ -306,6 +306,11 @@ void BakeJobBase::IntegrateRayHits(Span<const LightmapRay> rays, Span<const Ligh
         switch (shadingType)
         {
         case LightmapShadingType::RADIANCE:
+            texel.color1 += hit.color;
+            break;
+        case LightmapShadingType::DISTANCE:
+            // Distance moments (dist, dist^2) are accumulated into color1
+            // so they don't conflict with FULL-mode color in color0.
             texel.color1 += hit.color;
             break;
         default:

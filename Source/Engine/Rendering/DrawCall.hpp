@@ -8,6 +8,10 @@
 
 #include <Core/Defines.hpp>
 
+#include <Core/Types.hpp>
+
+#include <Core/Containers/SparsePagedArray.hpp>
+
 #include <Core/Reflection/ObjId.hpp>
 #include <Core/Reflection/Handle.hpp>
 #include <Core/Reflection/TypeInfoFwd.hpp>
@@ -19,8 +23,6 @@
 #include <Rendering/RenderMemory.hpp>
 #include <Rendering/RenderTypes.hpp>
 #include <Rendering/RenderGroup.hpp>
-
-#include <Core/Types.hpp>
 
 namespace Hyperion {
 
@@ -273,10 +275,7 @@ protected:
 
 struct DrawCallCollection
 {
-    DrawCallCollection()
-        : batchAllocator(nullptr)
-    {
-    }
+    DrawCallCollection() = default;
 
     DrawCallCollection(const DrawCallCollection& other) = delete;
     DrawCallCollection& operator=(const DrawCallCollection& other) = delete;
@@ -319,20 +318,15 @@ struct DrawCallCollection
         }
     }
 
-    EntityBatchAllocatorBase* batchAllocator;
+    EntityBatchAllocatorBase* batchAllocator = nullptr;
 
     RenderableAttributeSet attributes;
-    EnumFlags<RenderGroupFlags> flags = {};
     ParallelRenderingState* parallelRenderingState = nullptr;
 
     RenderProxyList* renderProxyList = nullptr;
 
-    bool isInit : 1 = false;
-    bool suppressStats : 1 = false;
-
-    // map entity id to mesh proxy
     IndirectRenderer* indirectRenderer = nullptr;
-    SparsePagedArray<RenderProxyMesh*, 128, RenderAllocator> meshProxies;
+    SparsePagedArray<RenderProxyMesh*, 256, RenderAllocator> meshProxies;
 
     DrawCallStorage drawCalls;
     InstancedDrawCallStorage instancedDrawCalls;
@@ -340,6 +334,11 @@ struct DrawCallCollection
     // Map from draw call id to the index in instancedDrawCalls
     using InstancedDrawCallIndexMap = Map<uint64, FatArray<size_t, InlineAllocator<3, RenderAllocator>>, RenderAllocator>;
     InstancedDrawCallIndexMap indexMap;
+
+    EnumFlags<RenderGroupFlags> flags = {};
+
+    bool isInit = false;
+    bool suppressStats = false;
 };
 
 template <class BatchType>

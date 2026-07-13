@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <ScenePch.hpp>
 
@@ -38,12 +38,23 @@ bool CharacterControllerInputHandler::OnKeyDown(const KeyboardEvent& evt)
 {
     switch (evt.keyCode)
     {
-    case KeyCode::KEY_W:     m_forward =  1.0f; return true;
-    case KeyCode::KEY_S:     m_forward = -1.0f; return true;
-    case KeyCode::KEY_A:     m_strafe  = -1.0f; return true;
-    case KeyCode::KEY_D:     m_strafe  =  1.0f; return true;
-    case KeyCode::KEY_SPACE: m_jump    = true;  return true;
-    default: break;
+    case KeyCode::KEY_W:
+        m_forward = 1.0f;
+        return true;
+    case KeyCode::KEY_S:
+        m_forward = -1.0f;
+        return true;
+    case KeyCode::KEY_A:
+        m_strafe = -1.0f;
+        return true;
+    case KeyCode::KEY_D:
+        m_strafe = 1.0f;
+        return true;
+    case KeyCode::KEY_SPACE:
+        m_jump = true;
+        return true;
+    default:
+        break;
     }
 
     return false;
@@ -54,16 +65,20 @@ bool CharacterControllerInputHandler::OnKeyUp(const KeyboardEvent& evt)
     switch (evt.keyCode)
     {
     case KeyCode::KEY_W:
-        if (m_forward > 0.0f) m_forward = 0.0f;
+        if (m_forward > 0.0f)
+            m_forward = 0.0f;
         return true;
     case KeyCode::KEY_S:
-        if (m_forward < 0.0f) m_forward = 0.0f;
+        if (m_forward < 0.0f)
+            m_forward = 0.0f;
         return true;
     case KeyCode::KEY_A:
-        if (m_strafe < 0.0f) m_strafe = 0.0f;
+        if (m_strafe < 0.0f)
+            m_strafe = 0.0f;
         return true;
     case KeyCode::KEY_D:
-        if (m_strafe > 0.0f) m_strafe = 0.0f;
+        if (m_strafe > 0.0f)
+            m_strafe = 0.0f;
         return true;
     case KeyCode::KEY_SPACE:
         m_jump = false;
@@ -159,7 +174,7 @@ void CharacterControllerSystem::Process(float delta, Span<Handle<Scene>> scenes)
                     if (movementInput.LengthSquared() > 0.0001f)
                     {
                         Vec3f forward = Vec3f(component.viewDirection.x, 0.0f, component.viewDirection.z).Normalize();
-                        Vec3f right   = forward.Cross(Vec3f(0.0f, 1.0f, 0.0f)).Normalize();
+                        Vec3f right = forward.Cross(Vec3f(0.0f, 1.0f, 0.0f)).Normalize();
 
                         walkDirection = (forward * movementInput.y + right * movementInput.x) * component.moveSpeed;
                     }

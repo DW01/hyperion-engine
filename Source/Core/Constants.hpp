@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -47,9 +47,9 @@ constexpr uint32 MaxBackgroundWorkerThreads = 4;
 constexpr uint32 MaxBoundWorlds = 16;
 constexpr uint32 MaxBoundCameras = 1024;
 constexpr uint32 MaxBoundLights = 1024;
-constexpr uint32 MaxBoundEntities = 1u << 15; // 32768
+constexpr uint32 MaxBoundEntities = 1u << 15;  // 32768
 constexpr uint32 MaxBoundMaterials = 1u << 10; // 1024
-constexpr uint32 MaxBoundSprites = 1u << 14; // 16384
+constexpr uint32 MaxBoundSprites = 1u << 14;   // 16384
 constexpr uint32 MaxBoundEnvProbes = 1024;
 constexpr uint32 MaxBoundSkeletons = 64;
 constexpr uint32 MaxBoundReflectionProbes = 16;
@@ -59,7 +59,7 @@ constexpr uint32 MaxBoundOmniShadowMaps = 8;
 constexpr uint32 MaxBoundLightmapVolumes = 4;
 
 // Types that do not have a global structured buffer.
-constexpr uint32 MaxBoundMeshes = 1u << 15; // 32768
+constexpr uint32 MaxBoundMeshes = 1u << 15;           // 32768
 constexpr uint32 MaxBoundResourceTextures = 1u << 14; // 16384
 constexpr uint32 MaxBoundParticleVolumes = 256;
 constexpr uint32 MaxBoundFogVolumes = 256;
@@ -75,6 +75,8 @@ constexpr uint32 NumGBufferTargets = 5;
 
 constexpr uint32 MaxEntitiesPerBatch = 16;
 constexpr uint32 MaxEntityInstanceBatches = 4096;
+
+constexpr uint32 MaxBonesPerSkeleton = 64;
 
 constexpr uint32 MaxGpuTimers = 64;
 constexpr uint32 MaxGpuTimestampQueriesPerFrame = MaxGpuTimers * 2;

@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <ScenePch.hpp>
 
@@ -48,19 +48,8 @@ Skeleton::~Skeleton()
     SetReady(false);
 }
 
-void Skeleton::Init()
-{
-    HYP_SCOPE;
-
-    AssetObject::Init();
-
-    SetReady(true);
-}
-
 Bone* Skeleton::FindBone(StringHash name) const
 {
-    HYP_SCOPE;
-
     if (!m_rootBone)
     {
         return nullptr;
@@ -164,9 +153,7 @@ void Skeleton::SetRootBone(const Handle<Bone>& bone)
 
 void Skeleton::UpdateRenderProxy(RenderProxySkeleton* proxy)
 {
-    HYP_SCOPE;
-
-    proxy->skeleton = WeakHandleFromThis();
+    proxy->skeleton = this;
 
     if (m_rootBone != nullptr)
     {
@@ -177,9 +164,9 @@ void Skeleton::UpdateRenderProxy(RenderProxySkeleton* proxy)
 
         for (Node* descendant : m_rootBone->GetDescendants())
         {
-            if (descendantIndex >= SkeletonShaderData::maxBones)
+            if (descendantIndex >= MaxBonesPerSkeleton)
             {
-                HYP_LOG_ONCE(Animation, Warning, "Skeleton has more bones than supported by the shader ({}). Some bones will be ignored in skinning.", SkeletonShaderData::maxBones);
+                HYP_LOG_ONCE(Animation, Warning, "Skeleton has more bones than supported by the shader ({}). Some bones will be ignored in skinning.", MaxBonesPerSkeleton);
                 break;
             }
 

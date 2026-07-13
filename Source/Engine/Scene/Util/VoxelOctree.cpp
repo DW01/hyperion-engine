@@ -183,8 +183,8 @@ VoxelOctreeBuildResult VoxelOctree::Build(const VoxelOctreeParams& params, Entit
         meshDatas.EmplaceBack(
             element,
             meshComponent.mesh->GetMeshDesc(),
-            meshComponent.mesh->GetVertexData(),
-            meshComponent.mesh->GetIndexData(),
+            meshComponent.mesh->GetVertexData(0),
+            meshComponent.mesh->GetIndexData(0),
             std::move(lock));
     }
 
@@ -212,7 +212,7 @@ VoxelOctreeBuildResult VoxelOctree::Build(const VoxelOctreeParams& params, Entit
 
     InsertIntoOctree = [&](const VoxelOctreeElement& element, const MeshDesc& meshDesc, const VertexArrayView& vertexData, Span<const ubyte> indexData) -> bool
     {
-        if (meshDesc.numIndices > 0)
+        if (meshDesc.lods[0].numIndices > 0)
         {
             const Mat4f& transformMatrix = element.transformMatrix;
 

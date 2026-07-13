@@ -40,9 +40,9 @@ static const ShaderPropertyId s_propForwardShading = InternShaderProperty(Shader
 static const ShaderPropertyId s_propWriteMoments = InternShaderProperty(ShaderProperty(NAME("WRITE_MOMENTS")));
 
 static constexpr EnumFlags<EnvProbeFlags> DefaultEnvProbeFlags[EPT_MAX] {
-    EPF_ORIGIN_FROM_CENTER,                          // sky
-    EPF_ORIGIN_FROM_CENTER | EPF_PARALLAX_CORRECTED, // reflection
-    EPF_ORIGIN_FROM_CENTER | EPF_HAS_VISIBILITY      // irradiance
+    EPF_ORIGIN_FROM_CENTER | EPF_DIFFUSE,                          // sky
+    EPF_ORIGIN_FROM_CENTER | EPF_PARALLAX_CORRECTED | EPF_DIFFUSE, // reflection
+    EPF_ORIGIN_FROM_CENTER | EPF_VISIBILITY | EPF_DIFFUSE          // irradiance
 };
 
 static constexpr float EnvProbeCameraNearClip = 0.025f;
@@ -77,6 +77,7 @@ EnvProbe::EnvProbe(EnvProbeType envProbeType, const BoundingBox& aabb, const Vec
       m_envProbeType(envProbeType),
       m_envProbeFlags(DefaultEnvProbeFlags[envProbeType]),
       m_shData {},
+      m_diffuseStrength(1.0f),
       m_camera(nullptr)
 {
     SetLocalBounds(aabb);
@@ -134,6 +135,29 @@ void EnvProbe::SetName(Name name)
     }
 }
 
+void EnvProbe::SetDiffuseStrength(float diffuseStrength)
+{
+    diffuseStrength = MathUtil::Max(diffuseStrength, 0.0f);
+
+    if (m_diffuseStrength == diffuseStrength)
+    {
+        return;
+    }
+
+    m_diffuseStrength = diffuseStrength;
+
+    const bool shouldForceRerender = IsRealtime();
+
+    if (shouldForceRerender)
+    {
+        Invalidate(shouldForceRerender);
+    }
+
+    MarkDirty();
+
+    SetNeedsRenderProxyUpdate();
+}
+
 void EnvProbe::CreateCamera()
 {
     if (m_camera != nullptr)
@@ -141,6 +165,8 @@ void EnvProbe::CreateCamera()
         // Already created and set
         return;
     }
+
+    const BoundingBox worldBounds = GetWorldBounds();
 
     // Try to find existing child of type Camera, if we are loading this EnvProbe
     auto cameraIt = GetChildren().FindIf(&ObjectBase::IsA<Camera>);
@@ -150,24 +176,25 @@ void EnvProbe::CreateCamera()
 
         InitObject(m_camera);
 
-        return;
+        m_camera->SetToPerspectiveProjection(90.0f, EnvProbeCameraNearClip, worldBounds.GetRadius());
+    }
+    else
+    {
+        Handle<Camera> camera = MakeHandle<Camera>(
+            90.0f,
+            int(m_dimensions.x), int(m_dimensions.y),
+            EnvProbeCameraNearClip, worldBounds.GetRadius());
+
+        camera->SetName(NAME_FMT("{}_Capture", GetName()));
+        AddChild(camera);
+
+        m_camera = camera.Get();
     }
 
-    const BoundingBox worldBounds = GetWorldBounds();
+    m_camera->SetReceivesUpdate(false); // Don't automatically update
+    m_camera->SetViewMatrix(Mat4f::LookAt(worldBounds.GetCenter(), worldBounds.GetCenter() + Vec3f::UnitZ(), Vec3f::UnitY()));
 
-    Handle<Camera> camera = MakeHandle<Camera>(
-        90.0f,
-        int(m_dimensions.x), int(m_dimensions.y),
-        EnvProbeCameraNearClip, worldBounds.GetRadius());
-
-    camera->SetReceivesUpdate(false); // Don't automatically update
-    camera->SetName(NAME_FMT("{}_Capture", GetName()));
-    camera->SetViewMatrix(Mat4f::LookAt(worldBounds.GetCenter(), worldBounds.GetCenter() + Vec3f::UnitZ(), Vec3f::UnitY()));
-
-    InitObject(camera);
-    AddChild(camera);
-
-    m_camera = camera;
+    InitObject(m_camera);
 }
 
 void EnvProbe::RemoveCamera()
@@ -224,9 +251,9 @@ void EnvProbe::SetEnvProbeFlags(EnumFlags<EnvProbeFlags> envProbeFlags)
     }
     else
     {
-        // If it is a ReflectionProbe, mark EPF_BAKED if not realtime -
-        // reflection probes are baked through the Baker system
-        if (m_envProbeType == EPT_REFLECTION)
+        // Reflection and irradiance probes are baked through the Baker system
+        // when not realtime.
+        if (m_envProbeType == EPT_REFLECTION || m_envProbeType == EPT_AMBIENT)
         {
             envProbeFlags |= EPF_BAKED;
         }
@@ -244,7 +271,8 @@ void EnvProbe::SetEnvProbeFlags(EnumFlags<EnvProbeFlags> envProbeFlags)
     bool shouldForceRerender = false;
     bool dirtyViewData = false;
 
-    if (changedFlags & EPF_BAKED)
+    // @TODO stupid overloads for EnumFlags... fix
+    if ((changedFlags & uint32(EPF_BAKED | EPF_DIFFUSE)) != 0)
     {
         dirtyViewData = true;
         shouldForceRerender = true;
@@ -264,9 +292,9 @@ void EnvProbe::SetEnvProbeFlags(EnumFlags<EnvProbeFlags> envProbeFlags)
         }
     }
 
-    if (changedFlags & EPF_HAS_VISIBILITY)
+    if (changedFlags & EPF_VISIBILITY)
     {
-        if (envProbeFlags & EPF_HAS_VISIBILITY)
+        if (envProbeFlags & EPF_VISIBILITY)
         {
             if (m_visibilityTexture.IsValid())
             {
@@ -335,7 +363,7 @@ void EnvProbe::OnAddedToWorld(World* world)
             {
                 m_texture = MakeHandle<Texture>(TextureDesc {
                     TextureType::Texture2D,
-                    TextureFormat::RGBA8,
+                    TextureFormat::RGBA16F,
                     Vec3u { m_dimensions, 1 },
                     TFM_LINEAR_MIPMAP,
                     TFM_LINEAR,
@@ -355,7 +383,7 @@ void EnvProbe::OnAddedToWorld(World* world)
         CheckResult(m_texture->Create());
     }
 
-    if (m_envProbeFlags & EPF_HAS_VISIBILITY)
+    if (m_envProbeFlags & EPF_VISIBILITY)
     {
         if (m_visibilityTexture.IsValid())
         {
@@ -447,7 +475,7 @@ void EnvProbe::CreateViewData()
     // Color target
     AttachmentDesc& colorDesc = attachmentDescs.PushBack(AttachmentDesc {
         TextureType::Cubemap,
-        TextureFormat::RGBA8,
+        TextureFormat::RGBA16F,
         LoadOperation::CLEAR,
         StoreOperation::STORE });
 
@@ -464,7 +492,7 @@ void EnvProbe::CreateViewData()
     // Visibility target
     // @FIXME: Needs to be created with HAS_VISIBILITY flag set for this to ever be created.
     // Setting HAS_VISIBILITY on an EnvProbe that wasn't created with it originally will cause us grievances.
-    if (m_envProbeFlags & EPF_HAS_VISIBILITY)
+    if (m_envProbeFlags & EPF_VISIBILITY)
     {
         AttachmentDesc& visibilityDesc = attachmentDescs.PushBack(AttachmentDesc {
             TextureType::Cubemap,
@@ -516,7 +544,7 @@ void EnvProbe::CreateViewData()
         materialAttributes.shaderName = NAME("DrawCubemap");
         materialAttributes.shaderProperties.Add(s_propForwardShading);
 
-        if (m_envProbeFlags & EPF_HAS_VISIBILITY)
+        if (m_envProbeFlags & EPF_VISIBILITY)
         {
             materialAttributes.shaderProperties.Add(s_propWriteMoments);
         }
@@ -674,7 +702,11 @@ void EnvProbe::Update(float delta)
     {
         // Update face view frustum.
         View* view = m_views[viewIndex];
-        AssertDebug(view != nullptr);
+
+        if (!view)
+        {
+            continue;
+        }
 
         const Mat4f& viewMatrix = matrices[viewIndex];
 
@@ -863,7 +895,7 @@ void EnvProbe::UpdateRenderProxy(RenderProxyEnvProbe* proxy)
 
     proxy->texture = m_texture;
 
-    if (m_envProbeFlags & EPF_HAS_VISIBILITY)
+    if (m_envProbeFlags & EPF_VISIBILITY)
     {
         if (proxy->visibilityTexture != m_visibilityTexture)
         {
@@ -882,10 +914,17 @@ void EnvProbe::UpdateRenderProxy(RenderProxyEnvProbe* proxy)
 
     const BoundingBox worldBounds = GetWorldBounds();
 
+    float diffuseContributionWeight = m_diffuseStrength;
+    // set contribution to zero if NOT EPF_DIFFUSE - this is ignored for EPT_AMBIENT.
+    if (m_envProbeType != EPT_AMBIENT && !(m_envProbeFlags & EPF_DIFFUSE))
+    {
+        diffuseContributionWeight = 0;
+    }
+
     EnvProbeShaderData& bufferData = proxy->bufferData;
     bufferData.aabbMin = Vec4f(worldBounds.min, m_camera ? m_camera->GetNearClip() : EnvProbeCameraNearClip);
     bufferData.aabbMax = Vec4f(worldBounds.max, m_camera ? m_camera->GetFarClip() : worldBounds.GetRadius());
-    bufferData.worldPosition = Vec4f(GetWorldTranslation(), 1.0f);
+    bufferData.worldPosition = Vec4f(GetWorldTranslation(), diffuseContributionWeight);
     bufferData.dimensions = Vec2u { m_dimensions.x, m_dimensions.y };
     bufferData.typeAndFlags = uint32(m_envProbeType) | (uint32(m_envProbeFlags) << 3);
 
@@ -940,7 +979,7 @@ void EnvProbe::SetVisibilityTexture(const Handle<Texture>& visibilityTexture)
 
     if (m_visibilityTexture.IsValid())
     {
-        if (!(m_envProbeFlags & EPF_HAS_VISIBILITY))
+        if (!(m_envProbeFlags & EPF_VISIBILITY))
         {
             HYP_LOG(Scene, Warning, "EnvProbe {} does not have visibility flag set, visibility texture will be unused unless the flag is set", GetName());
         }
@@ -981,7 +1020,7 @@ void ReflectionProbe::BakeCubemap()
         lightmapperSubsystem = world->AddSubsystem<BakerSubsystem>();
     }
 
-    lightmapperSubsystem->EnqueueBake(MakeStrongRef(this));
+    lightmapperSubsystem->EnqueueBake(StaticCast<EnvProbe>(MakeStrongRef(this)));
 }
 
 #endif
@@ -1011,6 +1050,39 @@ void SkyProbe::Init()
 #pragma endregion SkyProbe
 
 #pragma region IrradianceProbe
+
+#if HYP_EDITOR
+
+void IrradianceProbe::RecomputeIrradiance()
+{
+    if (IsBaked())
+    {
+        World* world = GetWorld();
+        AssertDebug(world != nullptr);
+
+        if (!world)
+        {
+            HYP_LOG(Editor, Error, "Cannot bake {}: not attached to a World", Id());
+
+            return;
+        }
+
+        BakerSubsystem* lightmapperSubsystem = world->GetSubsystem<BakerSubsystem>();
+
+        if (!lightmapperSubsystem)
+        {
+            lightmapperSubsystem = world->AddSubsystem<BakerSubsystem>();
+        }
+
+        lightmapperSubsystem->EnqueueBake(StaticCast<EnvProbe>(MakeStrongRef(this)));
+    }
+    else
+    {
+        Invalidate(true);
+    }
+}
+
+#endif // HYP_EDITOR
 
 void IrradianceProbe::Invalidate(bool forceRerender)
 {

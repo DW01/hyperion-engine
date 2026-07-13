@@ -124,7 +124,7 @@ BottomLevelASRef BLASBuilder::Build(Mesh* mesh, Material* material)
     Array<float> packedVertices;
     mesh->BuildVertexBuffer(StaticVertexInputLayout<VT_Simple>, packedVertices);
 
-    Array<ubyte> packedIndices = mesh->GetIndexData();
+    Array<ubyte> packedIndices = mesh->GetIndexData(0);
 
     AssertDebug(packedVertices.Size() > 0 && packedIndices.Size() > 0);
 
@@ -135,9 +135,9 @@ BottomLevelASRef BLASBuilder::Build(Mesh* mesh, Material* material)
 
     // some assertions to prevent gpu faults down the line
     const uint32* packedIndicesU32 = reinterpret_cast<const uint32*>(packedIndices.Data());
-    for (size_t i = 0; i < mesh->GetMeshDesc().numIndices; i++)
+    for (size_t i = 0; i < mesh->GetMeshDesc().lods[0].numIndices; i++)
     {
-        Assert(packedIndicesU32[i] < mesh->GetMeshDesc().numVertices);
+        Assert(packedIndicesU32[i] < mesh->GetMeshDesc().lods[0].numVertices);
     }
 
     BottomLevelASRef blas;

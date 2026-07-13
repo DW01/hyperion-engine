@@ -12,17 +12,65 @@
       "Topology": 0,
       "IndexBufferElemType": 4
     },
-    "NumVertices": 24,
-    "NumIndices": 36
+    "Lods": [{
+        "$Class": "MeshLodDesc",
+        "NumVertices": 24,
+        "NumIndices": 36
+      }, {
+        "$Class": "MeshLodDesc",
+        "NumVertices": 0,
+        "NumIndices": 0
+      }, {
+        "$Class": "MeshLodDesc",
+        "NumVertices": 0,
+        "NumIndices": 0
+      }, {
+        "$Class": "MeshLodDesc",
+        "NumVertices": 0,
+        "NumIndices": 0
+      }]
   },
-  "VertexData": {
-    "Key": "Editor://Meshes/ScaleGizmo_CentroidMesh.VB",
-    "Size": 768
-  },
-  "IndexData": {
-    "Key": "Editor://Meshes/ScaleGizmo_CentroidMesh.IB",
-    "Size": 144
-  },
+  "LodData": [{
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "Editor://Meshes/ScaleGizmo_CentroidMesh.VB",
+        "Size": 768
+      },
+      "IndexData": {
+        "Key": "Editor://Meshes/ScaleGizmo_CentroidMesh.IB",
+        "Size": 144
+      }
+    }, {
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "",
+        "Size": 0
+      },
+      "IndexData": {
+        "Key": "",
+        "Size": 0
+      }
+    }, {
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "",
+        "Size": 0
+      },
+      "IndexData": {
+        "Key": "",
+        "Size": 0
+      }
+    }, {
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "",
+        "Size": 0
+      },
+      "IndexData": {
+        "Key": "",
+        "Size": 0
+      }
+    }],
   "BvhData": {
     "Key": "Editor://Meshes/ScaleGizmo_CentroidMesh.BVH",
     "Size": 16625

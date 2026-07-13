@@ -873,6 +873,11 @@ void TonemapPass::Render(Frame* frame, const RenderSetup& rs)
 
     CommandRecorder& cr = frame->cr;
 
+    // Filter out Debug draws! We don't want them tonemapped or with bloom applied.
+    cr << SetStencilTest(true);
+    cr << SetStencilFunction(StencilFunction { SO_KEEP, SO_KEEP, SO_KEEP, SCO_EQUAL });
+    cr << SetStencilState(0, DebugStencilMask, 0x0);
+
     DeferredPassData* dpd = DynamicCast<DeferredPassData>(rs.passData);
     AssertDebug(dpd != nullptr);
 
@@ -942,6 +947,8 @@ void TonemapPass::Render(Frame* frame, const RenderSetup& rs)
     cr << SetShaderUniform(numShaderUniforms++, "WorldsBuffer"_sh, RI.namedBuffers[NamedBuffer::Worlds]);
 
     RenderFullScreenQuad(frame, rs);
+
+    cr << SetStencilTest(false);
 
     End(frame, rs);
 }
@@ -1020,6 +1027,11 @@ void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
     cr << SetDepthTest(false);
     cr << SetDepthWrite(false);
+
+    // // We store irradiance weight from the Indirect pass which samples EnvProbes.
+    // // EnvProbes take priority over lightmap volumes.
+    // // So we want to apply: 1.0 - irradianceWeight
+    // cr << SetCurrentBlendFunction(BlendFunction(BMF_ONE_MINUS_DST_ALPHA, BMF_DST_ALPHA));
 
     cr << SetCurrentBlendFunction(BlendFunction::Additive());
 
@@ -2014,7 +2026,8 @@ public:
 
         Vec3f cameraPosition = cameraProxy->bufferData.cameraPosition.GetXYZ();
 
-        // Sort env probes, we want sky LAST so other env probes fall back to it.
+        // Sort env probes in reverse order
+        // They are applied with a reverse loop -- sky is always first in the array if present.
         std::sort(envProbes.Begin(), envProbes.End(),
                   [&cameraPosition](const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& a, const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& b)
                   {
@@ -2026,17 +2039,17 @@ public:
 
                       if (aIsSky && !bIsSky)
                       {
-                          return false;
+                          return true;
                       }
 
                       if (!aIsSky && bIsSky)
                       {
-                          return true;
+                          return false;
                       }
 
                       if (aIsSky && bIsSky)
                       {
-                          return false;
+                          return true;
                       }
 
                       // both are reflection probes, sort by distance to camera
@@ -2046,7 +2059,7 @@ public:
                       const float aDistSq = (aProbePosition - cameraPosition).LengthSquared();
                       const float bDistSq = (bProbePosition - cameraPosition).LengthSquared();
 
-                      return aDistSq < bDistSq;
+                      return aDistSq >= bDistSq;
                   });
 
         for (size_t envProbeIndex = 0; envProbeIndex < envProbes.Size(); envProbeIndex++)
@@ -2944,8 +2957,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         frame->cr << SetDepthCompareOp(DCO_LESS_OR_EQUAL);
     }
 
-    // if no opaque objects will be rendered, we need to clear the color target anyway
-    // as other passes are using load ops
+    frame->cr << ClearFramebuffer(opaquePassFramebuffer, 0x1);
+
     if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Any()
         || (!g_cvEnableLightmapVolumes.Get() && renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any()))
     {
@@ -2957,10 +2970,6 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         {
             renderCollector.ExecuteDrawCalls(frame, rs, RenderBucketMask<RenderBucket::Lightmapped>);
         }
-    }
-    else
-    {
-        frame->cr << ClearFramebuffer(opaquePassFramebuffer, 0x1);
     }
 
     if (performDepthPrepass)
@@ -3030,7 +3039,7 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
                 auto& skyProbes = rpl.GetEnvProbes().GetElements<SkyProbe>();
                 if (skyProbes.Any())
                 {
-                    rayTracingRS.envProbe = skyProbes.Front();
+                    rayTracingRS.envProbe = *skyProbes.Begin();
                 }
 
                 if (useRayTracingReflections)
@@ -3105,6 +3114,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
         const bool isPathTracer = g_cvPathTracing.Get();
 
+        passData.indirectLightingPass->RenderToFramebuffer(frame, rs, passData.lightingFramebuffer);
+
         if (g_cvEnableLightmapVolumes.Get() && !isPathTracer)
         {
             // apply baked lighting over lightmapped objects
@@ -3118,8 +3129,6 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
                 passData.lightmapPass->RenderToFramebuffer(frame, lightmapPassRS, passData.lightingFramebuffer);
             }
         }
-
-        passData.indirectLightingPass->RenderToFramebuffer(frame, rs, passData.lightingFramebuffer);
 
         if (!isPathTracer)
         {

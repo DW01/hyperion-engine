@@ -6,7 +6,7 @@
 
 #include <HyperionPch.hpp>
 
-#include <Baking/ReflectionProbe/ReflectionProbeBakeData.hpp>
+#include <Baking/EnvProbe/EnvProbeBakeData.hpp>
 
 #include <Rendering/Texture.hpp>
 
@@ -16,7 +16,7 @@ namespace Hyperion {
 
 namespace Baking {
 
-Result BakeData<ReflectionProbe>::Build()
+Result BakeData<EnvProbe>::Build()
 {
     Assert(m_envProbe != nullptr);
 
@@ -68,7 +68,7 @@ Result BakeData<ReflectionProbe>::Build()
     return {};
 }
 
-auto BakeData<ReflectionProbe>::ToBitmap() const -> BitmapType
+auto BakeData<EnvProbe>::ToBitmap() const -> BitmapType
 {
     Assert(m_envProbe != nullptr);
 
@@ -106,6 +106,83 @@ auto BakeData<ReflectionProbe>::ToBitmap() const -> BitmapType
                 AssertDebug(!MathUtil::IsNaN(color));
 
                 bitmap.GetPixelReference(x, bitmapY).SetRGBA(color);
+            }
+        }
+    }
+
+    return bitmap;
+}
+
+auto BakeData<EnvProbe>::ToVisibilityBitmap() const -> VisibilityBitmapType
+{
+    Assert(m_envProbe != nullptr);
+
+    const size_t numTexelsPerFace = dimensions.x * dimensions.y;
+
+    Assert(texels.Size() == 6 * numTexelsPerFace, "Invalid cubemap size");
+
+    // The visibility texture must match the global envProbesDepthTexture dimensions
+    // (see OnBindingChanged_EnvProbe which CopyImages into that array).
+    static constexpr uint32 visDim = 16;
+
+    VisibilityBitmapType bitmap(visDim, visDim * 6);
+
+    for (uint32 face = 0; face < 6; face++)
+    {
+        for (uint32 y = 0; y < visDim; y++)
+        {
+            for (uint32 x = 0; x < visDim; x++)
+            {
+                const uint32 bitmapY = face * visDim + y;
+
+                // Accumulate distance moments over the region of cubemap texels
+                // that map to this visibility texel.
+                float accumDist = 0.0f;
+                float accumDistSq = 0.0f;
+                float accumWeight = 0.0f;
+
+                const uint32 xStart = (x * dimensions.x) / visDim;
+                const uint32 xEnd = MathUtil::Max(xStart + 1, ((x + 1) * dimensions.x) / visDim);
+                const uint32 yStart = (y * dimensions.y) / visDim;
+                const uint32 yEnd = MathUtil::Max(yStart + 1, ((y + 1) * dimensions.y) / visDim);
+
+                for (uint32 sy = yStart; sy < yEnd; sy++)
+                {
+                    for (uint32 sx = xStart; sx < xEnd; sx++)
+                    {
+                        const uint32 texelIdx = face * numTexelsPerFace + sy * dimensions.x + sx;
+
+                        // color1 holds accumulated (dist, dist^2, 0, sample_count) from the DISTANCE pass.
+                        const Vec4f accum = texels[texelIdx].color1;
+
+                        if (accum.w > 0.0f)
+                        {
+                            accumDist += accum.x / accum.w;
+                            accumDistSq += accum.y / accum.w;
+                            accumWeight += 1.0f;
+                        }
+                        else
+                        {
+                            // No distance data — treat as fully visible (no occluder).
+                            static const float missDist = 10000.0f;
+                            accumDist += missDist;
+                            accumDistSq += missDist * missDist;
+                            accumWeight += 1.0f;
+                        }
+                    }
+                }
+
+                Vec2f moments = Vec2f::Zero();
+
+                if (accumWeight > 0.0f)
+                {
+                    moments.x = accumDist / accumWeight;
+                    moments.y = accumDistSq / accumWeight;
+                }
+
+                AssertDebug(!MathUtil::IsNaN(moments));
+
+                bitmap.GetPixelReference(x, bitmapY).SetRG(moments);
             }
         }
     }

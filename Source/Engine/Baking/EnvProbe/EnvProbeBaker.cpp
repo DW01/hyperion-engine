@@ -6,8 +6,8 @@
 
 #include <HyperionPch.hpp>
 
-#include <Baking/ReflectionProbe/ReflectionProbeBaker.hpp>
-#include <Baking/ReflectionProbe/ReflectionProbeBakeJob.hpp>
+#include <Baking/EnvProbe/EnvProbeBaker.hpp>
+#include <Baking/EnvProbe/EnvProbeBakeJob.hpp>
 
 #include <Rendering/Texture.hpp>
 #include <Rendering/RenderInterface.hpp>
@@ -21,6 +21,7 @@
 #include <Asset/Assets.hpp>
 
 #include <Scene/EnvProbe.hpp>
+#include <Scene/ProbeVolume.hpp>
 
 #include <Framework/EngineGlobals.hpp>
 
@@ -42,18 +43,18 @@ void ComputeEnvProbeSphericalHarmonics(
 
 namespace Baking {
 
-Baker<ReflectionProbe>::Baker(BakerConfig&& config, const Handle<ReflectionProbe>& envProbe)
+Baker<EnvProbe>::Baker(BakerConfig&& config, const Handle<EnvProbe>& envProbe)
     : BakerBase(std::move(config), envProbe, MakeStrongRef(envProbe->GetScene()), BoundingBox::Empty()),
       m_envProbe(envProbe)
 {
 }
 
-UniquePtr<BakeJobBase> Baker<ReflectionProbe>::CreateJob(BakeJobParams&& params)
+UniquePtr<BakeJobBase> Baker<EnvProbe>::CreateJob(BakeJobParams&& params)
 {
-    return MakeUnique<BakeJob<ReflectionProbe>>(std::move(params), m_envProbe, &m_bakeData);
+    return MakeUnique<BakeJob<EnvProbe>>(std::move(params), m_envProbe, &m_bakeData);
 }
 
-void Baker<ReflectionProbe>::CreateLightmapRenderers()
+void Baker<EnvProbe>::CreateLightmapRenderers()
 {
     m_lightmapRenderers.Clear();
 
@@ -62,32 +63,41 @@ void Baker<ReflectionProbe>::CreateLightmapRenderers()
         return;
     }
 
+    const uint32 shadingTypesMask = GetShadingTypesMask();
     const uint32 maxTexelsPerFrame = MaxTexelsPerFrame();
     AssertDebug(maxTexelsPerFrame > 0);
 
-    UniquePtr<ILightmapRenderer>& lightmapRenderer = m_lightmapRenderers.EmplaceBack();
-    lightmapRenderer = CreateRenderer(LightmapShadingType::FULL, maxTexelsPerFrame);
-
-    if (!lightmapRenderer)
+    for (uint32 i = 0; i < uint32(LightmapShadingType::MAX); i++)
     {
-        m_lightmapRenderers.PopBack();
-        return;
-    }
+        if (!(shadingTypesMask & (1u << i)))
+        {
+            continue;
+        }
 
-    lightmapRenderer->Create();
+        UniquePtr<ILightmapRenderer>& lightmapRenderer = m_lightmapRenderers.EmplaceBack();
+        lightmapRenderer = CreateRenderer(LightmapShadingType(i), maxTexelsPerFrame);
+
+        if (!lightmapRenderer)
+        {
+            m_lightmapRenderers.PopBack();
+            continue;
+        }
+
+        lightmapRenderer->Create();
+    }
 }
 
-Result Baker<ReflectionProbe>::Build_Internal()
+Result Baker<EnvProbe>::Build_Internal()
 {
     Assert(m_envProbe != nullptr);
 
     InitObject(m_envProbe);
-    m_bakeData = BakeData<ReflectionProbe>(m_bakeEntities, m_envProbe.Get());
+    m_bakeData = BakeData<EnvProbe>(m_bakeEntities, m_envProbe.Get());
 
     return m_bakeData.Build();
 }
 
-void Baker<ReflectionProbe>::OnCompleted_Internal()
+void Baker<EnvProbe>::OnCompleted_Internal()
 {
     HYP_SCOPE;
 
@@ -105,7 +115,7 @@ void Baker<ReflectionProbe>::OnCompleted_Internal()
     AssertDebug(dimensions.Volume() > 0);
 
     // Convert lightmap data to bitmaps (6 faces stacked vertically)
-    BakeData<ReflectionProbe>::BitmapType bitmap = m_bakeData.ToBitmap();
+    BakeData<EnvProbe>::BitmapType bitmap = m_bakeData.ToBitmap();
 
     TextureDesc desc {
         TextureType::Cubemap,
@@ -138,25 +148,58 @@ void Baker<ReflectionProbe>::OnCompleted_Internal()
 
     m_envProbe->SetBakedTexture(prefiltered);
 
-    // Covolves the env probe cubemap and computes SH coefficients on the GPU
-    struct ProcessReflectionProbePayload
+    // Bake visibility texture
+    if (m_envProbe->GetEnvProbeFlags() & EPF_VISIBILITY)
+    {
+        BakeData<EnvProbe>::VisibilityBitmapType visBitmap = m_bakeData.ToVisibilityBitmap();
+
+        // Visibility texture dimensions must match the global envProbesDepthTexture (16x16).
+        static constexpr uint32 visDim = 16;
+
+        TextureDesc visDesc {
+            TextureType::Cubemap,
+            visBitmap.GetFormat(),
+            Vec3u { visDim, visDim, 1 },
+            TFM_LINEAR,
+            TFM_LINEAR,
+            TWM_CLAMP_TO_EDGE,
+            1,
+            IU_SAMPLED | IU_STORAGE
+        };
+
+        ByteBuffer visBuffer = ByteBuffer(visBitmap.ToByteView());
+
+        visBitmap = {};
+
+        Handle<Texture> visibilityTexture = MakeHandle<Texture>(visDesc, visBuffer.ToByteView());
+
+        visBuffer.Clear();
+
+        visibilityTexture->SetName(NAME_FMT("{}_VisibilityMap", m_envProbe->GetName()));
+
+        // SetVisibilityTexture handles Create() and asset registration.
+        m_envProbe->SetVisibilityTexture(visibilityTexture);
+    }
+
+    // Convolves the env probe cubemap and computes SH coefficients on the GPU
+    struct ProcessEnvProbePayload
     {
         Handle<EnvProbe> envProbe;
     };
 
-    class ProcessReflectionProbe : public CmdBase
+    class ProcessEnvProbe : public CmdBase
     {
     public:
-        ProcessReflectionProbePayload* payload;
+        ProcessEnvProbePayload* payload;
 
-        explicit ProcessReflectionProbe(ProcessReflectionProbePayload* payload)
+        explicit ProcessEnvProbe(ProcessEnvProbePayload* payload)
             : payload(payload)
         {
         }
 
         static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
         {
-            ProcessReflectionProbe* cmdCasted = static_cast<ProcessReflectionProbe*>(cmd);
+            ProcessEnvProbe* cmdCasted = static_cast<ProcessEnvProbe*>(cmd);
 
             const Handle<EnvProbe>& envProbe = cmdCasted->payload->envProbe;
 
@@ -183,8 +226,12 @@ void Baker<ReflectionProbe>::OnCompleted_Internal()
     };
 
     CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder();
-    cr << ProcessReflectionProbe(new ProcessReflectionProbePayload { m_envProbe });
+    cr << ProcessEnvProbe(new ProcessEnvProbePayload { m_envProbe });
     cr.Done();
+
+    // For irradiance probes, notify the parent ProbeVolume so that affected
+    // entities are tagged for SH re-evaluation.
+    m_envProbe->Invalidate(true);
 }
 
 } // namespace Baking

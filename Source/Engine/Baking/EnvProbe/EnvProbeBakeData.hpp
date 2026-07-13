@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -10,22 +10,23 @@
 
 namespace Hyperion {
 
-class ReflectionProbe;
+class EnvProbe;
 
 namespace Baking {
 
 template <>
-class BakeData<ReflectionProbe> : public BakeDataBase
+class BakeData<EnvProbe> : public BakeDataBase
 {
 public:
-    using BitmapType = Bitmap_RGBA8;
+    using BitmapType = Bitmap_RGBA16F;
+    using VisibilityBitmapType = Bitmap_RG16F;
 
     BakeData()
         : m_envProbe(nullptr)
     {
     }
 
-    BakeData(Span<const BakeEntity> bakeEntities, ReflectionProbe* envProbe)
+    BakeData(Span<const BakeEntity> bakeEntities, EnvProbe* envProbe)
         : BakeDataBase(bakeEntities),
           m_envProbe(envProbe)
     {
@@ -42,9 +43,10 @@ public:
     virtual Result Build() override;
 
     BitmapType ToBitmap() const;
+    VisibilityBitmapType ToVisibilityBitmap() const;
 
 protected:
-    ReflectionProbe* m_envProbe;
+    EnvProbe* m_envProbe;
     Array<LightmapRay> m_rays;
 };
 

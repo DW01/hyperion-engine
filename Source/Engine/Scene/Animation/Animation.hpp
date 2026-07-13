@@ -9,9 +9,6 @@
 #include <Core/Types.hpp>
 #include <Core/Name/Name.hpp>
 
-#include <Core/IO/ByteWriter.hpp>
-#include <Core/IO/ByteReader.hpp>
-
 #include <Core/Containers/Array.hpp>
 #include <Core/Containers/String.hpp>
 
@@ -143,8 +140,6 @@ public:
 
     HYP_METHOD()
     void ApplyBlended(Skeleton* skeleton, float time, float blend);
-
-    void Init() override;
 
 private:
     HYP_FIELD(Property = "Tracks")

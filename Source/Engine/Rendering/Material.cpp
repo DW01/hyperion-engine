@@ -169,7 +169,7 @@ void Material::Init()
         const bool isCircularRef = (m_base.Get() == this || m_base->GetBaseMaterial().Get() == this);
 
         Assert(!isCircularRef,
-                "Circular reference between material and base material detected! Would deadlock!");
+               "Circular reference between material and base material detected! Would deadlock!");
 
         if (isCircularRef)
         {
@@ -398,6 +398,19 @@ void Material::UpdateRenderProxy(RenderProxyMaterial* proxy)
             m_parameters.emissiveIntensity }),
         ByteUtil::PackVec4f(Vec4f::Zero()),
         ByteUtil::PackVec4f(Vec4f::Zero()));
+
+    union
+    {
+        uint32 bits;
+
+        struct
+        {
+            bool unlit : 1;
+        };
+    } flags;
+
+    flags.unlit = m_parameters.unlit;
+    bufferData.packedParams.w = flags.bits;
 
     bufferData.uvScale = 1.0f;
     bufferData.parallaxHeight = m_parameters.parallaxHeightScale;

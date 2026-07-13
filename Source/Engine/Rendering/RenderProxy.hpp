@@ -111,7 +111,7 @@ struct InstanceData
 /*! \brief Proxy for a renderable Entity with a valid Mesh and Material assigned */
 struct RenderProxyMesh final : IRenderProxy
 {
-    WeakHandle<Entity> entity;
+    Entity* entity = nullptr;
 
     Mesh* mesh = nullptr;
     Material* material = nullptr;
@@ -131,14 +131,16 @@ struct RenderProxyMesh final : IRenderProxy
 
     float shData[3 * 9];
 
-    bool enableAutoInstancing = false;
+    uint8 enableAutoInstancing : 1 = false;
+
+    uint8 currentLodIndex = 0;
 };
 
 struct EnvProbeShaderData
 {
     Vec4f aabbMax;
     Vec4f aabbMin;
-    Vec4f worldPosition;
+    Vec4f worldPosition; // w == diffuse strength
 
     Vec2u dimensions;
     uint32 textureIndex = ~0u;
@@ -304,12 +306,12 @@ struct MaterialShaderData
 
     Vec4u textureIndices[4];
 
+    // =====
     uint32 textureUsage;
-
     float parallaxHeight;
-
     Vec2f uvScale;
 
+    // =====
     Vec4f _pad0;
 };
 
@@ -334,22 +336,20 @@ struct RenderProxyMaterial : IRenderProxy
 
 struct SkeletonShaderData
 {
-    static constexpr size_t maxBones = 256;
-
-    Mat4f bones[maxBones];
+    Mat4f bones[MaxBonesPerSkeleton];
 };
 
 struct RenderProxySkeleton : IRenderProxy
 {
     RenderProxySkeleton()
     {
-        for (size_t i = 0; i < SkeletonShaderData::maxBones; ++i)
+        for (uint32 i = 0; i < MaxBonesPerSkeleton; ++i)
         {
             bufferData.bones[i] = Mat4f::Identity();
         }
     }
 
-    WeakHandle<Skeleton> skeleton;
+    Skeleton* skeleton = nullptr;
     SkeletonShaderData bufferData {};
 };
 

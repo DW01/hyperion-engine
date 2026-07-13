@@ -101,7 +101,14 @@ struct BitField
         const WordType* wordsBegin = words;
         const WordType* wordsEnd = words + NumWords;
 
-        const WordType* wordsIter = wordsBegin + GetWordIndex(startOffset);
+        const size_t startWordIndex = GetWordIndex(startOffset);
+
+        if (startWordIndex >= NumWords)
+        {
+            return SIZE_MAX;
+        }
+
+        const WordType* wordsIter = wordsBegin + startWordIndex;
 
         WordType currWordMasked = (*wordsIter) & (~WordType(0) << (startOffset & (NumBitsPerWord - 1)));
 

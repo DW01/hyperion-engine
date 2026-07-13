@@ -24,7 +24,7 @@ struct SubtypeResourceBindings
 {
     const Class* resourceClass;
     StructuredBuffer* sbuffer;
-    SparsePagedArray<uint32, 1024, RenderAllocator> bindingIndices;
+    SparsePagedArray<uint32, 256, RenderAllocator> bindingIndices;
 
     SubtypeResourceBindings(const Class* resourceClass, StructuredBuffer* sbuffer)
         : resourceClass(resourceClass),

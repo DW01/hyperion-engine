@@ -1148,10 +1148,13 @@ extern class EnvProbe : VolumeBase
     SetBakedTexture(texture : Texture) -> void
     GetVisibilityTexture() -> Texture
     SetVisibilityTexture(visibilityTexture : Texture) -> void
+    GetDiffuseStrength() -> float
+    SetDiffuseStrength(diffuseStrength : float) -> void
     Dimensions : Vec2u
     EnvProbeType : EnvProbeType
     EnvProbeFlags : EnvProbeFlags
     ShData : SphericalHarmonicsData
+    DiffuseStrength : float
 end
 extern class IrradianceProbe : EnvProbe
     RecomputeIrradiance() -> void
@@ -1175,7 +1178,8 @@ extern enum EnvProbeFlags : uint32
     EPF_BAKED = 0x2,
     EPF_REALTIME = 0x4,
     EPF_ORIGIN_FROM_CENTER = 0x8,
-    EPF_HAS_VISIBILITY = 0x10
+    EPF_VISIBILITY = 0x10,
+    EPF_DIFFUSE = 0x20
 end
 extern class Sprite : Entity
 end
@@ -2031,11 +2035,18 @@ extern enum GpuVendor : uint8
 end
 extern class BakerBase
 end
+extern enum BakerState : uint8
+    Initialized = 0,
+    Building,
+    Running,
+    Complete
+end
 extern enum LightmapShadingType : uint32
     IRRADIANCE = 0,
     RADIANCE,
     FULL,
     SHADOW,
+    DISTANCE,
     MAX
 end
 extern struct BakerConfig
@@ -2420,23 +2431,29 @@ extern enum MeshFlags : uint32
 end
 extern struct MeshDesc
     MeshAttributes : MeshAttributes
-    NumVertices : uint32
-    NumIndices : uint32
+    Lods : Array<MeshLodDesc>
 end
 extern class Mesh : AssetObject
     GetFlags() -> MeshFlags
     SetFlags(flags : MeshFlags) -> void
     Rename(name : Name) -> Result
-    NumIndices() -> uint32
+    NumIndices(lodIndex : uint8) -> uint32
     GetAABB() -> BoundingBox
     SetAABB(aabb : BoundingBox) -> void
     MeshDesc : MeshDesc
-    VertexData : BlobDataReference
-    IndexData : BlobDataReference
+    LodData : Array<MeshLodData>
     BvhData : BlobDataReference
     Aabb : BoundingBox
     Bvh : BVHNode
     Flags : MeshFlags
+end
+extern struct MeshLodDesc
+    NumVertices : uint32
+    NumIndices : uint32
+end
+extern struct MeshLodData
+    VertexData : BlobDataReference
+    IndexData : BlobDataReference
 end
 extern class Material : AssetObject
     GetBaseMaterial() -> Material

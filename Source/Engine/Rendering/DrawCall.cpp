@@ -47,7 +47,7 @@ void DrawCallCollection::PushDrawCall(DrawCallID id, const RenderProxyMesh* rend
 
     AssertDebug(renderProxy != nullptr && renderProxy->mesh != nullptr && renderProxy->material != nullptr);
 
-    drawCalls.Push(id, renderProxy, Resources::GetBinding(renderProxy->entity.GetUnsafe()));
+    drawCalls.Push(id, renderProxy, Resources::GetBinding(renderProxy->entity));
 }
 
 void DrawCallCollection::PushInstancedDrawCall(DrawCallID id, const RenderProxyMesh* renderProxy, EntityInstanceBatch* batch)
@@ -104,7 +104,7 @@ void DrawCallCollection::PushInstancedDrawCall(DrawCallID id, const RenderProxyM
 
         const uint32 remainingInstances = PushEntityToBatch(
             drawCallIndex,
-            renderProxy->entity.GetUnsafe(),
+            renderProxy->entity,
             renderProxy->instanceData,
             numInstances,
             instanceOffset);

@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -77,6 +77,9 @@ public:
     HYP_FIELD(Property = "UserParams", Serialize)
     Vec4f userParams;
 
+    HYP_FIELD(Property = "Unlit", Serialize)
+    bool unlit;
+
     MaterialParameters()
         : albedo(1.0f),
           metalness(0.0f),
@@ -87,15 +90,13 @@ public:
           ior(1.5f),
           emissiveColor(),
           emissiveIntensity(0.0f),
-          userParams(0.0f)
+          userParams(0.0f),
+          unlit(false)
     {
     }
 
     MaterialParameters(const MaterialParameters& other) = default;
     MaterialParameters& operator=(const MaterialParameters& other) = default;
-
-    MaterialParameters(MaterialParameters&& other) noexcept = default;
-    MaterialParameters& operator=(MaterialParameters&& other) noexcept = default;
 
     HYP_FORCE_INLINE bool operator==(const MaterialParameters& other) const
     {
@@ -112,6 +113,8 @@ public:
         return HashCode::GetHashCode((const ubyte*)this, (const ubyte*)this + sizeof(MaterialParameters));
     }
 };
+
+static_assert(std::is_trivially_destructible_v<MaterialParameters> && std::is_trivially_copyable_v<MaterialParameters>);
 
 #pragma pack(pop)
 
@@ -133,7 +136,7 @@ public:
         for (const auto& it : initializerList)
         {
             const size_t ord = EnumOptions<MaterialTextureKey, Handle<Texture>, MaxTextures>::EnumToOrdinal(it.first);
-            
+
             m_values[ord] = it.second;
         }
     }

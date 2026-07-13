@@ -21,6 +21,8 @@
 
 #include <Core/Reflection/Handle.hpp>
 
+#include <Core/Containers/SparsePagedArray.hpp>
+
 #include <Core/Threading/SharedMutex.hpp>
 #include <Core/Threading/ThreadSignal.hpp>
 
@@ -102,8 +104,8 @@ public:
     SharedMutex m_mutex;
 
     // these live forever to keep pointers valid
-    SparsePagedArray<Shader, 16> m_compiledShaderCache;
-    SparsePagedArray<ShaderMapEntry, 16> m_entries;
+    SparsePagedArray<Shader, 16, DynamicAllocator> m_compiledShaderCache;
+    SparsePagedArray<ShaderMapEntry, 16, DynamicAllocator> m_entries;
 
 #if HYP_EDITOR
     EditorTaskScope m_editorTask;
@@ -445,12 +447,12 @@ public:
             else if (!EnsureMatch(properties, inputLayout, *entry->shaderInstance->GetShader()))
             {
                 HYP_LOG(Shader, Warning, "Loaded shader from cache (Name: {}) does not contain the requested properties! "
-                                       "Expected properties: {}, Expected Input Layout: {} "
-                                       "Actual properties: {}, Actual Input Layout: {}",
+                                         "Expected properties: {}, Expected Input Layout: {} "
+                                         "Actual properties: {}, Actual Input Layout: {}",
                         name, properties.GetDebugString(), inputLayout.GetDebugString(),
                         entry->shaderInstance->GetShader()->properties.GetDebugString(), entry->shaderInstance->GetShader()->inputLayout.GetDebugString());
             }
-            
+
             return entry->shaderInstance;
         }
 

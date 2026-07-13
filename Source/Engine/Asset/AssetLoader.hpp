@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -88,6 +88,20 @@ struct LoadedAsset
             return nullptr;
 
         return &valueOrError.GetUnchecked<AssetLoadError>();
+    }
+
+    BoxedValue& Unwrap()
+    {
+        Assert(IsValid(), "Unwrapping errored LoadedAsset!");
+
+        return valueOrError.GetUnchecked<BoxedValue>();
+    }
+
+    const BoxedValue& Unwrap() const
+    {
+        Assert(IsValid(), "Unwrapping errored LoadedAsset!");
+
+        return valueOrError.GetUnchecked<BoxedValue>();
     }
 
     template <class T>

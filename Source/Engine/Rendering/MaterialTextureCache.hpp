@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
@@ -19,7 +19,7 @@ enum class MaterialTextureKey : uint64;
 class MaterialTextureCache
 {
 public:
-    using MaterialImageViewsMap = SparsePagedArray<Array<GpuImageViewRef, RenderAllocator>, 1024, RenderAllocator>;
+    using MaterialImageViewsMap = SparsePagedArray<Array<GpuImageViewRef, RenderAllocator>, 64, RenderAllocator>;
 
     MaterialTextureCache();
 

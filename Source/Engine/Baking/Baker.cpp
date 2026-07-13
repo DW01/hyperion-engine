@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #include <HyperionPch.hpp>
 
@@ -82,9 +82,10 @@ static constexpr uint32 TileSize = 32;
 // Too many concurrent jobs will cause excessive memory usage and thrashing
 static constexpr uint32 MaxConcurrentJobs = 8;
 
+///
+static constexpr uint32 IdealTexelsPerSecond = 200000 * 60;
+
 // Not per frame per se, but during Update() we check if we can spin up more jobs,
-// this will add a hard cap on number of texels beind process simultaneously (translates to rays
-// traced, for lightmap jobs)
 static constexpr uint32 IdealTexelsPerFrame = 200000;
 
 // Pretty self explanatory - but this is an estimate (See the below function, GetEstimatedGPUMemUsagePerJob)
@@ -122,7 +123,8 @@ BakerBase::BakerBase(BakerConfig&& config, ObjectBase* source, const Handle<Scen
       m_initialNumJobs(0),
       m_updateTimer { 1.0 }, // every second
       m_lastProgressPercent(0.0),
-      m_isComplete(false)
+      m_accumulatedTexelBudget(0.0),
+      m_state(BakerState::Initialized)
 {
     AssertDebug(m_source != nullptr);
 }
@@ -207,7 +209,7 @@ void BakerBase::Initialize()
 
         ViewDesc viewDesc {
             .flags = ViewFlags::BAKER_VIEW
-                |  ViewFlags::COLLECT_STATIC_ENTITIES
+                | ViewFlags::COLLECT_STATIC_ENTITIES
                 | ViewFlags::NO_FRUSTUM_CULLING
                 | ViewFlags::SKIP_PROBE_VOLUMES
                 | ViewFlags::SKIP_LIGHTMAP_VOLUMES | ViewFlags::SKIP_PARTICLE_VOLUMES | ViewFlags::SKIP_FOG_VOLUMES
@@ -246,6 +248,18 @@ void BakerBase::Initialize()
     Initialize_Internal();
 
     Build();
+
+    if (m_state != BakerState::Building)
+    {
+        if (m_queue.Empty())
+        {
+            m_state = BakerState::Complete;
+        }
+        else
+        {
+            m_state = BakerState::Running;
+        }
+    }
 
     if (PerformsRayTracing())
     {
@@ -344,7 +358,7 @@ void BakerBase::Build()
 
         if (onlyOverlappingElements && !m_aabb.Overlaps(worldAabb))
         {
-         //   continue; // must be inside volume to be considered
+            //   continue; // must be inside volume to be considered
         }
 
         m_bakeEntities.PushBack(BakeEntity {
@@ -352,8 +366,7 @@ void BakerBase::Build()
             meshComponent.mesh,
             meshComponent.material,
             Transform(transformComponent.translation, transformComponent.scale, transformComponent.rotation).GetMatrix(),
-            boundingBoxComponent.worldAabb
-        });
+            boundingBoxComponent.worldAabb });
     }
 
     // set pointers in map after pushing, so that the addresses are stable
@@ -435,8 +448,6 @@ void BakerBase::DispatchJobs()
         AddJob(std::move(job));
     }
 
-    m_isComplete = false;
-
     m_initialNumJobs = m_numJobs;
 
     m_bakingClock.Start();
@@ -448,6 +459,21 @@ void BakerBase::Update(float delta)
 {
     HYP_SCOPE;
 
+    // If async build is in progress, check if it's ready yet
+    if (m_state == BakerState::Building)
+    {
+        if (PollBuildReady())
+        {
+            OnBuildReady();
+
+            m_state = BakerState::Running;
+        }
+        else
+        {
+            return; // still building, skip queue processing
+        }
+    }
+
     uint32 numTexelsProcessed = 0;
     uint32 numRunningJobs = 0;
 
@@ -456,18 +482,26 @@ void BakerBase::Update(float delta)
 
     double currentGpuMemUsageMB = 0.0;
 
+    // Accumulate texel budget based on time
+    m_accumulatedTexelBudget += double(IdealTexelsPerSecond) * MathUtil::Max(delta, 0.0);
+
+    // Clamp to prevent an absurd burst after a long stall
+    static constexpr double maxAccumulatedBudget = double(IdealTexelsPerSecond) * 4.0 / 60.0;
+    m_accumulatedTexelBudget = MathUtil::Min(m_accumulatedTexelBudget, maxAccumulatedBudget);
+
     Mutex::Guard guard(m_queueMutex);
 
-    if (m_queue.Empty())
+    if (m_state == BakerState::Running && m_queue.Empty())
     {
         OnCompleted();
+
+        m_state = BakerState::Complete;
 
         return;
     }
 
     if (PerformsRayTracing())
     {
-        // tally up estimated gpu mem usage
         for (auto it = m_queue.Begin(); it != m_queue.End(); ++it)
         {
             BakeJobBase* job = it->Get();
@@ -480,13 +514,17 @@ void BakerBase::Update(float delta)
         }
     }
 
+    const uint32 budgetThisFrame = uint32(MathUtil::Max(m_accumulatedTexelBudget, 0.0));
+
     for (auto it = m_queue.Begin(); it != m_queue.End();)
     {
         BakeJobBase* job = it->Get();
 
         if (job->IsRunning())
         {
-            numTexelsProcessed += job->Process(uint32(MathUtil::Max(0, int64(IdealTexelsPerFrame) - int64(numTexelsProcessed))));
+            const uint32 jobBudget = uint32(MathUtil::Max(0, int64(budgetThisFrame) - int64(numTexelsProcessed)));
+
+            numTexelsProcessed += job->Process(jobBudget);
         }
 
         if (job->IsCompleted())
@@ -508,6 +546,20 @@ void BakerBase::Update(float delta)
         ++it;
     }
 
+    // deduct actual processed texels
+    m_accumulatedTexelBudget = MathUtil::Max(m_accumulatedTexelBudget - double(numTexelsProcessed), 0.0);
+
+    // scale it based on concurrency
+    uint32 dynamicMaxJobs = MaxConcurrentJobs;
+
+    if (m_accumulatedTexelBudget > 0.0 && numRunningJobs < MaxConcurrentJobs * 4)
+    {
+        const double budgetPressure = m_accumulatedTexelBudget / maxAccumulatedBudget;
+        const uint32 extraJobs = uint32(budgetPressure * double(MaxConcurrentJobs) * 3.0);
+
+        dynamicMaxJobs = MathUtil::Min(MaxConcurrentJobs + extraJobs, MaxConcurrentJobs * 4);
+    }
+
     // spin up new jobs
     for (auto it = m_queue.Begin(); it != m_queue.End();)
     {
@@ -515,7 +567,7 @@ void BakerBase::Update(float delta)
 
         if (!job->IsRunning() && !job->IsCompleted())
         {
-            if (numRunningJobs < MaxConcurrentJobs
+            if (numRunningJobs < dynamicMaxJobs
                 && (!PerformsRayTracing() || currentGpuMemUsageMB + gpuMemUsagePerJobMB <= IdealGpuMemUsageMB))
             {
                 job->Start();
@@ -632,7 +684,6 @@ void BakerBase::HandleCompletedJob(BakeJobBase* job)
 void BakerBase::OnCompleted()
 {
     m_bakingClock.Stop();
-    m_isComplete = true;
 
     OnCompleted_Internal();
 

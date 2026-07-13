@@ -29,7 +29,13 @@ public:
     Baker(Baker&& other) noexcept = delete;
     Baker& operator=(Baker&& other) noexcept = delete;
 
-    virtual ~Baker() override = default;
+    virtual ~Baker() override
+    {
+        if (m_atlasBuildTask.IsValid() && !m_atlasBuildTask.IsCompleted())
+        {
+            m_atlasBuildTask.Await();
+        }
+    }
 
     virtual bool ShouldSplitIntoJobs() const override
     {
@@ -61,9 +67,23 @@ protected:
     virtual void OnCompleted_Internal() override;
     virtual void Build() override;
 
+    virtual bool IsBuildAsync() const override
+    {
+        return true;
+    }
+
+    virtual bool PollBuildReady() override
+    {
+        return m_atlasBuildTask.IsValid() && m_atlasBuildTask.IsCompleted();
+    }
+
+    virtual void OnBuildReady() override;
+
     Handle<LightmapVolume> m_volume;
     BakeData<LightmapVolume> m_bakeData;
     LightmapElementId m_lightmapElementId;
+
+    Task<BakeData<LightmapVolume>> m_atlasBuildTask;
 };
 
 } // namespace Baking

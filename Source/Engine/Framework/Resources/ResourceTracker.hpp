@@ -280,9 +280,9 @@ public:
         CHANGED = CHANGED_ADDED | CHANGED_MODIFIED
     };
 
-    static constexpr uint32 NumElementsPerPage = 16;
-
     // use a sparse array so we can use IDs as indices
+    static constexpr size_t NumElementsPerPage = 32;
+
     using ElementArrayType = SparsePagedArray<ElementType, NumElementsPerPage, AllocatorType>;
     using VersionArrayType = SparsePagedArray<int, NumElementsPerPage, AllocatorType>; // mirrors elements array
     using ProxyArrayType = SparsePagedArray<ProxyType, NumElementsPerPage, AllocatorType>;
@@ -1241,7 +1241,7 @@ public:
             }
             else
             {
-                return &*proxies.Set(idx, proxy);
+                return &*proxies.Emplace(idx, proxy);
             }
         }
 
@@ -1265,7 +1265,7 @@ public:
             }
             else
             {
-                return &*proxies.Set(idx, std::move(proxy));
+                return &*proxies.Emplace(idx, std::move(proxy));
             }
         }
 

@@ -194,17 +194,18 @@ PSOutput PSMain(PSInput input)
 
     const uint2 viewportExtent = camera.dimensions.xy;
 
-    CalculateEnvProbesContribution(
+    EvaluateEnvProbes(
         positionVS.xyz, positionWS.xyz,
         N, V, R,
         camera.near, camera.far,
         roughness, perceptualRoughness,
         texcoord, viewportExtent,
+        mask,
         /* inout */ reflections,
         /* inout */ irradiance);
 
     irradiance.a = saturate(irradiance.a);
-    irradiance *= invLightmappedWeight;
+    // irradiance *= invLightmappedWeight;
 
     // if the object is lightmapped, probeLighting contains lightmap UVs
     // multiplying the weight by invLightmappedWeight this cancels it out if
@@ -233,9 +234,6 @@ PSOutput PSMain(PSInput input)
     // lerp to ddgi based on 1.0-ssgi alpha, so that if ssgi has a hit, it will be used, otherwise ddgi will be used
     irradiance = lerp(irradiance, ddgi, 1.0 - ssgi.a);
 #endif
-
-    //irradiance.rgb *= irradiance.a;
-    irradiance.a = 1.0; // set alpha to 1 now that we're finished lerping between GI methods.
 
     const float NdotV = max(0.00001, dot(N, V));
     

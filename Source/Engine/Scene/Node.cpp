@@ -52,14 +52,6 @@ ScriptableDelegate<void, Node*> Node::TransformUpdated;
 extern Handle<EditorState> g_editorState;
 #endif
 
-void Node_OnPostLoad(Node& node)
-{
-    if (!g_engineDriver->IsShuttingDown())
-    {
-        node.SetScene(GetDetachedSceneForThread(g_simThread));
-    }
-}
-
 #pragma region NodeTag
 
 String NodeTag::ToString() const
@@ -1086,8 +1078,8 @@ bool Node::TestRay(const Ray& ray, RayTestResults& outResults, EnumFlags<RayTest
                 {
                     AssertDebug(resGuard);
 
-                    const VertexArrayView vertexData = mesh->GetVertexData();
-                    const Span<const ubyte> indexData = mesh->GetIndexData();
+                    const VertexArrayView vertexData = mesh->GetVertexData(0);
+                    const Span<const ubyte> indexData = mesh->GetIndexData(0);
 
                     // @TODO fix for non-uint32 indices
                     localBvhResults = bvh->TestRay(

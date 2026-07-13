@@ -442,7 +442,7 @@ void AssetBucketData::SetAsset(
     assetObject->m_assetIndex = assetDesc.index;
     assetObject->m_assetPath = AssetPath(registryId, *AssetBuckets::AllBuckets[bucketIndex], assetDesc.name);
 
-    assetObjectCache[assetDesc.index] = assetObject;
+    assetObjectCache.Set(assetDesc.index, assetObject);
 
     // transient assets are not saved, so they don't need to be marked dirty
     if (assetObject->IsTransient())
@@ -827,7 +827,7 @@ Handle<AssetObject> AssetRegistry::GetAsset(const AssetBucket& bucket, StringHas
             return *pAssetObject;
         }
 
-        data.assetObjectCache[index] = assetObject;
+        data.assetObjectCache.Set(index, assetObject);
     }
 
     InitObject(assetObject);
@@ -1023,7 +1023,7 @@ void AssetRegistry::PutAssetUnique(const AssetBucket& bucket, const Handle<Asset
     data.SetAsset(assetDesc, assetObject);
 }
 
-void AssetRegistry::PutAssetsDeep(const Handle<AssetObject>& targetAsset)
+void AssetRegistry::PutAssetsDeep(const Handle<AssetObject>& targetAsset, bool overwriteExisting)
 {
     if (!targetAsset.IsValid())
     {
@@ -1235,7 +1235,14 @@ void AssetRegistry::PutAssetsDeep(const Handle<AssetObject>& targetAsset)
         {
             if (assetObject->m_assetIndex == AssetDesc::InvalidIndex)
             {
-                PutAssetUnique(assetObject);
+                if (overwriteExisting)
+                {
+                    PutAsset(assetObject);
+                }
+                else
+                {
+                    PutAssetUnique(assetObject);
+                }
             }
 
             AssertDebug(assetObject->m_name.IsValid());

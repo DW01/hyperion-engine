@@ -2,11 +2,11 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
-#include <Core/Containers/FlatMap.hpp>
+#include <Core/Containers/SparseArray2.hpp>
 
 #include <Core/Resource/Resource.hpp>
 
@@ -25,6 +25,7 @@
 #include <Rendering/CommandRecorder.hpp>
 #include <Rendering/RenderTypes.hpp>
 #include <Rendering/RenderGroup.hpp>
+#include <Rendering/StencilMasks.hpp>
 #include <Rendering/Shared.hpp>
 
 #include <Framework/EngineStats.hpp>
@@ -47,8 +48,6 @@ class RenderProxyList;
 struct RenderProxy;
 enum class LightType : uint32;
 enum EnvProbeType : uint32;
-
-static constexpr uint8 SkyStencilMask = 0x20;
 
 struct DrawCallRange
 {
@@ -102,16 +101,14 @@ public:
 
     ~RenderCollector();
 
-#if HYP_DEBUG_MODE
     size_t NumDrawCallsCollected() const;
-#endif
 
     void Clear(bool freeMemory = true);
 
     // map entity id to previous attribute handle (for draw call collection)
-    SparsePagedArray<RenderableAttributeHandle, 128, RenderAllocator> previousAttributes;
+    SparsePagedArray<RenderableAttributeHandle, 64, RenderAllocator> previousAttributes;
 
-    using BinnedDrawCallCollections = SparsePagedArray<DrawCallCollection, 128, RenderAllocator>;
+    using BinnedDrawCallCollections = SparsePagedArray<DrawCallCollection, 64, RenderAllocator>;
     FixedArray<BinnedDrawCallCollections, NumRenderBuckets> mappingsByBucket;
 
     struct ParallelRenderingStateLL

@@ -143,9 +143,8 @@ VSOutput VSMain(VSInput input, uint instanceId : SV_InstanceID)
 
     output.color = material.albedo;
 
-    output.object_mask = (currentEntity.bucket == HYP_OBJECT_BUCKET_LIGHTMAPPED)
-        ? OBJECT_MASK_LIGHTMAPPED
-        : 0u;
+    output.object_mask = ((float)(currentEntity.bucket == HYP_OBJECT_BUCKET_LIGHTMAPPED) * OBJECT_MASK_LIGHTMAPPED)
+        | (min(1.0, (float)GET_MATERIAL_PARAM_BIT(material, 0)) * OBJECT_MASK_UNLIT);
 
 #ifndef INSTANCING
 #undef currentEntity

@@ -24,7 +24,7 @@ RenderableAttributeHandle RenderGroupCache::GetOrCreate(const RenderableAttribut
 
     typename Map<HashCode, Array<uint32, RenderAllocator>, RenderAllocator>::Iterator it = m_lookupByHash.End();
 
-    auto CreateIfExists = [&]() -> bool
+    auto tryToFetchExisting = [&]() -> bool
     {
         it = m_lookupByHash.Find(hc);
 
@@ -32,7 +32,7 @@ RenderableAttributeHandle RenderGroupCache::GetOrCreate(const RenderableAttribut
         {
             for (const uint32 index : it->second)
             {
-                if (m_entries[index] == attributes)
+                if (m_entries.Get(index) == attributes)
                 {
                     outHandle = RenderableAttributeHandle::Create(index, attributes.GetMaterialAttributes().bucket);
                     return true;
@@ -43,8 +43,10 @@ RenderableAttributeHandle RenderGroupCache::GetOrCreate(const RenderableAttribut
         return false;
     };
 
-    if (CreateIfExists())
+    if (tryToFetchExisting())
+    {
         return outHandle;
+    }
 
     const uint32 index = m_indexAllocator.Allocate();
 

@@ -227,9 +227,6 @@ PSOutput PSMain(PSInput input)
     sky_color = lerp(sky_color, float4(sky_color_bottom, 1.0), 1.0 - smoothstep(CUTOFF, 0.0, input.v_position.y));
 #endif
 
-    sky_color.rgb = 1.0 - exp(-1.0 * sky_color.rgb);
-    sky_color.a = 1.0;
-
     output.output_color = sky_color;
 
     return output;

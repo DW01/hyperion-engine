@@ -1245,6 +1245,12 @@ public:
 
                                   editorTaskScope->GetEditorTask()->SetDescription("Processing " + key);
 
+                                  if (!loadedAsset.IsValid())
+                                  {
+                                      HYP_LOG(Editor, Error, "Failed to import asset {}", key);
+                                      continue;
+                                  }
+
                                   Handle<AssetObject> assetObject = loadedAsset.ExtractAs<AssetObject>();
                                   if (!assetObject.IsValid())
                                   {

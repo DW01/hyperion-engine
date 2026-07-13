@@ -10,7 +10,7 @@
 #include <Baking/Baker.hpp>
 
 #include <Baking/LightmapVolume/LightmapVolumeBaker.hpp>
-#include <Baking/ReflectionProbe/ReflectionProbeBaker.hpp>
+#include <Baking/EnvProbe/EnvProbeBaker.hpp>
 #include <Baking/FogVolume/FogVolumeBaker.hpp>
 #include <Baking/ShadowMap/ShadowMapBaker.hpp>
 
@@ -103,7 +103,7 @@ Task<void> BakerSubsystem::EnqueueBake(const Handle<LightmapVolume>& source)
 }
 
 template <>
-Task<void> BakerSubsystem::EnqueueBake(const Handle<ReflectionProbe>& source)
+Task<void> BakerSubsystem::EnqueueBake(const Handle<EnvProbe>& source)
 {
     return EnqueueBake_Internal(source);
 }

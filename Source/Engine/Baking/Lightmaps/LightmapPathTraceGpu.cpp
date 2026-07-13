@@ -86,7 +86,8 @@ static const ShaderPropertyId s_lightmapModeProperties[uint32(LightmapShadingTyp
     InternShaderProperty(ShaderProperty(NAME("MODE"), NAME("IRRADIANCE"))),
     InternShaderProperty(ShaderProperty(NAME("MODE"), NAME("RADIANCE"))),
     InternShaderProperty(ShaderProperty(NAME("MODE"), NAME("FULL"))),
-    InternShaderProperty(ShaderProperty(NAME("MODE"), NAME("SHADOW")))
+    InternShaderProperty(ShaderProperty(NAME("MODE"), NAME("SHADOW"))),
+    InternShaderProperty(ShaderProperty(NAME("MODE"), NAME("DISTANCE")))
 };
 
 static ShaderDesc GetShaderDesc(LightmapShadingType shadingType)

@@ -162,7 +162,7 @@ float CalculateEnvProbeWeight(float3 positionWS, float3 aabbMin, float3 aabbMax)
 }
 
 // Must include ClusteredShading.hlsli before including this if you want
-// to use CalculateEnvProbesContribution.
+// to use EvaluateEnvProbes.
 
 // Define for intellisense on the block below
 #ifndef HYP_SHADER_COMPILER
@@ -200,12 +200,13 @@ float CalculateProbeVisibility(
     return visibility;
 }
 
-void CalculateEnvProbesContribution(
+void EvaluateEnvProbes(
     float3 positionVS, float3 positionWS,
     float3 N, float3 V, float3 R,
     float nearClip, float farClip,
     float roughness, float perceptualRoughness,
     float2 texcoordSS, uint2 dimensions,
+    uint inMask,
     inout float4 reflections, inout float4 irradiance)
 {
     const uint2 pixelCoord = uint2(texcoordSS * dimensions);
@@ -226,13 +227,20 @@ void CalculateEnvProbesContribution(
     float accumWeightReflections = 0.0;
     float accumWeightIrradiance = 0.0;
 
-    for (uint i = 0; i < numEnvProbes; ++i)
+    const float lightmappedWeight = min(1.0, float(inMask & OBJECT_MASK_LIGHTMAPPED));
+
+    for (uint currentProbeIndex = numEnvProbes; currentProbeIndex != 0; --currentProbeIndex)
     {
-        const uint envProbeIndex = Cluster_LoadEnvProbeIndex(clusterIndexOffset, numLights, i);
+        const uint envProbeIndex = Cluster_LoadEnvProbeIndex(clusterIndexOffset, numLights, currentProbeIndex - 1);
 
 #define CURRENT_ENV_PROBE (EnvProbesBuffer[envProbeIndex])
 
         const uint envProbeFlags = GET_ENV_PROBE_FLAGS(CURRENT_ENV_PROBE);
+
+        const uint probeType = GET_ENV_PROBE_TYPE(CURRENT_ENV_PROBE);
+
+        const bool isSky = (probeType == EPT_SKY);
+        const bool isIrradianceProbe = (probeType == EPT_AMBIENT);
 
         const uint textureIndices = CURRENT_ENV_PROBE.textureIndices;
         const uint colorTextureIndex = (textureIndices & 0xFFFFu);
@@ -244,21 +252,25 @@ void CalculateEnvProbesContribution(
         const float4 aabbMin = CURRENT_ENV_PROBE.aabb_min;
         const float4 aabbMax = CURRENT_ENV_PROBE.aabb_max;
 
+        const float4 worldPosition = CURRENT_ENV_PROBE.world_position;
+        const float3 worldPosition3 = worldPosition.xyz;
+        const float diffuseStrength = worldPosition.w;
+
         const float3 probeReflectionVector = bool(envProbeFlags & EPF_PARALLAX_CORRECTED)
-            ? normalize(EnvProbeCoordParallaxCorrected(CURRENT_ENV_PROBE.world_position.xyz, aabbMin.xyz, aabbMax.xyz, positionWS, R))
+            ? normalize(EnvProbeCoordParallaxCorrected(worldPosition3, aabbMin.xyz, aabbMax.xyz, positionWS, R))
             : R;
 
         float4 currentReflections = (float4)0;
-        float3 currentIrradiance = EnvProbeSH(CURRENT_ENV_PROBE, N, /* order */2);
+        float3 currentIrradiance = EnvProbeSH(CURRENT_ENV_PROBE, N, /* order */ 2);
 
-        float3 probeToPoint = positionWS - CURRENT_ENV_PROBE.world_position.xyz;
+        float3 probeToPoint = positionWS - worldPosition3;
         float dist = length(probeToPoint);
 
         float near = aabbMin.w;
         float far = aabbMax.w;
         float visibility = 1.0;
 
-        if ((envProbeFlags & EPF_HAS_VISIBILITY) && visTextureIndex != INVALID_ENV_PROBE_TEXTURE)
+        if ((envProbeFlags & EPF_VISIBILITY) && visTextureIndex != INVALID_ENV_PROBE_TEXTURE)
         {
             visibility = CalculateProbeVisibility(probeToPoint, dist, N, visTextureIndex);
         }
@@ -269,8 +281,17 @@ void CalculateEnvProbesContribution(
             lod,
             currentReflections);
 
-        float weight = CalculateEnvProbeWeight(positionWS, aabbMin.xyz, aabbMax.xyz);
-        weight *= visibility;
+        currentReflections.a = saturate(currentReflections.a);
+        
+        // dont show sky / fallback probe data where we have lightmaps!
+        // we apply probes in reverse order so sky should be very last
+        const float irradianceOnlyWeight = (float)isIrradianceProbe;
+        const float skyIrradianceWeight = isSky ? (1.0 - lightmappedWeight) : 1.0;
+        const float diffuseContributionWeight = diffuseStrength;
+
+        float reflectionsWeight = isSky ? 1.0 : CalculateEnvProbeWeight(positionWS, aabbMin.xyz, aabbMax.xyz);
+        reflectionsWeight *= visibility;
+        reflectionsWeight *= (1.0 - irradianceOnlyWeight);
 
         // distance based falloff for irradiance
         static const float s_irradianceFalloffPower = 0.5;
@@ -278,12 +299,15 @@ void CalculateEnvProbesContribution(
 
         float irradianceWeight = pow(max(1.0f - smoothstep(max(0.001, s_irradianceFalloffBeginDist), far, dist), 0.0001), s_irradianceFalloffPower);
         irradianceWeight *= visibility;
-
-        reflections += currentReflections * weight * (1.0 - accumWeightReflections);
+        irradianceWeight *= skyIrradianceWeight;
+        irradianceWeight *= diffuseContributionWeight;
         irradiance += float4(currentIrradiance, 1.0) * irradianceWeight * (1.0 - accumWeightIrradiance);
 
-        weight *= currentReflections.a; // so we can blend probes that have alpha zero with another (e.g blending with skybox)
-        accumWeightReflections += weight * (1.0 - accumWeightReflections);
+        reflections += currentReflections * reflectionsWeight * (1.0 - accumWeightReflections);
+        
+        reflectionsWeight *= currentReflections.a; // so we can blend probes that have alpha zero with another (e.g blending with skybox)
+
+        accumWeightReflections += reflectionsWeight * (1.0 - accumWeightReflections);
 
         accumWeightIrradiance += irradianceWeight * (1.0 - accumWeightIrradiance);
 

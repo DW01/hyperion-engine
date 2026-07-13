@@ -290,6 +290,7 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
     const bool hasForwardLighting = (bucket == RenderBucket::Translucent || bucket == RenderBucket::Sky || bucket == RenderBucket::Debug);
     const bool hasLightmaps = (bucket == RenderBucket::Lightmapped);
     const bool isSky = (bucket == RenderBucket::Sky);
+    const bool isDebug = (bucket == RenderBucket::Debug);
 
     const bool hasDeferredLighting = !hasForwardLighting && !hasLightmaps;
 
@@ -319,6 +320,10 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
     if (isSky)
     {
         stencilReferenceValue = SkyStencilMask;
+    }
+    else if (isDebug)
+    {
+        // stencilReferenceValue = DebugStencilMask;
     }
 
     if (stencilReferenceValue != attributes.GetMaterialAttributes().stencilReference)
@@ -1509,14 +1514,13 @@ RenderCollector::~RenderCollector()
     parallelRenderingStates = {};
 }
 
-#if HYP_DEBUG_MODE
 size_t RenderCollector::NumDrawCallsCollected() const
 {
     size_t numDrawCalls = 0;
 
     for (const auto& mappings : mappingsByBucket)
     {
-        for (DrawCallCollection& drawCallCollection : mappings)
+        for (const DrawCallCollection& drawCallCollection : mappings)
         {
             numDrawCalls += drawCallCollection.drawCalls.Size()
                 + drawCallCollection.instancedDrawCalls.Size();
@@ -1525,7 +1529,6 @@ size_t RenderCollector::NumDrawCallsCollected() const
 
     return numDrawCalls;
 }
-#endif
 
 void RenderCollector::Clear(bool freeMemory)
 {
@@ -2085,7 +2088,7 @@ void RenderCollector::CollectRenderables(uint32 bucketBits)
                         && meshProxy->mesh->GetVertexBuffer() != nullptr
                         && meshProxy->mesh->GetIndexBuffer() != nullptr);
 
-            AssertDebug(meshProxy->material != nullptr && meshProxy->material->IsReady());
+            AssertDebug(meshProxy->material != nullptr);
 
             DrawCallID drawCallId { meshProxy->mesh->Id(), meshProxy->material->Id() };
 
