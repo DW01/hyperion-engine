@@ -38,6 +38,15 @@ class TaskBatch;
 
 using threading::TaskBatch;
 
+HYP_ENUM()
+enum class BakerState : uint8
+{
+    Initialized = 0,
+    Building,
+    Running,
+    Complete
+};
+
 struct LightmapHitsBuffer;
 
 class LightmapVolume;
@@ -220,6 +229,24 @@ public:
         return true;
     }
 
+    /*! \brief Should the build phase be executed asynchronously on a background thread? */
+    virtual bool IsBuildAsync() const
+    {
+        return false;
+    }
+
+    /*! \brief Check if an async build has completed. Called from the sim thread during Update(). */
+    virtual bool PollBuildReady()
+    {
+        return true;
+    }
+
+    /*! \brief Called on the sim thread when an async build has completed.
+     *  Subclasses should move results and dispatch jobs here. */
+    virtual void OnBuildReady()
+    {
+    }
+
     virtual uint32 NumThreads() const
     {
         return 0; // no thread pool by default
@@ -230,9 +257,14 @@ public:
 
     virtual const TypeInfo& GetInnerType() const = 0;
 
+    HYP_FORCE_INLINE BakerState GetState() const
+    {
+        return m_state;
+    }
+
     bool IsComplete() const
     {
-        return m_isComplete;
+        return m_state == BakerState::Complete;
     }
 
     void Initialize();
@@ -312,7 +344,9 @@ protected:
     double m_lastProgressPercent;
     Array<Pair<double, double>> m_progressSamples;
 
-    bool m_isComplete;
+    double m_accumulatedTexelBudget;
+
+    BakerState m_state;
 };
 
 template <class T>

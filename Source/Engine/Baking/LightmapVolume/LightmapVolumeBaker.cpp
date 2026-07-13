@@ -26,6 +26,7 @@
 #include <Scene/Components/BoundingBoxComponent.hpp>
 #include <Scene/Components/LightmapElementComponent.hpp>
 
+#include <Core/Threading/TaskSystem.hpp>
 #include <Core/Threading/TaskThread.hpp>
 
 #include <Framework/EngineGlobals.hpp>
@@ -275,14 +276,32 @@ void Baker<LightmapVolume>::Build()
             boundingBoxComponent.worldAabb });
     }
 
-    // Build global data
     m_bakeData = BakeData<LightmapVolume>(m_bakeEntities.ToSpan(), m_volume);
 
-    if (Result result = m_bakeData.Build(); result.HasError())
-    {
-        HYP_LOG(Lightmap, Error, "Failed to build lightmap data: {}", result.GetError().GetMessage());
-        return;
-    }
+    m_atlasBuildTask = TaskSystem::GetInstance().Enqueue(
+        [buildData = m_bakeData]() mutable -> BakeData<LightmapVolume>
+        {
+            Result result = buildData.Build();
+
+            if (result.HasError())
+            {
+                HYP_LOG(Lightmap, Error, "Failed to build lightmap data: {}", result.GetError().GetMessage());
+
+                return {};
+            }
+
+            return std::move(buildData);
+        },
+        TaskThreadPoolName::THREAD_POOL_BACKGROUND);
+
+    m_state = BakerState::Building;
+}
+
+void Baker<LightmapVolume>::OnBuildReady()
+{
+    AssertOnThread(g_simThread);
+
+    m_bakeData = std::move(m_atlasBuildTask).Await();
 
     AssertDebug(m_bakeData.GetWidth() * m_bakeData.GetHeight() > 0);
 
@@ -292,6 +311,7 @@ void Baker<LightmapVolume>::Build()
     if (!m_volume->AddElement({ m_bakeData.GetWidth(), m_bakeData.GetHeight() }, lightmapElement, /* shrinkToFit */ true, /* downscaleLimit */ 0.1f))
     {
         HYP_LOG(Lightmap, Error, "Failed to add element to volume!");
+
         return;
     }
 

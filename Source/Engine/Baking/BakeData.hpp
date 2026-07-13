@@ -48,10 +48,16 @@ public:
 
     BakeDataBase() = default;
 
+    BakeDataBase(const BakeDataBase& other) = default;
+    BakeDataBase(BakeDataBase&& other) noexcept = default;
+
     explicit BakeDataBase(Span<const BakeEntity> bakeEntities)
         : bakeEntities(bakeEntities)
     {
     }
+
+    BakeDataBase& operator=(const BakeDataBase& other) = default;
+    BakeDataBase& operator=(BakeDataBase&& other) noexcept = default;
 
     virtual ~BakeDataBase() = default;
 
