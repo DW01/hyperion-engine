@@ -2425,7 +2425,6 @@ extern enum MeshFlags : uint32
     ViewIndependent = 0x1
 end
 extern struct MeshDesc
-    NumVertices : any
     MeshAttributes : MeshAttributes
     Lods : Array<MeshLodDesc>
 end

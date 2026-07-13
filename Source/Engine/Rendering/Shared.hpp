@@ -1585,8 +1585,6 @@ struct VertexTypeMask
         return uint32(ByteUtil::BitCount(flagMask));
     }
 
-    ENGINE_API Array<VertexType> GetAllTypes() const;
-
     ENGINE_API String ToString() const;
 
     HYP_FORCE_INLINE HashCode GetHashCode() const

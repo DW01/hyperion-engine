@@ -146,7 +146,7 @@ static void BuildRenderGroupsOrdered(
             drawCallCollection.suppressStats = true;
         }
 
-        drawCallCollection.meshProxies.Set(meshProxy->entity.Id().ToIndex(), meshProxy);
+        drawCallCollection.meshProxies.Set(meshProxy->entity->Id().ToIndex(), meshProxy);
     }
 }
 

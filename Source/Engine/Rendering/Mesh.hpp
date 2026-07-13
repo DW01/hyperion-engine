@@ -45,7 +45,7 @@ enum class MeshFlags : uint32
 
 HYP_MAKE_ENUM_FLAGS(MeshFlags);
 
-static constexpr uint8 MaxMeshLods = 6;
+static constexpr uint8 MaxMeshLods = 4;
 
 HYP_STRUCT()
 struct MeshLodDesc
@@ -82,20 +82,6 @@ struct MeshDesc
 
         return MaxMeshLods;
     }
-
-    /// For backwards compatibility
-    HYP_METHOD(Property = "NumVertices")
-    HYP_FORCE_INLINE void SetNumVertices(uint32 numVertices)
-    {
-        lods[0].numVertices = numVertices;
-    }
-
-    /// For backwards compatibility
-    HYP_METHOD(Property = "NumIndices")
-    HYP_FORCE_INLINE void SetNumVertices(uint32 numIndices)
-    {
-        lods[0].numIndices = numIndices;
-    }
 };
 
 HYP_STRUCT()
@@ -116,7 +102,7 @@ struct MeshDataView
     ConstByteView indices[MaxMeshLods];
 };
 
-/*! \brief Represents a 3D mesh in the engine, containing vertex data, indices, and rendering attributes. */
+/*! \brief Contains vertices and indices for all associated levels-of-detail of a section of a model */
 HYP_CLASS(AssetBucket = "Meshes")
 class ENGINE_API Mesh final : public AssetObject
 {

@@ -1,15 +1,19 @@
 {
-  "$Class": "MaterialDefinition",
+  "$Class": "Material",
+  "BaseMaterial": null,
+  "Textures": {
+    "Values": [null, null, null, null, null, null, null, null]
+  },
   "Attributes": {
     "ShaderName": "GeometryPass",
     "ShaderProperties": {
       "Chunks": [0, 0, 0, 0, 0, 0, 0, 0]
     },
-    "Bucket": 0,
+    "Bucket": 4,
     "FillMode": 0,
     "BlendFunction": {},
-    "CullFaces": 1,
-    "Flags": 3,
+    "CullFaces": 0,
+    "Flags": 0,
     "StencilFunction": {
       "PassOp": 2,
       "FailOp": 0,
@@ -21,8 +25,8 @@
     "DepthBias": 0,
     "DepthBiasSlope": 0
   },
-  "DefaultParameters": {
-    "Albedo": [1, 1, 1, 1],
+  "Parameters": {
+    "Albedo": [0.300000, 0, 0.280000, 0.250000],
     "Metalness": 0,
     "Roughness": 1,
     "AlphaThreshold": 0,
@@ -38,9 +42,7 @@
     "EmissiveIntensity": 0,
     "UserParams": [0, 0, 0, 0]
   },
-  "DefaultTextures": {
-    "Values": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
-  },
-  "Name": "BasicOBJMaterial",
-  "FriendlyName": "BasicOBJMaterial"
+  "IsDynamic": true,
+  "Name": "VolumeEditMaterial_2",
+  "FriendlyName": "VolumeEditMaterial_2"
 }

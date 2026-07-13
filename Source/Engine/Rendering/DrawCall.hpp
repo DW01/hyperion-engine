@@ -8,6 +8,10 @@
 
 #include <Core/Defines.hpp>
 
+#include <Core/Types.hpp>
+
+#include <Core/Containers/SparseArray2.hpp>
+
 #include <Core/Reflection/ObjId.hpp>
 #include <Core/Reflection/Handle.hpp>
 #include <Core/Reflection/TypeInfoFwd.hpp>
@@ -19,8 +23,6 @@
 #include <Rendering/RenderMemory.hpp>
 #include <Rendering/RenderTypes.hpp>
 #include <Rendering/RenderGroup.hpp>
-
-#include <Core/Types.hpp>
 
 namespace Hyperion {
 
@@ -330,9 +332,8 @@ struct DrawCallCollection
     bool isInit : 1 = false;
     bool suppressStats : 1 = false;
 
-    // map entity id to mesh proxy
     IndirectRenderer* indirectRenderer = nullptr;
-    SparsePagedArray<RenderProxyMesh*, 128, RenderAllocator> meshProxies;
+    SparseArray<RenderProxyMesh*, RenderAllocator> meshProxies;
 
     DrawCallStorage drawCalls;
     InstancedDrawCallStorage instancedDrawCalls;

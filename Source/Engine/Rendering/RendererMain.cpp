@@ -2238,7 +2238,7 @@ void RenderCollector::BuildRenderGroups(View* view, RenderProxyList& renderProxy
                 continue;
             }
 
-            prevDrawCallCollection->meshProxies.EraseAt(id.ToIndex());
+            prevDrawCallCollection->meshProxies.Delete(id.ToIndex());
             prevDrawCallCollection = nullptr;
 
             // Add proxy to group
@@ -2298,7 +2298,7 @@ void RenderCollector::BuildRenderGroups(View* view, RenderProxyList& renderProxy
             Assert(drawCallCollection.batchAllocator != nullptr && drawCallCollection.isInit);
 
             AssertDebug(drawCallCollection.meshProxies.HasIndex(idx));
-            drawCallCollection.meshProxies.EraseAt(idx);
+            drawCallCollection.meshProxies.Delete(idx);
 
             previousAttributes.EraseAt(idx);
         }

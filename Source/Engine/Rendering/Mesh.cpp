@@ -35,17 +35,6 @@ static const Name s_nameMeshDefault = NAME("<unnamed mesh>");
 
 #pragma region VertexTypeMask
 
-Array<VertexType> VertexTypeMask::GetAllTypes() const
-{
-    Array<VertexType> attributes;
-    FOR_EACH_BIT(flagMask, i)
-    {
-        attributes.PushBack(VertexType(1u << i));
-    }
-
-    return attributes;
-}
-
 String VertexTypeMask::ToString() const
 {
     String result = "";
@@ -416,7 +405,7 @@ void Mesh::UploadGpuData()
 
     GpuBufferRef vertexBuffer = RI.MakeGpuBuffer(GpuBufferType::VertexBuffer, packedVerticesSize);
     GpuBufferRef indexBuffer = RI.MakeGpuBuffer(GpuBufferType::IndexBuffer, packedIndicesSize);
-    
+
 #ifdef HYP_RHI_DEBUG_NAMES
     vertexBuffer->SetDebugName(NAME_FMT("{}_VBO", GetName()));
     indexBuffer->SetDebugName(NAME_FMT("{}_IBO", GetName()));
