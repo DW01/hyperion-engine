@@ -204,7 +204,7 @@ PSOutput PSMain(PSInput input)
         /* inout */ irradiance);
 
     irradiance.a = saturate(irradiance.a);
-    irradiance *= invLightmappedWeight;
+    // irradiance *= invLightmappedWeight;
 
     // if the object is lightmapped, probeLighting contains lightmap UVs
     // multiplying the weight by invLightmappedWeight this cancels it out if
@@ -233,9 +233,6 @@ PSOutput PSMain(PSInput input)
     // lerp to ddgi based on 1.0-ssgi alpha, so that if ssgi has a hit, it will be used, otherwise ddgi will be used
     irradiance = lerp(irradiance, ddgi, 1.0 - ssgi.a);
 #endif
-
-    //irradiance.rgb *= irradiance.a;
-    irradiance.a = 1.0; // set alpha to 1 now that we're finished lerping between GI methods.
 
     const float NdotV = max(0.00001, dot(N, V));
     
@@ -273,7 +270,7 @@ PSOutput PSMain(PSInput input)
 #endif
 
     // store irradiance weight in the alpha channel so we can lerp with lightmaps
-    output.output_color = float4(result, 1.0);//irradiance.a);
+    output.output_color = float4(result, irradiance.a);
 
     return output;
 }

@@ -1031,8 +1031,9 @@ void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
     // We store irradiance weight from the Indirect pass which samples EnvProbes.
     // EnvProbes take priority over lightmap volumes.
     // So we want to apply: 1.0 - irradianceWeight
-    // cr << SetCurrentBlendFunction(BlendFunction(BMF_ONE, BMF_ONE_MINUS_SRC_ALPHA, BMF_ONE, BMF_ZERO));
-    cr << SetCurrentBlendFunction(BlendFunction::Additive());
+    cr << SetCurrentBlendFunction(BlendFunction(BMF_ONE_MINUS_DST_ALPHA, BMF_DST_ALPHA));
+
+    // cr << SetCurrentBlendFunction(BlendFunction::Additive());
 
     // cr << SetStencilTest(true);
     // cr << SetStencilFunction(StencilFunction {
@@ -2025,7 +2026,8 @@ public:
 
         Vec3f cameraPosition = cameraProxy->bufferData.cameraPosition.GetXYZ();
 
-        // Sort env probes, we want sky LAST so other env probes fall back to it.
+        // Sort env probes in reverse order
+        // They are applied with a reverse loop -- sky is always first in the array if present.
         std::sort(envProbes.Begin(), envProbes.End(),
                   [&cameraPosition](const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& a, const Tuple<EnvProbe*, EnvProbeShaderData*, uint32>& b)
                   {
@@ -2037,17 +2039,17 @@ public:
 
                       if (aIsSky && !bIsSky)
                       {
-                          return false;
+                          return true;
                       }
 
                       if (!aIsSky && bIsSky)
                       {
-                          return true;
+                          return false;
                       }
 
                       if (aIsSky && bIsSky)
                       {
-                          return false;
+                          return true;
                       }
 
                       // both are reflection probes, sort by distance to camera
@@ -2057,7 +2059,7 @@ public:
                       const float aDistSq = (aProbePosition - cameraPosition).LengthSquared();
                       const float bDistSq = (bProbePosition - cameraPosition).LengthSquared();
 
-                      return aDistSq < bDistSq;
+                      return aDistSq >= bDistSq;
                   });
 
         for (size_t envProbeIndex = 0; envProbeIndex < envProbes.Size(); envProbeIndex++)
@@ -3112,6 +3114,8 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
 
         const bool isPathTracer = g_cvPathTracing.Get();
 
+        passData.indirectLightingPass->RenderToFramebuffer(frame, rs, passData.lightingFramebuffer);
+
         if (g_cvEnableLightmapVolumes.Get() && !isPathTracer)
         {
             // apply baked lighting over lightmapped objects
@@ -3125,8 +3129,6 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
                 passData.lightmapPass->RenderToFramebuffer(frame, lightmapPassRS, passData.lightingFramebuffer);
             }
         }
-
-        passData.indirectLightingPass->RenderToFramebuffer(frame, rs, passData.lightingFramebuffer);
 
         if (!isPathTracer)
         {

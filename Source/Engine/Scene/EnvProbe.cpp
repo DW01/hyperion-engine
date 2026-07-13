@@ -152,8 +152,7 @@ void EnvProbe::CreateCamera()
 
         InitObject(m_camera);
 
-        m_camera->SetNearClip(EnvProbeCameraNearClip);
-        m_camera->SetFarClip(worldBounds.GetRadius());
+        m_camera->SetToPerspectiveProjection(90.0f, EnvProbeCameraNearClip, worldBounds.GetRadius());
     }
     else
     {
