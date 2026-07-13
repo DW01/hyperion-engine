@@ -164,7 +164,7 @@ PSOutput PSMain(PSInput input)
 
     float3 diffuseIndirect = diffuse_color.rgb * irradiance.rgb * (1.0 - E) * ao;
 
-    output.color_output.rgb = diffuseIndirect;
+    output.color_output.rgb = diffuseIndirect;//SAMPLE_TEXTURE_2D_LOD(LightmapSampler, IrradianceTexture, texcoord, 0).rgb;;
     output.color_output.a = 1.0;
 
     return output;
