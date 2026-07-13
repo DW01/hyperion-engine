@@ -1028,12 +1028,12 @@ void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
     cr << SetDepthTest(false);
     cr << SetDepthWrite(false);
 
-    // We store irradiance weight from the Indirect pass which samples EnvProbes.
-    // EnvProbes take priority over lightmap volumes.
-    // So we want to apply: 1.0 - irradianceWeight
-    cr << SetCurrentBlendFunction(BlendFunction(BMF_ONE_MINUS_DST_ALPHA, BMF_DST_ALPHA));
+    // // We store irradiance weight from the Indirect pass which samples EnvProbes.
+    // // EnvProbes take priority over lightmap volumes.
+    // // So we want to apply: 1.0 - irradianceWeight
+    // cr << SetCurrentBlendFunction(BlendFunction(BMF_ONE_MINUS_DST_ALPHA, BMF_DST_ALPHA));
 
-    // cr << SetCurrentBlendFunction(BlendFunction::Additive());
+    cr << SetCurrentBlendFunction(BlendFunction::Additive());
 
     // cr << SetStencilTest(true);
     // cr << SetStencilFunction(StencilFunction {

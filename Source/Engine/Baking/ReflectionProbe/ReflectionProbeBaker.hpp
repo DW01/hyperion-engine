@@ -10,6 +10,8 @@
 
 #include <Baking/ReflectionProbe/ReflectionProbeBakeData.hpp>
 
+#include <Scene/EnvProbe.hpp>
+
 namespace Hyperion {
 
 class ReflectionProbe;
@@ -42,7 +44,14 @@ public:
 
     virtual uint32 GetShadingTypesMask() const override
     {
-        return 1u << int(LightmapShadingType::FULL);
+        uint32 mask = 1u << int(LightmapShadingType::FULL);
+
+        if (m_envProbe && (m_envProbe->GetEnvProbeFlags() & EPF_HAS_VISIBILITY))
+        {
+            mask |= 1u << int(LightmapShadingType::DISTANCE);
+        }
+
+        return mask;
     }
 
     virtual const TypeInfo& GetInnerType() const

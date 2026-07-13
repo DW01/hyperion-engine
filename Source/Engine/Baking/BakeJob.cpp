@@ -308,6 +308,11 @@ void BakeJobBase::IntegrateRayHits(Span<const LightmapRay> rays, Span<const Ligh
         case LightmapShadingType::RADIANCE:
             texel.color1 += hit.color;
             break;
+        case LightmapShadingType::DISTANCE:
+            // Distance moments (dist, dist^2) are accumulated into color1
+            // so they don't conflict with FULL-mode color in color0.
+            texel.color1 += hit.color;
+            break;
         default:
             texel.color0 += hit.color;
             break;

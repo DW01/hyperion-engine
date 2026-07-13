@@ -233,7 +233,7 @@ PSOutput PSMain(PSInput input)
                     float3(ao, ao, ao));
 
                 // @TODO
-                // Select env probes - add reflection + irradiance using CalculateEnvProbesContribution
+                // Select env probes - add reflection + irradiance using EvaluateEnvProbes
                 // Calc Fr + Fd
                 // Bada bing badaboom
 
@@ -356,7 +356,7 @@ PSOutput PSMain(PSInput input)
 #endif // SHADING_TYPE_FORWARD
 
 #ifdef DEBUG_RAW_REFLECTIONS
-    roughness = 0.0;
+    roughness = 0.04;
 #endif
 
     // https://www.elopezr.com/temporal-aa-and-the-quest-for-the-holy-trail/

@@ -62,19 +62,28 @@ void Baker<ReflectionProbe>::CreateLightmapRenderers()
         return;
     }
 
+    const uint32 shadingTypesMask = GetShadingTypesMask();
     const uint32 maxTexelsPerFrame = MaxTexelsPerFrame();
     AssertDebug(maxTexelsPerFrame > 0);
 
-    UniquePtr<ILightmapRenderer>& lightmapRenderer = m_lightmapRenderers.EmplaceBack();
-    lightmapRenderer = CreateRenderer(LightmapShadingType::FULL, maxTexelsPerFrame);
-
-    if (!lightmapRenderer)
+    for (uint32 i = 0; i < uint32(LightmapShadingType::MAX); i++)
     {
-        m_lightmapRenderers.PopBack();
-        return;
-    }
+        if (!(shadingTypesMask & (1u << i)))
+        {
+            continue;
+        }
 
-    lightmapRenderer->Create();
+        UniquePtr<ILightmapRenderer>& lightmapRenderer = m_lightmapRenderers.EmplaceBack();
+        lightmapRenderer = CreateRenderer(LightmapShadingType(i), maxTexelsPerFrame);
+
+        if (!lightmapRenderer)
+        {
+            m_lightmapRenderers.PopBack();
+            continue;
+        }
+
+        lightmapRenderer->Create();
+    }
 }
 
 Result Baker<ReflectionProbe>::Build_Internal()
@@ -137,6 +146,39 @@ void Baker<ReflectionProbe>::OnCompleted_Internal()
     CheckResult(prefiltered->Create());
 
     m_envProbe->SetBakedTexture(prefiltered);
+
+    // Bake visibility texture
+    if (m_envProbe->GetEnvProbeFlags() & EPF_HAS_VISIBILITY)
+    {
+        BakeData<ReflectionProbe>::VisibilityBitmapType visBitmap = m_bakeData.ToVisibilityBitmap();
+
+        // Visibility texture dimensions must match the global envProbesDepthTexture (16x16).
+        static constexpr uint32 visDim = 16;
+
+        TextureDesc visDesc {
+            TextureType::Cubemap,
+            visBitmap.GetFormat(),
+            Vec3u { visDim, visDim, 1 },
+            TFM_LINEAR,
+            TFM_LINEAR,
+            TWM_CLAMP_TO_EDGE,
+            1,
+            IU_SAMPLED | IU_STORAGE
+        };
+
+        ByteBuffer visBuffer = ByteBuffer(visBitmap.ToByteView());
+
+        visBitmap = {};
+
+        Handle<Texture> visibilityTexture = MakeHandle<Texture>(visDesc, visBuffer.ToByteView());
+
+        visBuffer.Clear();
+
+        visibilityTexture->SetName(NAME_FMT("{}_VisibilityMap", m_envProbe->GetName()));
+
+        // SetVisibilityTexture handles Create() and asset registration.
+        m_envProbe->SetVisibilityTexture(visibilityTexture);
+    }
 
     // Covolves the env probe cubemap and computes SH coefficients on the GPU
     struct ProcessReflectionProbePayload

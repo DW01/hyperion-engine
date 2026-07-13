@@ -19,6 +19,7 @@ class BakeData<ReflectionProbe> : public BakeDataBase
 {
 public:
     using BitmapType = Bitmap_RGBA16F;
+    using VisibilityBitmapType = Bitmap_RG16F;
 
     BakeData()
         : m_envProbe(nullptr)
@@ -42,6 +43,7 @@ public:
     virtual Result Build() override;
 
     BitmapType ToBitmap() const;
+    VisibilityBitmapType ToVisibilityBitmap() const;
 
 protected:
     ReflectionProbe* m_envProbe;

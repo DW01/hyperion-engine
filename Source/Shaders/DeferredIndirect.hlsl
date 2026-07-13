@@ -194,12 +194,13 @@ PSOutput PSMain(PSInput input)
 
     const uint2 viewportExtent = camera.dimensions.xy;
 
-    CalculateEnvProbesContribution(
+    EvaluateEnvProbes(
         positionVS.xyz, positionWS.xyz,
         N, V, R,
         camera.near, camera.far,
         roughness, perceptualRoughness,
         texcoord, viewportExtent,
+        mask,
         /* inout */ reflections,
         /* inout */ irradiance);
 
@@ -269,8 +270,7 @@ PSOutput PSMain(PSInput input)
     result = float3(ao, ao, ao);
 #endif
 
-    // store irradiance weight in the alpha channel so we can lerp with lightmaps
-    output.output_color = float4(result, irradiance.a);
+    output.output_color = float4(result, 1.0);
 
     return output;
 }
