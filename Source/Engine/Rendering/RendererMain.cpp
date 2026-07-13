@@ -2300,7 +2300,7 @@ void RenderCollector::BuildRenderGroups(View* view, RenderProxyList& renderProxy
             AssertDebug(drawCallCollection.meshProxies.HasIndex(idx));
             drawCallCollection.meshProxies.Delete(idx);
 
-            previousAttributes.EraseAt(idx);
+            previousAttributes.Delete(idx);
         }
     }
 

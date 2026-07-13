@@ -237,6 +237,20 @@ public:
         return reinterpret_cast<T&>(page.data[elemIndex]);
     }
 
+    HYP_FORCE_INLINE T& GetUnchecked(size_t index)
+    {
+        size_t pageIndex = (index / BlockSize);
+        size_t elemIndex = (index % BlockSize);
+
+        Page& page = m_pages[pageIndex];
+        return reinterpret_cast<T&>(page.data[elemIndex]);
+    }
+
+    HYP_FORCE_INLINE const T& GetUnchecked(size_t index) const
+    {
+        return const_cast<SparseArray*>(this)->GetUnchecked(index);
+    }
+
     HYP_FORCE_INLINE T* TryGet(size_t index)
     {
         size_t pageIndex = (index / BlockSize);
@@ -364,12 +378,14 @@ public:
                 reinterpret_cast<T&>(page.data[bitIndex]).~T();
             }
 
-            page.states = BitField<BlockSize>();
+            Memory::Zero(&page.states, sizeof(page.states));
         }
 
         if (freeMemory)
         {
             GetAllocator().Free(m_pages);
+
+            m_pages = nullptr;
             m_numPages = 0;
         }
     }
@@ -384,7 +400,7 @@ private:
         return *GetDefaultAllocatorInstance<AllocatorType>();
     }
 
-    Page* GetOrCreatePage(size_t pageIndex)
+    HYP_NODISCARD Page* GetOrCreatePage(size_t pageIndex)
     {
         if (HYP_UNLIKELY(pageIndex >= m_numPages))
         {
@@ -392,6 +408,8 @@ private:
 
             Page* newPages = (Page*)GetAllocator().Allocate(sizeof(Page) * newNumPages, alignof(Page));
             HYP_CORE_ASSERT(newPages != nullptr);
+
+            Memory::Zero(newPages, sizeof(Page) * newNumPages);
 
             if (m_pages != nullptr)
             {
@@ -401,27 +419,25 @@ private:
                 }
                 else
                 {
-                    for (size_t pageIndex = 0; pageIndex < m_numPages; pageIndex++)
+                    for (size_t currPageIndex = 0; currPageIndex < m_numPages; currPageIndex++)
                     {
-                        Page& currPage = m_pages[pageIndex];
-                        Page& newPage = newPages[pageIndex];
-                        for (size_t bitIndex : currPage.states)
-                        {
-                            Memory::Construct<T>(reinterpret_cast<T*>(&newPage.data[bitIndex]), std::move(reinterpret_cast<T&&>(currPage.data[bitIndex])));
-                            reinterpret_cast<T&>(currPage.data[bitIndex]).~T();
-                        }
+                        Page& currPage = m_pages[currPageIndex];
+                        Page& newPage = newPages[currPageIndex];
 
-                        newPage.states = currPage.states;
+                        if (currPage.states.CountOnes() != 0)
+                        {
+                            for (size_t bitIndex : currPage.states)
+                            {
+                                new (&newPage.data[bitIndex]) T(std::move(reinterpret_cast<T&&>(currPage.data[bitIndex])));
+                                reinterpret_cast<T&>(currPage.data[bitIndex]).~T();
+                            }
+
+                            newPage.states = currPage.states;
+                        }
                     }
                 }
 
-                Memory::Zero(newPages + m_numPages, sizeof(Page) * (newNumPages - m_numPages));
-
                 GetAllocator().Free(m_pages);
-            }
-            else
-            {
-                Memory::Zero(newPages, sizeof(Page) * newNumPages);
             }
 
             m_pages = newPages;

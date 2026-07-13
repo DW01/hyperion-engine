@@ -2,11 +2,11 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
-#include <Core/Containers/SparsePagedArray.hpp>
+#include <Core/Containers/SparseArray2.hpp>
 
 #include <Rendering/RenderTypes.hpp>
 
@@ -19,7 +19,7 @@ enum class MaterialTextureKey : uint64;
 class MaterialTextureCache
 {
 public:
-    using MaterialImageViewsMap = SparsePagedArray<Array<GpuImageViewRef, RenderAllocator>, 1024, RenderAllocator>;
+    using MaterialImageViewsMap = SparseArray<Array<GpuImageViewRef, RenderAllocator>, RenderAllocator>;
 
     MaterialTextureCache();
 

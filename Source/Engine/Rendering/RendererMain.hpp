@@ -2,11 +2,11 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #pragma once
 
-#include <Core/Containers/FlatMap.hpp>
+#include <Core/Containers/SparseArray2.hpp>
 
 #include <Core/Resource/Resource.hpp>
 
@@ -109,7 +109,7 @@ public:
     void Clear(bool freeMemory = true);
 
     // map entity id to previous attribute handle (for draw call collection)
-    SparsePagedArray<RenderableAttributeHandle, 128, RenderAllocator> previousAttributes;
+    SparseArray<RenderableAttributeHandle, RenderAllocator> previousAttributes;
 
     using BinnedDrawCallCollections = SparsePagedArray<DrawCallCollection, 128, RenderAllocator>;
     FixedArray<BinnedDrawCallCollections, NumRenderBuckets> mappingsByBucket;

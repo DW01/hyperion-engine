@@ -1,0 +1,81 @@
+{
+  "$Class": "Mesh",
+  "AABB": {
+    "Min": [-1.000000, -1, -0.999999],
+    "Max": [1.000000, 1, 0.999999]
+  },
+  "MeshDesc": {
+    "MeshAttributes": {
+      "InputLayout": {
+        "Mask": 7
+      },
+      "Topology": 0,
+      "IndexBufferElemType": 4
+    },
+    "Lods": [{
+        "$Class": "MeshLodDesc",
+        "NumVertices": 2077,
+        "NumIndices": 11520
+      }, {
+        "$Class": "MeshLodDesc",
+        "NumVertices": 0,
+        "NumIndices": 0
+      }, {
+        "$Class": "MeshLodDesc",
+        "NumVertices": 0,
+        "NumIndices": 0
+      }, {
+        "$Class": "MeshLodDesc",
+        "NumVertices": 0,
+        "NumIndices": 0
+      }]
+  },
+  "LodData": [{
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "Engine://Meshes/default.VB",
+        "Size": 66464
+      },
+      "IndexData": {
+        "Key": "Engine://Meshes/default.IB",
+        "Size": 46080
+      }
+    }, {
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "",
+        "Size": 0
+      },
+      "IndexData": {
+        "Key": "",
+        "Size": 0
+      }
+    }, {
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "",
+        "Size": 0
+      },
+      "IndexData": {
+        "Key": "",
+        "Size": 0
+      }
+    }, {
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "",
+        "Size": 0
+      },
+      "IndexData": {
+        "Key": "",
+        "Size": 0
+      }
+    }],
+  "BvhData": {
+    "Key": "Engine://Meshes/default.BVH",
+    "Size": 43565
+  },
+  "Flags": 0,
+  "Name": "default",
+  "FriendlyName": "Default"
+}

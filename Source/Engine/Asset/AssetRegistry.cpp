@@ -1023,7 +1023,7 @@ void AssetRegistry::PutAssetUnique(const AssetBucket& bucket, const Handle<Asset
     data.SetAsset(assetDesc, assetObject);
 }
 
-void AssetRegistry::PutAssetsDeep(const Handle<AssetObject>& targetAsset)
+void AssetRegistry::PutAssetsDeep(const Handle<AssetObject>& targetAsset, bool overwriteExisting)
 {
     if (!targetAsset.IsValid())
     {
@@ -1235,7 +1235,14 @@ void AssetRegistry::PutAssetsDeep(const Handle<AssetObject>& targetAsset)
         {
             if (assetObject->m_assetIndex == AssetDesc::InvalidIndex)
             {
-                PutAssetUnique(assetObject);
+                if (overwriteExisting)
+                {
+                    PutAsset(assetObject);
+                }
+                else
+                {
+                    PutAssetUnique(assetObject);
+                }
             }
 
             AssertDebug(assetObject->m_name.IsValid());

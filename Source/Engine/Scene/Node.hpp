@@ -89,11 +89,8 @@ struct NodeTag
     HYP_STRUCT_BODY(NodeTag);
 
     using VariantType = Variant<
-        int8, int16, int32, int64,
-        uint8, uint16, uint32, uint64,
-        float, double,
-        char,
-        bool,
+        int,
+        float,
         Vec2f, Vec3f, Vec4f,
         Vec2i, Vec3i, Vec4i,
         Vec2u, Vec3u, Vec4u,

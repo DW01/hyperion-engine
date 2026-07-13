@@ -117,7 +117,7 @@ public:
     void PutAssetUnique(const Handle<AssetObject>& asset);
     void PutAssetUnique(const AssetBucket& bucket, const Handle<AssetObject>& asset);
 
-    void PutAssetsDeep(const Handle<AssetObject>& targetAsset);
+    void PutAssetsDeep(const Handle<AssetObject>& targetAsset, bool overwriteExisting = false);
 
     void RemoveAsset(const Handle<AssetObject>& asset);
     void RemoveAsset(const AssetBucket& bucket, StringHash name);

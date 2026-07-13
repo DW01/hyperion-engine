@@ -48,7 +48,7 @@ static Handle<Entity> CreateAxisEntity(
         MaterialTextures {});
     material->SetIsDynamic(true);
     InitObject(material);
-    GetCurrentAssetRegistry()->PutAssetsDeep(material);
+    GetCurrentAssetRegistry()->PutAssetsDeep(material, /* overwriteExisting */ true);
 
     Handle<Entity> axisEntity = MakeHandle<Entity>(NAME_FMT("{}", entityName));
     axisEntity->SetIsDynamic(true);
@@ -85,7 +85,7 @@ static Handle<Entity> CreateCentroidEntity(
         MaterialTextures {});
     material->SetIsDynamic(true);
     InitObject(material);
-    GetCurrentAssetRegistry()->PutAssetsDeep(material);
+    GetCurrentAssetRegistry()->PutAssetsDeep(material, /* overwriteExisting */ true);
 
     Handle<Entity> centroidEntity = MakeHandle<Entity>(NAME_FMT("{}", entityName));
     centroidEntity->SetIsDynamic(true);
@@ -153,7 +153,7 @@ static void BuildTranslateGizmo(Handle<AssetRegistry>& assetRegistry)
     rootNode->AddChild(CreateCentroidEntity("TranslateGizmo_Centroid", centroidMesh, centroidColor));
 
     Handle<Prefab> prefab = MakeHandle<Prefab>(NAME("TranslateGizmo"), rootNode);
-    assetRegistry->PutAssetsDeep(prefab);
+    assetRegistry->PutAssetsDeep(prefab, /* overwriteExisting */ true);
 
     HYP_LOG(Engine, Info, "TranslateGizmo built and registered successfully.");
 }
@@ -191,7 +191,7 @@ static void BuildRotateGizmo(Handle<AssetRegistry>& assetRegistry)
     }
 
     Handle<Prefab> prefab = MakeHandle<Prefab>(NAME("RotateGizmo"), rootNode);
-    assetRegistry->PutAssetsDeep(prefab);
+    assetRegistry->PutAssetsDeep(prefab, /* overwriteExisting */ true);
 
     HYP_LOG(Engine, Info, "RotateGizmo built and registered successfully.");
 }
@@ -252,9 +252,75 @@ static void BuildScaleGizmo(Handle<AssetRegistry>& assetRegistry)
     rootNode->AddChild(CreateCentroidEntity("ScaleGizmo_Centroid", centroidMesh, centroidColor));
 
     Handle<Prefab> prefab = MakeHandle<Prefab>(NAME("ScaleGizmo"), rootNode);
-    assetRegistry->PutAssetsDeep(prefab);
+    assetRegistry->PutAssetsDeep(prefab, /* overwriteExisting */ true);
 
     HYP_LOG(Engine, Info, "ScaleGizmo built and registered successfully.");
+}
+
+static void BuildVolumeGizmo(Handle<AssetRegistry>& assetRegistry)
+{
+    GlobalContextScope assetRegistryScope { AssetRegistryContext { assetRegistry } };
+
+    constexpr int volume_face_count = 6;
+
+    static const Quat4f s_faceRotations[volume_face_count] = {
+        Quat4f::AxisAngles(Vec3f::UnitY(), -MathUtil::pi<float> * 0.5f),
+        Quat4f::AxisAngles(Vec3f::UnitY(), MathUtil::pi<float> * 0.5f),
+        Quat4f::AxisAngles(Vec3f::UnitX(), MathUtil::pi<float> * 0.5f),
+        Quat4f::AxisAngles(Vec3f::UnitX(), -MathUtil::pi<float> * 0.5f),
+        Quat4f::AxisAngles(Vec3f::UnitY(), MathUtil::pi<float>),
+        Quat4f::Identity()
+    };
+
+    const Vec4f volumeColor(0.3f, 0.0f, 0.28f, 0.25f);
+
+    Handle<Mesh> quadMesh = MeshBuilder::Quad();
+    InitObject(quadMesh);
+
+    MaterialAttributes materialAttributes;
+    materialAttributes.bucket = RenderBucket::Debug;
+    materialAttributes.blendFunction = BlendFunction::Additive();
+    materialAttributes.cullFaces = FCM_NONE;
+    materialAttributes.flags = MAF_NONE;
+
+    MaterialParameters materialParameters;
+    materialParameters.albedo = volumeColor;
+
+    Handle<Material> material = MakeHandle<Material>(
+        NAME("VolumeEditMaterial"),
+        materialAttributes,
+        materialParameters,
+        MaterialTextures {});
+    material->SetIsDynamic(true);
+    InitObject(material);
+    GetCurrentAssetRegistry()->PutAssetsDeep(material, /* overwriteExisting */ true);
+
+    Handle<Node> rootNode = MakeHandle<Node>();
+    rootNode->SetName(NAME("VolumeEditGizmo"));
+    rootNode->SetNodeFlags(rootNode->GetNodeFlags() | NodeFlags::HideInSceneOutline);
+
+    for (int i = 0; i < volume_face_count; i++)
+    {
+        Handle<Entity> faceEntity = MakeHandle<Entity>(NAME_FMT("VolumeFace_{}", i));
+        faceEntity->SetIsDynamic(true);
+        faceEntity->SetLocalRotation(s_faceRotations[i]);
+        InitObject(faceEntity);
+
+        faceEntity->Node::AddTag(NodeTag(NAME("VolumeFaceIndex"), i));
+        faceEntity->Node::AddTag(NodeTag(NAME("TransformWidgetElementColor"), volumeColor));
+
+        faceEntity->AddComponent<MeshComponent>(MeshComponent { quadMesh, material });
+        faceEntity->SetLocalBounds(quadMesh->GetAABB());
+
+        rootNode->AddChild(faceEntity);
+    }
+
+    rootNode->SetLocalBounds(BoundingBox(Vec3f(-1.0f), Vec3f(1.0f)));
+
+    Handle<Prefab> prefab = MakeHandle<Prefab>(NAME("VolumeEditGizmo"), rootNode);
+    assetRegistry->PutAssetsDeep(prefab, /* overwriteExisting */ true);
+
+    HYP_LOG(Engine, Info, "VolumeEditGizmo built and registered successfully.");
 }
 
 class BuildGizmosCommandlet : public CommandletBase
@@ -287,6 +353,7 @@ protected:
         BuildTranslateGizmo(editorRegistry);
         BuildRotateGizmo(editorRegistry);
         BuildScaleGizmo(editorRegistry);
+        BuildVolumeGizmo(editorRegistry);
 
         GlobalContextScope assetRegistryScope { AssetRegistryContext { editorRegistry } };
         GetCurrentAssetRegistry()->SaveDirtyAssets();

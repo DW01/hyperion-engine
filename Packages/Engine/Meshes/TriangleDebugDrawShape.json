@@ -1,0 +1,81 @@
+{
+  "$Class": "Mesh",
+  "AABB": {
+    "Min": [0, 0, 0],
+    "Max": [1, 1, 0]
+  },
+  "MeshDesc": {
+    "MeshAttributes": {
+      "InputLayout": {
+        "Mask": 7
+      },
+      "Topology": 0,
+      "IndexBufferElemType": 4
+    },
+    "Lods": [{
+        "$Class": "MeshLodDesc",
+        "NumVertices": 3,
+        "NumIndices": 3
+      }, {
+        "$Class": "MeshLodDesc",
+        "NumVertices": 0,
+        "NumIndices": 0
+      }, {
+        "$Class": "MeshLodDesc",
+        "NumVertices": 0,
+        "NumIndices": 0
+      }, {
+        "$Class": "MeshLodDesc",
+        "NumVertices": 0,
+        "NumIndices": 0
+      }]
+  },
+  "LodData": [{
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "Engine://Meshes/TriangleDebugDrawShape.VB",
+        "Size": 96
+      },
+      "IndexData": {
+        "Key": "Engine://Meshes/TriangleDebugDrawShape.IB",
+        "Size": 12
+      }
+    }, {
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "",
+        "Size": 0
+      },
+      "IndexData": {
+        "Key": "",
+        "Size": 0
+      }
+    }, {
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "",
+        "Size": 0
+      },
+      "IndexData": {
+        "Key": "",
+        "Size": 0
+      }
+    }, {
+      "$Class": "MeshLodData",
+      "VertexData": {
+        "Key": "",
+        "Size": 0
+      },
+      "IndexData": {
+        "Key": "",
+        "Size": 0
+      }
+    }],
+  "BvhData": {
+    "Key": "",
+    "Size": 0
+  },
+  "Flags": 1,
+  "Name": "TriangleDebugDrawShape",
+  "FriendlyName": "TriangleDebugDrawShape"
+}
