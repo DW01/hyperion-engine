@@ -176,8 +176,8 @@ ENGINE_API Handle<Mesh> Quad()
 
     MeshDesc meshDesc {};
     meshDesc.meshAttributes.inputLayout = { VT_Simple };
-    meshDesc.numIndices = uint32(indices.Size());
-    meshDesc.numVertices = uint32(vertices.Size());
+    meshDesc.lods[0].numIndices = uint32(indices.Size());
+    meshDesc.lods[0].numVertices = uint32(vertices.Size());
 
     Handle<Mesh> mesh = MakeHandle<Mesh>();
     mesh->SetName(NAME("MeshBuilder_Quad"));
@@ -191,7 +191,11 @@ ENGINE_API Handle<Mesh> Quad()
         reinterpret_cast<const ubyte*>(indices.Data()),
         reinterpret_cast<const ubyte*>(indices.Data() + indices.Size()));
 
-    mesh->SetMeshData(meshDesc, vertexArrayView, indicesByteView);
+    MeshDataView meshData {};
+    meshData.vertices[0] = vertexArrayView;
+    meshData.indices[0] = indicesByteView;
+
+    mesh->SetMeshData(meshDesc, meshData);
 
     return mesh;
 }
@@ -203,8 +207,8 @@ ENGINE_API Handle<Mesh> DoubleSidedQuad()
 
     MeshDesc meshDesc {};
     meshDesc.meshAttributes.inputLayout = { VT_Simple };
-    meshDesc.numIndices = uint32(indices.Size());
-    meshDesc.numVertices = uint32(vertices.Size());
+    meshDesc.lods[0].numIndices = uint32(indices.Size());
+    meshDesc.lods[0].numVertices = uint32(vertices.Size());
 
     Handle<Mesh> mesh = MakeHandle<Mesh>();
     mesh->SetName(NAME("MeshBuilder_DoubleSidedQuad"));
@@ -218,7 +222,11 @@ ENGINE_API Handle<Mesh> DoubleSidedQuad()
         reinterpret_cast<const ubyte*>(indices.Data()),
         reinterpret_cast<const ubyte*>(indices.Data() + indices.Size()));
 
-    mesh->SetMeshData(meshDesc, vertexArrayView, indicesByteView);
+    MeshDataView meshData2 {};
+    meshData2.vertices[0] = vertexArrayView;
+    meshData2.indices[0] = indicesByteView;
+
+    mesh->SetMeshData(meshDesc, meshData2);
 
     return mesh;
 }
@@ -229,8 +237,8 @@ ENGINE_API Handle<Mesh> Cube(bool originOnBottom)
 
     MeshDesc meshDesc;
     meshDesc.meshAttributes.inputLayout = { VT_Simple };
-    meshDesc.numIndices = uint32(s_cubeVerticesAndIndices.second.Size());
-    meshDesc.numVertices = uint32(s_cubeVerticesAndIndices.first.Size());
+    meshDesc.lods[0].numIndices = uint32(s_cubeVerticesAndIndices.second.Size());
+    meshDesc.lods[0].numVertices = uint32(s_cubeVerticesAndIndices.first.Size());
 
     Array<SimpleVertex> vertices = s_cubeVerticesAndIndices.first;
     Array<uint32> indices = s_cubeVerticesAndIndices.second;
@@ -308,8 +316,8 @@ ENGINE_API Handle<Mesh> Cube(bool originOnBottom)
         20, 23, 22
     };
 
-    meshDesc.numIndices = uint32(std::size(s_indices));
-    meshDesc.numVertices = uint32(std::size(vertices));
+    meshDesc.lods[0].numIndices = uint32(std::size(s_indices));
+    meshDesc.lods[0].numVertices = uint32(std::size(vertices));
 #endif
 
     if (originOnBottom)
@@ -332,7 +340,11 @@ ENGINE_API Handle<Mesh> Cube(bool originOnBottom)
     vertexArrayView.vertexCount = uint32(vertices.Size());
     vertexArrayView.layoutDesc = { VT_Simple };
 
-    mesh->SetMeshData(meshDesc, vertexArrayView, indexData);
+    MeshDataView meshData {};
+    meshData.vertices[0] = vertexArrayView;
+    meshData.indices[0] = indexData;
+
+    mesh->SetMeshData(meshDesc, meshData);
 
     return mesh;
 }
@@ -440,8 +452,8 @@ ENGINE_API Handle<Mesh> NormalizedCubeSphere(uint32 numDivisions){
 
     MeshDesc meshDesc;
     meshDesc.meshAttributes.inputLayout = { VT_Simple };
-    meshDesc.numIndices = uint32(indices.Size());
-    meshDesc.numVertices = uint32(vertices.Size());
+    meshDesc.lods[0].numIndices = uint32(indices.Size());
+    meshDesc.lods[0].numVertices = uint32(vertices.Size());
 
     Handle<Mesh> mesh = MakeHandle<Mesh>();
     mesh->SetName(NAME_FMT("MeshBuilder_NormalizedCubeSphere_{}", numDivisions));
@@ -451,7 +463,11 @@ ENGINE_API Handle<Mesh> NormalizedCubeSphere(uint32 numDivisions){
     vertexArrayView.vertexCount = vertices.Size();
     vertexArrayView.layoutDesc = { VT_Simple };
 
-    mesh->SetMeshData(meshDesc, vertexArrayView, indices.ToByteView());
+    MeshDataView meshData {};
+    meshData.vertices[0] = vertexArrayView;
+    meshData.indices[0] = indices.ToByteView();
+
+    mesh->SetMeshData(meshDesc, meshData);
 
     return mesh;
 }
@@ -467,8 +483,8 @@ ENGINE_API Handle<Mesh> ApplyTransform(const Mesh* mesh, const Transform& transf
 
     const MeshDesc meshDesc = mesh->GetMeshDesc();
 
-    const VertexArrayView vertexData = mesh->GetVertexData();
-    const Array<ubyte> indexData = mesh->GetIndexData();
+    const VertexArrayView vertexData = mesh->GetVertexData(0);
+    const Array<ubyte> indexData = mesh->GetIndexData(0);
 
     const size_t vertexSizeInFloats = vertexData.layoutDesc.VertexSize() / sizeof(float);
 
@@ -502,7 +518,11 @@ ENGINE_API Handle<Mesh> ApplyTransform(const Mesh* mesh, const Transform& transf
     VertexArrayView vertexArrayView = vertexData;
     vertexArrayView.floatData = newVertices.Data();
 
-    newMesh->SetMeshData(meshDesc, vertexArrayView, indexData);
+    MeshDataView meshData {};
+    meshData.vertices[0] = vertexArrayView;
+    meshData.indices[0] = indexData;
+
+    newMesh->SetMeshData(meshDesc, meshData);
 
     newMesh->SetName(mesh->GetName());
 
@@ -530,21 +550,21 @@ ENGINE_API Handle<Mesh> Merge(const Mesh* a, const Mesh* b, const Transform& aTr
     };
 
     VertexArrayView meshVertices[] = {
-        transformedMeshes[0]->GetVertexData(),
-        transformedMeshes[1]->GetVertexData()
+        transformedMeshes[0]->GetVertexData(0),
+        transformedMeshes[1]->GetVertexData(0)
     };
 
     Span<const ubyte> meshIndices[] = {
-        transformedMeshes[0]->GetIndexData(),
-        transformedMeshes[1]->GetIndexData()
+        transformedMeshes[0]->GetIndexData(0),
+        transformedMeshes[1]->GetIndexData(0)
     };
 
     // only simple for now.
     Array<SimpleVertex> allVertices;
-    allVertices.Resize(meshDescs[0]->numVertices + meshDescs[1]->numVertices);
+    allVertices.Resize(meshDescs[0]->lods[0].numVertices + meshDescs[1]->lods[0].numVertices);
 
     Array<uint32> allIndices;
-    allIndices.Resize(meshDescs[0]->numIndices + meshDescs[1]->numIndices);
+    allIndices.Resize(meshDescs[0]->lods[0].numIndices + meshDescs[1]->lods[0].numIndices);
 
     size_t vertexOffset = 0;
     size_t indexOffset = 0;
@@ -613,8 +633,8 @@ ENGINE_API Handle<Mesh> Merge(const Mesh* a, const Mesh* b, const Transform& aTr
     MeshDesc mergedMeshDesc;
     mergedMeshDesc.meshAttributes.indexBufferElemType = GET_UNSIGNED_INT;
     mergedMeshDesc.meshAttributes.inputLayout = { VT_Simple };
-    mergedMeshDesc.numIndices = uint32(allIndices.Size());
-    mergedMeshDesc.numVertices = uint32(allVertices.Size());
+    mergedMeshDesc.lods[0].numIndices = uint32(allIndices.Size());
+    mergedMeshDesc.lods[0].numVertices = uint32(allVertices.Size());
 
     Handle<Mesh> newMesh = MakeHandle<Mesh>();
 
@@ -623,7 +643,11 @@ ENGINE_API Handle<Mesh> Merge(const Mesh* a, const Mesh* b, const Transform& aTr
     vertexArrayView.vertexCount = allVertices.Size();
     vertexArrayView.layoutDesc = { VT_Simple };
 
-    newMesh->SetMeshData(mergedMeshDesc, vertexArrayView, allIndices.ToByteView());
+    MeshDataView meshData {};
+    meshData.vertices[0] = vertexArrayView;
+    meshData.indices[0] = allIndices.ToByteView();
+
+    newMesh->SetMeshData(mergedMeshDesc, meshData);
 
     newMesh->SetName(NAME("MeshBuilder_MergedMesh"));
 
@@ -713,8 +737,8 @@ ENGINE_API Handle<Mesh> BuildVoxelMesh(const VoxelOctree& voxelOctree)
 
     MeshDesc meshDesc;
     meshDesc.meshAttributes.inputLayout = { VT_Simple };
-    meshDesc.numIndices = (uint32)indices.Size();
-    meshDesc.numVertices = (uint32)vertices.Size();
+    meshDesc.lods[0].numIndices = (uint32)indices.Size();
+    meshDesc.lods[0].numVertices = (uint32)vertices.Size();
     meshDesc.meshAttributes.indexBufferElemType = GET_UNSIGNED_INT;
     meshDesc.meshAttributes.topology = TOP_LINES;
 
@@ -725,7 +749,11 @@ ENGINE_API Handle<Mesh> BuildVoxelMesh(const VoxelOctree& voxelOctree)
     vertexArrayView.vertexCount = vertices.Size();
     vertexArrayView.layoutDesc = { VT_Simple };
 
-    mesh->SetMeshData(meshDesc, vertexArrayView, indices.ToByteView());
+    MeshDataView meshData {};
+    meshData.vertices[0] = vertexArrayView;
+    meshData.indices[0] = indices.ToByteView();
+
+    mesh->SetMeshData(meshDesc, meshData);
 
     mesh->SetName(NAME("MeshBuilder_VoxelMesh"));
 
@@ -785,8 +813,8 @@ ENGINE_API Handle<Mesh> Cylinder(float radius, float height, uint32 numSegments)
 
     MeshDesc meshDesc {};
     meshDesc.meshAttributes.inputLayout = { VT_Simple };
-    meshDesc.numIndices = uint32(deduped.second.Size());
-    meshDesc.numVertices = uint32(deduped.first.Size());
+    meshDesc.lods[0].numIndices = uint32(deduped.second.Size());
+    meshDesc.lods[0].numVertices = uint32(deduped.first.Size());
 
     Handle<Mesh> mesh = MakeHandle<Mesh>();
     mesh->SetName(NAME("MeshBuilder_Cylinder"));
@@ -796,7 +824,11 @@ ENGINE_API Handle<Mesh> Cylinder(float radius, float height, uint32 numSegments)
     vertexArrayView.vertexCount = deduped.first.Size();
     vertexArrayView.layoutDesc = { VT_Simple };
 
-    mesh->SetMeshData(meshDesc, vertexArrayView, deduped.second.ToByteView());
+    MeshDataView meshData {};
+    meshData.vertices[0] = vertexArrayView;
+    meshData.indices[0] = deduped.second.ToByteView();
+
+    mesh->SetMeshData(meshDesc, meshData);
 
     return mesh;
 }
@@ -847,8 +879,8 @@ ENGINE_API Handle<Mesh> Cone(float radius, float height, uint32 numSegments)
 
     MeshDesc meshDesc {};
     meshDesc.meshAttributes.inputLayout = { VT_Simple };
-    meshDesc.numIndices = uint32(deduped.second.Size());
-    meshDesc.numVertices = uint32(deduped.first.Size());
+    meshDesc.lods[0].numIndices = uint32(deduped.second.Size());
+    meshDesc.lods[0].numVertices = uint32(deduped.first.Size());
 
     Handle<Mesh> mesh = MakeHandle<Mesh>();
     mesh->SetName(NAME("MeshBuilder_Cone"));
@@ -858,7 +890,11 @@ ENGINE_API Handle<Mesh> Cone(float radius, float height, uint32 numSegments)
     vertexArrayView.vertexCount = deduped.first.Size();
     vertexArrayView.layoutDesc = { VT_Simple };
 
-    mesh->SetMeshData(meshDesc, vertexArrayView, deduped.second.ToByteView());
+    MeshDataView meshData {};
+    meshData.vertices[0] = vertexArrayView;
+    meshData.indices[0] = deduped.second.ToByteView();
+
+    mesh->SetMeshData(meshDesc, meshData);
 
     return mesh;
 }
@@ -926,8 +962,8 @@ ENGINE_API Handle<Mesh> Torus(float majorRadius, float minorRadius, uint32 major
 
     MeshDesc meshDesc {};
     meshDesc.meshAttributes.inputLayout = { VT_Simple };
-    meshDesc.numIndices = uint32(deduped.second.Size());
-    meshDesc.numVertices = uint32(deduped.first.Size());
+    meshDesc.lods[0].numIndices = uint32(deduped.second.Size());
+    meshDesc.lods[0].numVertices = uint32(deduped.first.Size());
 
     Handle<Mesh> mesh = MakeHandle<Mesh>();
     mesh->SetName(NAME("MeshBuilder_Torus"));
@@ -937,7 +973,11 @@ ENGINE_API Handle<Mesh> Torus(float majorRadius, float minorRadius, uint32 major
     vertexArrayView.vertexCount = deduped.first.Size();
     vertexArrayView.layoutDesc = { VT_Simple };
 
-    mesh->SetMeshData(meshDesc, vertexArrayView, deduped.second.ToByteView());
+    MeshDataView meshData {};
+    meshData.vertices[0] = vertexArrayView;
+    meshData.indices[0] = deduped.second.ToByteView();
+
+    mesh->SetMeshData(meshDesc, meshData);
 
     return mesh;
 }

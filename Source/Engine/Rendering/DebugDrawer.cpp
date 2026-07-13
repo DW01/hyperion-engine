@@ -512,8 +512,8 @@ Mesh* TriangleDebugDrawShape::GetMesh_Internal() const
 
             MeshDesc meshDesc {};
             meshDesc.meshAttributes.inputLayout = { VT_Simple };
-            meshDesc.numIndices = uint32(indices.Size());
-            meshDesc.numVertices = uint32(vertices.Size());
+            meshDesc.lods[0].numIndices = uint32(indices.Size());
+            meshDesc.lods[0].numVertices = uint32(vertices.Size());
 
             mesh = MakeHandle<Mesh>();
             mesh->SetFlags(MeshFlags::ViewIndependent);
@@ -528,7 +528,11 @@ Mesh* TriangleDebugDrawShape::GetMesh_Internal() const
                 reinterpret_cast<const ubyte*>(indices.Data()),
                 indices.Size() * sizeof(uint32));
 
-            mesh->SetMeshData(meshDesc, vertexArrayView, indicesByteView);
+            MeshDataView meshData {};
+            meshData.vertices[0] = vertexArrayView;
+            meshData.indices[0] = indicesByteView;
+
+            mesh->SetMeshData(meshDesc, meshData);
             mesh->UploadGpuData();
 
             GetEngineAssetRegistry()->PutAsset(mesh);
@@ -964,7 +968,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
 
                     cr << BindVertexBuffer(mesh->GetVertexBuffer());
                     cr << BindIndexBuffer(mesh->GetIndexBuffer());
-                    cr << DrawIndexed(mesh->NumIndices(), numToDraw);
+                    cr << DrawIndexed(mesh->NumIndices(0), numToDraw);
 
                     ++totalDrawCalls;
                     totalInstancedDraws += numToDraw;

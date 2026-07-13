@@ -56,8 +56,8 @@ BakeData<LightmapVolume>::BakeData(Span<const BakeEntity> bakeEntities, Lightmap
 
         const MeshDesc& meshDesc = mesh->GetMeshDesc();
 
-        const VertexArrayView vertexData = mesh->GetVertexData();
-        const Span<const ubyte> indexData = mesh->GetIndexData();
+        const VertexArrayView vertexData = mesh->GetVertexData(0);
+        const Span<const ubyte> indexData = mesh->GetIndexData(0);
 
         bakeMesh.mesh = bakeEntity.mesh;
         bakeMesh.material = bakeEntity.material;

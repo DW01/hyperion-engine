@@ -104,8 +104,8 @@ const Handle<Mesh>& TerrainMeshBuilder::GetMesh()
 
     MeshDesc meshDesc;
     meshDesc.meshAttributes.inputLayout = { VT_Simple };
-    meshDesc.numIndices = uint32(indices.Size());
-    meshDesc.numVertices = uint32(vertices.Size());
+    meshDesc.lods[0].numIndices = uint32(indices.Size());
+    meshDesc.lods[0].numVertices = uint32(vertices.Size());
 
     Handle<Mesh> mesh = MakeHandle<Mesh>();
     mesh->SetName(NAME("TerrainChunkMesh"));
@@ -115,7 +115,11 @@ const Handle<Mesh>& TerrainMeshBuilder::GetMesh()
     vertexArrayView.vertexCount = vertices.Size();
     vertexArrayView.layoutDesc = meshDesc.meshAttributes.inputLayout;
 
-    mesh->SetMeshData(meshDesc, vertexArrayView, indices.ToByteView());
+    MeshDataView meshData {};
+    meshData.vertices[0] = vertexArrayView;
+    meshData.indices[0] = indices.ToByteView();
+
+    mesh->SetMeshData(meshDesc, meshData);
 
     GetCurrentAssetRegistry()->PutAsset(mesh);
     

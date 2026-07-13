@@ -111,8 +111,8 @@ const Handle<Mesh>& UIObjectQuadMeshHelper::GetQuadMesh()
 
             // Hack to make vertices be from 0..1 rather than -1..1
 
-            VertexArrayView vd = quad->GetVertexData();
-            ByteView id = quad->GetIndexData();
+            VertexArrayView vd = quad->GetVertexData(0);
+            ByteView id = quad->GetIndexData(0);
 
             Assert(vd.vertexCount != 0);
             Assert(id.Size() != 0);
@@ -138,7 +138,11 @@ const Handle<Mesh>& UIObjectQuadMeshHelper::GetQuadMesh()
             vertexArrayView.vertexCount = newVertices.Size();
             vertexArrayView.layoutDesc = { VT_Simple };
 
-            quad->SetMeshData(meshDesc, vertexArrayView, indexData);
+            MeshDataView meshData {};
+            meshData.vertices[0] = vertexArrayView;
+            meshData.indices[0] = indexData;
+
+            quad->SetMeshData(meshDesc, meshData);
 
             quad->UploadGpuData();
 

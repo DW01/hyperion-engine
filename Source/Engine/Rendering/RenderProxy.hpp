@@ -111,7 +111,7 @@ struct InstanceData
 /*! \brief Proxy for a renderable Entity with a valid Mesh and Material assigned */
 struct RenderProxyMesh final : IRenderProxy
 {
-    WeakHandle<Entity> entity;
+    Entity* entity = nullptr;
 
     Mesh* mesh = nullptr;
     Material* material = nullptr;
@@ -131,7 +131,9 @@ struct RenderProxyMesh final : IRenderProxy
 
     float shData[3 * 9];
 
-    bool enableAutoInstancing = false;
+    uint8 enableAutoInstancing : 1 = false;
+
+    uint8 currentLodIndex = 0;
 };
 
 struct EnvProbeShaderData

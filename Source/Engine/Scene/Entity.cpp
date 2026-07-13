@@ -394,11 +394,11 @@ void Entity::UpdateRenderProxy(RenderProxyMesh* proxy)
     LightmapElementComponent* lightmapElementComponent = TryGetComponent<LightmapElementComponent>();
 
     proxy->forceRebind = false;
-    proxy->entity = MakeWeakRef(this);
+    proxy->entity = this;
     proxy->mesh = meshComponent.mesh;
     proxy->material = meshComponent.material;
     proxy->skeleton = meshComponent.skeleton;
-    proxy->numIndices = meshComponent.mesh->NumIndices();
+    proxy->numIndices = meshComponent.mesh->NumIndices(proxy->currentLodIndex);
     proxy->numInstances = meshComponent.numInstances;
     proxy->enableAutoInstancing = meshComponent.enableAutoInstancing;
     proxy->attributes = RenderableAttributeSet(meshComponent.mesh->GetMeshAttributes(), meshComponent.material->GetAttributes());

@@ -8,9 +8,10 @@
 
 #include <Core/Containers/Array.hpp>
 #include <Core/Containers/FlatMap.hpp>
-#include <Core/Utilities/EnumFlags.hpp>
 
+#include <Core/Utilities/EnumFlags.hpp>
 #include <Core/Utilities/Optional.hpp>
+
 #include <Core/Memory/UniquePtr.hpp>
 #include <Core/Memory/AnyRef.hpp>
 #include <Core/Memory/MemoryPool.hpp>

@@ -373,8 +373,8 @@ void Baker<LightmapVolume>::OnCompleted_Internal()
             MeshDesc newMeshDesc;
             newMeshDesc.meshAttributes = mesh->GetMeshAttributes();
             newMeshDesc.meshAttributes.inputLayout = newInputLayout;
-            newMeshDesc.numVertices = uint32(bakeMesh.vertices.Size() / vertexStrideFloats);
-            newMeshDesc.numIndices = uint32(bakeMesh.indices.Size());
+            newMeshDesc.lods[0].numVertices = uint32(bakeMesh.vertices.Size() / vertexStrideFloats);
+            newMeshDesc.lods[0].numIndices = uint32(bakeMesh.indices.Size());
 
             size_t uv1Offset = 0;
             uv1Offset += (prevInputLayout.mask & VT_Position) ? (sizeof(TVertexPacket<VT_Position>) / sizeof(float)) : 0;
@@ -403,7 +403,11 @@ void Baker<LightmapVolume>::OnCompleted_Internal()
 
             readScope.Reset();
 
-            mesh->SetMeshData(newMeshDesc, vertexArrayView, bakeMesh.indices.ToByteView());
+            MeshDataView meshData {};
+            meshData.vertices[0] = vertexArrayView;
+            meshData.indices[0] = bakeMesh.indices.ToByteView();
+
+            mesh->SetMeshData(newMeshDesc, meshData);
 
             // needs reupload!
             if (mesh->isUploaded.Load())

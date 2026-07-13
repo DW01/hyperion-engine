@@ -927,8 +927,8 @@ bool BuildPrimitive(GltfLoadContext& ctx,
     meshDesc.meshAttributes.inputLayout = VertexInputLayoutDesc { VT_Simple | VT_UV1 | VT_Skeletal };
     meshDesc.meshAttributes.topology = topology;
     meshDesc.meshAttributes.indexBufferElemType = GET_UNSIGNED_INT;
-    meshDesc.numVertices = uint32(vertices.Size());
-    meshDesc.numIndices = uint32(indices.Size());
+    meshDesc.lods[0].numVertices = uint32(vertices.Size());
+    meshDesc.lods[0].numIndices = uint32(indices.Size());
 
     const Name assetName = MakePrimitiveName(gltfMesh, meshIndex, primitiveIndex);
 
@@ -940,7 +940,11 @@ bool BuildPrimitive(GltfLoadContext& ctx,
     vertexArrayView.vertexCount = vertices.Size();
     vertexArrayView.layoutDesc = meshDesc.meshAttributes.inputLayout;
 
-    mesh->SetMeshData(meshDesc, vertexArrayView, indices.ToByteView());
+    MeshDataView meshData {};
+    meshData.vertices[0] = vertexArrayView;
+    meshData.indices[0] = indices.ToByteView();
+
+    mesh->SetMeshData(meshDesc, meshData);
 
     if (!hasNormals && meshDesc.meshAttributes.topology == TOP_TRIANGLES)
     {

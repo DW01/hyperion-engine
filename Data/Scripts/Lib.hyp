@@ -2032,10 +2032,10 @@ end
 extern class BakerBase
 end
 extern enum BakerState : uint8
-    INITIALIZED = 0,
-    BUILDING,
-    RUNNING,
-    COMPLETE
+    Initialized = 0,
+    Building,
+    Running,
+    Complete
 end
 extern enum LightmapShadingType : uint32
     IRRADIANCE = 0,
@@ -2425,24 +2425,31 @@ extern enum MeshFlags : uint32
     ViewIndependent = 0x1
 end
 extern struct MeshDesc
+    NumVertices : any
     MeshAttributes : MeshAttributes
-    NumVertices : uint32
-    NumIndices : uint32
+    Lods : Array<MeshLodDesc>
 end
 extern class Mesh : AssetObject
     GetFlags() -> MeshFlags
     SetFlags(flags : MeshFlags) -> void
     Rename(name : Name) -> Result
-    NumIndices() -> uint32
+    NumIndices(lodIndex : uint8) -> uint32
     GetAABB() -> BoundingBox
     SetAABB(aabb : BoundingBox) -> void
     MeshDesc : MeshDesc
-    VertexData : BlobDataReference
-    IndexData : BlobDataReference
+    LodData : Array<MeshLodData>
     BvhData : BlobDataReference
     Aabb : BoundingBox
     Bvh : BVHNode
     Flags : MeshFlags
+end
+extern struct MeshLodDesc
+    NumVertices : uint32
+    NumIndices : uint32
+end
+extern struct MeshLodData
+    VertexData : BlobDataReference
+    IndexData : BlobDataReference
 end
 extern class Material : AssetObject
     GetBaseMaterial() -> Material

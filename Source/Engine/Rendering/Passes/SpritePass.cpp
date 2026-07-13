@@ -245,8 +245,8 @@ void SpritePass::CreateQuadMeshes()
     m_quadMesh->SetName(NAME("SpriteMesh"));
 
     {
-        VertexArrayView vd = m_quadMesh->GetVertexData();
-        ByteView id = m_quadMesh->GetIndexData();
+        VertexArrayView vd = m_quadMesh->GetVertexData(0);
+        ByteView id = m_quadMesh->GetIndexData(0);
 
         Array<SimpleVertex> newVertices;
         newVertices.Resize(vd.vertexCount);
@@ -267,7 +267,11 @@ void SpritePass::CreateQuadMeshes()
         indexData.Resize(id.Size());
         Memory::Copy(indexData.Data(), id.Data(), id.Size());
 
-        m_quadMesh->SetMeshData(m_quadMesh->GetMeshDesc(), vertexArrayView, indexData);
+        MeshDataView meshData {};
+        meshData.vertices[0] = vertexArrayView;
+        meshData.indices[0] = indexData;
+
+        m_quadMesh->SetMeshData(m_quadMesh->GetMeshDesc(), meshData);
 
         m_quadMesh->SetIsTransient(true);
         m_quadMesh->SetFlags(MeshFlags::ViewIndependent);
@@ -302,8 +306,8 @@ void SpritePass::CreateQuadMeshes()
 
         MeshDesc desc = mesh->GetMeshDesc();
 
-        VertexArrayView vd = mesh->GetVertexData();
-        Array<ubyte> indexData = mesh->GetIndexData();
+        VertexArrayView vd = mesh->GetVertexData(0);
+        Array<ubyte> indexData = mesh->GetIndexData(0);
 
         Array<float> newVertices;
         newVertices.Resize(vd.vertexCount * (vd.layoutDesc.VertexSize() / sizeof(float)));
@@ -320,7 +324,11 @@ void SpritePass::CreateQuadMeshes()
 
         readScope.Reset();
 
-        mesh->SetMeshData(desc, vertexArrayView, indexData);
+        MeshDataView meshData {};
+        meshData.vertices[0] = vertexArrayView;
+        meshData.indices[0] = indexData;
+
+        mesh->SetMeshData(desc, meshData);
 
         mesh->UploadGpuData();
     }
@@ -441,7 +449,7 @@ void SpritePass::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
         cr << BindVertexBuffer(quadMesh->GetVertexBuffer());
         cr << BindIndexBuffer(quadMesh->GetIndexBuffer());
 
-        cr << DrawIndexed(quadMesh->NumIndices(), uint32(numToDraw));
+        cr << DrawIndexed(quadMesh->NumIndices(0), uint32(numToDraw));
 
         numToDraw = 0;
     };
@@ -503,7 +511,7 @@ void SpritePass::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
 
         cr << BindVertexBuffer(m_textQuadFrontMesh->GetVertexBuffer());
         cr << BindIndexBuffer(m_textQuadFrontMesh->GetIndexBuffer());
-        cr << DrawIndexed(m_textQuadFrontMesh->NumIndices(), charDataFront.Size());
+        cr << DrawIndexed(m_textQuadFrontMesh->NumIndices(0), charDataFront.Size());
 
         // Draw back face
         cr << SetShaderUniform(1, "TextSpriteInstanceBuffer"_sh, textInstanceBufferBack);
@@ -511,7 +519,7 @@ void SpritePass::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
 
         cr << BindVertexBuffer(m_textQuadBackMesh->GetVertexBuffer());
         cr << BindIndexBuffer(m_textQuadBackMesh->GetIndexBuffer());
-        cr << DrawIndexed(m_textQuadBackMesh->NumIndices(), charDataBack.Size());
+        cr << DrawIndexed(m_textQuadBackMesh->NumIndices(0), charDataBack.Size());
 
         // reset
         cr << SetFaceCullMode(FCM_BACK);
