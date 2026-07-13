@@ -926,7 +926,7 @@ void ReflectionProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSet
         EnvProbeHelpers::ComputeEnvProbeSphericalHarmonics(frame, envProbe);
     }
 
-    if (envProbe->GetEnvProbeFlags() & EPF_HAS_VISIBILITY)
+    if (envProbe->GetEnvProbeFlags() & EPF_VISIBILITY)
     {
         EnvProbeHelpers::UpdateEnvProbeVisibilityTexture(frame, envProbe, /* shouldReadback */ !isRealtime);
     }
@@ -1010,7 +1010,7 @@ void IrradianceProbePass::RenderProbe(Frame* frame, const RenderSetup& renderSet
 
     EnvProbeHelpers::ComputeEnvProbeSphericalHarmonics(frame, irradianceProbe);
 
-    if (irradianceProbe->GetEnvProbeFlags() & EPF_HAS_VISIBILITY)
+    if (irradianceProbe->GetEnvProbeFlags() & EPF_VISIBILITY)
     {
         EnvProbeHelpers::UpdateEnvProbeVisibilityTexture(frame, irradianceProbe, /* shouldReadback */ !isRealtime);
     }

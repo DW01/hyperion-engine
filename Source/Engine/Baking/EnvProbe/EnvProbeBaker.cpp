@@ -149,7 +149,7 @@ void Baker<EnvProbe>::OnCompleted_Internal()
     m_envProbe->SetBakedTexture(prefiltered);
 
     // Bake visibility texture
-    if (m_envProbe->GetEnvProbeFlags() & EPF_HAS_VISIBILITY)
+    if (m_envProbe->GetEnvProbeFlags() & EPF_VISIBILITY)
     {
         BakeData<EnvProbe>::VisibilityBitmapType visBitmap = m_bakeData.ToVisibilityBitmap();
 

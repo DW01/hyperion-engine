@@ -44,7 +44,7 @@ public:
     {
         uint32 mask = 1u << int(LightmapShadingType::FULL);
 
-        if (m_envProbe && (m_envProbe->GetEnvProbeFlags() & EPF_HAS_VISIBILITY))
+        if (m_envProbe && (m_envProbe->GetEnvProbeFlags() & EPF_VISIBILITY))
         {
             mask |= 1u << int(LightmapShadingType::DISTANCE);
         }

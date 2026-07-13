@@ -40,11 +40,12 @@ HYP_ENUM()
 enum EnvProbeFlags : uint32
 {
     EPF_NONE = 0x0,               //!< @edithide
-    EPF_PARALLAX_CORRECTED = 0x1, //!< @title="Parallax Corrected"
+    EPF_PARALLAX_CORRECTED = 0x1, //!< @title="Parallax correction"
     EPF_BAKED = 0x2,              //!< @edithide
     EPF_REALTIME = 0x4,           //!< @title="Real-time"
     EPF_ORIGIN_FROM_CENTER = 0x8, //!< @title="Origin from center"
-    EPF_HAS_VISIBILITY = 0x10     //!< @title="Prevent light leaking" @description="This EnvProbe stores distance values to a texture, used to prevent light leaks at the cost of more memory usage and rendering time."
+    EPF_VISIBILITY = 0x10,        //!< @title="Prevent light leaking" @description="This EnvProbe stores distance values to a texture, used to prevent light leaks at the cost of more memory usage and rendering time."
+    EPF_DIFFUSE = 0x20            //!< @title="Provides diffuse lighting" @description="Relevant for reflection and sky only - include irradiance computation for indirect diffuse lighting when rendering the probe"
 };
 
 HYP_MAKE_ENUM_FLAGS(EnvProbeFlags);
@@ -211,6 +212,15 @@ public:
     HYP_METHOD(Property = "SHData", NoScriptBindings)
     void SetSphericalHarmonicsData(const SphericalHarmonicsData& shData);
 
+    HYP_METHOD(Property = "DiffuseStrength")
+    float GetDiffuseStrength() const
+    {
+        return m_diffuseStrength;
+    }
+
+    HYP_METHOD(Property = "DiffuseStrength")
+    void SetDiffuseStrength(float diffuseStrength);
+
     virtual void Invalidate(bool forceRerender = false);
 
     virtual void Update(float delta) override;
@@ -279,6 +289,9 @@ protected:
 
     HYP_FIELD(Property = "SHData")
     SphericalHarmonicsData m_shData;
+
+    HYP_FIELD(Property = "DiffuseStrength")
+    float m_diffuseStrength;
 
     Camera* m_camera;
 

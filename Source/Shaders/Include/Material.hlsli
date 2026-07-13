@@ -45,24 +45,24 @@ struct Material
 
 float UnpackMaterialParamFloat(uint4 uValue, uint index)
 {
-    return UINT_TO_VEC4(uValue[index / 4])[index % 4];
+    return UINT_TO_VEC4(uValue[index >> 2])[index & 3];
 }
 
 float2 UnpackMaterialParamFloat2(uint4 uValue, uint index)
 {
-    float4 v = UINT_TO_VEC4(uValue[index / 4]);
-    return float2(v[index % 4], v[(index + 1) % 4]);
+    float4 v = UINT_TO_VEC4(uValue[index >> 2]);
+    return float2(v[index & 3], v[(index + 1) & 3]);
 }
 
 float3 UnpackMaterialParamFloat3(uint4 uValue, uint index)
 {
-    float4 v = UINT_TO_VEC4(uValue[index / 4]);
-    return float3(v[index % 4], v[(index + 1) % 4], v[(index + 2) % 4]);
+    float4 v = UINT_TO_VEC4(uValue[index >> 2]);
+    return float3(v[index & 3], v[(index + 1) & 3], v[(index + 2) & 3]);
 }
 
 float4 UnpackMaterialParamFloat4(uint4 uValue, uint index)
 {
-    float4 v = UINT_TO_VEC4(uValue[index / 4]);
+    float4 v = UINT_TO_VEC4(uValue[index >> 2]);
     // since we never have multiple params cross the boundary of the uint4, we can just return the whole thing rather than swizzling it.
     return v;
 }
@@ -72,6 +72,12 @@ float4 UnpackMaterialParamFloat4(uint4 uValue, uint index)
 #define GET_MATERIAL_PARAM_FLOAT2(mat, index) UnpackMaterialParamFloat2((mat).packed_params, index)
 #define GET_MATERIAL_PARAM_FLOAT3(mat, index) UnpackMaterialParamFloat3((mat).packed_params, index)
 #define GET_MATERIAL_PARAM_FLOAT4(mat, index) UnpackMaterialParamFloat4((mat).packed_params, index)
+
+// Individual bits are stored in the last vector
+// ex:
+// GET_MATERIAL_PARAM_BIT(mat, 0) loads the first bit from the first component
+// GET_MATERIAL_PARAM_BIT(mat, 60) loads the fourth bit from the second component.
+#define GET_MATERIAL_PARAM_BIT(mat, bitIndex) ((((mat).packed_params)[3][bitIndex >> 5]) & (1u << (bitIndex & 31)))
 
 #define MATERIAL_TEXTURE_DiffuseMap 0
 #define MATERIAL_TEXTURE_NormalMap 1

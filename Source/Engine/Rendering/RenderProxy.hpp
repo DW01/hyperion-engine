@@ -140,7 +140,7 @@ struct EnvProbeShaderData
 {
     Vec4f aabbMax;
     Vec4f aabbMin;
-    Vec4f worldPosition;
+    Vec4f worldPosition; // w == diffuse strength
 
     Vec2u dimensions;
     uint32 textureIndex = ~0u;
@@ -306,12 +306,12 @@ struct MaterialShaderData
 
     Vec4u textureIndices[4];
 
+    // =====
     uint32 textureUsage;
-
     float parallaxHeight;
-
     Vec2f uvScale;
 
+    // =====
     Vec4f _pad0;
 };
 

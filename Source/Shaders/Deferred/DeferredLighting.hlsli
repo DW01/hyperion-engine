@@ -252,21 +252,25 @@ void EvaluateEnvProbes(
         const float4 aabbMin = CURRENT_ENV_PROBE.aabb_min;
         const float4 aabbMax = CURRENT_ENV_PROBE.aabb_max;
 
+        const float4 worldPosition = CURRENT_ENV_PROBE.world_position;
+        const float3 worldPosition3 = worldPosition.xyz;
+        const float diffuseStrength = worldPosition.w;
+
         const float3 probeReflectionVector = bool(envProbeFlags & EPF_PARALLAX_CORRECTED)
-            ? normalize(EnvProbeCoordParallaxCorrected(CURRENT_ENV_PROBE.world_position.xyz, aabbMin.xyz, aabbMax.xyz, positionWS, R))
+            ? normalize(EnvProbeCoordParallaxCorrected(worldPosition3, aabbMin.xyz, aabbMax.xyz, positionWS, R))
             : R;
 
         float4 currentReflections = (float4)0;
         float3 currentIrradiance = EnvProbeSH(CURRENT_ENV_PROBE, N, /* order */ 2);
 
-        float3 probeToPoint = positionWS - CURRENT_ENV_PROBE.world_position.xyz;
+        float3 probeToPoint = positionWS - worldPosition3;
         float dist = length(probeToPoint);
 
         float near = aabbMin.w;
         float far = aabbMax.w;
         float visibility = 1.0;
 
-        if ((envProbeFlags & EPF_HAS_VISIBILITY) && visTextureIndex != INVALID_ENV_PROBE_TEXTURE)
+        if ((envProbeFlags & EPF_VISIBILITY) && visTextureIndex != INVALID_ENV_PROBE_TEXTURE)
         {
             visibility = CalculateProbeVisibility(probeToPoint, dist, N, visTextureIndex);
         }
@@ -283,6 +287,7 @@ void EvaluateEnvProbes(
         // we apply probes in reverse order so sky should be very last
         const float irradianceOnlyWeight = (float)isIrradianceProbe;
         const float skyIrradianceWeight = isSky ? (1.0 - lightmappedWeight) : 1.0;
+        const float diffuseContributionWeight = diffuseStrength;
 
         float reflectionsWeight = isSky ? 1.0 : CalculateEnvProbeWeight(positionWS, aabbMin.xyz, aabbMax.xyz);
         reflectionsWeight *= visibility;
@@ -295,6 +300,7 @@ void EvaluateEnvProbes(
         float irradianceWeight = pow(max(1.0f - smoothstep(max(0.001, s_irradianceFalloffBeginDist), far, dist), 0.0001), s_irradianceFalloffPower);
         irradianceWeight *= visibility;
         irradianceWeight *= skyIrradianceWeight;
+        irradianceWeight *= diffuseContributionWeight;
         irradiance += float4(currentIrradiance, 1.0) * irradianceWeight * (1.0 - accumWeightIrradiance);
 
         reflections += currentReflections * reflectionsWeight * (1.0 - accumWeightReflections);

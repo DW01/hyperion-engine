@@ -40,9 +40,9 @@ static const ShaderPropertyId s_propForwardShading = InternShaderProperty(Shader
 static const ShaderPropertyId s_propWriteMoments = InternShaderProperty(ShaderProperty(NAME("WRITE_MOMENTS")));
 
 static constexpr EnumFlags<EnvProbeFlags> DefaultEnvProbeFlags[EPT_MAX] {
-    EPF_ORIGIN_FROM_CENTER,                          // sky
-    EPF_ORIGIN_FROM_CENTER | EPF_PARALLAX_CORRECTED, // reflection
-    EPF_ORIGIN_FROM_CENTER | EPF_HAS_VISIBILITY      // irradiance
+    EPF_ORIGIN_FROM_CENTER | EPF_DIFFUSE,                          // sky
+    EPF_ORIGIN_FROM_CENTER | EPF_PARALLAX_CORRECTED | EPF_DIFFUSE, // reflection
+    EPF_ORIGIN_FROM_CENTER | EPF_VISIBILITY | EPF_DIFFUSE          // irradiance
 };
 
 static constexpr float EnvProbeCameraNearClip = 0.025f;
@@ -77,6 +77,7 @@ EnvProbe::EnvProbe(EnvProbeType envProbeType, const BoundingBox& aabb, const Vec
       m_envProbeType(envProbeType),
       m_envProbeFlags(DefaultEnvProbeFlags[envProbeType]),
       m_shData {},
+      m_diffuseStrength(1.0f),
       m_camera(nullptr)
 {
     SetLocalBounds(aabb);
@@ -132,6 +133,29 @@ void EnvProbe::SetName(Name name)
     {
         m_camera->SetName(NAME_FMT("{}_Capture", name));
     }
+}
+
+void EnvProbe::SetDiffuseStrength(float diffuseStrength)
+{
+    diffuseStrength = MathUtil::Max(diffuseStrength, 0.0f);
+
+    if (m_diffuseStrength == diffuseStrength)
+    {
+        return;
+    }
+
+    m_diffuseStrength = diffuseStrength;
+
+    const bool shouldForceRerender = IsRealtime();
+
+    if (shouldForceRerender)
+    {
+        Invalidate(shouldForceRerender);
+    }
+
+    MarkDirty();
+
+    SetNeedsRenderProxyUpdate();
 }
 
 void EnvProbe::CreateCamera()
@@ -247,7 +271,8 @@ void EnvProbe::SetEnvProbeFlags(EnumFlags<EnvProbeFlags> envProbeFlags)
     bool shouldForceRerender = false;
     bool dirtyViewData = false;
 
-    if (changedFlags & EPF_BAKED)
+    // @TODO stupid overloads for EnumFlags... fix
+    if ((changedFlags & uint32(EPF_BAKED | EPF_DIFFUSE)) != 0)
     {
         dirtyViewData = true;
         shouldForceRerender = true;
@@ -267,9 +292,9 @@ void EnvProbe::SetEnvProbeFlags(EnumFlags<EnvProbeFlags> envProbeFlags)
         }
     }
 
-    if (changedFlags & EPF_HAS_VISIBILITY)
+    if (changedFlags & EPF_VISIBILITY)
     {
-        if (envProbeFlags & EPF_HAS_VISIBILITY)
+        if (envProbeFlags & EPF_VISIBILITY)
         {
             if (m_visibilityTexture.IsValid())
             {
@@ -358,7 +383,7 @@ void EnvProbe::OnAddedToWorld(World* world)
         CheckResult(m_texture->Create());
     }
 
-    if (m_envProbeFlags & EPF_HAS_VISIBILITY)
+    if (m_envProbeFlags & EPF_VISIBILITY)
     {
         if (m_visibilityTexture.IsValid())
         {
@@ -467,7 +492,7 @@ void EnvProbe::CreateViewData()
     // Visibility target
     // @FIXME: Needs to be created with HAS_VISIBILITY flag set for this to ever be created.
     // Setting HAS_VISIBILITY on an EnvProbe that wasn't created with it originally will cause us grievances.
-    if (m_envProbeFlags & EPF_HAS_VISIBILITY)
+    if (m_envProbeFlags & EPF_VISIBILITY)
     {
         AttachmentDesc& visibilityDesc = attachmentDescs.PushBack(AttachmentDesc {
             TextureType::Cubemap,
@@ -519,7 +544,7 @@ void EnvProbe::CreateViewData()
         materialAttributes.shaderName = NAME("DrawCubemap");
         materialAttributes.shaderProperties.Add(s_propForwardShading);
 
-        if (m_envProbeFlags & EPF_HAS_VISIBILITY)
+        if (m_envProbeFlags & EPF_VISIBILITY)
         {
             materialAttributes.shaderProperties.Add(s_propWriteMoments);
         }
@@ -870,7 +895,7 @@ void EnvProbe::UpdateRenderProxy(RenderProxyEnvProbe* proxy)
 
     proxy->texture = m_texture;
 
-    if (m_envProbeFlags & EPF_HAS_VISIBILITY)
+    if (m_envProbeFlags & EPF_VISIBILITY)
     {
         if (proxy->visibilityTexture != m_visibilityTexture)
         {
@@ -889,10 +914,17 @@ void EnvProbe::UpdateRenderProxy(RenderProxyEnvProbe* proxy)
 
     const BoundingBox worldBounds = GetWorldBounds();
 
+    float diffuseContributionWeight = m_diffuseStrength;
+    // set contribution to zero if NOT EPF_DIFFUSE - this is ignored for EPT_AMBIENT.
+    if (m_envProbeType != EPT_AMBIENT && !(m_envProbeFlags & EPF_DIFFUSE))
+    {
+        diffuseContributionWeight = 0;
+    }
+
     EnvProbeShaderData& bufferData = proxy->bufferData;
     bufferData.aabbMin = Vec4f(worldBounds.min, m_camera ? m_camera->GetNearClip() : EnvProbeCameraNearClip);
     bufferData.aabbMax = Vec4f(worldBounds.max, m_camera ? m_camera->GetFarClip() : worldBounds.GetRadius());
-    bufferData.worldPosition = Vec4f(GetWorldTranslation(), 1.0f);
+    bufferData.worldPosition = Vec4f(GetWorldTranslation(), diffuseContributionWeight);
     bufferData.dimensions = Vec2u { m_dimensions.x, m_dimensions.y };
     bufferData.typeAndFlags = uint32(m_envProbeType) | (uint32(m_envProbeFlags) << 3);
 
@@ -947,7 +979,7 @@ void EnvProbe::SetVisibilityTexture(const Handle<Texture>& visibilityTexture)
 
     if (m_visibilityTexture.IsValid())
     {
-        if (!(m_envProbeFlags & EPF_HAS_VISIBILITY))
+        if (!(m_envProbeFlags & EPF_VISIBILITY))
         {
             HYP_LOG(Scene, Warning, "EnvProbe {} does not have visibility flag set, visibility texture will be unused unless the flag is set", GetName());
         }

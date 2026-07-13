@@ -40,6 +40,7 @@ static Handle<Entity> CreateAxisEntity(
 
     MaterialParameters materialParameters;
     materialParameters.albedo = axisColor;
+    materialParameters.unlit = true;
 
     Handle<Material> material = MakeHandle<Material>(
         NAME_FMT("{}_Material", entityName),
@@ -77,6 +78,7 @@ static Handle<Entity> CreateCentroidEntity(
 
     MaterialParameters materialParameters;
     materialParameters.albedo = centroidColor;
+    materialParameters.unlit = true;
 
     Handle<Material> material = MakeHandle<Material>(
         NAME_FMT("{}_Material", entityName),
@@ -285,6 +287,7 @@ static void BuildVolumeGizmo(Handle<AssetRegistry>& assetRegistry)
 
     MaterialParameters materialParameters;
     materialParameters.albedo = volumeColor;
+    materialParameters.unlit = true;
 
     Handle<Material> material = MakeHandle<Material>(
         NAME("VolumeEditMaterial"),
