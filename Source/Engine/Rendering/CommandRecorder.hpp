@@ -27,6 +27,11 @@
 
 #include <Core/Threading/AtomicFlag.hpp>
 
+#include <Core/Types.hpp>
+
+#include <cstring>
+#include <type_traits>
+
 namespace Hyperion {
 
 class CmdBase;
@@ -38,6 +43,66 @@ class ByteAddressBuffer;
 class EngineStatGpuTimer;
 class GpuTimerBackendBase;
 
+enum class CommandType : uint8
+{
+    BindVertexBuffer = 0,
+    BindIndexBuffer,
+    DrawIndexed,
+    DrawIndexedIndirect,
+    DrawQuad,
+    SetCurrentFramebuffer,
+    ClearFramebuffer,
+    BindGraphicsPipeline,
+    BindComputePipeline,
+    BindRayTracingPipeline,
+    BindDescriptorSet,
+    InsertBarrier,
+    InsertUAVBarrier,
+    Blit,
+    CopyImage,
+    FillImage,
+    CopyImageToBuffer,
+    CopyBufferToImage,
+    CopyBuffer,
+    GenerateMipmaps,
+    DispatchCompute,
+    TraceRays,
+    SetStencilState,
+    SetCurrentShader,
+    SetCurrentViewport,
+    SetTopology,
+    SetInputLayout,
+    SetCurrentBlendFunction,
+    SetDepthWrite,
+    SetDepthTest,
+    SetDepthCompareOp,
+    SetDepthBias,
+    SetDepthClamp,
+    SetStencilTest,
+    SetStencilFunction,
+    SetFillMode,
+    SetFaceCullMode,
+    SetShaderUniform,
+    SetShaderUniforms,
+    RecordGpuTimestamp,
+    CommitDrawState,
+
+    Custom = 0xFFu
+};
+
+template <typename T, typename = void>
+struct HasCommandType : std::false_type
+{
+};
+
+template <typename T>
+struct HasCommandType<T, std::void_t<decltype(T::ThisCommandType)>> : std::true_type
+{
+};
+
+template <typename T>
+inline constexpr bool HasCommandTypeV = HasCommandType<T>::value;
+
 class alignas(void*) CmdBase
 {
 public:
@@ -46,22 +111,21 @@ public:
 #else
     CmdBase() = default;
 #endif
-
-    static void PrepareStatic(CmdBase*, Frame*)
-    {
-    }
 };
 
 class BindVertexBuffer final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     BindVertexBuffer(GpuBuffer* buffer)
         : m_buffer(buffer)
     {
         Assert(buffer);
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::BindVertexBuffer;
 
 private:
     GpuBuffer* m_buffer;
@@ -70,13 +134,16 @@ private:
 class BindIndexBuffer final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     BindIndexBuffer(GpuBuffer* buffer)
         : m_buffer(buffer)
     {
         Assert(buffer);
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::BindIndexBuffer;
 
 private:
     GpuBuffer* m_buffer;
@@ -85,6 +152,9 @@ private:
 class DrawIndexed final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     DrawIndexed(uint32 numIndices, uint32 numInstances = 1, uint32 instanceIndex = 0)
         : m_numIndices(numIndices),
           m_numInstances(numInstances),
@@ -92,7 +162,7 @@ public:
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::DrawIndexed;
 
 private:
     uint32 m_numIndices;
@@ -103,6 +173,9 @@ private:
 class DrawIndexedIndirect final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     DrawIndexedIndirect(GpuBuffer* buffer, uint32 bufferOffset)
         : m_buffer(buffer),
           m_bufferOffset(bufferOffset)
@@ -110,7 +183,7 @@ public:
         Assert(buffer);
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::DrawIndexedIndirect;
 
 private:
     GpuBuffer* m_buffer;
@@ -120,16 +193,24 @@ private:
 class DrawQuad final : public CmdBase
 {
 public:
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    template <class>
+    friend class TCommandRecorder;
+
+    static constexpr CommandType ThisCommandType = CommandType::DrawQuad;
 };
 
 class SetCurrentFramebuffer final : public CmdBase
 {
 public:
-    SetCurrentFramebuffer(Framebuffer* framebuffer);
-    static void PrepareStatic(CmdBase* cmd, Frame* frame);
+    template <class>
+    friend class TCommandRecorder;
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    explicit SetCurrentFramebuffer(Framebuffer* framebuffer)
+        : m_framebuffer(framebuffer)
+    {
+    }
+
+    static constexpr CommandType ThisCommandType = CommandType::SetCurrentFramebuffer;
 
 private:
     Framebuffer* m_framebuffer;
@@ -138,6 +219,9 @@ private:
 class ClearFramebuffer final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit ClearFramebuffer(Framebuffer* framebuffer, uint8 attachmentsMask = uint8(-1))
         : framebuffer(framebuffer),
           rect {},
@@ -152,7 +236,7 @@ public:
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::ClearFramebuffer;
 
 private:
     Framebuffer* framebuffer;
@@ -163,6 +247,9 @@ private:
 class BindGraphicsPipeline final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     BindGraphicsPipeline(GraphicsPipeline* pipeline, const Viewport& viewport)
         : m_pipeline(pipeline),
           m_viewport(viewport)
@@ -181,7 +268,7 @@ public:
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::BindGraphicsPipeline;
 
 private:
     GraphicsPipeline* m_pipeline;
@@ -191,12 +278,15 @@ private:
 class BindComputePipeline final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     BindComputePipeline(ComputePipeline* pipeline)
         : m_pipeline(pipeline)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::BindComputePipeline;
 
 private:
     ComputePipeline* m_pipeline;
@@ -205,12 +295,15 @@ private:
 class BindRayTracingPipeline final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     BindRayTracingPipeline(RayTracingPipeline* pipeline)
         : m_pipeline(pipeline)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::BindRayTracingPipeline;
 
 private:
     RayTracingPipeline* m_pipeline;
@@ -219,6 +312,9 @@ private:
 class BindDescriptorSet final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     BindDescriptorSet(DescriptorSet* descriptorSet, GraphicsPipeline* pipeline, const DescriptorSetOffsetMap& offsets = {});
     BindDescriptorSet(DescriptorSet* descriptorSet, GraphicsPipeline* pipeline, const DescriptorSetOffsetMap& offsets, uint32 bindIndex);
     BindDescriptorSet(DescriptorSet* descriptorSet, ComputePipeline* pipeline, const DescriptorSetOffsetMap& offsets = {});
@@ -226,8 +322,7 @@ public:
     BindDescriptorSet(DescriptorSet* descriptorSet, RayTracingPipeline* pipeline, const DescriptorSetOffsetMap& offsets = {});
     BindDescriptorSet(DescriptorSet* descriptorSet, RayTracingPipeline* pipeline, const DescriptorSetOffsetMap& offsets, uint32 bindIndex);
 
-    static void PrepareStatic(CmdBase* cmd, Frame* frame);
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::BindDescriptorSet;
 
 private:
     DescriptorSet* m_descriptorSet;
@@ -245,6 +340,9 @@ private:
 class InsertBarrier final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     InsertBarrier(
         GpuBuffer* buffer,
         const ResourceState& state,
@@ -295,7 +393,7 @@ public:
     void CheckNotInRenderPass(CommandBuffer* commandBuffer) const;
 #endif
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::InsertBarrier;
 
 private:
     GpuBuffer* m_buffer;
@@ -311,12 +409,15 @@ private:
 class InsertUAVBarrier final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit InsertUAVBarrier(GpuImage* image)
         : m_image(image)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::InsertUAVBarrier;
 
 private:
     GpuImage* m_image;
@@ -325,6 +426,9 @@ private:
 class Blit final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     Blit(Texture* src, Texture* dst)
         : m_src(src),
           m_dst(dst),
@@ -358,7 +462,7 @@ public:
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::Blit;
 
 private:
     Texture* m_src;
@@ -377,6 +481,11 @@ private:
 class CopyImage final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
+    static constexpr CommandType ThisCommandType = CommandType::CopyImage;
+
     CopyImage(GpuImage* srcImage, GpuImage* dstImage, const Vec3u& extent)
         : srcImage(srcImage),
           dstImage(dstImage),
@@ -420,8 +529,6 @@ public:
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
-
 private:
     GpuImage* srcImage;
     GpuImage* dstImage;
@@ -438,11 +545,14 @@ private:
 class FillImage final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     FillImage(GpuImage* image, float value);
     FillImage(GpuImage* image, float value, const ImageSubResource& subResource);
     FillImage(GpuImage* image, float value, const ImageSubResource& subResource, const Vec3u& offset, const Vec3u& extent);
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::FillImage;
 
 private:
     GpuImage* m_image;
@@ -455,6 +565,9 @@ private:
 class CopyImageToBuffer final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     CopyImageToBuffer(GpuImage* image, GpuBuffer* buffer)
         : m_image(image),
           m_buffer(buffer)
@@ -474,7 +587,7 @@ public:
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::CopyImageToBuffer;
 
 private:
     GpuImage* m_image;
@@ -485,6 +598,11 @@ private:
 class CopyBufferToImage final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
+    static constexpr CommandType ThisCommandType = CommandType::CopyBufferToImage;
+
     CopyBufferToImage(GpuBuffer* srcBuffer, GpuImage* dstImage)
         : m_srcBuffer(srcBuffer),
           m_dstImage(dstImage),
@@ -503,8 +621,6 @@ public:
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
-
 private:
     GpuBuffer* m_srcBuffer;
     GpuImage* m_dstImage;
@@ -517,6 +633,11 @@ private:
 class CopyBuffer final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
+    static constexpr CommandType ThisCommandType = CommandType::CopyBuffer;
+
     CopyBuffer(GpuBuffer* srcBuffer, GpuBuffer* dstBuffer, uint32 count)
         : m_srcBuffer(srcBuffer),
           m_dstBuffer(dstBuffer),
@@ -541,21 +662,6 @@ public:
         AssertDebug(m_dstOffset + m_count <= m_dstBuffer->Size(), "Destination buffer copy range out of bounds {}", m_dstOffset + m_count);
     }
 
-    static inline void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer)
-    {
-        CopyBuffer* cmdCasted = static_cast<CopyBuffer*>(cmd);
-
-        cmdCasted->m_dstBuffer->CopyFrom(
-            commandBuffer,
-            cmdCasted->m_srcBuffer,
-            cmdCasted->m_srcOffset,
-            cmdCasted->m_dstOffset,
-            cmdCasted->m_count);
-
-        static_assert(std::is_trivially_destructible_v<CopyBuffer>);
-        // cmdCasted->~CopyBuffer();
-    }
-
 private:
     GpuBuffer* m_srcBuffer;
     GpuBuffer* m_dstBuffer;
@@ -567,9 +673,12 @@ private:
 class GenerateMipmaps final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     GenerateMipmaps(Texture* inTexture);
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::GenerateMipmaps;
 
     Texture* inTexture;
 };
@@ -577,6 +686,9 @@ public:
 class DispatchCompute final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit DispatchCompute(Vec3u workgroupCount)
         : m_pipeline(nullptr),
           m_workgroupCount(workgroupCount)
@@ -589,7 +701,7 @@ public:
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::DispatchCompute;
 
 private:
     ComputePipeline* m_pipeline;
@@ -599,6 +711,9 @@ private:
 class TraceRays final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit TraceRays(const Vec3u& workgroupCount)
         : m_pipeline(nullptr),
           m_workgroupCount(workgroupCount)
@@ -611,7 +726,7 @@ public:
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::TraceRays;
 
 private:
     RayTracingPipeline* m_pipeline;
@@ -621,6 +736,9 @@ private:
 class SetStencilState final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetStencilState(uint8 referenceValue, uint8 compareMask = 0xFF, uint8 writeMask = 0xFF)
         : m_referenceValue(referenceValue),
           m_compareMask(compareMask),
@@ -628,7 +746,7 @@ public:
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetStencilState;
 
 private:
     uint8 m_referenceValue;
@@ -639,12 +757,15 @@ private:
 class SetCurrentShader final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetCurrentShader(const ShaderDesc& shaderDesc)
         : shaderDesc(shaderDesc)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetCurrentShader;
 
 private:
     ShaderDesc shaderDesc;
@@ -653,12 +774,15 @@ private:
 class SetCurrentViewport final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetCurrentViewport(const Viewport& viewport)
         : viewport(viewport)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetCurrentViewport;
 
 private:
     Viewport viewport;
@@ -667,12 +791,15 @@ private:
 class SetTopology final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetTopology(Topology topology)
         : topology(topology)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetTopology;
 
 private:
     Topology topology;
@@ -681,12 +808,15 @@ private:
 class SetInputLayout final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetInputLayout(const VertexInputLayoutDesc& inputLayout)
         : inputLayout(inputLayout)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetInputLayout;
 
 private:
     VertexInputLayoutDesc inputLayout;
@@ -695,12 +825,15 @@ private:
 class SetCurrentBlendFunction final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetCurrentBlendFunction(const BlendFunction& blendFunction)
         : blendFunction(blendFunction)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetCurrentBlendFunction;
 
 private:
     BlendFunction blendFunction;
@@ -709,12 +842,15 @@ private:
 class SetDepthWrite final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetDepthWrite(bool depthWrite)
         : depthWrite(depthWrite)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetDepthWrite;
 
 private:
     bool depthWrite;
@@ -723,12 +859,15 @@ private:
 class SetDepthTest final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetDepthTest(bool depthTest)
         : depthTest(depthTest)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetDepthTest;
 
 private:
     bool depthTest;
@@ -737,12 +876,15 @@ private:
 class SetDepthCompareOp final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetDepthCompareOp(DepthCompareOp compareOp)
         : compareOp(compareOp)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetDepthCompareOp;
 
 private:
     DepthCompareOp compareOp;
@@ -751,13 +893,16 @@ private:
 class SetDepthBias final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetDepthBias(int depthBias, float depthBiasSlope)
         : depthBias(depthBias),
           depthBiasSlope(depthBiasSlope)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetDepthBias;
 
 private:
     int depthBias;
@@ -767,12 +912,15 @@ private:
 class SetDepthClamp final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetDepthClamp(bool depthClamp)
         : depthClamp(depthClamp)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetDepthClamp;
 
 private:
     bool depthClamp;
@@ -781,12 +929,15 @@ private:
 class SetStencilTest final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetStencilTest(bool stencilTest)
         : stencilTest(stencilTest)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetStencilTest;
 
 private:
     bool stencilTest;
@@ -795,12 +946,15 @@ private:
 class SetStencilFunction final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetStencilFunction(StencilFunction stencilFunction)
         : stencilFunction(stencilFunction)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetStencilFunction;
 
 private:
     StencilFunction stencilFunction;
@@ -809,12 +963,15 @@ private:
 class SetFillMode final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetFillMode(FillMode fillMode)
         : fillMode(fillMode)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetFillMode;
 
 private:
     FillMode fillMode;
@@ -823,12 +980,15 @@ private:
 class SetFaceCullMode final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     explicit SetFaceCullMode(FaceCullMode faceCullMode)
         : faceCullMode(faceCullMode)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetFaceCullMode;
 
 private:
     FaceCullMode faceCullMode;
@@ -837,6 +997,9 @@ private:
 class SetShaderUniform final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     SetShaderUniform(uint32 uniformIndex, const ShaderUniform& uniform)
         : uniformIndex(uniformIndex),
           shaderDataOffset(ShaderDataOffset::Invalid()),
@@ -880,7 +1043,7 @@ public:
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetShaderUniform;
 
     uint32 uniformIndex;
     ShaderUniform uniform;
@@ -890,13 +1053,16 @@ public:
 class SetShaderUniforms final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     SetShaderUniforms(const ShaderUniforms& shaderUniforms, uint32 startIndex = 0)
         : shaderUniforms(shaderUniforms),
           startIndex(startIndex)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::SetShaderUniforms;
 
     uint32 startIndex;
     ShaderUniforms shaderUniforms;
@@ -905,13 +1071,16 @@ public:
 class RecordGpuTimestamp final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     RecordGpuTimestamp(EngineStatGpuTimer* timer, bool isStart)
         : m_timer(timer),
           m_isStart(isStart)
     {
     }
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::RecordGpuTimestamp;
 
 private:
     EngineStatGpuTimer* m_timer;
@@ -921,24 +1090,46 @@ private:
 class CommitDrawState final : public CmdBase
 {
 public:
+    template <class>
+    friend class TCommandRecorder;
+
     CommitDrawState() = default;
 
-    static void InvokeStatic(CmdBase* cmd, CommandBuffer* commandBuffer);
+    static constexpr CommandType ThisCommandType = CommandType::CommitDrawState;
 };
 
 class CommandRecorderBase
 {
 protected:
     using InvokeCmdFnPtr = void (*)(CmdBase*, CommandBuffer*);
-    using PrepareCmdFnPtr = void (*)(CmdBase*, Frame* frame);
     using MoveCmdFnPtr = void (*)(CmdBase*, void* where);
 
     struct CmdHeader
     {
-        uint32 offset;
-        uint32 size;
-        InvokeCmdFnPtr invokeFnPtr;
-        PrepareCmdFnPtr prepareFnPtr;
+        union
+        {
+            uint64 size;
+            uint64 raw;
+        };
+
+        uint64 offset : 24;
+        uint64 cmd : 8;
+
+        HYP_FORCE_INLINE bool IsCustom() const
+        {
+            return cmd == static_cast<uint8>(CommandType::Custom);
+        }
+
+        template <class T>
+        HYP_FORCE_INLINE T GetCustom() const
+        {
+            return reinterpret_cast<T>(raw);
+        }
+
+        HYP_FORCE_INLINE CommandType GetCommandType() const
+        {
+            return static_cast<CommandType>(cmd);
+        }
     };
 
     CommandRecorderBase()
@@ -997,9 +1188,19 @@ public:
 
         CmdHeader& header = m_headersPtr[m_headerCount++];
         header.offset = alignedOffset;
-        header.size = CmdSize;
-        header.invokeFnPtr = &TCmd::InvokeStatic;
-        header.prepareFnPtr = &TCmd::PrepareStatic;
+
+        if constexpr (HasCommandTypeV<TCmd>)
+        {
+            header.size = CmdSize;
+            header.cmd = static_cast<uint8>(TCmd::ThisCommandType);
+        }
+        else
+        {
+            // Store raw
+            InvokeCmdFnPtr fnPtr = &TCmd::InvokeStatic;
+            header.raw = reinterpret_cast<uintptr_t>(fnPtr);
+            header.cmd = static_cast<uint8>(CommandType::Custom);
+        }
 
         m_offset = alignedOffset + CmdSize;
     }
@@ -1052,7 +1253,6 @@ public:
     using Base::CmdHeader;
     using Base::InvokeCmdFnPtr;
     using Base::MoveCmdFnPtr;
-    using Base::PrepareCmdFnPtr;
 
     TCommandRecorder() = default;
 
@@ -1144,7 +1344,6 @@ public:
         // @NOTE: Keep it in write state
     }
 
-    void Prepare(Frame* frame);
     void Execute(CommandBuffer* commandBuffer);
 
     void Submit();

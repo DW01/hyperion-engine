@@ -768,8 +768,6 @@ RendererResult VulkanSingleTimeCommands::Execute()
     VulkanFrame tempFrame;
     CheckResultOrReturn(tempFrame.Create());
 
-    cr.Prepare(&tempFrame);
-
     VulkanFence fence;
     fence.Create(/* createSignalled */ false);
 
