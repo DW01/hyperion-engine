@@ -61,7 +61,8 @@ String VertexTypeMask::ToString() const
 Mesh::Mesh()
     : AssetObject(),
       m_aabb(BoundingBox::Empty()),
-      m_flags(MeshFlags::None)
+      m_flags(MeshFlags::None),
+      m_currentLodIndex(0)
 {
 }
 
@@ -73,7 +74,8 @@ Mesh::Mesh(const MeshDataView& meshData, Topology topology)
 Mesh::Mesh(const MeshDataView& meshData, Topology topology, const VertexInputLayoutDesc& inputLayout)
     : AssetObject(),
       m_aabb(BoundingBox::Empty()),
-      m_flags(MeshFlags::None)
+      m_flags(MeshFlags::None),
+      m_currentLodIndex(0)
 {
     m_meshDesc = MeshDesc {};
     m_meshDesc.meshAttributes.inputLayout = inputLayout;
@@ -110,14 +112,17 @@ Mesh::~Mesh()
 {
     LockWriter(/* doInitialize */ false);
 
-    if (m_vertexBuffer.IsValid())
+    for (uint8 lodIndex = 0; lodIndex < MaxMeshLods; lodIndex++)
     {
-        EnqueueDeletion(std::move(m_vertexBuffer));
-    }
+        if (m_vertexBuffers[lodIndex].IsValid())
+        {
+            EnqueueDeletion(std::move(m_vertexBuffers[lodIndex]));
+        }
 
-    if (m_indexBuffer.IsValid())
-    {
-        EnqueueDeletion(std::move(m_indexBuffer));
+        if (m_indexBuffers[lodIndex].IsValid())
+        {
+            EnqueueDeletion(std::move(m_indexBuffers[lodIndex]));
+        }
     }
 
     for (uint8 lodIndex = 0; lodIndex < MaxMeshLods; lodIndex++)
@@ -350,13 +355,17 @@ void Mesh::UploadGpuData()
     auto readScope = GetReadScope();
 
     // @TODO: Upload all LODs to GPU; for now LOD 0 is uploaded
-    constexpr uint8 lodIndex = 0;
+    const uint8 lodIndex = m_currentLodIndex;
 
     // @TODO fix for non-uint32 indices
     Assert(GpuElemTypeSize(m_meshDesc.meshAttributes.indexBufferElemType) == 4);
 
     Array<float> vertices;
-    BuildVertexBuffer(m_meshDesc.meshAttributes.inputLayout, vertices);
+
+    BuildVertexBuffer(
+        m_meshDesc.meshAttributes.inputLayout,
+        lodIndex,
+        vertices);
 
     const Span<const ubyte> indexData = GetIndexData(lodIndex);
 
@@ -440,19 +449,18 @@ void Mesh::UploadGpuData()
     cr << InsertBarrier(vertexBuffer, RS_VERTEX_BUFFER);
     cr << InsertBarrier(indexBuffer, RS_INDEX_BUFFER);
 
-    if (m_vertexBuffer.IsValid())
+    if (m_vertexBuffers[lodIndex].IsValid())
     {
-        EnqueueDeletion(std::move(m_vertexBuffer));
+        EnqueueDeletion(std::move(m_vertexBuffers[lodIndex]));
     }
 
-    m_vertexBuffer = std::move(vertexBuffer);
-
-    if (m_indexBuffer.IsValid())
+    if (m_indexBuffers[lodIndex].IsValid())
     {
-        EnqueueDeletion(std::move(m_indexBuffer));
+        EnqueueDeletion(std::move(m_indexBuffers[lodIndex]));
     }
 
-    m_indexBuffer = std::move(indexBuffer);
+    m_vertexBuffers[lodIndex] = std::move(vertexBuffer);
+    m_indexBuffers[lodIndex] = std::move(indexBuffer);
 
     isUploaded.Store(true);
 
@@ -466,8 +474,18 @@ void Mesh::ReleaseGpuData()
 {
     auto writeScope = GetWriteScope();
 
-    EnqueueDeletion(std::move(m_vertexBuffer));
-    EnqueueDeletion(std::move(m_indexBuffer));
+    for (uint8 lodIndex = 0; lodIndex < MaxMeshLods; lodIndex++)
+    {
+        if (m_vertexBuffers[lodIndex].IsValid())
+        {
+            EnqueueDeletion(std::move(m_vertexBuffers[lodIndex]));
+        }
+
+        if (m_indexBuffers[lodIndex].IsValid())
+        {
+            EnqueueDeletion(std::move(m_indexBuffers[lodIndex]));
+        }
+    }
 
     isUploaded.Store(false);
 }
@@ -625,11 +643,9 @@ BoundingBox Mesh::CalculateAABB() const
 template <class AllocatorType>
 void Mesh::BuildVertexBuffer(
     const VertexInputLayoutDesc& inputLayout,
+    uint8 lodIndex,
     Array<float, AllocatorType>& outData) const
 {
-    // @TODO: Support building vertex buffer for arbitrary LOD; for now LOD 0
-    constexpr uint8 lodIndex = 0;
-
     const VertexArrayView vertices = GetVertexData(lodIndex);
     AssertDebug(uintptr_t(vertices.floatData) > 0x1000000);
 
@@ -644,8 +660,6 @@ void Mesh::BuildVertexBuffer(
     const size_t dstVertexSizeInFloats = dstVertexSize / sizeof(float);
 
     outData.Resize(dstVertexSizeInFloats * vertices.vertexCount);
-
-    size_t currentOffset = 0;
 
     for (size_t i = 0; i < vertices.vertexCount; i++)
     {
@@ -728,8 +742,8 @@ void Mesh::BuildVertexBuffer(
     }
 }
 
-template void Mesh::BuildVertexBuffer<ThreadAllocator>(const VertexInputLayoutDesc& inputLayout, Array<float, ThreadAllocator>& outData) const;
-template void Mesh::BuildVertexBuffer<DynamicAllocator>(const VertexInputLayoutDesc& inputLayout, Array<float, DynamicAllocator>& outData) const;
+template void Mesh::BuildVertexBuffer<ThreadAllocator>(const VertexInputLayoutDesc& inputLayout, uint8 lodIndex, Array<float, ThreadAllocator>& outData) const;
+template void Mesh::BuildVertexBuffer<DynamicAllocator>(const VertexInputLayoutDesc& inputLayout, uint8 lodIndex, Array<float, DynamicAllocator>& outData) const;
 
 #define ADD_NORMAL(ary, idx, normal)     \
     do                                   \

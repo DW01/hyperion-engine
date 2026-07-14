@@ -730,6 +730,7 @@ RendererResult RenderInterface::Initialize()
     placeholderData->Initialize();
     shadowMapCache->Initialize();
 
+    DeletionQueue::GetInstance().Initialize();
     DebugDrawer::GetInstance().Initialize();
 
     CreateSphereSamplesBuffer();
@@ -905,6 +906,8 @@ void RenderInterface::Shutdown()
 
     PoolDelete(*g_renderPool, renderGroupCache);
     renderGroupCache = nullptr;
+
+    DeletionQueue::GetInstance().Shutdown();
 }
 
 void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
@@ -1361,15 +1364,6 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
         state.boundGraphicsPipeline = nullptr;
     }
 
-    union
-    {
-        ValueStorage<BindGraphicsPipeline> bindGraphicsCmd;
-        ValueStorage<BindComputePipeline> bindComputeCmd;
-        ValueStorage<BindRayTracingPipeline> bindRayTracingCmd;
-    } deferredBindCommandMemory;
-
-    void (*executeBindCmdFunction)(CmdBase*, CommandBuffer*) = nullptr;
-
     GraphicsPipelineCacheHandle cacheHandle;
 
     switch (psoType)
@@ -1401,8 +1395,12 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
 
             pipeline = *cacheHandle;
 
-            new (&deferredBindCommandMemory.bindGraphicsCmd) BindGraphicsPipeline(pipeline, state.viewport);
-            executeBindCmdFunction = &BindGraphicsPipeline::InvokeStatic;
+            pipeline->lastFrame = GetFrameCounter();
+            if (state.viewport.position != Vec2i(0, 0) || state.viewport.extent != Vec2u(0, 0))
+                pipeline->Bind(commandBuffer, state.viewport.position, state.viewport.extent);
+            else
+                pipeline->Bind(commandBuffer);
+            state.boundGraphicsPipeline = pipeline;
 
             pipelineChanged = true;
         }
@@ -1427,8 +1425,8 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
             pipeline = computePipelineCache->GetOrCreate(state.attributes.GetShaderName(), state.attributes.GetShaderProperties());
             AssertDebug(pipeline != nullptr);
 
-            new (&deferredBindCommandMemory.bindComputeCmd) BindComputePipeline(pipeline);
-            executeBindCmdFunction = &BindComputePipeline::InvokeStatic;
+            pipeline->Bind(commandBuffer);
+            state.boundComputePipeline = pipeline;
 
             pipelineChanged = true;
         }
@@ -1453,8 +1451,8 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
             pipeline = rayTracingPipelineCache->GetOrCreate(state.attributes.GetShaderName(), state.attributes.GetShaderProperties());
             AssertDebug(pipeline != nullptr);
 
-            new (&deferredBindCommandMemory.bindRayTracingCmd) BindRayTracingPipeline(pipeline);
-            executeBindCmdFunction = &BindRayTracingPipeline::InvokeStatic;
+            pipeline->Bind(commandBuffer);
+            state.boundRayTracingPipeline = pipeline;
 
             pipelineChanged = true;
         }
@@ -1804,25 +1802,16 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
         }
     }
 
-    // Bind the new pipeline (if we need to)
-    if (executeBindCmdFunction != nullptr)
+    // Update dynamic states for existing graphics pipeline
+    if (psoType == PSO_Graphics)
     {
-        executeBindCmdFunction(
-            reinterpret_cast<CmdBase*>(&deferredBindCommandMemory),
-            commandBuffer);
-    }
-    else
-    {
-        if (psoType == PSO_Graphics)
+        PSOCacheKey psoCacheKey = { state.attributes, state.boundFramebuffer->GetFramebufferDesc() };
+
+        if (psoCacheKey != state.boundGraphicsPipeline->GetKey())
         {
-            PSOCacheKey psoCacheKey = { state.attributes, state.boundFramebuffer->GetFramebufferDesc() };
+            state.boundGraphicsPipeline->UpdateDynamicStates(commandBuffer);
 
-            if (psoCacheKey != state.boundGraphicsPipeline->GetKey())
-            {
-                state.boundGraphicsPipeline->UpdateDynamicStates(commandBuffer);
-
-                state.boundGraphicsPipeline->SetKey(psoCacheKey);
-            }
+            state.boundGraphicsPipeline->SetKey(psoCacheKey);
         }
     }
 

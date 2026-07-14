@@ -324,18 +324,19 @@ void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(
             GpuBuffer* buffer = payload.buffer;
             auto& callback = payload.callback;
 
-            RI.GetCurrentFrame()->OnFrameEnd.Bind([&payload, buffer, cb = std::move(callback)](Frame*)
-                                                  {
-                                                      Span<LightmapHit> hits;
-                                                      hits.first = reinterpret_cast<LightmapHit*>(buffer->Map());
-                                                      hits.last = hits.first + (buffer->Size() / sizeof(LightmapHit));
+            RI.GetCurrentFrame()->OnFrameEnd.Bind(
+                                                [&payload, buffer, cb = std::move(callback)](Frame*)
+                                                {
+                                                    Span<LightmapHit> hits;
+                                                    hits.first = reinterpret_cast<LightmapHit*>(buffer->Map());
+                                                    hits.last = hits.first + (buffer->Size() / sizeof(LightmapHit));
 
-                                                      cb(hits);
+                                                    cb(hits);
 
-                                                      buffer->Release();
+                                                    buffer->Release();
 
-                                                      delete &payload;
-                                                  })
+                                                    delete &payload;
+                                                })
                 .Detach();
         }
     };

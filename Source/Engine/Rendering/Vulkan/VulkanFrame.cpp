@@ -117,11 +117,6 @@ void VulkanFrame::WriteCommandBuffer(VulkanCommandBuffer* commandBuffer)
     commandRecorders.PushBack(&RI.commandRecorderAllocator.root);
     commandRecorders.PushBack(&postRenderCommands);
 
-    for (CommandRecorder* commandRecorder : commandRecorders)
-    {
-        commandRecorder->Prepare(this);
-    }
-
     if (OnPresent.AnyBound())
     {
         OnPresent(this);

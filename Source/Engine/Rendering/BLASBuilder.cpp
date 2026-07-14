@@ -122,7 +122,9 @@ BottomLevelASRef BLASBuilder::Build(Mesh* mesh, Material* material)
 
     // Currently RT shaders are all expecting VT_Simple layout
     Array<float> packedVertices;
-    mesh->BuildVertexBuffer(StaticVertexInputLayout<VT_Simple>, packedVertices);
+
+    // @TODO Build BLAS for lower lod index, if possible.
+    mesh->BuildVertexBuffer(StaticVertexInputLayout<VT_Simple>, 0, packedVertices);
 
     Array<ubyte> packedIndices = mesh->GetIndexData(0);
 

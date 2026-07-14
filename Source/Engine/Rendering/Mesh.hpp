@@ -135,21 +135,19 @@ public:
         const MeshDataView& meshData);
 
     HYP_METHOD()
-    HYP_FORCE_INLINE uint32 NumIndices(uint8 lodIndex) const
+    uint32 NumIndices(uint8 lodIndex) const
     {
         return m_meshDesc.lods[lodIndex].numIndices;
     }
 
-    /*! \note Only to be called from render thread or render task */
-    HYP_FORCE_INLINE const GpuBufferRef& GetVertexBuffer() const
+    HYP_FORCE_INLINE const GpuBufferRef& GetVertexBuffer(uint8 lodIndex = UINT8_MAX) const
     {
-        return m_vertexBuffer;
+        return m_vertexBuffers[lodIndex < MaxMeshLods ? lodIndex : m_currentLodIndex];
     }
 
-    /*! \note Only to be called from render thread or render task */
-    HYP_FORCE_INLINE const GpuBufferRef& GetIndexBuffer() const
+    HYP_FORCE_INLINE const GpuBufferRef& GetIndexBuffer(uint8 lodIndex = UINT8_MAX) const
     {
-        return m_indexBuffer;
+        return m_indexBuffers[lodIndex < MaxMeshLods ? lodIndex : m_currentLodIndex];
     }
 
     HYP_FORCE_INLINE MeshAttributes GetMeshAttributes() const
@@ -159,14 +157,14 @@ public:
 
     /*! \brief Get the axis-aligned bounding box for the mesh. */
     HYP_METHOD(Property = "AABB", Editor = true)
-    HYP_FORCE_INLINE const BoundingBox& GetAABB() const
+    const BoundingBox& GetAABB() const
     {
         return m_aabb;
     }
 
     /*! \brief Manually set the AABB for the mesh */
     HYP_METHOD(Property = "AABB", Editor = true)
-    HYP_FORCE_INLINE void SetAABB(const BoundingBox& aabb)
+    void SetAABB(const BoundingBox& aabb)
     {
         m_aabb = aabb;
     }
@@ -212,6 +210,7 @@ public:
     template <class AllocatorType>
     void BuildVertexBuffer(
         const VertexInputLayoutDesc& inputLayout,
+        uint8 lodIndex,
         Array<float, AllocatorType>& outData) const;
 
     void CalculateNormals(bool weighted = false);
@@ -264,8 +263,10 @@ private:
     HYP_FIELD()
     EnumFlags<MeshFlags> m_flags;
 
-    GpuBufferRef m_vertexBuffer;
-    GpuBufferRef m_indexBuffer;
+    FixedArray<GpuBufferRef, MaxMeshLods> m_vertexBuffers;
+    FixedArray<GpuBufferRef, MaxMeshLods> m_indexBuffers;
+
+    uint8 m_currentLodIndex;
 
     HYP_DECLARE_MT_CHECK(m_dataRaceDetector);
 };
