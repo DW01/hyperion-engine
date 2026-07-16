@@ -15,12 +15,12 @@ namespace Hyperion {
 
 Triangle::Triangle()
 {
-    Memory::Fill(points.Data(), 0, sizeof(points));
+    Memory::Zero(points.Data(), sizeof(points));
 }
 
 Triangle::Triangle(const float (&pts)[9])
 {
-    Memory::Fill(points.Data(), 0, sizeof(points));
+    Memory::Zero(points.Data(), sizeof(points));
     Memory::Copy(points[0].values, pts + 0, sizeof(float) * 3);
     Memory::Copy(points[1].values, pts + 3, sizeof(float) * 3);
     Memory::Copy(points[2].values, pts + 6, sizeof(float) * 3);

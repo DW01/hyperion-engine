@@ -1370,6 +1370,7 @@ inline void ToString(T value, size_t& bufferLength, CharType* result)
     if (value < 0)
     {
         isNegative = true;
+        value = -value;
     }
 
     if (result == nullptr)
@@ -1404,7 +1405,6 @@ inline void ToString(T value, size_t& bufferLength, CharType* result)
     {
         HYP_UTF8_ASSERT(bufferLength != 1);
         result[bufferIndex++] = CharType('-');
-        value *= -1;
 
         --bufferLengthRemaining;
     }

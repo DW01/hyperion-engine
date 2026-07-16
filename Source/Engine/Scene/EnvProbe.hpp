@@ -39,9 +39,9 @@ using SceneAllocator = AllocatorInstance<Pool, &g_scenePool>;
 HYP_ENUM()
 enum EnvProbeFlags : uint32
 {
-    EPF_NONE = 0x0,               //!< @edithide
+    EPF_NONE = 0x0,               //!< @editor=false
     EPF_PARALLAX_CORRECTED = 0x1, //!< @title="Parallax correction"
-    EPF_BAKED = 0x2,              //!< @edithide
+    EPF_BAKED = 0x2,              //!< @editor=false
     EPF_REALTIME = 0x4,           //!< @title="Real-time"
     EPF_ORIGIN_FROM_CENTER = 0x8, //!< @title="Origin from center"
     EPF_VISIBILITY = 0x10,        //!< @title="Prevent light leaking" @description="This EnvProbe stores distance values to a texture, used to prevent light leaks at the cost of more memory usage and rendering time."
@@ -278,10 +278,10 @@ protected:
 
     void EnqueueViewsUpdate();
 
-    HYP_FIELD(Property = "Dimensions", EditHide, Serialize)
+    HYP_FIELD(Property = "Dimensions", Editor = false, Serialize)
     Vec2u m_dimensions;
 
-    HYP_FIELD(Property = "EnvProbeType", EditHide, Serialize = false)
+    HYP_FIELD(Property = "EnvProbeType", Editor = false, Transient)
     EnvProbeType m_envProbeType;
 
     HYP_FIELD(Property = "EnvProbeFlags")

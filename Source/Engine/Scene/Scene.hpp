@@ -41,22 +41,22 @@ class WorldGrid;
 HYP_ENUM()
 enum class SceneFlags : uint32
 {
-    NONE = 0x0,             //!< @edithide
+    NONE = 0x0,             //!< @editor=false
 
     FOREGROUND = 0x1,       //!< @title="Is foreground scene" @description="Scene is a foreground scene (i.e., it is rendered normally)."
     BACKDROP = 0x2,         //!< @title="Is backdrop" @description="Scene contains backdrop nodes (e.g skybox). (Not mutually exclusive with Foreground)"
     
     /// These below are reserved for internal usage and not surfaced in-editor
-    DETACHED = 0x4,         //!< @edithide -- Scene is not attached to any World.
-    UI = 0x8,               //!< @edithide -- Scene is created for UI (see UIStage).
-    EDITOR = 0x10,          //!< @edithide -- Scene is an editor-owned scene.
+    DETACHED = 0x4,         //!< @editor=false -- Scene is not attached to any World.
+    UI = 0x8,               //!< @editor=false -- Scene is created for UI (see UIStage).
+    EDITOR = 0x10,          //!< @editor=false -- Scene is an editor-owned scene.
 
     STREAMED = 0x20,        //!< @title="Is streamed in" @description="Allow the engine to load/unload from memory based on proximity to Streaming Volumes"
     HAS_OCTREE = 0x40,      //!< @title="Uses Octree for spatial partitioning" @description="Scene uses an octree for spatial partitioning."
 
     AUDIO_LISTENER = 0x80,  //!< @title="Is primary audio listener" @description="Scene has an audio listener (only one scene in a world should have this flag set)"
 
-    DEFAULT = FOREGROUND | STREAMED | HAS_OCTREE    //!< @edithide
+    DEFAULT = FOREGROUND | STREAMED | HAS_OCTREE    //!< @editor=false
 };
 
 // clang-format on

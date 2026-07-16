@@ -53,8 +53,6 @@ public:
 
     virtual ~MTLMaterialLoader() = default;
 
-    /*! \brief Parse a .mtl file and return a map of material name → Handle<Material>.
-     *  This can be called directly without going through the asset system. */
     static Map<String, Handle<Material>> ParseMtl(
         FilePath filepath,
         AssetManager& assetManager,

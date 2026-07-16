@@ -59,24 +59,24 @@ enum class TransformChangeType : uint8
 HYP_ENUM()
 enum class NodeFlags : uint32
 {
-    None = 0x0,                                                                                 //!< @edithide
+    None = 0x0,                                                                                 //!< @editor=false
 
     IgnoreParentTranslation = 0x1,                                                              //!< @title="Ignores parent translation"
     IgnoreParentScale = 0x2,                                                                    //!< @title="Ignores parent scaling"
     IgnoreParentRotation = 0x4,                                                                 //!< @title="Ignores parent rotation"
-    IgnoreParentTransform = IgnoreParentTranslation | IgnoreParentScale | IgnoreParentRotation, //!< @edithide
+    IgnoreParentTransform = IgnoreParentTranslation | IgnoreParentScale | IgnoreParentRotation, //!< @editor=false
 
     ExcludeFromParentBounds = 0x8,                                                              //!< @title="Does not affect parent node's bounds"
     ExcludeFromOctree = 0x10,                                                                   //!< @title="Not included in the Scene's octree"
 
-    HideInSceneOutline = 0x1000,                                                                //!< @edithide
+    HideInSceneOutline = 0x1000,                                                                //!< @editor=false
 
-    Mobility = 0xE000,                                                                          //!< @edithide
-    MobilityStatic = 0x2000,                                                                    //!< @edithide
-    MobilityStaticByProxy = 0x4000,                                                             //!< @edithide
-    MobilityDynamic = Mobility & ~(MobilityStatic | MobilityStaticByProxy),                     //!< @edithide
+    Mobility = 0xE000,                                                                          //!< @editor=false
+    MobilityStatic = 0x2000,                                                                    //!< @editor=false
+    MobilityStaticByProxy = 0x4000,                                                             //!< @editor=false
+    MobilityDynamic = Mobility & ~(MobilityStatic | MobilityStaticByProxy),                     //!< @editor=false
 
-    Default = MobilityStatic                                                                    //!< @edithide
+    Default = MobilityStatic                                                                    //!< @editor=false
 };
 
 // clang-format on
@@ -589,7 +589,7 @@ public:
     }
 
     /*! \returns A pointer to the Scene this Node and its children are attached to. May be null. */
-    HYP_METHOD(Property = "Scene", Transient, EditHide)
+    HYP_METHOD(Property = "Scene", Transient, Editor = false)
     HYP_FORCE_INLINE Scene* GetScene() const
     {
         return m_scene;
@@ -597,11 +597,11 @@ public:
 
     /*! \brief Set the Scene this Node and its children are attached to. If nullptr is provided and \p moveToDetached is true, the Node will be moved to a detached Scene.
      *  \internal Not intended to be used in user code. Use Remove() instead. */
-    HYP_METHOD(Property = "Scene", Transient)
+    HYP_METHOD(Property = "Scene", Transient, Editor = false)
     void SetScene(Scene* scene, bool moveToDetached = true);
 
     /*! \returns A pointer to the World this Node and its children are attached to. May be null. */
-    HYP_METHOD(Property = "World", Transient, EditHide)
+    HYP_METHOD(Property = "World", Transient, Editor = false)
     World* GetWorld() const;
 
     /*! \brief \returns The local bounds for this node, not considering child nodes or transform. */
@@ -715,7 +715,7 @@ public:
     }
 
     /*! \returns The local-space translation of this Node. */
-    HYP_METHOD(Property = "LocalTranslation", Transient, EditHide)
+    HYP_METHOD(Property = "LocalTranslation", Transient, Editor = false)
     HYP_FORCE_INLINE const Vec3f& GetLocalTranslation() const
     {
         return m_localTransform.GetTranslation();
@@ -738,14 +738,14 @@ public:
     }
 
     /*! \returns The local-space scale of this Node. */
-    HYP_METHOD(Property = "LocalScale", Transient, EditHide)
+    HYP_METHOD(Property = "LocalScale", Transient, Editor = false)
     HYP_FORCE_INLINE const Vec3f& GetLocalScale() const
     {
         return m_localTransform.GetScale();
     }
 
     /*! \brief Set the local-space scale of this Node (not influenced by the parent Node) */
-    HYP_METHOD(Property = "LocalScale", Transient)
+    HYP_METHOD(Property = "LocalScale", Transient, Editor = false)
     HYP_FORCE_INLINE void SetLocalScale(const Vec3f& scale, TransformChangeType changeType = TransformChangeType::Default)
     {
         SetLocalTransform(Transform { m_localTransform.GetTranslation(), scale, m_localTransform.GetRotation() }, changeType);
@@ -760,14 +760,14 @@ public:
     }
 
     /*! \returns The local-space rotation of this Node. */
-    HYP_METHOD(Property = "LocalRotation", Transient, EditHide)
+    HYP_METHOD(Property = "LocalRotation", Transient, Editor = false)
     HYP_FORCE_INLINE const Quat4f& GetLocalRotation() const
     {
         return m_localTransform.GetRotation();
     }
 
     /*! \brief Set the local-space rotation of this Node (not influenced by the parent Node) */
-    HYP_METHOD(Property = "LocalRotation", Transient)
+    HYP_METHOD(Property = "LocalRotation", Transient, Editor = false)
     HYP_FORCE_INLINE void SetLocalRotation(const Quat4f& rotation, TransformChangeType changeType = TransformChangeType::Default)
     {
         SetLocalTransform(Transform { m_localTransform.GetTranslation(), m_localTransform.GetScale(), rotation }, changeType);
@@ -782,14 +782,14 @@ public:
     }
 
     /*! \brief \returns The world-space matrix */
-    HYP_METHOD(Property = "WorldMatrix", Transient, EditHide)
+    HYP_METHOD(Property = "WorldMatrix", Transient, Editor = false)
     const Mat4f& GetWorldMatrix() const
     {
         return m_worldMatrix;
     }
 
     /*! \returns The world-space translation of this Node. */
-    HYP_METHOD(Property = "WorldTranslation", Transient, EditHide)
+    HYP_METHOD(Property = "WorldTranslation", Transient, Editor = false)
     Vec3f GetWorldTranslation() const;
 
     /*! \brief Set the world-space translation of this Node by offsetting the local-space translation */
@@ -797,19 +797,19 @@ public:
     void SetWorldTranslation(const Vec3f& translation, TransformChangeType changeType = TransformChangeType::Default);
 
     /*! \returns The local-space scale of this Node. */
-    HYP_METHOD(Property = "WorldScale", Transient, EditHide)
+    HYP_METHOD(Property = "WorldScale", Transient, Editor = false)
     Vec3f GetWorldScale() const;
 
     /*! \brief Set the local-space scale of this Node by offsetting the local-space scale */
-    HYP_METHOD(Property = "WorldScale", Transient)
+    HYP_METHOD(Property = "WorldScale", Transient, Editor = false)
     void SetWorldScale(const Vec3f& scale, TransformChangeType changeType = TransformChangeType::Default);
 
     /*! \returns The world-space rotation of this Node. */
-    HYP_METHOD(Property = "WorldRotation", Transient, EditHide)
+    HYP_METHOD(Property = "WorldRotation", Transient, Editor = false)
     Quat4f GetWorldRotation() const;
 
     /*! \brief Set the world-space rotation of this Node by offsetting the local-space rotation */
-    HYP_METHOD(Property = "WorldRotation", Transient)
+    HYP_METHOD(Property = "WorldRotation", Transient, Editor = false)
     void SetWorldRotation(const Quat4f& rotation, TransformChangeType changeType = TransformChangeType::Default);
 
     /*! \brief Returns whether the Node is locked from being transformed. */
@@ -934,19 +934,19 @@ protected:
     HYP_FIELD(Property = "Parent", Transient)
     Node* m_parentNode;
 
-    HYP_FIELD(Property = "Children", LoadOrder = -1, EditHide, Serialize)
+    HYP_FIELD(Property = "Children", LoadOrder = -1, Editor = false, Serialize)
     NodeList m_childNodes;
 
     HYP_FIELD(Property = "LocalTransform", Serialize, Label = "Local-space Transform")
     Transform m_localTransform;
 
-    HYP_FIELD(Transient, EditHide)
+    HYP_FIELD(Transient, Editor = false)
     Mat4f m_worldMatrix;
 
     HYP_FIELD(Property = "LocalBounds", Serialize, Label = "Bounding Box", Description = "The bounds for the content of this node. Does not take into account child nodes or transform.")
     BoundingBox m_localBounds;
 
-    HYP_FIELD(Property = "Scene", Transient, EditHide)
+    HYP_FIELD(Property = "Scene", Transient, Editor = false)
     Scene* m_scene;
 
     bool m_transformLocked : 1;

@@ -94,10 +94,10 @@ namespace Hyperion.Editor.ViewModels
             {
                 try
                 {
-                    // if it has edithide attribute, then skip
-                    ClassAttribute? editHideAttribute = staticField.GetAttribute("edithide");
+                    // if it has editor attribute and set to false, then skip
+                    ClassAttribute? attrEditor = staticField.GetAttribute("editor");
 
-                    if (editHideAttribute?.GetBool() == true)
+                    if (attrEditor != null && attrEditor.Value.GetBool() == false)
                     {
                         continue;
                     }

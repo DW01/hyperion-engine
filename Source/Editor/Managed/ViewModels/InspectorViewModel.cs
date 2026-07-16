@@ -211,13 +211,13 @@ namespace Hyperion.Editor.ViewModels
                 {
                     if (property.Name == "Components")
                     {
-                        continue; // skip Components property -- now handled separately
+                        continue; // skip Components property -- they're handled separately
                     }
 
                     // skip non-editor properties
-                    ClassAttribute? attrEditHide = property.GetAttribute("edithide");
+                    ClassAttribute? attrEditor = property.GetAttribute("editor");
 
-                    if (attrEditHide != null && attrEditHide.Value.GetBool() == true)
+                    if (attrEditor != null && attrEditor.Value.GetBool() == false)
                     {
                         continue;
                     }
@@ -279,9 +279,9 @@ namespace Hyperion.Editor.ViewModels
             {
                 try
                 {
-                    ClassAttribute? attrEditHide = method.GetAttribute("edithide");
+                    ClassAttribute? attrEditor = method.GetAttribute("editor");
 
-                    if (attrEditHide != null && attrEditHide.Value.IsBool && attrEditHide.Value.GetBool())
+                    if (attrEditor != null && attrEditor.Value.GetBool() == false)
                     {
                         continue;
                     }
@@ -398,9 +398,12 @@ namespace Hyperion.Editor.ViewModels
             {
                 try
                 {
-                    ClassAttribute? attrEditHide = method.GetAttribute("edithide");
-                    if (attrEditHide != null && attrEditHide.Value.IsBool && attrEditHide.Value.GetBool())
+                    ClassAttribute? attrEditor = method.GetAttribute("editor");
+
+                    if (attrEditor != null && attrEditor.Value.GetBool() == false)
+                    {
                         continue;
+                    }
 
                     string label = method.Name.ToString();
                     ClassAttribute? attrEditAction = method.GetAttribute("editaction");
@@ -454,8 +457,9 @@ namespace Hyperion.Editor.ViewModels
                         return false;
                     }
 
-                    ClassAttribute? attrEditHide = p.GetAttribute("edithide");
-                    if (attrEditHide != null && attrEditHide.Value.GetBool() == true)
+                    ClassAttribute? attrEditor = p.GetAttribute("editor");
+
+                    if (attrEditor != null && attrEditor.Value.GetBool() == false)
                     {
                         return false;
                     }

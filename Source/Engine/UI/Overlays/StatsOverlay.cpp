@@ -37,8 +37,6 @@ StatsOverlay::~StatsOverlay() = default;
 
 Handle<UIObject> StatsOverlay::CreateUIObject_Impl(UIObject* spawnParent)
 {
-    HYP_SCOPE;
-
     Handle<UIPanel> panelBackdrop = spawnParent->CreateUIObject<UIPanel>(
         NAME_FMT("StatsOverlay_PanelBackdrop"),
         Vec2i(2, 2),

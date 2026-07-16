@@ -118,11 +118,12 @@ private:
     HYP_FIELD(Property = "GridSize", Serialize)
     Vec3u m_gridSize = Vec3u { 2, 2, 2 };
 
-    HYP_FIELD(Property = "Probes", Transient, EditHide)
+    HYP_FIELD(Property = "Probes", Transient, Editor = false)
     Array<IrradianceProbe*, SceneAllocator> m_probes;
 
-    HYP_FIELD(Property = "Tetrahedra", Serialize, EditHide)
+    HYP_FIELD(Property = "Tetrahedra", Serialize, Editor = false)
     Array<Tetrahedron, SceneAllocator> m_tetrahedra;
+    
     struct CachedState
     {
         SharedMutex mutex;

@@ -147,9 +147,9 @@ namespace Hyperion.Editor.ViewModels
                     List<Property> componentProperties = cls.Properties
                         .Where(p =>
                         {
-                            ClassAttribute? attrEditHide = p.GetAttribute("edithide");
+                            ClassAttribute? attrEditor = p.GetAttribute("editor");
 
-                            if (attrEditHide != null && attrEditHide.Value.GetBool() == true)
+                            if (attrEditor != null && attrEditor.Value.GetBool() == false)
                             {
                                 return false;
                             }

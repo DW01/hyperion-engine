@@ -165,19 +165,19 @@ Mat4f Mat4f::Orthographic(float l, float r, float b, float t, float n, float f)
 
 Mat4f Mat4f::Jitter(uint32 index, uint32 width, uint32 height, Vec4f& outJitter)
 {
-    static const HaltonSequence halton;
+    static const HaltonSequence s_haltonSequence;
 
     Mat4f offsetMatrix;
 
     const uint32 frameCounter = index;
     const uint32 haltonIndex = frameCounter % HaltonSequence::size;
 
-    Vec2f jitter = halton.sequence[haltonIndex];
+    Vec2f jitter = s_haltonSequence.sequence[haltonIndex];
     Vec2f previousJitter;
 
     if (frameCounter != 0)
     {
-        previousJitter = halton.sequence[(frameCounter - 1) % HaltonSequence::size];
+        previousJitter = s_haltonSequence.sequence[(frameCounter - 1) % HaltonSequence::size];
     }
 
     const Vec2f pixelSize = Vec2f::One() / Vec2f { float(width), float(height) };
@@ -196,7 +196,7 @@ Mat4f Mat4f::Jitter(uint32 index, uint32 width, uint32 height, Vec4f& outJitter)
 
 Mat4f Mat4f::LookAt(const Vec3f& direction, const Vec3f& up)
 {
-    auto mat = Identity();
+    Mat4f mat = Identity();
 
     const Vec3f z = direction.Normalized();
     const Vec3f x = up.Cross(z).Normalize();
@@ -594,16 +594,16 @@ Vec4f Mat4f::GetColumn(uint32 index) const
 
 Mat4f Mat4f::Zeros()
 {
-    static constexpr float zeroArray[sizeof(values) / sizeof(values[0])] = { 0.0f };
+    static constexpr float ZeroArray[16] = { 0.0f };
 
-    return Mat4f(zeroArray);
+    return Mat4f(ZeroArray);
 }
 
 Mat4f Mat4f::Ones()
 {
-    static constexpr float onesArray[sizeof(values) / sizeof(values[0])] = { 1.0f };
+    static constexpr float OnesArray[16] = { 1.0f };
 
-    return Mat4f(onesArray);
+    return Mat4f(OnesArray);
 }
 
 Mat4f Mat4f::Identity()

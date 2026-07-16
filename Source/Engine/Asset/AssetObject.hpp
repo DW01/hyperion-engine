@@ -175,11 +175,11 @@ public:
     }
 
     static Result LoadDesc(
-        JSON::Object& manifestData,
+        const BoxedValue& manifestData,
         AssetDesc& outAssetDesc);
 
     static Result Load(
-        JSON::Object& manifestData,
+        BoxedValue& manifestData,
         Handle<AssetObject>& outAssetObject);
 
 protected:
@@ -223,10 +223,10 @@ protected:
     HYP_FIELD(Property = "FriendlyName")
     Name m_friendlyName;
 
-    HYP_FIELD(Property = "AssetFlags", Transient, EditHide)
+    HYP_FIELD(Property = "AssetFlags", Transient, Editor = false)
     EnumFlags<AssetObjectFlags> m_flags;
 
-    HYP_FIELD(Property = "AssetIndex", Transient, EditHide)
+    HYP_FIELD(Property = "AssetIndex", Transient, Editor = false)
     uint32 m_assetIndex;
 
     mutable volatile int64 m_rwState;

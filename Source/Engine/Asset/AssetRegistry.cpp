@@ -29,6 +29,7 @@
 #include <Core/IO/ByteWriter.hpp>
 
 #include <Core/JSON/JSON.hpp>
+#include <Core/HMF/HMF.hpp>
 
 #include <Core/Config/Config.hpp>
 
@@ -282,28 +283,20 @@ HYP_NODISCARD Name CreateFriendlyName(Name name)
     return CreateNameFromDynamicString(StringUtil::ToPascalCase(friendlyNameStr, true));
 }
 
-static Result ReadManifest(ByteReader& stream, const FilePath& manifestPath, JSON::Object& outManifestData)
+static Result ReadManifest(ByteReader& stream, const FilePath& manifestPath, BoxedValue& outManifestData)
 {
     String str = String(stream.Read().ToByteView());
 
-    JSON::ParseResult parseResult = JSON::Parse(str);
+    HMF::ParseResult parseResult = HMF::Parse(str);
 
     if (!parseResult.ok)
     {
-        return HYP_MAKE_ERROR(Error, "Failed to parse manifest JSON: {}", parseResult.message);
+        return HYP_MAKE_ERROR(Error, "Failed to parse manifest HMF at {}: {}", manifestPath, parseResult.message);
     }
 
-    JSON::Value manifestJson = std::move(parseResult.value);
+    outManifestData = std::move(parseResult.value);
 
-    if (!manifestJson.IsObject())
-    {
-        return HYP_MAKE_ERROR(Error, "Manifest JSON at path {} is not a valid JSON object:\n{}",
-                              manifestPath, manifestJson.ToString(true));
-    }
-
-    outManifestData = std::move(manifestJson.AsObject());
-
-    return {}; // ok
+    return {};
 }
 
 #pragma region AssetBucketData
@@ -789,7 +782,7 @@ Handle<AssetObject> AssetRegistry::GetAsset(const AssetBucket& bucket, StringHas
     const FilePath manifestPath = GetManifestPath(AssetPath(m_registryId, bucket, Name(name)));
     FileByteReader stream { manifestPath };
 
-    JSON::Object manifestData;
+    BoxedValue manifestData;
 
     if (Result readManifestResult = ReadManifest(stream, manifestPath, manifestData); readManifestResult.HasError())
     {
@@ -1346,7 +1339,7 @@ bool AssetRegistry::LoadAssetDescs()
 
             const FilePath curr = iter.Current();
 
-            if (curr.GetExtension() != "json")
+            if (curr.GetExtension() != "hmf")
             {
                 continue;
             }
@@ -1361,7 +1354,7 @@ bool AssetRegistry::LoadAssetDescs()
         {
             FileByteReader stream { entry };
 
-            JSON::Object manifestData;
+            BoxedValue manifestData;
             if (Result readResult = ReadManifest(stream, entry, manifestData); readResult.HasError())
             {
                 HYP_LOG(Assets, Warning, "Failed to read manifest '{}': {}", entry, readResult.GetError().GetMessage());
@@ -1722,7 +1715,7 @@ FilePath AssetRegistry::GetManifestPath(const AssetPath& assetPath) const
     const char* bucketName = GetAssetBucketName(assetPath.bucketIndex);
     AssertDebug(bucketName != nullptr);
 
-    return GetRootPath() / bucketName / (String(*assetPath.assetName) + ".json");
+    return GetRootPath() / bucketName / (String(*assetPath.assetName) + ".hmf");
 }
 
 #pragma endregion AssetRegistry

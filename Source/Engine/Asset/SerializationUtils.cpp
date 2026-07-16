@@ -16,6 +16,7 @@
 #include <Core/Reflection/Property.hpp>
 #include <Core/Reflection/Field.hpp>
 #include <Core/Reflection/StaticField.hpp>
+#include <Core/Reflection/Enum.hpp>
 #include <Core/Reflection/Method.hpp>
 #include <Core/Reflection/BoxedValue.hpp>
 #include <Core/Reflection/TypeInfo.hpp>
@@ -33,7 +34,11 @@
 #include <Core/Logging/LogChannels.hpp>
 #include <Core/Logging/Logger.hpp>
 
+#include <cstdio>
+
 namespace Hyperion {
+
+HYP_DISABLE_OPTIMIZATION;
 
 struct LoadAssetsFromReferencesContext
 {
@@ -2295,6 +2300,721 @@ bool CloneWithoutTransientMembers(const BoxedValue& src, BoxedValue& outDst)
     }
 
     return true;
+}
+
+namespace {
+
+void FormatEnumFlags(String& outText, const Class* enumClass, uint64 flagsValue)
+{
+    Array<Name> flagNames;
+
+    for (int bit = 0; bit < 64; bit++)
+    {
+        const uint64 mask = uint64(1) << bit;
+
+        if (flagsValue & mask)
+        {
+            Name flagName;
+
+            if (EnumMemberName(enumClass, mask, flagName))
+            {
+                flagNames.PushBack(flagName);
+            }
+        }
+    }
+
+    if (!flagNames.Empty())
+    {
+        for (size_t i = 0; i < flagNames.Size(); i++)
+        {
+            if (i > 0) outText += "|";
+            outText += flagNames[i].LookupString();
+        }
+    }
+    else
+    {
+        // unresolved, fall back to numeric
+        outText += HYP_FORMAT("{}", flagsValue);
+    }
+}
+
+// Escape a string for inclusion in an HMF string literal "...".
+void EscapeString(String& outText, const String& s)
+{
+    outText += "\"";
+
+    for (size_t i = 0; i < s.Size(); i++)
+    {
+        const char c = s[i];
+
+        switch (c)
+        {
+        case '"':  outText += "\\\""; break;
+        case '\\': outText += "\\\\"; break;
+        case '\n': outText += "\\n"; break;
+        case '\t': outText += "\\t"; break;
+        case '\r': outText += "\\r"; break;
+        default:   outText += c; break;
+        }
+    }
+
+    outText += "\"";
+}
+
+// Write indentation (4 spaces per level).
+void WriteIndent(String& outText, int indent)
+{
+    for (int i = 0; i < indent; i++)
+    {
+        outText += "    ";
+    }
+}
+
+Result ObjectToHMFImpl(
+    const Class* cls,
+    const BoxedValue& target,
+    String& outText,
+    ToHMFOptions& opts,
+    int indent);
+
+Result BoxedToHMFImpl(
+    const BoxedValue& value,
+    String& outText,
+    const TypeInfo* declaredTypeInfo,
+    ToHMFOptions& opts,
+    int indent)
+{
+    if (value.IsNull())
+    {
+        outText += "null";
+        return {};
+    }
+
+    const TypeInfo& typeInfo = declaredTypeInfo ? *declaredTypeInfo : *value.GetTypeInfo();
+
+    if (value.Is<Name>())
+    {
+        EscapeString(outText, value.Get<Name>().LookupString());
+        return {};
+    }
+
+    if (value.Is<AssetPath>())
+    {
+        const AssetPath& path = value.Get<AssetPath>();
+        outText += "@";
+        EscapeString(outText, path.ToString());
+        return {};
+    }
+
+    if (value.Is<AssetReference>())
+    {
+        const AssetReference& ref = value.Get<AssetReference>();
+        if (ref.IsValid() && ref.GetAssetPath().IsValid())
+        {
+            outText += "@";
+            EscapeString(outText, ref.GetAssetPath().ToString());
+            return {};
+        }
+
+        outText += "null";
+        return {};
+    }
+
+    if (value.Is<AssetObject>())
+    {
+        const AssetObject& assetObject = value.Get<AssetObject>();
+        AssetReference ref(assetObject.HandleFromThis());
+
+        return BoxedToHMFImpl(BoxedValue(ref), outText, declaredTypeInfo, opts, indent);
+    }
+
+    if (value.Is<bool>(/* strict */ true))
+    {
+        outText += value.Get<bool>() ? "true" : "false";
+        return {};
+    }
+
+    if (typeInfo.IsEnumFlags())
+    {
+        const TypeInfo* enumType = typeInfo.GetEnumType();
+        const Class* enumClass = enumType ? enumType->GetClass() : nullptr;
+        const uint64 flagsValue = value.Get<uint64>();
+
+        Name compositeName;
+
+        if (EnumMemberName(enumClass, flagsValue, compositeName))
+        {
+            outText += compositeName.LookupString();
+        }
+        else
+        {
+            FormatEnumFlags(outText, enumClass, flagsValue);
+        }
+
+        return {};
+    }
+
+    if (typeInfo.IsEnum())
+    {
+        const Class* enumClass = typeInfo.GetClass();
+        const uint64 enumValue = value.Get<uint64>();
+
+        Name memberName;
+        if (EnumMemberName(enumClass, enumValue, memberName))
+        {
+            outText += memberName.LookupString();
+        }
+        else
+        {
+            // unresolved, fall back to numeric
+            outText += HYP_FORMAT("{}", enumValue);
+        }
+
+        return {};
+    }
+
+    if (value.Is<int64>(/* strict */ true))
+    {
+        outText += HYP_FORMAT("{}", value.Get<int64>());
+        return {};
+    }
+    if (value.Is<uint64>(/* strict */ true))
+    {
+        outText += HYP_FORMAT("{}", value.Get<uint64>());
+        return {};
+    }
+    if (value.Is<int32>(/* strict */ true))
+    {
+        outText += HYP_FORMAT("{}", value.Get<int32>());
+        return {};
+    }
+    if (value.Is<uint32>(/* strict */ true))
+    {
+        outText += HYP_FORMAT("{}", value.Get<uint32>());
+        return {};
+    }
+    if (value.Is<int16>(/* strict */ true))
+    {
+        outText += HYP_FORMAT("{}", value.Get<int16>());
+        return {};
+    }
+    if (value.Is<uint16>(/* strict */ true))
+    {
+        outText += HYP_FORMAT("{}", value.Get<uint16>());
+        return {};
+    }
+    if (value.Is<int8>(/* strict */ true))
+    {
+        outText += HYP_FORMAT("{}", value.Get<int8>());
+        return {};
+    }
+    if (value.Is<uint8>(/* strict */ true))
+    {
+        outText += HYP_FORMAT("{}", value.Get<uint8>());
+        return {};
+    }
+
+    // Floats
+    if (value.Is<float>(/* strict */ true))
+    {
+        outText += HYP_FORMAT("{}", value.Get<float>());
+        return {};
+    }
+    if (value.Is<double>(/* strict */ true))
+    {
+        outText += HYP_FORMAT("{}", value.Get<double>());
+        return {};
+    }
+
+    // String / Name
+    if (typeInfo.IsStringType())
+    {
+        const TypeId id = typeInfo.id;
+
+        if (id == TypeId::ForType<Name>() || id == TypeId::ForType<StringHash>())
+        {
+            if (value.Is<Name>())
+            {
+                EscapeString(outText, value.Get<Name>().LookupString());
+            }
+            else
+            {
+                EscapeString(outText, value.Get<String>());
+            }
+        }
+        else
+        {
+            EscapeString(outText, value.Get<String>());
+        }
+
+        return {};
+    }
+    
+    if (typeInfo.IsVectorType())
+    {
+        auto* handler = static_cast<ITypeInfoVectorHandler*>(typeInfo.extendedInfo.handler);
+        if (!handler)
+        {
+            return HYP_MAKE_ERROR(Error, "Array type has no handler");
+        }
+
+        const size_t numComponents = handler->GetNumComponents();
+
+        outText += "[";
+
+        const TypeInfo* elementType = typeInfo.GetElementType();
+
+        for (size_t i = 0; i < numComponents; i++)
+        {
+            if (i > 0)
+            {
+                outText += ", ";
+            }
+
+            AnyRef ref = handler->GetComponent(value, i);
+            BoxedToHMFImpl(BoxedValue(ref), outText, elementType, opts, indent);
+        }
+
+        outText += "]";
+
+        return {};
+    }
+
+    if (typeInfo.IsArrayType())
+    {
+        auto* handler = static_cast<ITypeInfoArrayHandler*>(typeInfo.extendedInfo.handler);
+        if (!handler)
+        {
+            return HYP_MAKE_ERROR(Error, "Array type has no handler");
+        }
+
+        const size_t count = handler->GetSize(value);
+
+        outText += "[";
+
+        const TypeInfo* elementType = typeInfo.GetElementType();
+
+        for (size_t i = 0; i < count; i++)
+        {
+            if (i > 0)
+            {
+                outText += ", ";
+            }
+
+            BoxedValue element;
+            if (handler->GetElementAt(value, i, element))
+            {
+                BoxedToHMFImpl(element, outText, elementType, opts, indent);
+            }
+        }
+
+        outText += "]";
+
+        return {};
+    }
+
+    // Set
+    if (typeInfo.IsSetType())
+    {
+        auto* handler = static_cast<ITypeInfoSetHandler*>(typeInfo.extendedInfo.handler);
+        if (!handler)
+        {
+            return HYP_MAKE_ERROR(Error, "Set type has no handler");
+        }
+
+        const TypeInfo* elementType = typeInfo.GetElementType();
+
+        outText += "[";
+
+        ITypeInfoIterator* iter = handler->CreateIterator(value);
+        if (iter)
+        {
+            bool first = true;
+
+            while (iter->HasNext())
+            {
+                if (!first)
+                {
+                    outText += ", ";
+                }
+
+                first = false;
+
+                BoxedToHMFImpl(BoxedValue(iter->GetCurrent()), outText, elementType, opts, indent);
+                iter->Next();
+            }
+
+            delete iter;
+        }
+
+        outText += "]";
+
+        return {};
+    }
+
+    // Map
+    if (typeInfo.IsMapType())
+    {
+        auto* handler = static_cast<ITypeInfoMapHandler*>(typeInfo.extendedInfo.handler);
+        if (!handler)
+        {
+            return HYP_MAKE_ERROR(Error, "Map type has no handler");
+        }
+
+        const TypeInfo* keyType = typeInfo.GetKeyType();
+        const TypeInfo* valueType = typeInfo.GetValueType();
+
+        outText += "{\n";
+
+        ITypeInfoIterator* iter = handler->CreateIterator(value);
+
+        if (iter)
+        {
+            while (iter->HasNext())
+            {
+                WriteIndent(outText, indent + 1);
+
+                // Write key
+                BoxedToHMFImpl(BoxedValue(iter->GetKey()), outText, keyType, opts, indent + 1);
+                outText += " = ";
+
+                // Write value
+                BoxedToHMFImpl(BoxedValue(iter->GetCurrent()), outText, valueType, opts, indent + 1);
+                outText += "\n";
+
+                iter->Next();
+            }
+
+            delete iter;
+        }
+
+        WriteIndent(outText, indent);
+        outText += "}";
+
+        return {};
+    }
+
+    // Pair
+    if (typeInfo.IsPairType())
+    {
+        auto* handler = static_cast<ITypeInfoPairHandler*>(typeInfo.extendedInfo.handler);
+
+        if (!handler)
+        {
+            return HYP_MAKE_ERROR(Error, "Pair type has no handler");
+        }
+
+        outText += "[";
+
+        BoxedValue first, second;
+        handler->GetFirst(value, first);
+        handler->GetSecond(value, second);
+
+        BoxedToHMFImpl(first, outText, handler->GetFirstTypeInfo(), opts, indent);
+        outText += ", ";
+        BoxedToHMFImpl(second, outText, handler->GetSecondTypeInfo(), opts, indent);
+
+        outText += "]";
+
+        return {};
+    }
+
+    // Tuple
+    if (typeInfo.IsTupleType())
+    {
+        auto* handler = static_cast<ITypeInfoTupleHandler*>(typeInfo.extendedInfo.handler);
+
+        if (!handler)
+        {
+            return HYP_MAKE_ERROR(Error, "Tuple type has no handler");
+        }
+
+        outText += "[";
+
+        const int numElements = handler->GetNumElements();
+
+        for (int i = 0; i < numElements; i++)
+        {
+            if (i > 0)
+            {
+                outText += ", ";
+            }
+
+            BoxedValue element;
+
+            if (handler->GetElement(value, i).HasValue())
+            {
+                element = BoxedValue(handler->GetElement(value, i));
+            }
+
+            BoxedToHMFImpl(element, outText, handler->GetElementTypeInfoAtIndex(i), opts, indent);
+        }
+
+        outText += "]";
+
+        return {};
+    }
+
+    // Matrix
+    if (typeInfo.IsMatrixType())
+    {
+        auto* handler = static_cast<ITypeInfoMatrixHandler*>(typeInfo.extendedInfo.handler);
+
+        if (!handler)
+        {
+            return HYP_MAKE_ERROR(Error, "Matrix type has no handler");
+        }
+
+        const TypeInfo* elementType = typeInfo.GetElementType();
+        const int numRows = handler->GetNumRows();
+        const int numCols = handler->GetNumColumns();
+
+        outText += "[";
+
+        for (int row = 0; row < numRows; row++)
+        {
+            if (row > 0)
+            {
+                outText += ", ";
+            }
+
+            outText += "[";
+
+            for (int col = 0; col < numCols; col++)
+            {
+                if (col > 0)
+                {
+                    outText += ", ";
+                }
+
+                AnyRef ref = handler->GetElement(value, row, col);
+
+                BoxedToHMFImpl(BoxedValue(ref), outText, elementType, opts, indent);
+            }
+
+            outText += "]";
+        }
+
+        outText += "]";
+
+        return {};
+    }
+
+    // Variant
+    if (typeInfo.IsVariantType())
+    {
+        // Emit as TypeName value
+        const Class* valueClass = GetClass(value.GetTypeId());
+
+        if (valueClass)
+        {
+            outText += valueClass->GetName().LookupString();
+            outText += " ";
+
+            return BoxedToHMFImpl(value, outText, value.GetTypeInfo(), opts, indent);
+        }
+
+        return HYP_MAKE_ERROR(Error, "Cannot serialize variant value");
+    }
+
+    // Object / struct
+    if (typeInfo.IsClass() || typeInfo.IsStruct() || typeInfo.IsHandleType())
+    {
+        const Class* valueClass = typeInfo.IsHandleType()
+            ? GetClass(value.GetTypeId())
+            : typeInfo.GetClass();
+
+        if (!valueClass)
+        {
+            return HYP_MAKE_ERROR(Error, "Cannot determine class for value");
+        }
+
+        // Determine if we need a polymorphic class prefix
+        const bool typesDiffer = declaredTypeInfo
+            && declaredTypeInfo->GetClass() != valueClass;
+
+        const bool needClassPrefix = typesDiffer && opts.writeClassNamesForPolymorphic;
+
+        if (needClassPrefix)
+        {
+            outText += valueClass->GetName().LookupString();
+            outText += " ";
+        }
+
+        outText += "{\n";
+
+        ObjectToHMFImpl(valueClass, value, outText, opts, indent + 1);
+
+        WriteIndent(outText, indent);
+        outText += "}";
+
+        return {};
+    }
+
+    return HYP_MAKE_ERROR(Error, "Don't know how to serialize BoxedValue with type \"{}\" to HMF", typeInfo.name);
+}
+
+Result ObjectToHMFImpl(
+    const Class* cls,
+    const BoxedValue& target,
+    String& outText,
+    ToHMFOptions& opts,
+    int indent)
+{
+    Set<Name> usedMembers;
+
+    while (cls != nullptr)
+    {
+        for (const IMember& member : cls->GetMembers(MemberType::Field | MemberType::Property, /* deep */ false))
+        {
+            // Skip transient
+            if (opts.skipTransientProperties)
+            {
+                if (const ClassAttributeValue& attr = member.GetAttribute(Attributes::g_attrTransient); attr.IsValid() && attr.GetBool())
+                {
+                    continue;
+                }
+            }
+
+            // Skip fields shadowed by properties
+            if (member.GetMemberType() != MemberType::Property && member.GetAttribute(Attributes::g_attrProperty).IsValid())
+            {
+                continue;
+            }
+
+            // Skip delegates
+            if (member.IsDelegate())
+            {
+                continue;
+            }
+
+            // Skip JsonIgnore
+            if (const ClassAttributeValue& attr = member.GetAttribute(Attributes::g_attrJsonIgnore); attr.IsValid() && attr.GetBool())
+            {
+                continue;
+            }
+
+            if (usedMembers.Contains(member.GetName()))
+            {
+                continue;
+            }
+            usedMembers.Insert(member.GetName());
+
+            BoxedValue memberValue;
+
+            switch (member.GetMemberType())
+            {
+            case MemberType::Property:
+                memberValue = static_cast<const Property&>(member).Get(target);
+                break;
+            case MemberType::Field:
+                memberValue = static_cast<const Field&>(member).Get(target);
+                break;
+            default:
+                continue;
+            }
+
+            // Write field name
+            WriteIndent(outText, indent);
+            outText += member.GetName().LookupString();
+            outText += " = ";
+
+            // Write value (check for polymorphism)
+            const bool typesDiffer = ForceWriteClassNamesWhenTypesDiffer
+                && member.GetTypeInfo().GetClass() != GetClass(memberValue.GetTypeId());
+
+            ToHMFOptions memberOpts = opts;
+            memberOpts.writeClassNamesForPolymorphic = typesDiffer;
+
+            const TypeInfo* declaredTypeInfo = &member.GetTypeInfo();
+
+            if (Result result = BoxedToHMFImpl(memberValue, outText, declaredTypeInfo, memberOpts, indent);
+                result.HasError())
+            {
+                HYP_LOG(Core, Warning, "Failed to serialize property \"{}\" of Class \"{}\" to HMF",
+                        member.GetName(), cls->GetName());
+                outText += "null";
+            }
+
+            outText += "\n";
+        }
+
+        cls = cls->GetParent();
+    }
+
+    return {};
+}
+
+} // anonymous namespace
+
+Result BoxedToHMF(
+    const BoxedValue& value,
+    String& outText,
+    const TypeInfo* declaredTypeInfo,
+    ToHMFOptions* pOptions)
+{
+    static ToHMFOptions s_defaultOptions;
+
+    if (!pOptions)
+    {
+        pOptions = &s_defaultOptions;
+    }
+
+    return BoxedToHMFImpl(value, outText, declaredTypeInfo, *pOptions, 0);
+}
+
+Result ObjectToHMF(
+    const Class* cls,
+    const BoxedValue& target,
+    String& outText,
+    ToHMFOptions* pOptions)
+{
+    static ToHMFOptions s_defaultOptions;
+
+    if (!pOptions)
+    {
+        pOptions = &s_defaultOptions;
+    }
+
+    return ObjectToHMFImpl(cls, target, outText, *pOptions, 1);
+}
+
+Result ObjectToHMFDocument(
+    const Class* cls,
+    const BoxedValue& target,
+    String& outText,
+    ToHMFOptions* pOptions)
+{
+    static ToHMFOptions s_defaultOptions;
+
+    if (!pOptions)
+    {
+        pOptions = &s_defaultOptions;
+    }
+
+    // Class name
+    outText += cls->GetName().LookupString();
+
+    // Instance name
+    if (Property* nameProp = cls->GetProperty("Name"_sh))
+    {
+        BoxedValue nameValue = nameProp->Get(target);
+        if (nameValue.Is<Name>())
+        {
+            Name name = nameValue.Get<Name>();
+            if (name.IsValid())
+            {
+                outText += " ";
+                EscapeString(outText, name.LookupString());
+            }
+        }
+    }
+
+    outText += " {\n";
+    ObjectToHMF(cls, target, outText, pOptions);
+    outText += "}\n";
+
+    return {};
 }
 
 // Dependency injection on static initialization to set these function pointers

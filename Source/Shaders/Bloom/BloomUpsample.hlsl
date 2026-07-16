@@ -58,19 +58,15 @@ DECLARE_BUFFER_DYNAMIC(BloomUpsample, CBuffer) cbuffer CBuffer
     float padding;
 };
 
+static const float s_tentWeights[9] =
+{
+    0.0625f, 0.125f, 0.0625f,
+    0.125f,  0.25f,  0.125f,
+    0.0625f, 0.125f, 0.0625f
+};
+
 float4 SampleWithTentFilter(Texture2D tex, SamplerState sampler, float2 uv, float2 texelSize)
 {
-    // 3x3 tent (bilinear) filter. Weights sum to 1, so no normalisation needed.
-    // Luminance-weighted (Karis) sampling is intentionally NOT used here — it
-    // belongs only on the first downsample pass. Applying it during upsample
-    // would bias the blend toward bright areas and produce uneven bloom energy.
-    static const float TentWeights[9] =
-    {
-        0.0625f, 0.125f, 0.0625f,
-        0.125f,  0.25f,  0.125f,
-        0.0625f, 0.125f, 0.0625f
-    };
-
     float4 colorSum = float4(0.0f, 0.0f, 0.0f, 0.0f);
     float weightSum = 0.0f;
 
@@ -87,7 +83,7 @@ float4 SampleWithTentFilter(Texture2D tex, SamplerState sampler, float2 uv, floa
                 continue;
             }
 
-            float weight = TentWeights[idx];
+            float weight = s_tentWeights[idx];
             colorSum += SAMPLE_TEXTURE_2D(sampler, tex, offsetUV) * weight;
             weightSum += weight;
             idx++;
