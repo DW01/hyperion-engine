@@ -1,0 +1,5 @@
+ShaderBundle "DrawCubemap" {
+    StaticProperties = [("MAX_LIGHTS", 4)]
+    CompiledShaders = [@"Engine://Shaders/DrawCubemap_16123460996099170842", @"Engine://Shaders/DrawCubemap_16123460996099170826", @"Engine://Shaders/DrawCubemap_16123460996099170818", @"Engine://Shaders/DrawCubemap_16123460996099170866"]
+    FriendlyName = "DrawCubemap"
+}

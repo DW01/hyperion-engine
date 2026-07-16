@@ -1,5 +1,5 @@
 ShaderBundle "TemporalBlending" {
     StaticProperties = []
-    CompiledShaders = [@"Engine://Shaders/TemporalBlending_5701738571950966333"]
+    CompiledShaders = [@"Engine://Shaders/TemporalBlending_5701738571950966333", @"Engine://Shaders/TemporalBlending_10132965966604017901"]
     FriendlyName = "TemporalBlending"
 }

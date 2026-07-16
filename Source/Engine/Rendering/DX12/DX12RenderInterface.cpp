@@ -145,8 +145,6 @@ public:
         DX12Frame tempFrame;
         CheckResultOrReturn(tempFrame.Create());
 
-        cr.Prepare(&tempFrame);
-
         DX12Fence fence;
         CheckResultOrReturn(fence.Create());
 
