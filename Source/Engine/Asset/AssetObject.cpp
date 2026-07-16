@@ -339,37 +339,6 @@ Result AssetObject::SaveBlobData(BlobStorage* storage, const Optional<FilePath>&
     return {};
 }
 
-Result AssetObject::LoadDesc(
-    const BoxedValue& manifestData,
-    AssetDesc& outAssetDesc)
-{
-    if (!manifestData.IsValid())
-    {
-        return HYP_MAKE_ERROR(Error, "Manifest data is null/invalid");
-    }
-
-    outAssetDesc = {};
-    outAssetDesc.index = AssetDesc::InvalidIndex;
-
-    // Extract Name from the already-constructed object
-    const Class* cls = GetClass(manifestData.GetTypeId());
-    if (!cls)
-    {
-        return {};
-    }
-
-    if (Property* nameProp = cls->GetProperty("Name"_sh))
-    {
-        BoxedValue nameValue = nameProp->Get(manifestData);
-        if (nameValue.Is<Name>())
-        {
-            outAssetDesc.name = nameValue.Get<Name>();
-        }
-    }
-
-    return {};
-}
-
 Result AssetObject::Load(
     BoxedValue& manifestData,
     Handle<AssetObject>& outAssetObject)
@@ -384,9 +353,15 @@ Result AssetObject::Load(
         return HYP_MAKE_ERROR(Error, "Recursion depth limit reached. Is the asset self-referential causing a circular dependency?");
     }
 
-    // The HMF parser already constructed the full typed instance.
-    // Verify it's an AssetObject and extract it.
-    const Class* cls = GetClass(manifestData.GetTypeId());
+    if (!manifestData.IsValid())
+    {
+        return HYP_MAKE_ERROR(Error, "Manifest data is null/invalid");
+    }
+
+    const TypeInfo* typeInfo = manifestData.GetTypeInfo();
+    Assert(typeInfo != nullptr);
+
+    const Class* cls = typeInfo->GetClass();
 
     if (!cls)
     {
@@ -398,14 +373,10 @@ Result AssetObject::Load(
         return HYP_MAKE_ERROR(Error, "Class '{}' is not derived from AssetObject!", cls->GetName());
     }
 
-    AssetObject* targetAssetObject = &manifestData.Get<AssetObject>();
-    Assert(targetAssetObject != nullptr);
+    const Handle<AssetObject>& targetAssetObject = manifestData.Get<Handle<AssetObject>>();
+    Assert(targetAssetObject.IsValid());
 
-    {
-        GlobalContextScope loadingContextScope { AssetLoadingContext {} };
-    }
-
-    outAssetObject = MakeStrongRef(targetAssetObject);
+    outAssetObject = targetAssetObject;
 
     return {};
 }

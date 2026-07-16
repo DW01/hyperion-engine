@@ -34,7 +34,7 @@ enum TokenClass
     TK_CLOSE_BRACE
 };
 
-class Token
+class CORE_API Token
 {
 public:
     static String TokenTypeToString(TokenClass tokenClass);

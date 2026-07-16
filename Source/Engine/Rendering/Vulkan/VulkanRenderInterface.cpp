@@ -745,7 +745,7 @@ RendererResult VulkanRenderInterface::Initialize()
 
 void VulkanRenderInterface::Shutdown()
 {
-    CheckResult(m_instance->GetDevice()->WaitIdle());
+    Check(m_instance->GetDevice()->WaitIdle());
 
     const uint32 frameCounter = GetFrameCounter();
 
@@ -1107,7 +1107,7 @@ VulkanCommandBuffer& VulkanRenderInterface::GetTransientCommandBuffer()
     if (freeList.Empty())
     {
         VulkanCommandBuffer& commandBuffer = pendingList.EmplaceBack();
-        CheckResult(commandBuffer.Create(pool));
+        Check(commandBuffer.Create(pool));
 
         commandBuffer.Begin();
 
@@ -1149,7 +1149,7 @@ void VulkanRenderInterface::SubmitTransientCommandBuffer(VulkanCommandBuffer& co
         VulkanSemaphore& signalSemaphore = m_transientCommandBufferSemaphores[frameIndex].EmplaceBack();
         pSignalSemaphore = &signalSemaphore;
 
-        CheckResult(signalSemaphore.Create());
+        Check(signalSemaphore.Create());
 
         VulkanFence& fence = m_transientCommandBufferFences[frameIndex].EmplaceBack();
 

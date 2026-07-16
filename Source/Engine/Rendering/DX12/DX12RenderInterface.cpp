@@ -837,7 +837,7 @@ DX12CommandBuffer& DX12RenderInterface::GetTransientCommandBuffer()
         AssertDebug(queueData != nullptr && queueData->commandQueue != nullptr);
 
         pCommandBuffer = &pendingList.EmplaceBack(D3D12_COMMAND_LIST_TYPE_DIRECT, queueData->commandQueue.Get());
-        CheckResult(pCommandBuffer->Create());
+        Check(pCommandBuffer->Create());
     }
 
     pCommandBuffer->Begin();

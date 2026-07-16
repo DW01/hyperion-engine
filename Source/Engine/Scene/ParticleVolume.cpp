@@ -39,7 +39,7 @@ ParticleVolume::ParticleVolume(const BoundingBox& localBounds)
 
     //if (m_params.texture.IsValid())
     //{
-    //    CheckResult(m_params.texture->Create());
+    //    Check(m_params.texture->Create());
     //}
 }
 

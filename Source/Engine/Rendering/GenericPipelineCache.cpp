@@ -83,7 +83,7 @@ auto GenericPipelineCache<PipelineType>::GetOrCreate(Name shaderName, const Shad
     }
 
     pipeline->lastFrame = GetFrameCounter();
-    CheckResult(pipeline->Create());
+    Check(pipeline->Create());
 
     const uint32 index = m_indexAllocator.Allocate();
 

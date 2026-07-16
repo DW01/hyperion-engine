@@ -10,9 +10,9 @@
 
 #define HYP_ENGINE_MEMORY_DECL ENGINE_API extern
 
-static constexpr size_t ObjectPoolBlockSize = 16 * 1024 * 1024;    // 16 MiB
-static constexpr size_t ScenePoolBlockSize = 16 * 1024 * 1024;    // 16 MiB
-static constexpr size_t TaskPoolBlockSize = 4 * 1024 * 1024;     // 4 MiB
+static constexpr size_t ObjectPoolBlockSize = 4 * 1024 * 1024;    // 4 MiB
+static constexpr size_t ScenePoolBlockSize = 4 * 1024 * 1024;    // 4 MiB
+static constexpr size_t TaskPoolBlockSize = 1 * 1024 * 1024;     // 1 MiB
 static constexpr size_t ResourcePoolBlockSize = 1 * 1024 * 1024;  // 1 MiB
 static constexpr size_t AssetPoolBlockSize = 64 * 1024 * 1024;    // 64 MiB
 static constexpr size_t StreamingPoolBlockSize = 1 * 1024 * 1024; // 1 MiB

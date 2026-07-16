@@ -1,0 +1,5 @@
+ShaderBundle "BlitTexture" {
+    StaticProperties = []
+    CompiledShaders = [@"Engine://Shaders/BlitTexture_14917212823711398456"]
+    FriendlyName = "BlitTexture"
+}

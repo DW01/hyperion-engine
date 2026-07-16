@@ -15,6 +15,9 @@ HYP_IMPORT void PrintContainerProfiling(size_t runsPer = 5, size_t numIterations
 namespace hmf {
 HYP_IMPORT void RunHMFTest();
 } // namespace hmf
+namespace script {
+HYP_IMPORT void RunScriptTest();
+} // namespace script
 } // namespace tests
 } // namespace Hyperion
 #endif
@@ -27,8 +30,9 @@ int main(int argc, char** argv)
     }
 
 #ifdef HYP_TESTS
-    tests::hmf::RunHMFTest();
-    return 0;
+    //tests::hmf::RunHMFTest();
+    //tests::script::RunScriptTest();
+    //return 0;
 #endif
 
     auto defaultGame = MakeUnique<game::DefaultGame>();

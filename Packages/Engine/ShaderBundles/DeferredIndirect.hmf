@@ -1,0 +1,5 @@
+ShaderBundle "DeferredIndirect" {
+    StaticProperties = [("TILE_SIZE", 32), ("TILE_Z_BINS", 16)]
+    CompiledShaders = [@"Engine://Shaders/DeferredIndirect_6595342441040247352"]
+    FriendlyName = "DeferredIndirect"
+}

@@ -287,7 +287,7 @@ void FullScreenPass::CreateFramebuffer()
         if (m_framebuffer->GetExtent() == m_extent)
         {
             // already set with correct extent, just create if not already
-            CheckResult(m_framebuffer->Create());
+            Check(m_framebuffer->Create());
 
             return;
         }
@@ -335,8 +335,8 @@ void FullScreenPass::CreateFramebuffer()
             StoreOperation::STORE
         });
 
-    CheckResult(attachment->Create());
-    CheckResult(m_framebuffer->Create());
+    Check(attachment->Create());
+    Check(m_framebuffer->Create());
 }
 
 void FullScreenPass::CreateTemporalBlending()
@@ -379,7 +379,7 @@ void FullScreenPass::CreateHistoryTexture()
 
     m_historyTexture->SetName(NAME_FMT("{}_FrameHistory", GetName()));
 
-    CheckResult(m_historyTexture->Create());
+    Check(m_historyTexture->Create());
 }
 
 void FullScreenPass::CreateMergeCheckerboardPass()
@@ -395,7 +395,7 @@ void FullScreenPass::CreateMergeCheckerboardPass()
     if (!m_mergeCheckerboardUniformBuffer)
     {
         m_mergeCheckerboardUniformBuffer = RI.MakeGpuBuffer(GpuBufferType::ConstantBuffer, sizeof(uniforms));
-        CheckResult(m_mergeCheckerboardUniformBuffer->Create());
+        Check(m_mergeCheckerboardUniformBuffer->Create());
     }
 
     m_mergeCheckerboardUniformBuffer->Copy(sizeof(uniforms), &uniforms);

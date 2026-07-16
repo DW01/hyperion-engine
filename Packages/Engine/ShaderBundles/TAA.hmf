@@ -1,0 +1,5 @@
+ShaderBundle "TAA" {
+    StaticProperties = [("FEEDBACK", 0.8)]
+    CompiledShaders = [@"Engine://Shaders/TAA_16305269418513385892"]
+    FriendlyName = "TAA"
+}

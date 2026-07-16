@@ -10,47 +10,54 @@
 #include <Core/HMF/Parser/SourceFile.hpp>
 #include <Core/HMF/Parser/SourceStream.hpp>
 #include <Core/HMF/Parser/TokenStream.hpp>
-#include <Core/HMF/Parser/CompilationUnit.hpp>
+#include <Core/HMF/Parser/ErrorList.hpp>
 #include <Core/HMF/Parser/Lexer.hpp>
 #include <Core/HMF/Parser/Parser.hpp>
 
 namespace Hyperion::HMF {
 
+ResolveAssetPathFn g_resolveAssetPath = nullptr;
+
 namespace {
 
 ParseResult RunParse(const SourceFile& sourceFile, ErrorList* outErrors)
 {
-    CompilationUnit compilationUnit;
+    ErrorList errorList;
     SourceStream sourceStream(&sourceFile);
     TokenStream tokenStream(TokenStreamInfo(sourceFile.GetFilePath()));
 
-    Lexer lexer(sourceStream, &tokenStream, &compilationUnit);
+    Lexer lexer(sourceStream, &tokenStream, &errorList);
     lexer.Analyze();
 
-    Parser parser(&tokenStream, &compilationUnit);
+    Parser parser(&tokenStream, &errorList);
 
-    BoxedValue value;
-    const bool ok = parser.Parse(value);
+    ParseResult result = HYP_MAKE_ERROR(Error, "Failed due to unknown error");
 
-    ParseResult result;
-    result.ok = ok;
-    result.value = std::move(value);
-
-    if (!ok)
     {
-        if (compilationUnit.GetErrorList().Size() != 0)
+        BoxedValue value;
+        if (parser.Parse(value))
         {
-            result.message = compilationUnit.GetErrorList()[0].GetText();
+            result = std::move(value);
         }
-        else
+    }
+
+    if (Failed(result))
+    {
+        if (errorList.Size() != 0)
         {
-            result.message = "Failed to parse HMF document";
+            const CompilerError& firstError = errorList[0];
+
+            result = HYP_MAKE_ERROR(Error, "{} in file {}, line {} col {}",
+                firstError.GetText(),
+                firstError.GetLocation().GetFileName(),
+                firstError.GetLocation().GetLine(),
+                firstError.GetLocation().GetColumn());
         }
     }
 
     if (outErrors)
     {
-        outErrors->Concatenate(compilationUnit.GetErrorList());
+        outErrors->Concatenate(errorList);
     }
 
     return result;
@@ -58,17 +65,17 @@ ParseResult RunParse(const SourceFile& sourceFile, ErrorList* outErrors)
 
 } // namespace anonymous
 
-ParseResult Parse(const String& source, ErrorList* outErrors)
+ParseResult Parse(const FilePath& filePath, const String& source, ErrorList* outErrors)
 {
-    SourceFile sourceFile("<string>", source.Size());
+    SourceFile sourceFile(filePath, source.Size());
     sourceFile.ReadIntoBuffer(reinterpret_cast<const ubyte*>(source.Data()), source.Size());
 
     return RunParse(sourceFile, outErrors);
 }
 
-ParseResult Parse(const String& source)
+ParseResult Parse(const String& source, ErrorList* outErrors)
 {
-    return Parse(source, nullptr);
+    return Parse(FilePath("<memory-buffer>"), source, outErrors);
 }
 
 ParseResult Parse(const SourceFile& sourceFile)

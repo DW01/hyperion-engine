@@ -26,6 +26,8 @@ const Map<ErrorMessage, String> CompilerError::errorMessageStrings {
 
     /* HMF-specific semantic errors */
     { MSG_UNKNOWN_FIELD, "Class '%' has no field named '%'" },
+    { MSG_CANNOT_ASSIGN_PROPERTY, "Property '%' is not assignable" },
+    { MSG_UNKNOWN_FIELD, "Class '%' has no field named '%'" },
     { MSG_UNRESOLVED_ENUM_NAME, "Enum '%' has no value named '%'" },
     { MSG_TYPE_MISMATCH, "Value of type '%' is not assignable to '%'" },
     { MSG_CLASS_NOT_FOUND, "Class '%' is not registered" },

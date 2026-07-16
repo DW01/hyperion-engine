@@ -86,7 +86,7 @@ void ShadowMapAllocator::Initialize()
 
     m_atlasTextureArray->SetName(NAME("ShadowMapAtlas"));
     m_atlasTextureArray->SetIsTransient(true);
-    CheckResult(m_atlasTextureArray->Create());
+    Check(m_atlasTextureArray->Create());
 
     GetEngineAssetRegistry()->PutAsset(m_atlasTextureArray);
 
@@ -102,7 +102,7 @@ void ShadowMapAllocator::Initialize()
 
     m_pointLightTextureArray->SetName(NAME("PointLightShadowMapImage"));
     m_atlasTextureArray->SetIsTransient(true);
-    CheckResult(m_pointLightTextureArray->Create());
+    Check(m_pointLightTextureArray->Create());
 
     GetEngineAssetRegistry()->PutAsset(m_pointLightTextureArray);
 
@@ -117,7 +117,7 @@ void ShadowMapAllocator::Initialize()
         IU_SAMPLED | IU_ATTACHMENT });
 
     m_clearTexture->SetName(NAME("ShadowMapClearTexture"));
-    CheckResult(m_clearTexture->Create());
+    Check(m_clearTexture->Create());
 
     { // Clear that clear texture
         CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder();
@@ -185,7 +185,7 @@ ShadowMap* ShadowMapAllocator::AllocateShadowMap(ShadowMapType shadowMapType, Sh
             subResource,
             TextureType::Texture2DArray);
 
-        CheckResult(atlasImageView->Create());
+        Check(atlasImageView->Create());
 
         ShadowMap* shadowMap = new ShadowMap(
             shadowMapType,
@@ -216,7 +216,7 @@ ShadowMap* ShadowMapAllocator::AllocateShadowMap(ShadowMapType shadowMapType, Sh
             subResource.numLevels = 1;
 
             GpuImageViewRef atlasImageView = RI.textureViewCache->GetOrCreate(m_atlasTextureArray, subResource);
-            CheckResult(atlasImageView->Create());
+            Check(atlasImageView->Create());
 
             ShadowMap* shadowMap = new ShadowMap(
                 shadowMapType,

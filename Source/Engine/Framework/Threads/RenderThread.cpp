@@ -316,7 +316,7 @@ void RenderThread::operator()()
         InitThreadAllocator();
     }
 
-    if (!CheckResult(RI.Initialize()))
+    if (!Check(RI.Initialize()))
     {
         HYP_FAIL("Failed to initialize rendering backend");
     }

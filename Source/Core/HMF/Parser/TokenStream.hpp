@@ -32,7 +32,7 @@ struct TokenStreamInfo
     }
 };
 
-class TokenStream
+class CORE_API TokenStream
 {
 public:
     TokenStream(const TokenStreamInfo& info);

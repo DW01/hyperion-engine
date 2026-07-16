@@ -134,7 +134,7 @@ void Light::Init()
 
     if (m_shadowMap.IsValid())
     {
-        CheckResult(m_shadowMap->Create());
+        Check(m_shadowMap->Create());
     }
 
     SetReady(true);
@@ -410,7 +410,7 @@ void Light::SetBakedShadowMap(const Handle<Texture>& shadowMap)
 
         if (IsInitCalled())
         {
-            CheckResult(m_shadowMap->Create());
+            Check(m_shadowMap->Create());
         }
     }
 

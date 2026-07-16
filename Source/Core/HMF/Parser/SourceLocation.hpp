@@ -11,7 +11,7 @@
 
 namespace Hyperion::HMF {
 
-class SourceLocation
+class CORE_API SourceLocation
 {
 public:
     static const SourceLocation eof;

@@ -236,7 +236,7 @@ CBufferAllocator::Block* CBufferAllocator::NewBlock(uint32 currentFrameCounter)
     newBlock.lastUsedFrame = currentFrameCounter;
     newBlock.offset = 0;
 
-    CheckResult(newBlock.buffer->Create());
+    Check(newBlock.buffer->Create());
 
     return &newBlock;
 }

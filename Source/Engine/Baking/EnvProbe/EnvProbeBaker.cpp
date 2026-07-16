@@ -144,7 +144,7 @@ void Baker<EnvProbe>::OnCompleted_Internal()
     prefiltered->SetName(NAME_FMT("{}_Prefiltered", m_envProbe->GetName()));
     GetCurrentAssetRegistry()->PutAsset(prefiltered);
 
-    CheckResult(prefiltered->Create());
+    Check(prefiltered->Create());
 
     m_envProbe->SetBakedTexture(prefiltered);
 

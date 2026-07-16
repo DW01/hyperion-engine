@@ -1935,7 +1935,7 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
         {
             if (!ds->IsCreated())
             {
-                CheckResult(ds->Create());
+                Check(ds->Create());
             }
             else
             {
@@ -2122,7 +2122,7 @@ void RenderInterface::CreateEnvProbesColorTexture()
     envProbesColorTexture->SetName(NAME("EnvProbesColorTexture"));
     envProbesColorTexture->SetIsTransient(true);
 
-    CheckResult(envProbesColorTexture->Create());
+    Check(envProbesColorTexture->Create());
 }
 
 void RenderInterface::CreateEnvProbesDepthTexture()
@@ -2143,7 +2143,7 @@ void RenderInterface::CreateEnvProbesDepthTexture()
     envProbesDepthTexture->SetName(NAME("EnvProbesDepthTexture"));
     envProbesDepthTexture->SetIsTransient(true);
 
-    CheckResult(envProbesDepthTexture->Create());
+    Check(envProbesDepthTexture->Create());
 }
 
 #pragma endregion RenderInterface

@@ -194,7 +194,7 @@ void Material::Init()
             continue;
         }
 
-        CheckResult(keyValue.second->Create());
+        Check(keyValue.second->Create());
     }
 
     AssetObject::Init();
@@ -302,7 +302,7 @@ void Material::SetTexture(MaterialTextureKey key, const Handle<Texture>& texture
         m_textures[key] = texture;
     }
 
-    CheckResult(texture->Create());
+    Check(texture->Create());
 
     SetNeedsRenderProxyUpdate();
     MarkDirty();
@@ -339,7 +339,7 @@ void Material::SetTextures(const MaterialTextures& textures)
             continue;
         }
 
-        CheckResult(m_textures.AtIndex(i)->Create());
+        Check(m_textures.AtIndex(i)->Create());
     }
 
     SetNeedsRenderProxyUpdate();

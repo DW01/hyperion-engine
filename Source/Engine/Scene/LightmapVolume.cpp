@@ -181,7 +181,7 @@ void LightmapVolume::Init()
     {
         if (texture)
         {
-            CheckResult(texture->Create());
+            Check(texture->Create());
         }
     }
 
@@ -189,7 +189,7 @@ void LightmapVolume::Init()
     {
         if (texture)
         {
-            CheckResult(texture->Create());
+            Check(texture->Create());
         }
     }
 
@@ -233,7 +233,7 @@ void LightmapVolume::SetAtlasTexture(uint16 atlasIndex, AtlasTextureType type, c
 
         if (IsInitCalled())
         {
-            CheckResult(texture->Create());
+            Check(texture->Create());
         }
 
         break;
@@ -243,7 +243,7 @@ void LightmapVolume::SetAtlasTexture(uint16 atlasIndex, AtlasTextureType type, c
 
         if (IsInitCalled())
         {
-            CheckResult(texture->Create());
+            Check(texture->Create());
         }
 
         break;

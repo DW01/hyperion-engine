@@ -91,7 +91,7 @@ Handle<UIObject> TextureOverlay::CreateUIObject_Impl(UIObject* spawnParent)
     {
         if (!m_texture->IsCreated())
         {
-            CheckResult(m_texture->Create());
+            Check(m_texture->Create());
         }
 
         extent = m_texture->GetExtent().GetXY();

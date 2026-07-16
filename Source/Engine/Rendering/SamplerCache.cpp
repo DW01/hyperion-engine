@@ -59,7 +59,7 @@ Sampler* SamplerCache::GetOrCreate(const SamplerDesc& samplerDesc)
     }
 
     SamplerRef sampler = RI.MakeSampler(samplerDesc);
-    CheckResult(sampler->Create());
+    Check(sampler->Create());
 
     AssertDebug(m_impl->cache[samplerDesc] == nullptr);
     m_impl->cache[samplerDesc] = sampler;

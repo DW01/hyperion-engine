@@ -129,13 +129,13 @@ void LightmapRenderer_GpuPathTracing::CreateBuffers(BakeJobBase* job)
 
     jd.raysBuffer = RI.MakeGpuBuffer(GpuBufferType::StructuredBuffer, sizeof(Vec4f) * 2 * m_maxTexelsPerFrame, alignof(Vec4f));
     jd.raysBuffer->SetIsCpuAccessible(true);
-    CheckResult(jd.raysBuffer->Create());
+    Check(jd.raysBuffer->Create());
 
     jd.hitsBufferGpu = RWStructuredBuffer(m_maxTexelsPerFrame, sizeof(LightmapHit));
     jd.hitsBufferGpu.Initialize();
 
     jd.cbuffer = RI.MakeGpuBuffer(GpuBufferType::ConstantBuffer, 8192, 256);
-    CheckResult(jd.cbuffer->Create());
+    Check(jd.cbuffer->Create());
 }
 
 void LightmapRenderer_GpuPathTracing::Create()
@@ -224,7 +224,7 @@ void LightmapRenderer_GpuPathTracing::CreateAccelerationStructures()
 
         if (!blas->IsCreated())
         {
-            CheckResult(blas->Create());
+            Check(blas->Create());
         }
 
         const uint64 key = entity->Id().GetHashCode().Value();
@@ -246,7 +246,7 @@ void LightmapRenderer_GpuPathTracing::CreateAccelerationStructures()
         return;
     }
 
-    CheckResult(m_tlas->Create());
+    Check(m_tlas->Create());
 }
 
 void LightmapRenderer_GpuPathTracing::UpdatePipelineState(Frame* frame, BakeJobBase* job)
@@ -299,7 +299,7 @@ void LightmapRenderer_GpuPathTracing::ReadHitsBuffer(
 
     GpuBufferRef readbackBuffer = RI.MakeGpuBuffer(GpuBufferType::ReadbackBuffer, count * sizeof(LightmapHit));
     readbackBuffer->SetIsCpuAccessible(true);
-    CheckResult(readbackBuffer->Create());
+    Check(readbackBuffer->Create());
 
     struct ReadbackHitsDataPayload
     {

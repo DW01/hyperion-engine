@@ -420,8 +420,8 @@ void Mesh::UploadGpuData()
     indexBuffer->SetDebugName(NAME_FMT("{}_IBO", GetName()));
 #endif
 
-    CheckResult(vertexBuffer->Create());
-    CheckResult(indexBuffer->Create());
+    Check(vertexBuffer->Create());
+    Check(indexBuffer->Create());
 
     AssertDebug(vertexBuffer.IsValid() && indexBuffer.IsValid());
 

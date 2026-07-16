@@ -197,7 +197,7 @@ public:
         ShaderInstanceRef si = RI.MakeShader(request.entry->shader);
         request.shaderInstance = si;
 
-        CheckResult(si->Create());
+        Check(si->Create());
 
         // Update the entry
         request.entry->shaderInstance = si;

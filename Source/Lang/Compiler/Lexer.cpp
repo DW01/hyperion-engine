@@ -904,6 +904,12 @@ Token Lexer::ReadIdentifier()
         }
     }
 
+    // Check for special float literals
+    {
+        String lower = value.ToLower();
+        if (lower == "inf" || lower == "infinity" || lower == "nan")
+            return Token(TK_FLOAT, value, location);
+    }
     return Token(Keyword::IsKeyword(value) ? TK_KEYWORD : TK_IDENT, value, location);
 }
 

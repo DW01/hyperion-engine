@@ -10,6 +10,9 @@
 #include <Core/Containers/Bitset.hpp>
 
 #include <Core/Memory/Allocator/Allocator.hpp>
+#include <Core/Memory/Memory.hpp>
+
+#include <Core/Utilities/BitField.hpp>
 
 #include <Core/Math/MathUtil.hpp>
 
@@ -34,8 +37,7 @@ protected:
     {
         ValueStorage<T, PageSize, alignof(T)> storage;
         
-        // @TODO use plain uint64 array + FOR_EACH_BIT -- elem count is compile time known
-        TBitset<AllocatorType> initializedBits;
+        BitField<PageSize> initializedBits;
 
         Page()
             : initializedBits()
@@ -54,25 +56,11 @@ protected:
         {
             if constexpr (!std::is_trivially_destructible_v<T>)
             {
-                for (Bitset::BitIndex bit : initializedBits)
+                for (size_t bit : initializedBits)
                 {
                     storage.GetPointer()[bit].~T();
                 }
             }
-        }
-    };
-
-    static constexpr size_t IdealBlockSizeBytes = 16 * 1024; // 16 KiB
-    static constexpr size_t PagesPerBlock = (sizeof(Page) + IdealBlockSizeBytes - 1) / IdealBlockSizeBytes;
-
-    struct PageBlock
-    {
-        static constexpr size_t BlockSize = sizeof(Page) * PagesPerBlock;
-        alignas(Page) ubyte data[BlockSize];
-
-        HYP_FORCE_INLINE Page* GetPage(uint32 index)
-        {
-            return reinterpret_cast<Page*>(data + index * sizeof(Page));
         }
     };
 
@@ -131,7 +119,7 @@ public:
             {
                 if (self->array->m_validPages.Test(p))
                 {
-                    Bitset::BitIndex next = self->array->m_pages[p]->initializedBits.NextSetBitIndex(e);
+                    size_t next = self->array->m_pages[p]->initializedBits.NextOneBit(e);
                     if (next < PageSize)
                     {
                         self->page = p;
@@ -196,7 +184,7 @@ public:
             {
                 if (page != ~0u && array->m_validPages.Test(page))
                 {
-                    Bitset::BitIndex next = array->m_pages[page]->initializedBits.NextSetBitIndex(elem + 1);
+                    size_t next = array->m_pages[page]->initializedBits.NextOneBit(elem + 1);
                     if (next < PageSize)
                     {
                         elem = next;
@@ -256,21 +244,21 @@ public:
 
                 if (result.page != ~0u && array->m_validPages.Test(result.page))
                 {
-                    const Bitset& bits = array->m_pages[result.page]->initializedBits;
+                    const BitField<PageSize>& bits = array->m_pages[result.page]->initializedBits;
 
                     // Count how many set bits are after current elem in this page
                     uint32 bitsInPage = 0;
-                    Bitset::BitIndex nextBit = bits.NextSetBitIndex(result.elem + 1);
+                    size_t nextBit = bits.NextOneBit(result.elem + 1);
 
                     while (nextBit < PageSize && bitsInPage < remaining)
                     {
                         ++bitsInPage;
                         if (bitsInPage == remaining)
                         {
-                            result.elem = nextBit;
+                            result.elem = uint32(nextBit);
                             return result;
                         }
-                        nextBit = bits.NextSetBitIndex(nextBit + 1);
+                        nextBit = bits.NextOneBit(nextBit + 1);
                     }
 
                     remaining -= bitsInPage;
@@ -398,18 +386,14 @@ public:
     template <bool ConditionalEnable = HasDefaultAllocatorInstance<AllocatorType>, typename = std::enable_if_t<ConditionalEnable>>
     HYP_FORCE_INLINE SparsePagedArray()
         : m_pages(),
-          m_validPages(),
-          m_pageBlocks(),
-          m_nextPageSlot(0)
+          m_validPages()
     {
     }
 
     template <bool ConditionalEnable = HasDefaultAllocatorInstance<AllocatorType>, typename = std::enable_if_t<ConditionalEnable>>
     SparsePagedArray(std::initializer_list<KeyValuePair<KeyType, T>> initializerList)
         : m_pages(),
-          m_validPages(),
-          m_pageBlocks(),
-          m_nextPageSlot(0)
+          m_validPages()
     {
         for (const auto& item : initializerList)
         {
@@ -419,9 +403,7 @@ public:
 
     SparsePagedArray(const SparsePagedArray& other)
         : m_pages(),
-          m_validPages(other.m_validPages),
-          m_pageBlocks(),
-          m_nextPageSlot(0)
+          m_validPages(other.m_validPages)
     {
         m_pages.ResizeZeroed(other.m_pages.Size());
 
@@ -429,21 +411,12 @@ public:
         {
             HYP_CORE_ASSERT(bit < other.m_pages.Size());
 
-            const size_t blockIndex = m_nextPageSlot / PagesPerBlock;
-            const size_t slotIndex = m_nextPageSlot % PagesPerBlock;
-
-            if (blockIndex >= m_pageBlocks.Size())
-            {
-                PageBlock* block = (PageBlock*)GetAllocator()->Allocate(sizeof(PageBlock), alignof(PageBlock));
-                m_pageBlocks.PushBack(block);
-            }
-
-            Page* page = new (m_pageBlocks[blockIndex]->GetPage(uint32(slotIndex))) Page();
-            ++m_nextPageSlot;
+            void* mem = GetAllocator()->Allocate(sizeof(Page), alignof(Page));
+            Page* page = new (mem) Page();
 
             m_pages[bit] = page;
 
-            for (Bitset::BitIndex elem : other.m_pages[bit]->initializedBits)
+            for (size_t elem : other.m_pages[bit]->initializedBits)
             {
                 new (page->storage.GetPointer() + elem) T(other.m_pages[bit]->storage.GetPointer()[elem]);
             }
@@ -467,21 +440,12 @@ public:
         {
             HYP_CORE_ASSERT(bit < other.m_pages.Size());
 
-            const size_t blockIndex = m_nextPageSlot / PagesPerBlock;
-            const size_t slotIndex = m_nextPageSlot % PagesPerBlock;
-
-            if (blockIndex >= m_pageBlocks.Size())
-            {
-                PageBlock* block = (PageBlock*)GetAllocator()->Allocate(sizeof(PageBlock), alignof(PageBlock));
-                m_pageBlocks.PushBack(block);
-            }
-
-            Page* page = new (m_pageBlocks[blockIndex]->GetPage(uint32(slotIndex))) Page();
-            ++m_nextPageSlot;
+            void* mem = GetAllocator()->Allocate(sizeof(Page), alignof(Page));
+            Page* page = new (mem) Page();
 
             m_pages[bit] = page;
 
-            for (Bitset::BitIndex elem : other.m_pages[bit]->initializedBits)
+            for (size_t elem : other.m_pages[bit]->initializedBits)
             {
                 new (page->storage.GetPointer() + elem) T(other.m_pages[bit]->storage.GetPointer()[elem]);
             }
@@ -492,11 +456,8 @@ public:
 
     SparsePagedArray(SparsePagedArray&& other) noexcept
         : m_pages(std::move(other.m_pages)),
-          m_validPages(std::move(other.m_validPages)),
-          m_pageBlocks(std::move(other.m_pageBlocks)),
-          m_nextPageSlot(other.m_nextPageSlot)
+          m_validPages(std::move(other.m_validPages))
     {
-        other.m_nextPageSlot = 0;
     }
 
     SparsePagedArray& operator=(SparsePagedArray&& other) noexcept
@@ -510,26 +471,19 @@ public:
 
         m_pages = std::move(other.m_pages);
         m_validPages = std::move(other.m_validPages);
-        m_pageBlocks = std::move(other.m_pageBlocks);
-        m_nextPageSlot = other.m_nextPageSlot;
-        other.m_nextPageSlot = 0;
 
         return *this;
     }
 
     ~SparsePagedArray()
     {
-        for (size_t i = 0; i < m_nextPageSlot; i++)
+        for (auto* page : m_pages)
         {
-            const size_t blockIndex = i / PagesPerBlock;
-            const size_t slotIndex = i % PagesPerBlock;
-
-            m_pageBlocks[blockIndex]->GetPage(uint32(slotIndex))->~Page();
-        }
-
-        for (auto* block : m_pageBlocks)
-        {
-            GetAllocator()->Free(block);
+            if (page != nullptr)
+            {
+                page->~Page();
+                GetAllocator()->Free(page);
+            }
         }
     }
 
@@ -553,7 +507,7 @@ public:
 
         for (Bitset::BitIndex bit : m_validPages)
         {
-            size += m_pages[bit]->initializedBits.Count();
+            size += m_pages[bit]->initializedBits.CountOnes();
         }
 
         return size;
@@ -580,9 +534,9 @@ public:
         Page* lastPage = m_pages[m_validPages.LastSetBitIndex()];
 
         HYP_CORE_ASSERT(lastPage != nullptr);
-        HYP_CORE_ASSERT(lastPage->initializedBits.Count() > 0);
+        HYP_CORE_ASSERT(lastPage->initializedBits.CountOnes() > 0);
 
-        size_t lastIndex = lastPage->initializedBits.LastSetBitIndex();
+        size_t lastIndex = lastPage->initializedBits.LastOneBit();
         HYP_CORE_ASSERT(lastIndex < PageSize);
 
         return lastPage->storage.GetPointer()[lastIndex];
@@ -595,9 +549,9 @@ public:
         Page* lastPage = m_pages[m_validPages.LastSetBitIndex()];
 
         HYP_CORE_ASSERT(lastPage != nullptr);
-        HYP_CORE_ASSERT(lastPage->initializedBits.Count() > 0);
+        HYP_CORE_ASSERT(lastPage->initializedBits.CountOnes() > 0);
 
-        size_t lastIndex = lastPage->initializedBits.LastSetBitIndex();
+        size_t lastIndex = lastPage->initializedBits.LastOneBit();
         HYP_CORE_ASSERT(lastIndex < PageSize);
 
         return lastPage->storage.GetPointer()[lastIndex];
@@ -782,10 +736,12 @@ public:
         page->storage.DestructElement(elementIndex);
         page->initializedBits.Set(elementIndex, false);
 
-        if (freeMemory && page->initializedBits.Count() == 0)
+        if (freeMemory && page->initializedBits.CountOnes() == 0)
         {
-            // no elems remaining, remove the page reference.
-            // page memory remains in the pool block; reclaimed at Clear/destruction.
+            // no elems remaining, free the page.
+            page->~Page();
+            GetAllocator()->Free(page);
+
             m_validPages.Set(pageIndex, false);
 
             m_pages[pageIndex] = nullptr;
@@ -849,21 +805,15 @@ public:
     {
         if (freeMemory)
         {
-            for (size_t i = 0; i < m_nextPageSlot; i++)
+            for (auto* page : m_pages)
             {
-                const size_t blockIndex = i / PagesPerBlock;
-                const size_t slotIndex = i % PagesPerBlock;
-
-                m_pageBlocks[blockIndex]->GetPage(uint32(slotIndex))->~Page();
+                if (page != nullptr)
+                {
+                    page->~Page();
+                    GetAllocator()->Free(page);
+                }
             }
 
-            for (auto* block : m_pageBlocks)
-            {
-                GetAllocator()->Free(block);
-            }
-
-            m_pageBlocks.Clear();
-            m_nextPageSlot = 0;
             m_validPages.Clear();
             m_pages.Clear();
         }
@@ -876,13 +826,13 @@ public:
                 Page* page = m_pages[bit];
                 HYP_CORE_ASSERT(page != nullptr);
 
-                for (Bitset::BitIndex elemBit : page->initializedBits)
+                for (size_t elemBit : page->initializedBits)
                 {
                     HYP_CORE_ASSERT(elemBit < PageSize);
                     page->storage.DestructElement(elemBit);
                 }
 
-                page->initializedBits.Clear();
+                Memory::Zero(&page->initializedBits, sizeof(page->initializedBits));
             }
         }
     }
@@ -890,32 +840,6 @@ public:
     // Don't worry about the const casts -- we return ConstIterator if this is const this will be const again
 
     HYP_DEF_STL_BEGIN_END(Iterator(const_cast<SparsePagedArray*>(this), 0, 0), Iterator(const_cast<SparsePagedArray*>(this), m_pages.Size(), PageSize));
-
-    /*! \brief Pre-allocate storage for the given number of pages.
-     *  Allocates page blocks and resizes the page pointer array to avoid
-     *  repeated reallocations during insertion. Pages are constructed on-demand
-     *  when elements are actually inserted. */
-    void ReservePages(size_t numPages)
-    {
-        const size_t blocksNeeded = (numPages + PagesPerBlock - 1) / PagesPerBlock;
-
-        while (m_pageBlocks.Size() < blocksNeeded)
-        {
-            PageBlock* block = (PageBlock*)GetAllocator()->Allocate(sizeof(PageBlock), alignof(PageBlock));
-            m_pageBlocks.PushBack(block);
-        }
-
-        if (m_pages.Size() < numPages)
-        {
-            m_pages.Resize(numPages);
-        }
-    }
-
-    /*! \brief Pre-allocate storage for all pages needed to hold indices up to \p maxIndex (inclusive). */
-    void Reserve(size_t maxIndex)
-    {
-        ReservePages(PageIndex(maxIndex) + 1);
-    }
 
 protected:
     static constexpr uint64 PageSizeBits = MathUtil::FastLog2_Pow2(PageSize);
@@ -941,17 +865,8 @@ protected:
                 m_pages.Resize(pageIndex + 1);
             }
 
-            const size_t blockIndex = m_nextPageSlot / PagesPerBlock;
-            const size_t slotIndex = m_nextPageSlot % PagesPerBlock;
-
-            if (blockIndex >= m_pageBlocks.Size())
-            {
-                PageBlock* block = (PageBlock*)GetAllocator()->Allocate(sizeof(PageBlock), alignof(PageBlock));
-                m_pageBlocks.PushBack(block);
-            }
-
-            Page* page = new (m_pageBlocks[blockIndex]->GetPage(uint32(slotIndex))) Page();
-            ++m_nextPageSlot;
+            void* mem = GetAllocator()->Allocate(sizeof(Page), alignof(Page));
+            Page* page = new (mem) Page();
 
             m_pages[pageIndex] = page;
             m_validPages.Set(pageIndex, true);
@@ -967,8 +882,6 @@ protected:
 
     Array<Page*, AllocatorType> m_pages;
     TBitset<AllocatorType> m_validPages;
-    Array<PageBlock*, AllocatorType> m_pageBlocks;
-    size_t m_nextPageSlot = 0;
 };
 
 } // namespace containers

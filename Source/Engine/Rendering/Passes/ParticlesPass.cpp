@@ -105,7 +105,7 @@ static void CreateNoiseMap(Handle<Texture>& tex)
     }
 
     tex = MakeHandle<Texture>(textureDesc, noiseMap.ToByteView());
-    CheckResult(tex->Create());
+    Check(tex->Create());
 }
 
 ParticlesPass::VolumeState& ParticlesPass::EnsureVolumeState(RenderProxyParticleVolume* proxy)
@@ -122,10 +122,10 @@ ParticlesPass::VolumeState& ParticlesPass::EnsureVolumeState(RenderProxyParticle
     state.maxParticles = proxy->bufferData.maxParticles;
 
     state.particleBuffer = RI.MakeGpuBuffer(GpuBufferType::RWStructuredBuffer, state.maxParticles * sizeof(ParticleShaderData));
-    CheckResult(state.particleBuffer->Create());
+    Check(state.particleBuffer->Create());
 
     state.indirectBuffer = RI.MakeGpuBuffer(GpuBufferType::IndirectArgsBuffer, sizeof(IndirectDrawCommand));
-    CheckResult(state.indirectBuffer->Create());
+    Check(state.indirectBuffer->Create());
 
     CreateNoiseMap(state.noiseMap);
 

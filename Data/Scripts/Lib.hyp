@@ -1631,18 +1631,18 @@ extern enum ShaderResourceCategory : uint8
     AccelerationStructure
 end
 extern enum BlendModeFactor : uint8
-    BMF_NONE,
-    BMF_ONE,
-    BMF_ZERO,
-    BMF_SRC_COLOR,
-    BMF_SRC_ALPHA,
-    BMF_DST_COLOR,
-    BMF_DST_ALPHA,
-    BMF_ONE_MINUS_SRC_COLOR,
-    BMF_ONE_MINUS_SRC_ALPHA,
-    BMF_ONE_MINUS_DST_COLOR,
-    BMF_ONE_MINUS_DST_ALPHA,
-    BMF_MAX
+    None,
+    One,
+    Zero,
+    SrcColor,
+    SrcAlpha,
+    DstColor,
+    DstAlpha,
+    OneMinusSrcColor,
+    OneMinusSrcAlpha,
+    OneMinusDstColor,
+    OneMinusDstAlpha,
+    Max
 end
 extern enum Topology : uint8
     TOP_TRIANGLES,
@@ -1650,8 +1650,6 @@ extern enum Topology : uint8
     TOP_TRIANGLE_STRIP,
     TOP_LINES,
     TOP_POINTS
-end
-extern struct BlendFunction
 end
 extern struct MeshRayTracingData
 end

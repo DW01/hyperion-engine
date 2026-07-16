@@ -152,7 +152,7 @@ void GBuffer::Resize(Vec2u extent)
     {
         for (const FramebufferRef& framebuffer : m_framebuffers)
         {
-            CheckResult(framebuffer->Create());
+            Check(framebuffer->Create());
         }
 
         OnGBufferResolutionChanged(m_extent);
@@ -304,7 +304,7 @@ FramebufferRef GBuffer::CreateFramebuffer(const FramebufferRef& parentFramebuffe
         }
     }
 
-    CheckResult(framebuffer->Create());
+    Check(framebuffer->Create());
 
     m_framebuffers.PushBack(framebuffer);
 

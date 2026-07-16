@@ -130,7 +130,7 @@ const DX12GpuImageViewRef& DX12TextureViewCache::GetOrCreate(
         DX12GpuImageViewRef imageView = MakeHandle<DX12GpuImageView>(
             texture->GetGpuImage(), subResource, viewTextureType);
 
-        CheckResult(imageView->Create());
+        Check(imageView->Create());
 
         sharedLock.Reset();
 

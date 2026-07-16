@@ -4,6 +4,7 @@
  *  @licence MIT
 */
 
+#include <Core/HMF/HMF.hpp>
 #include <Core/HMF/Parser/Parser.hpp>
 #include <Core/HMF/Parser/CompilerError.hpp>
 #include <Core/HMF/Parser/Token.hpp>
@@ -31,9 +32,9 @@ namespace Hyperion::HMF {
 
 using ClassMemberTypes = EnumFlags<MemberType>;
 
-Parser::Parser(TokenStream* tokenStream, CompilationUnit* compilationUnit)
+Parser::Parser(TokenStream* tokenStream, ErrorList* errorList)
     : m_tokenStream(tokenStream),
-      m_compilationUnit(compilationUnit)
+      m_errorList(errorList)
 {
 }
 
@@ -91,20 +92,15 @@ bool Parser::ParseManifest(BoxedValue& out)
         return false;
     }
 
-    // Set name using property "Name" if it exists
-    // Note that it must be a property, so needs `Property = "Name"`
     if (!instanceName.Empty())
     {
         const Name nameValue = CreateNameFromDynamicString(instanceName.Data());
 
-        if (Property* nameProp = cls->GetProperty(StringHash("Name")))
+        if (Property* nameProp = cls->GetProperty("Name"_sh))
         {
             nameProp->Set(out, BoxedValue(nameValue));
         }
     }
-
-    // Note: the Engine-side code that invokes Parse may call cls->PostLoad() separately
-    // once it has a concrete pointer (e.g. for AssetObject).
 
     return true;
 }
@@ -143,13 +139,9 @@ bool Parser::ParseObjectBody(const Class* cls, BoxedValue& target)
         {
             // Unknown field: warn and skip its value
             Warning(MSG_UNKNOWN_FIELD, Peek().GetLocation(), cls->GetName().ToString() + "::" + fieldName);
+            
             SkipValue();
-            continue;
-        }
 
-        if (member->GetAttribute(Attributes::g_attrJsonIgnore).IsValid())
-        {
-            SkipValue();
             continue;
         }
 
@@ -162,7 +154,12 @@ bool Parser::ParseObjectBody(const Class* cls, BoxedValue& target)
             }
         }
 
-        // Parse the value with the member's declared TypeInfo
+        if (member->GetAttribute(Attributes::g_attrJsonIgnore).IsValid())
+        {
+            SkipValue();
+
+            continue;
+        }
         
         const TypeInfo& fieldTypeInfo = member->GetTypeInfo();
         
@@ -172,7 +169,17 @@ bool Parser::ParseObjectBody(const Class* cls, BoxedValue& target)
             return false;
         }
 
-        // Assign to target via the appropriate member type
+        if (member->GetMemberType() == MemberType::Property)
+        {
+            if (!static_cast<const Property*>(member)->CanSet())
+            {
+                // Dispatch warning and continue on
+                //Warning(MSG_CANNOT_ASSIGN_PROPERTY, Peek().GetLocation(), cls->GetName().ToString() + "::" + member->GetName().ToString());
+                
+                continue;
+            }
+        }
+
         switch (member->GetMemberType())
         {
         case MemberType::Field:
@@ -196,7 +203,7 @@ bool Parser::ParseValue(const TypeInfo& typeInfo, BoxedValue& out)
     // '@' before string denotes AssetPath literal
     if (next.GetTokenClass() == TK_AT_STRING)
     {
-        return ParseAssetPathLiteral(out);
+        return ParseAssetPathLiteral(typeInfo, out);
     }
 
     if (typeInfo.IsBoolType())
@@ -219,8 +226,7 @@ bool Parser::ParseValue(const TypeInfo& typeInfo, BoxedValue& out)
         return ParseStringValue(typeInfo, out);
     }
 
-    // Name / StringHash — these have STRUCT_TYPE from HYP_STRUCT but should be
-    // parsed as string literals, not objects.
+    // Name / StringHash handling.
     {
         const TypeId id = TypeInfo_GetId(typeInfo);
         if (id == TypeId::ForType<Name>() || id == TypeId::ForType<StringHash>())
@@ -247,16 +253,6 @@ bool Parser::ParseValue(const TypeInfo& typeInfo, BoxedValue& out)
     if (typeInfo.IsArrayType())
     {
         return ParseArrayValue(typeInfo, out);
-    }
-
-    if (typeInfo.IsSetType())
-    {
-        return ParseSetValue(typeInfo, out);
-    }
-
-    if (typeInfo.IsMapType())
-    {
-        return ParseMapValue(typeInfo, out);
     }
 
     if (typeInfo.IsPairType())
@@ -607,7 +603,7 @@ bool Parser::ParseVectorValue(const TypeInfo& typeInfo, BoxedValue& out)
         return false;
     }
 
-    if (!Expect(TK_OPEN_BRACKET, "["))
+    if (!Expect(TK_OPEN_PARENTH, "("))
     {
         return false;
     }
@@ -620,7 +616,7 @@ bool Parser::ParseVectorValue(const TypeInfo& typeInfo, BoxedValue& out)
         if (Peek().GetTokenClass() == TK_COMMA)
         {
             Token comma = Next();
-            if (Peek().GetTokenClass() == TK_CLOSE_BRACKET)
+            if (Peek().GetTokenClass() == TK_CLOSE_PARENTH)
             {
                 Error(MSG_UNEXPECTED_TOKEN, comma.GetLocation(), ",");
                 return false;
@@ -636,7 +632,7 @@ bool Parser::ParseVectorValue(const TypeInfo& typeInfo, BoxedValue& out)
         handler->SetComponent(out, i, component);
     }
 
-    if (!Expect(TK_CLOSE_BRACKET, "]"))
+    if (!Expect(TK_CLOSE_PARENTH, ")"))
     {
         return false;
     }
@@ -856,7 +852,7 @@ bool Parser::ParseMapValue(const TypeInfo& typeInfo, BoxedValue& out)
 
 bool Parser::ParsePairValue(const TypeInfo& typeInfo, BoxedValue& out)
 {
-    if (!Expect(TK_OPEN_BRACKET, "["))
+    if (!Expect(TK_OPEN_PARENTH, "("))
     {
         return false;
     }
@@ -900,7 +896,7 @@ bool Parser::ParsePairValue(const TypeInfo& typeInfo, BoxedValue& out)
 
     handler->SetSecond(out, second);
 
-    if (!Expect(TK_CLOSE_BRACKET, "]"))
+    if (!Expect(TK_CLOSE_PARENTH, ")"))
     {
         return false;
     }
@@ -910,10 +906,20 @@ bool Parser::ParsePairValue(const TypeInfo& typeInfo, BoxedValue& out)
 
 bool Parser::ParseObjectValue(const TypeInfo& typeInfo, BoxedValue& out)
 {
+    // Handle null object:
+    if (Peek().GetTokenClass() == TK_IDENT && Peek().GetValue() == "null")
+    {
+        // set to null, BoxedValue allows implicit conversion of Handle<ObjectBase> to Handle<T> if it is null.
+        out = BoxedValue(Handle<ObjectBase>::Null());
+
+        Next();
+
+        return true;
+    }
+
     const Class* declaredClass = typeInfo.GetClass();
     const Class* actualClass = declaredClass;
 
-    // Polymorphism: IDENT followed by '{' is a runtime class override
     if (Peek().GetTokenClass() == TK_IDENT && Peek(1).GetTokenClass() == TK_OPEN_BRACE)
     {
         Token classTok = Next(); // consume IDENT
@@ -987,7 +993,7 @@ bool Parser::ParseTupleValue(const TypeInfo& typeInfo, BoxedValue& out)
         return false;
     }
 
-    if (!Expect(TK_OPEN_BRACKET, "["))
+    if (!Expect(TK_OPEN_PARENTH, "("))
     {
         return false;
     }
@@ -1000,7 +1006,7 @@ bool Parser::ParseTupleValue(const TypeInfo& typeInfo, BoxedValue& out)
         {
             Token comma = Next();
 
-            if (Peek().GetTokenClass() == TK_CLOSE_BRACKET)
+            if (Peek().GetTokenClass() == TK_CLOSE_PARENTH)
             {
                 Error(MSG_UNEXPECTED_TOKEN, comma.GetLocation(), ",");
                 return false;
@@ -1017,7 +1023,7 @@ bool Parser::ParseTupleValue(const TypeInfo& typeInfo, BoxedValue& out)
         handler->SetElement(out, i, element);
     }
 
-    if (!Expect(TK_CLOSE_BRACKET, "]"))
+    if (!Expect(TK_CLOSE_PARENTH, ")"))
     {
         return false;
     }
@@ -1048,6 +1054,7 @@ bool Parser::ParseMatrixValue(const TypeInfo& typeInfo, BoxedValue& out)
 
     const int numRows = handler->GetNumRows();
     const int numCols = handler->GetNumColumns();
+    
     const TypeInfo* elementType = typeInfo.GetElementType();
 
     for (int row = 0; row < numRows; row++)
@@ -1083,7 +1090,13 @@ bool Parser::ParseMatrixValue(const TypeInfo& typeInfo, BoxedValue& out)
                 return false;
             }
 
-            handler->SetElement(out, row, col, element);
+            if (!element.Is<float>())
+            {
+                Error(MSG_TYPE_MISMATCH, Peek().GetLocation());
+                return false;
+            }
+
+            handler->SetElement(out, row, col, element.Get<float>());
         }
 
         if (!Expect(TK_CLOSE_BRACKET, "]"))
@@ -1149,15 +1162,17 @@ bool Parser::ParseVariantValue(const TypeInfo& typeInfo, BoxedValue& out)
 
             BoxedValue parsedValue;
 
-            if (ParseValue(*alternativeTypeInfo, parsedValue))
+            m_errorList->SuppressErrors(true);
+            const bool parsed = ParseValue(*alternativeTypeInfo, parsedValue);
+            m_errorList->SuppressErrors(false);
+
+            if (parsed)
             {
                 if (handler->SetValue(variantInstance, parsedValue))
                 {
                     out = variantInstance;
                     return true;
                 }
-
-
             }
             m_tokenStream->SetPosition(savedPos);
         }
@@ -1175,7 +1190,7 @@ bool Parser::ParseVariantValue(const TypeInfo& typeInfo, BoxedValue& out)
     return false;
 }
 
-bool Parser::ParseAssetPathLiteral(BoxedValue& out)
+bool Parser::ParseAssetPathLiteral(const TypeInfo& typeInfo, BoxedValue& out)
 {
     Token strTok = Peek();
 
@@ -1188,8 +1203,16 @@ bool Parser::ParseAssetPathLiteral(BoxedValue& out)
 
     Next();
 
-    // @TODO VERIFY
-    // Store as String; the Engine-side Property::Set handles conversion to
+    // @TODO : Review the below handling.
+
+    // Give the Engine-side resolver a chance to produce a correctly-typed BoxedValue
+    // (e.g. Handle<T>, AssetPath, AssetReference) instead of a raw String.
+    if (g_resolveAssetPath && g_resolveAssetPath(strTok.GetValue(), typeInfo, out))
+    {
+        return true;
+    }
+
+    // Fallback: store as String; the Engine-side Property::Set handles conversion to
     // AssetPath/AssetReference via their "Value"/"AssetPath" properties.
     out = BoxedValue(strTok.GetValue());
 
@@ -1198,10 +1221,6 @@ bool Parser::ParseAssetPathLiteral(BoxedValue& out)
 
 void Parser::SkipValue()
 {
-    // Depth-tracking skip: consumes tokens that constitute a single value, stopping at
-    // the next field boundary (IDENT '=') or at an unmatched closing brace/bracket.
-    // This works without newline tokens because in HMF, '=' appears only as a field
-    // separator, so "IDENT '='" unambiguously signals the start of the next field.
     bool consumedAny = false;
     int depth = 0;
 
@@ -1213,7 +1232,6 @@ void Parser::SkipValue()
             return;
         }
 
-        // Boundary checks (only after we've consumed at least one token of the value)
         if (consumedAny && depth == 0)
         {
             const TokenClass tc = tok.GetTokenClass();
@@ -1338,8 +1356,11 @@ bool Parser::ExpectIdentifier(String& outName)
         Error(MSG_EXPECTED_IDENTIFIER, tok.GetLocation());
         return false;
     }
+    
     Next();
+    
     outName = tok.GetValue();
+
     return true;
 }
 
@@ -1350,22 +1371,22 @@ bool Parser::IsIdentKeyword(const Token& token, const char* keyword) const
 
 void Parser::Error(ErrorMessage msg, const SourceLocation& loc)
 {
-    m_compilationUnit->GetErrorList().AddError(CompilerError(LEVEL_ERROR, msg, loc));
+    m_errorList->AddError(CompilerError(ErrorLevel::Error, msg, loc));
 }
 
 void Parser::Error(ErrorMessage msg, const SourceLocation& loc, const String& arg1)
 {
-    m_compilationUnit->GetErrorList().AddError(CompilerError(LEVEL_ERROR, msg, loc, arg1));
+    m_errorList->AddError(CompilerError(ErrorLevel::Error, msg, loc, arg1));
 }
 
 void Parser::Error(ErrorMessage msg, const SourceLocation& loc, const String& arg1, const String& arg2)
 {
-    m_compilationUnit->GetErrorList().AddError(CompilerError(LEVEL_ERROR, msg, loc, arg1, arg2));
+    m_errorList->AddError(CompilerError(ErrorLevel::Error, msg, loc, arg1, arg2));
 }
 
 void Parser::Warning(ErrorMessage msg, const SourceLocation& loc, const String& arg1)
 {
-    m_compilationUnit->GetErrorList().AddError(CompilerError(LEVEL_WARN, msg, loc, arg1));
+    m_errorList->AddError(CompilerError(ErrorLevel::Warning, msg, loc, arg1));
 }
 
 } // namespace Hyperion::HMF

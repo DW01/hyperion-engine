@@ -84,7 +84,7 @@ void Baker<FogVolume>::HandleCompletedJob_Internal(BakeJobBase* job)
 
     GetCurrentAssetRegistry()->PutAsset(volumeTexture);
 
-    CheckResult(volumeTexture->Create());
+    Check(volumeTexture->Create());
 
     TextureDesc noiseTextureDesc {
         TextureType::Texture3D,
@@ -99,7 +99,7 @@ void Baker<FogVolume>::HandleCompletedJob_Internal(BakeJobBase* job)
     noiseTexture->SetName(NAME_FMT("FogVolume_{}_NoiseMap", m_fogVolume->GetName()));
     GetCurrentAssetRegistry()->PutAsset(noiseTexture);
 
-    CheckResult(noiseTexture->Create());
+    Check(noiseTexture->Create());
 
     m_fogVolume->SetTextures(volumeTexture, noiseTexture);
 }

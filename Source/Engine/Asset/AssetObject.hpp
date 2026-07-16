@@ -174,10 +174,6 @@ public:
         SetReady(true);
     }
 
-    static Result LoadDesc(
-        const BoxedValue& manifestData,
-        AssetDesc& outAssetDesc);
-
     static Result Load(
         BoxedValue& manifestData,
         Handle<AssetObject>& outAssetObject);

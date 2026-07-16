@@ -123,7 +123,7 @@ void DepthPyramidRenderer::Create()
 #ifdef HYP_RHI_DEBUG_NAMES
         mipUniformBuffer->SetDebugName(NAME_FMT("DepthPyramid_Mip{}_UniformBuffer", mipLevel));
 #endif
-        CheckResult(mipUniformBuffer->Create());
+        Check(mipUniformBuffer->Create());
 
         mipUniformBuffer->Copy(sizeof(DepthPyramidUniforms), &uniforms);
         mipUniformBuffer->Flush(0, sizeof(DepthPyramidUniforms));
@@ -133,7 +133,7 @@ void DepthPyramidRenderer::Create()
         mipImageView->SetDebugName(NAME_FMT("DepthPyramid_Mip{}_ImageView", mipLevel));
 #endif
 
-        CheckResult(mipImageView->Create());
+        Check(mipImageView->Create());
     }
 }
 

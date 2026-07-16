@@ -1,0 +1,18 @@
+Texture "SolidWhite" {
+    TextureDesc = {
+        Type = Texture2D
+        Format = RGBA8
+        Extent = (1, 1, 1)
+        MinFilterMode = TFM_NEAREST
+        MagFilterMode = TFM_NEAREST
+        TextureWrapMode = TWM_REPEAT
+        NumLayers = 1
+        ImageUsage = IU_SAMPLED
+        MipOffsets = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    }
+    ImageData = {
+        Key = "Engine://Textures/SolidWhite.TEX"
+        Size = 256
+    }
+    FriendlyName = "SolidWhite"
+}

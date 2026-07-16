@@ -203,7 +203,7 @@ void BLASCache::GetOrCreateBLAS(
     Assert(it->second.blas == nullptr);
 
     BottomLevelASRef blas = BLASBuilder::Build(mesh, material);
-    CheckResult(blas->Create());
+    Check(blas->Create());
 
     // Build new BLAS
     Entry& entry = it->second;

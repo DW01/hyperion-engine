@@ -8,6 +8,8 @@
 #include <Asset/AssetObject.hpp>
 #include <Asset/AssetReference.hpp>
 
+#include <Core/HMF/HMF.hpp>
+
 #include <Core/JSON/JSON.hpp>
 
 #include <Core/Config/Config.hpp>
@@ -214,11 +216,11 @@ Result BoxedToJSON(
         {
             for (int c = 0; c < columns; c++)
             {
-                const AnyRef element = handler->GetElement(value, r, c);
+                const float element = handler->GetElement(value, r, c);
 
-                if (!element.HasValue())
+                if (isnan(element))
                 {
-                    return HYP_MAKE_ERROR(Error, "Failed to get element at ({}, {}) of matrix of type {}", r, c, typeInfo.name);
+                    return HYP_MAKE_ERROR(Error, "Failed to get element at ({}, {}) of matrix of type {} got NAN!", r, c, typeInfo.name);
                 }
 
                 JSON::Value jsonValue;
@@ -1604,7 +1606,12 @@ Result BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Box
                 return HYP_MAKE_ERROR(Error, "Failed to deserialize matrix element at index {} for type {}", i, typeInfo.name);
             }
 
-            matrixHandler->SetElement(matrixInstance, i / matrixHandler->GetNumColumns(), i % matrixHandler->GetNumColumns(), elementData);
+            if (!elementData.Is<float>())
+            {
+                return HYP_MAKE_ERROR(Error, "Failed to deserialize matrix element at index {}, expected float", i);
+            }
+
+            matrixHandler->SetElement(matrixInstance, i / matrixHandler->GetNumColumns(), i % matrixHandler->GetNumColumns(), elementData.Get<float>());
         }
 
         outBoxed = std::move(matrixInstance);
@@ -2370,12 +2377,30 @@ void WriteIndent(String& outText, int indent)
     }
 }
 
+static BoxedValue DereferenceElement(AnyRef ref)
+{
+    if (ref.HasValue() && ref.GetTypeInfo()->IsHandleType())
+    {
+        Handle<ObjectBase>* pHandle = static_cast<Handle<ObjectBase>*>(ref.GetPointer());
+
+        if (pHandle->IsValid())
+        {
+            return BoxedValue(*pHandle);
+        }
+
+        return {}; // null handle
+    }
+
+    return BoxedValue(ref);
+}
+
 Result ObjectToHMFImpl(
     const Class* cls,
     const BoxedValue& target,
     String& outText,
     ToHMFOptions& opts,
-    int indent);
+    int indent,
+    bool skipNameProperty = false);
 
 Result BoxedToHMFImpl(
     const BoxedValue& value,
@@ -2398,14 +2423,6 @@ Result BoxedToHMFImpl(
         return {};
     }
 
-    if (value.Is<AssetPath>())
-    {
-        const AssetPath& path = value.Get<AssetPath>();
-        outText += "@";
-        EscapeString(outText, path.ToString());
-        return {};
-    }
-
     if (value.Is<AssetReference>())
     {
         const AssetReference& ref = value.Get<AssetReference>();
@@ -2420,12 +2437,30 @@ Result BoxedToHMFImpl(
         return {};
     }
 
+    if (value.Is<AssetPath>())
+    {
+        if (opts.followAssetPaths >= ToHMFOptions::FollowAssetPathsMode::MatchingAttribute)
+        {
+            const AssetPath& path = value.Get<AssetPath>();
+            outText += "@";
+            EscapeString(outText, path.ToString());
+            return {};
+        }
+
+        // fall through to struct serialization
+    }
+
     if (value.Is<AssetObject>())
     {
-        const AssetObject& assetObject = value.Get<AssetObject>();
-        AssetReference ref(assetObject.HandleFromThis());
+        if (opts.saveAssetsAsReferences >= ToHMFOptions::SaveAssetsAsReferencesMode::UnlessOtherwiseSpecified)
+        {
+            const AssetObject& assetObject = value.Get<AssetObject>();
+            AssetReference ref(assetObject.HandleFromThis());
 
-        return BoxedToHMFImpl(BoxedValue(ref), outText, declaredTypeInfo, opts, indent);
+            return BoxedToHMFImpl(BoxedValue(ref), outText, declaredTypeInfo, opts, indent);
+        }
+
+        // fall through to class serialization
     }
 
     if (value.Is<bool>(/* strict */ true))
@@ -2560,7 +2595,7 @@ Result BoxedToHMFImpl(
 
         const size_t numComponents = handler->GetNumComponents();
 
-        outText += "[";
+        outText += "(";
 
         const TypeInfo* elementType = typeInfo.GetElementType();
 
@@ -2575,7 +2610,7 @@ Result BoxedToHMFImpl(
             BoxedToHMFImpl(BoxedValue(ref), outText, elementType, opts, indent);
         }
 
-        outText += "]";
+        outText += ")";
 
         return {};
     }
@@ -2602,49 +2637,37 @@ Result BoxedToHMFImpl(
             }
 
             BoxedValue element;
+
             if (handler->GetElementAt(value, i, element))
             {
-                BoxedToHMFImpl(element, outText, elementType, opts, indent);
-            }
-        }
-
-        outText += "]";
-
-        return {};
-    }
-
-    // Set
-    if (typeInfo.IsSetType())
-    {
-        auto* handler = static_cast<ITypeInfoSetHandler*>(typeInfo.extendedInfo.handler);
-        if (!handler)
-        {
-            return HYP_MAKE_ERROR(Error, "Set type has no handler");
-        }
-
-        const TypeInfo* elementType = typeInfo.GetElementType();
-
-        outText += "[";
-
-        ITypeInfoIterator* iter = handler->CreateIterator(value);
-        if (iter)
-        {
-            bool first = true;
-
-            while (iter->HasNext())
-            {
-                if (!first)
+                if (!element.IsValid())
                 {
-                    outText += ", ";
+                    outText += "null";
+                    continue;
                 }
 
-                first = false;
+                ToHMFOptions elementOpts = opts;
+                elementOpts.writeClassNamesForPolymorphic = true;
 
-                BoxedToHMFImpl(BoxedValue(iter->GetCurrent()), outText, elementType, opts, indent);
-                iter->Next();
+                if (elementOpts.followAssetPaths != ToHMFOptions::FollowAssetPathsMode::Always)
+                {
+                    elementOpts.followAssetPaths = ToHMFOptions::FollowAssetPathsMode::Never;
+                }
+
+                // For type-erased arrays (Array<BoxedValue>), use the runtime
+                // type of each element instead of the declared element type.
+                const TypeInfo* actualElementType = elementType;
+                if (actualElementType && actualElementType->id == TypeId::ForType<BoxedValue>())
+                {
+                    actualElementType = element.GetTypeInfo();
+                }
+
+                if (Result elementResult = BoxedToHMFImpl(element, outText, actualElementType, elementOpts, indent);
+                    elementResult.HasError())
+                {
+                    outText += "null";
+                }
             }
-
-            delete iter;
         }
 
         outText += "]";
@@ -2652,47 +2675,6 @@ Result BoxedToHMFImpl(
         return {};
     }
 
-    // Map
-    if (typeInfo.IsMapType())
-    {
-        auto* handler = static_cast<ITypeInfoMapHandler*>(typeInfo.extendedInfo.handler);
-        if (!handler)
-        {
-            return HYP_MAKE_ERROR(Error, "Map type has no handler");
-        }
-
-        const TypeInfo* keyType = typeInfo.GetKeyType();
-        const TypeInfo* valueType = typeInfo.GetValueType();
-
-        outText += "{\n";
-
-        ITypeInfoIterator* iter = handler->CreateIterator(value);
-
-        if (iter)
-        {
-            while (iter->HasNext())
-            {
-                WriteIndent(outText, indent + 1);
-
-                // Write key
-                BoxedToHMFImpl(BoxedValue(iter->GetKey()), outText, keyType, opts, indent + 1);
-                outText += " = ";
-
-                // Write value
-                BoxedToHMFImpl(BoxedValue(iter->GetCurrent()), outText, valueType, opts, indent + 1);
-                outText += "\n";
-
-                iter->Next();
-            }
-
-            delete iter;
-        }
-
-        WriteIndent(outText, indent);
-        outText += "}";
-
-        return {};
-    }
 
     // Pair
     if (typeInfo.IsPairType())
@@ -2704,17 +2686,25 @@ Result BoxedToHMFImpl(
             return HYP_MAKE_ERROR(Error, "Pair type has no handler");
         }
 
-        outText += "[";
+        outText += "(";
 
         BoxedValue first, second;
         handler->GetFirst(value, first);
         handler->GetSecond(value, second);
 
-        BoxedToHMFImpl(first, outText, handler->GetFirstTypeInfo(), opts, indent);
-        outText += ", ";
-        BoxedToHMFImpl(second, outText, handler->GetSecondTypeInfo(), opts, indent);
+        ToHMFOptions containerOpts = opts;
+        containerOpts.writeClassNamesForPolymorphic = true;
 
-        outText += "]";
+        if (containerOpts.followAssetPaths != ToHMFOptions::FollowAssetPathsMode::Always)
+        {
+            containerOpts.followAssetPaths = ToHMFOptions::FollowAssetPathsMode::Never;
+        }
+
+        BoxedToHMFImpl(first, outText, handler->GetFirstTypeInfo(), containerOpts, indent);
+        outText += ", ";
+        BoxedToHMFImpl(second, outText, handler->GetSecondTypeInfo(), containerOpts, indent);
+
+        outText += ")";
 
         return {};
     }
@@ -2729,9 +2719,17 @@ Result BoxedToHMFImpl(
             return HYP_MAKE_ERROR(Error, "Tuple type has no handler");
         }
 
-        outText += "[";
+        outText += "(";
 
         const int numElements = handler->GetNumElements();
+
+        ToHMFOptions containerOpts = opts;
+        containerOpts.writeClassNamesForPolymorphic = true;
+
+        if (containerOpts.followAssetPaths != ToHMFOptions::FollowAssetPathsMode::Always)
+        {
+            containerOpts.followAssetPaths = ToHMFOptions::FollowAssetPathsMode::Never;
+        }
 
         for (int i = 0; i < numElements; i++)
         {
@@ -2747,10 +2745,10 @@ Result BoxedToHMFImpl(
                 element = BoxedValue(handler->GetElement(value, i));
             }
 
-            BoxedToHMFImpl(element, outText, handler->GetElementTypeInfoAtIndex(i), opts, indent);
+            BoxedToHMFImpl(element, outText, handler->GetElementTypeInfoAtIndex(i), containerOpts, indent);
         }
 
-        outText += "]";
+        outText += ")";
 
         return {};
     }
@@ -2787,9 +2785,9 @@ Result BoxedToHMFImpl(
                     outText += ", ";
                 }
 
-                AnyRef ref = handler->GetElement(value, row, col);
+                const float floatValue = handler->GetElement(value, row, col);
 
-                BoxedToHMFImpl(BoxedValue(ref), outText, elementType, opts, indent);
+                BoxedToHMFImpl(BoxedValue(floatValue), outText, elementType, opts, indent);
             }
 
             outText += "]";
@@ -2818,28 +2816,7 @@ Result BoxedToHMFImpl(
             return {};
         }
 
-        AnyRef activeRef = handler->GetValue(value);
-
-        BoxedValue activeValue;
-
-        if (activeRef.HasValue())
-        {
-            const TypeInfo* activeTypeInfo = activeRef.GetTypeInfo();
-
-            if (activeTypeInfo && activeTypeInfo->IsHandleType())
-            {
-                Handle<ObjectBase>* handlePtr = static_cast<Handle<ObjectBase>*>(activeRef.GetPointer());
-
-                if (*handlePtr)
-                {
-                    activeValue = BoxedValue(*handlePtr);
-                }
-            }
-            else
-            {
-                activeValue = BoxedValue(activeRef);
-            }
-        }
+        BoxedValue activeValue = DereferenceElement(handler->GetValue(value));
 
         if (!activeValue.IsValid())
         {
@@ -2848,19 +2825,23 @@ Result BoxedToHMFImpl(
         }
 
         const TypeInfo* activeTypeInfo = activeValue.GetTypeInfo();
-        const Class* activeClass = GetClass(activeValue.GetTypeId());
 
-        if (activeClass && (activeClass->IsClassType() || activeClass->IsStructType()))
         {
-            outText += activeClass->GetName().ToString();
-            outText += " ";
-        }
+            ToHMFOptions variantOpts = opts;
 
-        return BoxedToHMFImpl(activeValue, outText, activeTypeInfo, opts, indent);
+            if (variantOpts.followAssetPaths != ToHMFOptions::FollowAssetPathsMode::Always)
+            {
+                variantOpts.followAssetPaths = ToHMFOptions::FollowAssetPathsMode::Never;
+            }
+
+            variantOpts.writeClassNamesForPolymorphic = true;
+
+            return BoxedToHMFImpl(activeValue, outText, activeTypeInfo, variantOpts, indent);
+        }
     }
 
     // Object / struct
-    if (typeInfo.IsClass() || typeInfo.IsStruct() || typeInfo.IsHandleType())
+    if (typeInfo.IsClass() || typeInfo.IsStruct())
     {
         const Class* valueClass = typeInfo.GetClass();
 
@@ -2869,11 +2850,23 @@ Result BoxedToHMFImpl(
             return HYP_MAKE_ERROR(Error, "Cannot determine class for value: (has TypeInfo name of: {})", value.GetTypeInfo()->name);
         }
 
-        // Determine if we need a polymorphic class prefix
-        const bool typesDiffer = declaredTypeInfo
-            && declaredTypeInfo->GetClass() != valueClass;
+        // polymorphism
+        if (typeInfo.IsHandleType() && value.Is<Handle<ObjectBase>>())
+        {
+            const Handle<ObjectBase>& handle = value.Get<Handle<ObjectBase>>();
 
-        const bool needClassPrefix = typesDiffer && opts.writeClassNamesForPolymorphic;
+            if (handle.IsValid())
+            {
+                const Class* actualClass = GetClass(handle.GetTypeId());
+
+                if (actualClass)
+                {
+                    valueClass = actualClass;
+                }
+            }
+        }
+
+        const bool needClassPrefix = opts.writeClassNamesForPolymorphic;
 
         if (needClassPrefix)
         {
@@ -2899,7 +2892,8 @@ Result ObjectToHMFImpl(
     const BoxedValue& target,
     String& outText,
     ToHMFOptions& opts,
-    int indent)
+    int indent,
+    bool skipNameProperty)
 {
     Set<Name> usedMembers;
 
@@ -2934,6 +2928,17 @@ Result ObjectToHMFImpl(
                 continue;
             }
 
+            // Skip Name property if skipNameProperty is true
+            // we don't want to double-write it, if already written in header.
+            // Note that it can be missing from header, if no valid name is there for the object,
+            // in that case we still don't write the property, as it would just be blank/Invalid name anyways.
+            if (skipNameProperty
+                && member.GetMemberType() == MemberType::Property
+                && member.GetName() == "Name"_sh)
+            {
+                continue;
+            }
+
             if (usedMembers.Contains(member.GetName()))
             {
                 continue;
@@ -2945,6 +2950,14 @@ Result ObjectToHMFImpl(
             switch (member.GetMemberType())
             {
             case MemberType::Property:
+                if (!static_cast<const Property&>(member).CanGet())
+                {
+                    // Unlikely, because we don't really use write-only properties.
+                    // But do this check because otherwise it could crash trying to invoke the setter proc.
+                    HYP_LOG(Core, Warning, "Property \"{}\" of Class \"{}\" is not readable!", member.GetName(), cls->GetName());
+                    continue;
+                }
+
                 memberValue = static_cast<const Property&>(member).Get(target);
                 break;
             case MemberType::Field:
@@ -2954,17 +2967,20 @@ Result ObjectToHMFImpl(
                 continue;
             }
 
-            // Write field name
             WriteIndent(outText, indent);
             outText += member.GetName().LookupString();
             outText += " = ";
-
-            // Write value (check for polymorphism)
-            const bool typesDiffer = ForceWriteClassNamesWhenTypesDiffer
-                && member.GetTypeInfo().GetClass() != GetClass(memberValue.GetTypeId());
+            
+            const bool typesDiffer = member.GetTypeInfo().GetClass() != memberValue.GetTypeInfo()->GetClass();
 
             ToHMFOptions memberOpts = opts;
-            memberOpts.writeClassNamesForPolymorphic = typesDiffer;
+            memberOpts.writeClassNamesForPolymorphic = (ForceWriteClassNamesWhenTypesDiffer && typesDiffer);
+
+            if (opts.followAssetPaths != ToHMFOptions::FollowAssetPathsMode::Always
+                && !member.GetAttribute(Attributes::g_attrFollowAssetPath).GetBool())
+            {
+                memberOpts.followAssetPaths = ToHMFOptions::FollowAssetPathsMode::Never;
+            }
 
             const TypeInfo* declaredTypeInfo = &member.GetTypeInfo();
 
@@ -3035,13 +3051,20 @@ Result ObjectToHMFDocument(
     // Class name
     outText += cls->GetName().LookupString();
 
-    // Instance name
+    // Instance name. Write in the object header if valid.
+    // E.g `Material "Gold"`
+    bool hasNameProperty = false;
+
     if (Property* nameProp = cls->GetProperty("Name"_sh))
     {
+        hasNameProperty = true;
+
         BoxedValue nameValue = nameProp->Get(target);
+
         if (nameValue.Is<Name>())
         {
             Name name = nameValue.Get<Name>();
+
             if (name.IsValid())
             {
                 outText += " ";
@@ -3051,20 +3074,72 @@ Result ObjectToHMFDocument(
     }
 
     outText += " {\n";
-    ObjectToHMF(cls, target, outText, pOptions);
+    ObjectToHMFImpl(cls, target, outText, *pOptions, 1, hasNameProperty);
     outText += "}\n";
 
     return {};
 }
 
-// Dependency injection on static initialization to set these function pointers
-static struct ConfigBaseDependencyInject
+bool ResolveAssetPath(const String& path, const TypeInfo& targetType, BoxedValue& out)
 {
-    ConfigBaseDependencyInject()
+    if (!path.Any())
+    {
+        return false;
+    }
+
+    AssetPath assetPath { ANSIStringView(*path) };
+
+    if (!assetPath.IsValid())
+    {
+        return false;
+    }
+
+    if (targetType.IsHandleType())
+    {
+        AssetReference ref(assetPath);
+
+        if (ref.IsValid())
+        {
+            const Handle<AssetObject>& resolved = ref.Resolve();
+            if (resolved.IsValid())
+            {
+                out = BoxedValue(resolved);
+                return true;
+            }
+        }
+
+        out = BoxedValue(Handle<ObjectBase>::Null());
+        return true;
+    }
+
+    if (const Class* cls = targetType.GetClass())
+    {
+        if (cls == AssetPath::StaticClass())
+        {
+            out = BoxedValue(assetPath);
+            return true;
+        }
+
+        if (cls == AssetReference::StaticClass())
+        {
+            out = BoxedValue(AssetReference(assetPath));
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// Dependency injection on static initialization to set these function pointers
+static struct InjectDependencies
+{
+    InjectDependencies()
     {
         ConfigBase::s_ObjectToJSON = &ObjectToJSON;
         ConfigBase::s_ObjectFromJSON = &ObjectFromJSON;
+
+        HMF::g_resolveAssetPath = &ResolveAssetPath;
     }
-} s_configBaseDependencyInject {};
+} s_injectDependencies;
 
 } // namespace Hyperion

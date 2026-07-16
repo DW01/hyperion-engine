@@ -7,18 +7,22 @@
 #pragma once
 
 #include <Core/Types.hpp>
-#include <Core/Containers/String.hpp>
+
+#include <Core/FileSystem/FilePath.hpp>
+
 #include <Core/Memory/ByteBuffer.hpp>
 
 namespace Hyperion::HMF {
 
-class SourceFile
+class CORE_API SourceFile
 {
 public:
     SourceFile();
-    SourceFile(const String& filepath, size_t size);
+    SourceFile(const FilePath& filePath, size_t size);
+    
     SourceFile(const SourceFile& other);
     SourceFile& operator=(const SourceFile& other);
+
     ~SourceFile();
 
     bool IsValid() const
@@ -26,9 +30,9 @@ public:
         return !m_buffer.Empty();
     }
 
-    const String& GetFilePath() const
+    const FilePath& GetFilePath() const
     {
-        return m_filepath;
+        return m_filePath;
     }
 
     const ByteBuffer& GetBuffer() const
@@ -50,7 +54,7 @@ public:
     void ReadIntoBuffer(const ubyte* data, size_t size);
 
 private:
-    String m_filepath;
+    FilePath m_filePath;
     ByteBuffer m_buffer;
     size_t m_position;
 };

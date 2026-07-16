@@ -1,0 +1,5 @@
+ShaderBundle "HBAO" {
+    StaticProperties = []
+    CompiledShaders = [@"Engine://Shaders/HBAO_6156939509620219352"]
+    FriendlyName = "HBAO"
+}

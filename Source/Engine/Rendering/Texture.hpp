@@ -147,7 +147,7 @@ public:
 protected:
     void OnLoaded() override
     {
-        CheckResult(Create());
+        Check(Create());
     }
 
     void PageBlobData() override;

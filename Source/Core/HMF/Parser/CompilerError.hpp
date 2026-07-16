@@ -15,11 +15,13 @@
 
 namespace Hyperion::HMF {
 
-enum ErrorLevel
+// Error starts at zero so when we sort the error list, they appear first in the list.
+
+enum class ErrorLevel : uint8
 {
-    LEVEL_INFO,
-    LEVEL_WARN,
-    LEVEL_ERROR
+    Error = 0,
+    Warning,
+    Diagnostic
 };
 
 enum ErrorMessage
@@ -41,6 +43,7 @@ enum ErrorMessage
 
     /* HMF-specific semantic errors */
     MSG_UNKNOWN_FIELD,            // class '%' has no field '%'
+    MSG_CANNOT_ASSIGN_PROPERTY,   // property '%' is not assignable
     MSG_UNRESOLVED_ENUM_NAME,     // enum '%' has no value named '%'
     MSG_TYPE_MISMATCH,            // value of type '%' is not assignable to '%'
     MSG_CLASS_NOT_FOUND,          // class '%' is not registered
@@ -54,7 +57,7 @@ enum ErrorMessage
     MSG_UNKNOWN_ASSET_PATH        // asset path '%' could not be resolved
 };
 
-class CompilerError
+class CORE_API CompilerError
 {
     static const Map<ErrorMessage, String> errorMessageStrings;
 
@@ -65,7 +68,7 @@ public:
           m_msg(msg),
           m_location(location)
     {
-        String msgStr = errorMessageStrings.At(m_msg);
+        const String& msgStr = errorMessageStrings.At(m_msg);
         MakeMessage(msgStr.Data(), args...);
     }
 

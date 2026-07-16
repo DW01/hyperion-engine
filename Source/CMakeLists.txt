@@ -190,6 +190,10 @@ endif()
 # Uncomment to enable release final build optimizations
 # set(HYPERION_BUILD_RELEASE_FINAL 1)
 
+if(NOT HYPERION_BUILD_RELEASE_FINAL)
+  add_definitions(-DHYP_ENABLE_CORE_ASSERTIONS=1)
+endif()
+
 # set HYPERION_ENGINE to 1 (used to differentiate between engine and build tool or other executables using core lib)
 add_definitions(-DHYPERION_ENGINE=1)
 set(HYPERION_ENGINE 1)

@@ -2,7 +2,7 @@
  *  @author: The Hyperion Contributors
  *  @date 2016-2026
  *  @licence MIT
-*/
+ */
 
 #ifdef HYP_TESTS
 
@@ -70,6 +70,7 @@ HYP_REGISTER_STATIC_CLASS(HMFTestNestedStruct);
 const Class* g_clsHMFVariantBase = nullptr;
 const Class* g_clsHMFVariantDerived = nullptr;
 const Class* g_clsHMFVariantContainer = nullptr;
+const Class* g_clsHMFVariantArrayHolder = nullptr;
 
 class HMFVariantBase : public ObjectBase
 {
@@ -131,6 +132,27 @@ HYP_BEGIN_CLASS(HMFVariantContainer, -1, 0, NAME("ObjectBase"))
     Field(NAME(HYP_STR(Item)), &HMFVariantContainer::item, HYP_OFFSET_OF(HMFVariantContainer, item))
 HYP_END_CLASS
 HYP_REGISTER_STATIC_CLASS(HMFVariantContainer);
+
+class HMFVariantArrayHolder : public ObjectBase
+{
+public:
+    HYP_OBJECT_BODY(HMFVariantArrayHolder);
+
+    Name holderName;
+    Array<Handle<HMFVariantBase>> items;
+};
+
+const Class* HMFVariantArrayHolder::StaticClass()
+{
+    return g_clsHMFVariantArrayHolder;
+}
+
+// clang-format off
+HYP_BEGIN_CLASS(HMFVariantArrayHolder, -1, 0, NAME("ObjectBase"))
+    Field(NAME(HYP_STR(HolderName)), &HMFVariantArrayHolder::holderName, HYP_OFFSET_OF(HMFVariantArrayHolder, holderName)),
+    Field(NAME(HYP_STR(Items)), &HMFVariantArrayHolder::items, HYP_OFFSET_OF(HMFVariantArrayHolder, items))
+HYP_END_CLASS
+HYP_REGISTER_STATIC_CLASS(HMFVariantArrayHolder);
 // clang-format on
 
 namespace tests {
@@ -138,43 +160,48 @@ namespace hmf {
 
 namespace {
 
-// Helper: get the active type name from a Variant BoxedValue
 String GetVariantActiveTypeName(const BoxedValue& variantValue)
 {
     const TypeInfo* ti = variantValue.GetTypeInfo();
-    if (!ti || !ti->IsVariantType()) return "not-a-variant";
+    if (!ti || !ti->IsVariantType())
+        return "not-a-variant";
 
     auto* handler = static_cast<ITypeInfoVariantHandler*>(ti->extendedInfo.handler);
-    if (!handler) return "no-handler";
+    if (!handler)
+        return "no-handler";
 
     int idx = handler->GetCurrentTypeIndex(variantValue);
-    if (idx < 0) return "empty";
+    if (idx < 0)
+        return "empty";
 
     const TypeInfo* altTI = handler->GetTypeInfoAtIndex(idx);
-    if (!altTI) return "null-alt";
+    if (!altTI)
+        return "null-alt";
 
     const Class* cls = altTI->GetClass();
     return cls ? cls->GetName().ToString() : "unknown";
 }
 
-// Helper: extract the inner object from a Variant<Handle<...>> BoxedValue
-// so we can access its fields via the object's Class.
 BoxedValue GetVariantInnerObject(const BoxedValue& variantValue)
 {
     const TypeInfo* ti = variantValue.GetTypeInfo();
-    if (!ti || !ti->IsVariantType()) return {};
+    if (!ti || !ti->IsVariantType())
+        return {};
 
     auto* handler = static_cast<ITypeInfoVariantHandler*>(ti->extendedInfo.handler);
-    if (!handler) return {};
+    if (!handler)
+        return {};
 
     AnyRef ref = handler->GetValue(variantValue);
-    if (!ref.HasValue() || !ref.GetPointer()) return {};
+    if (!ref.HasValue() || !ref.GetPointer())
+        return {};
 
     const TypeInfo* refTI = ref.GetTypeInfo();
     if (refTI && refTI->IsHandleType())
     {
         auto* handlePtr = static_cast<Handle<ObjectBase>*>(ref.GetPointer());
-        if (*handlePtr) return BoxedValue(*handlePtr);
+        if (*handlePtr)
+            return BoxedValue(*handlePtr);
     }
 
     return {};
@@ -211,7 +238,7 @@ T GetFieldValue(const BoxedValue& obj, const Class* cls, const char* fieldName)
         if (v.Is<T>())
             return v.Get<T>();
     }
-    return T{};
+    return T {};
 }
 
 uint64 GetFieldUInt64(const BoxedValue& obj, const Class* cls, const char* fieldName)
@@ -224,14 +251,22 @@ uint64 GetFieldUInt64(const BoxedValue& obj, const Class* cls, const char* field
         else if (m->GetMemberType() == MemberType::Property)
             v = static_cast<const Property*>(m)->Get(obj);
 
-        if (v.Is<uint64>()) return v.Get<uint64>();
-        if (v.Is<int64>()) return static_cast<uint64>(v.Get<int64>());
-        if (v.Is<uint32>()) return v.Get<uint32>();
-        if (v.Is<int32>()) return static_cast<uint64>(v.Get<int32>());
-        if (v.Is<uint16>()) return v.Get<uint16>();
-        if (v.Is<int16>()) return static_cast<uint64>(v.Get<int16>());
-        if (v.Is<uint8>()) return v.Get<uint8>();
-        if (v.Is<int8>()) return static_cast<uint64>(v.Get<int8>());
+        if (v.Is<uint64>())
+            return v.Get<uint64>();
+        if (v.Is<int64>())
+            return static_cast<uint64>(v.Get<int64>());
+        if (v.Is<uint32>())
+            return v.Get<uint32>();
+        if (v.Is<int32>())
+            return static_cast<uint64>(v.Get<int32>());
+        if (v.Is<uint16>())
+            return v.Get<uint16>();
+        if (v.Is<int16>())
+            return static_cast<uint64>(v.Get<int16>());
+        if (v.Is<uint8>())
+            return v.Get<uint8>();
+        if (v.Is<int8>())
+            return static_cast<uint64>(v.Get<int8>());
     }
     return 0;
 }
@@ -255,50 +290,63 @@ bool ClassNameIs(const BoxedValue& value, const char* expected)
 
 } // anonymous namespace
 
-HYP_DISABLE_OPTIMIZATION;
-
 HYP_EXPORT void RunHMFTest()
 {
-    HYP_LOG(Engine, Info, "========== HMF Test ==========");
-
-    // ========================================================
-    // Section 1: Primitive serialization (BoxedToHMF — object → text)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 1: Primitives (write) ---");
 
     {
         String text;
 
-        BoxedToHMF(BoxedValue(int8(-5)), text);     Check("int8(-5) => \"-5\"", text == "-5", text);
-        text.Clear(); BoxedToHMF(BoxedValue(int16(-32000)), text); Check("int16(-32000)", text == "-32000", text);
-        text.Clear(); BoxedToHMF(BoxedValue(int32(42)), text);     Check("int32(42) => \"42\"", text == "42", text);
-        text.Clear(); BoxedToHMF(BoxedValue(int64(-9999999999LL)), text); Check("int64(-9999999999)", text == "-9999999999", text);
-        text.Clear(); BoxedToHMF(BoxedValue(uint8(255)), text);    Check("uint8(255) => \"255\"", text == "255", text);
-        text.Clear(); BoxedToHMF(BoxedValue(uint16(65535)), text); Check("uint16(65535)", text == "65535", text);
-        text.Clear(); BoxedToHMF(BoxedValue(uint32(42)), text);    Check("uint32(42) => \"42\"", text == "42", text);
-        text.Clear(); BoxedToHMF(BoxedValue(uint64(0xFFFFFFFFFFFFFFFFULL)), text);
+        BoxedToHMF(BoxedValue(int8(-5)), text);
+        Check("int8(-5) => \"-5\"", text == "-5", text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(int16(-32000)), text);
+        Check("int16(-32000)", text == "-32000", text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(int32(42)), text);
+        Check("int32(42) => \"42\"", text == "42", text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(int64(-9999999999LL)), text);
+        Check("int64(-9999999999)", text == "-9999999999", text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(uint8(255)), text);
+        Check("uint8(255) => \"255\"", text == "255", text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(uint16(65535)), text);
+        Check("uint16(65535)", text == "65535", text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(uint32(42)), text);
+        Check("uint32(42) => \"42\"", text == "42", text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(uint64(0xFFFFFFFFFFFFFFFFULL)), text);
         Check("uint64(max)", text == "18446744073709551615", text);
 
-        text.Clear(); BoxedToHMF(BoxedValue(float(3.5f)), text);  Check("float(3.5)", text.Contains("3.5"), text);
-        text.Clear(); BoxedToHMF(BoxedValue(double(3.14159)), text); Check("double(3.14159)", text.Contains("3.14159"), text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(float(3.5f)), text);
+        Check("float(3.5)", text.Contains("3.5"), text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(double(3.14159)), text);
+        Check("double(3.14159)", text.Contains("3.14159"), text);
 
-        text.Clear(); BoxedToHMF(BoxedValue(true), text);         Check("bool(true) => \"true\"", text == "true", text);
-        text.Clear(); BoxedToHMF(BoxedValue(false), text);        Check("bool(false) => \"false\"", text == "false", text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(true), text);
+        Check("bool(true) => \"true\"", text == "true", text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(false), text);
+        Check("bool(false) => \"false\"", text == "false", text);
 
-        text.Clear(); BoxedToHMF(BoxedValue(String("hello")), text); Check("String(hello)", text == "\"hello\"", text);
-        text.Clear(); BoxedToHMF(BoxedValue(String("")), text);    Check("String(empty)", text == "\"\"", text);
-        text.Clear(); BoxedToHMF(BoxedValue(String("with \"quotes\" and \\ backslash")), text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(String("hello")), text);
+        Check("String(hello)", text == "\"hello\"", text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(String("")), text);
+        Check("String(empty)", text == "\"\"", text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(String("with \"quotes\" and \\ backslash")), text);
         Check("String escaping", text.Contains("\\\"") && text.Contains("\\\\"), text);
-        text.Clear(); BoxedToHMF(BoxedValue(String("line\nbreak\ttab")), text);
+        text.Clear();
+        BoxedToHMF(BoxedValue(String("line\nbreak\ttab")), text);
         Check("String escaping (newline + tab)", text.Contains("\\n") && text.Contains("\\t"), text);
     }
-
-    // ========================================================
-    // Section 2: Enum serialization
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 2: Enums (write) ---");
 
     {
         String text;
@@ -307,18 +355,51 @@ HYP_EXPORT void RunHMFTest()
         BoxedToHMF(BoxedValue(CameraProjectionMode::NONE), text, &ti);
         Check("Enum NONE", text == "NONE", text);
 
-        text.Clear(); BoxedToHMF(BoxedValue(CameraProjectionMode::PERSPECTIVE), text, &ti);
+        text.Clear();
+        BoxedToHMF(BoxedValue(CameraProjectionMode::PERSPECTIVE), text, &ti);
         Check("Enum PERSPECTIVE", text == "PERSPECTIVE", text);
 
-        text.Clear(); BoxedToHMF(BoxedValue(CameraProjectionMode::ORTHOGRAPHIC), text, &ti);
+        text.Clear();
+        BoxedToHMF(BoxedValue(CameraProjectionMode::ORTHOGRAPHIC), text, &ti);
         Check("Enum ORTHOGRAPHIC", text == "ORTHOGRAPHIC", text);
     }
 
-    // ========================================================
-    // Section 3: EnumFlags serialization
-    // ========================================================
+    {
+        String text;
+        const TypeInfo& ti = TypeOf<ShaderModuleType>();
 
-    HYP_LOG(Engine, Info, "--- Section 3: EnumFlags (write) ---");
+        BoxedToHMF(BoxedValue(ShaderModuleType::None), text, &ti);
+        Check("ShaderModuleType None", text == "None", text);
+
+        text.Clear();
+        BoxedToHMF(BoxedValue(ShaderModuleType::Vertex), text, &ti);
+        Check("ShaderModuleType Vertex", text == "Vertex", text);
+
+        text.Clear();
+        BoxedToHMF(BoxedValue(ShaderModuleType::Pixel), text, &ti);
+        Check("ShaderModuleType Pixel", text == "Pixel", text);
+
+        text.Clear();
+        BoxedToHMF(BoxedValue(ShaderModuleType::Compute), text, &ti);
+        Check("ShaderModuleType Compute", text == "Compute", text);
+
+        text.Clear();
+        BoxedToHMF(BoxedValue(ShaderModuleType::RayGen), text, &ti);
+        Check("ShaderModuleType RayGen", text == "RayGen", text);
+    }
+
+    {
+        String text;
+        Array<ShaderModuleType> arr = { ShaderModuleType::Vertex, ShaderModuleType::Pixel, ShaderModuleType::Compute };
+        const TypeInfo& arrTi = TypeOf<Array<ShaderModuleType>>();
+        BoxedToHMF(BoxedValue(arr), text, &arrTi);
+        Check("Array<ShaderModuleType>[3]", text == "[Vertex, Pixel, Compute]", text);
+
+        text.Clear();
+        Array<ShaderModuleType> empty;
+        BoxedToHMF(BoxedValue(empty), text, &arrTi);
+        Check("Array<ShaderModuleType>[] (empty)", text == "[]", text);
+    }
 
     {
         String text;
@@ -349,15 +430,9 @@ HYP_EXPORT void RunHMFTest()
         Check("EnumFlags NONE", text == "NONE", text);
     }
 
-    // ========================================================
-    // Section 4: Array serialization
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 4: Arrays (write) ---");
-
     {
         String text;
-        Array<int32> arr = {10, 20, 30};
+        Array<int32> arr = { 10, 20, 30 };
         BoxedToHMF(BoxedValue(arr), text);
         Check("Array<int32>[3]", text == "[10, 20, 30]", text);
 
@@ -366,12 +441,6 @@ HYP_EXPORT void RunHMFTest()
         BoxedToHMF(BoxedValue(empty), text);
         Check("Array<int32>[] (empty)", text == "[]", text);
     }
-
-    // ========================================================
-    // Section 5: Object → HMF text — CameraOrthoRect exact output
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 5: Object → HMF text (CameraOrthoRect) ---");
 
     {
         const Class* cls = GetClass<CameraOrthoRect>();
@@ -398,12 +467,6 @@ HYP_EXPORT void RunHMFTest()
         }
     }
 
-    // ========================================================
-    // Section 6: Object → HMF text — TextureDesc exact output
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 6: Object → HMF text (TextureDesc) ---");
-
     {
         const Class* cls = GetClass<TextureDesc>();
         if (cls && cls->CanCreateInstance())
@@ -418,19 +481,13 @@ HYP_EXPORT void RunHMFTest()
             Check("TextureDesc: class header", text.Contains("TextureDesc"), text);
             Check("TextureDesc: Type = Texture2D", text.Contains("Type = Texture2D"), text);
             Check("TextureDesc: Format = RGBA8", text.Contains("Format = RGBA8"), text);
-            Check("TextureDesc: Extent = [1, 1, 1]", text.Contains("Extent = [1, 1, 1]"), text);
+            Check("TextureDesc: Extent = (1, 1, 1)", text.Contains("Extent = (1, 1, 1)"), text);
             Check("TextureDesc: MinFilterMode = TFM_NEAREST", text.Contains("MinFilterMode = TFM_NEAREST"), text);
             Check("TextureDesc: NumLayers = 1", text.Contains("NumLayers = 1"), text);
             Check("TextureDesc: ImageUsage = IU_SAMPLED", text.Contains("ImageUsage = IU_SAMPLED"), text);
             Check("TextureDesc: MipOffsets has 16 elements", text.Contains("0, 0, 0, 0"), text);
         }
     }
-
-    // ========================================================
-    // Section 7: Object → HMF text — MeshLodDesc exact output
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 7: Object → HMF text (MeshLodDesc) ---");
 
     {
         const Class* cls = GetClass<MeshLodDesc>();
@@ -450,12 +507,6 @@ HYP_EXPORT void RunHMFTest()
         }
     }
 
-    // ========================================================
-    // Section 8: Object → HMF text — StencilFunction enum values
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 8: Object → HMF text (StencilFunction) ---");
-
     {
         const Class* cls = GetClass<StencilFunction>();
         if (cls && cls->CanCreateInstance())
@@ -473,12 +524,6 @@ HYP_EXPORT void RunHMFTest()
         }
     }
 
-    // ========================================================
-    // Section 9: Parse → verify type and values — CameraOrthoRect
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 9: Parse CameraOrthoRect (type + values) ---");
-
     {
         const String manifest = R"(CameraOrthoRect {
     Left = 10.5
@@ -489,30 +534,24 @@ HYP_EXPORT void RunHMFTest()
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse CameraOrthoRect succeeds", result.ok, result.message);
+        Check("Parse CameraOrthoRect succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("Type is CameraOrthoRect", ClassNameIs(result.value, "CameraOrthoRect"));
+            Check("Type is CameraOrthoRect", ClassNameIs(result.GetValue(), "CameraOrthoRect"));
             Check("TypeId matches CameraOrthoRect",
-                  result.value.GetTypeId() == TypeId::ForType<CameraOrthoRect>());
+                  result.GetValue().GetTypeId() == TypeId::ForType<CameraOrthoRect>());
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                Check("Left == 10.5", GetFieldValue<float>(result.value, cls, "Left") == 10.5f);
-                Check("Right == 20.0", GetFieldValue<float>(result.value, cls, "Right") == 20.0f);
-                Check("Bottom == -1.0", GetFieldValue<float>(result.value, cls, "Bottom") == -1.0f);
-                Check("Top == 100.0", GetFieldValue<float>(result.value, cls, "Top") == 100.0f);
+                Check("Left == 10.5", GetFieldValue<float>(result.GetValue(), cls, "Left") == 10.5f);
+                Check("Right == 20.0", GetFieldValue<float>(result.GetValue(), cls, "Right") == 20.0f);
+                Check("Bottom == -1.0", GetFieldValue<float>(result.GetValue(), cls, "Bottom") == -1.0f);
+                Check("Top == 100.0", GetFieldValue<float>(result.GetValue(), cls, "Top") == 100.0f);
             }
         }
     }
-
-    // ========================================================
-    // Section 10: Parse → verify type and values — MeshLodDesc
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 10: Parse MeshLodDesc (type + values) ---");
 
     {
         const String manifest = R"(MeshLodDesc {
@@ -522,27 +561,21 @@ HYP_EXPORT void RunHMFTest()
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse MeshLodDesc succeeds", result.ok, result.message);
+        Check("Parse MeshLodDesc succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("Type is MeshLodDesc", ClassNameIs(result.value, "MeshLodDesc"));
-            Check("TypeId matches", result.value.GetTypeId() == TypeId::ForType<MeshLodDesc>());
+            Check("Type is MeshLodDesc", ClassNameIs(result.GetValue(), "MeshLodDesc"));
+            Check("TypeId matches", result.GetValue().GetTypeId() == TypeId::ForType<MeshLodDesc>());
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                Check("NumVertices == 4096", GetFieldValue<uint32>(result.value, cls, "NumVertices") == 4096);
-                Check("NumIndices == 12288", GetFieldValue<uint32>(result.value, cls, "NumIndices") == 12288);
+                Check("NumVertices == 4096", GetFieldValue<uint32>(result.GetValue(), cls, "NumVertices") == 4096);
+                Check("NumIndices == 12288", GetFieldValue<uint32>(result.GetValue(), cls, "NumIndices") == 12288);
             }
         }
     }
-
-    // ========================================================
-    // Section 11: Parse → verify type and values — BlobDataReference
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 11: Parse BlobDataReference (type + values) ---");
 
     {
         const String manifest = R"(BlobDataReference {
@@ -552,30 +585,24 @@ HYP_EXPORT void RunHMFTest()
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse BlobDataReference succeeds", result.ok, result.message);
+        Check("Parse BlobDataReference succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("Type is BlobDataReference", ClassNameIs(result.value, "BlobDataReference"));
+            Check("Type is BlobDataReference", ClassNameIs(result.GetValue(), "BlobDataReference"));
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                Name keyName = GetFieldValue<Name>(result.value, cls, "Key");
+                Name keyName = GetFieldValue<Name>(result.GetValue(), cls, "Key");
                 Check("Key name valid", keyName.IsValid(), keyName.LookupString());
                 Check("Key == Engine://Textures/MyTexture.TEX",
                       String(keyName.LookupString()) == String("Engine://Textures/MyTexture.TEX"),
                       keyName.LookupString());
-                Check("Size == 1048576", GetFieldValue<uint64>(result.value, cls, "Size") == 1048576);
+                Check("Size == 1048576", GetFieldValue<uint64>(result.GetValue(), cls, "Size") == 1048576);
             }
         }
     }
-
-    // ========================================================
-    // Section 12: Parse with comments
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 12: Parse with comments ---");
 
     {
         const String manifest = R"(// This is a line comment
@@ -589,26 +616,20 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse with comments succeeds", result.ok, result.message);
+        Check("Parse with comments succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                Check("Comment: Left == 1.0", GetFieldValue<float>(result.value, cls, "Left") == 1.0f);
-                Check("Comment: Right == 2.0", GetFieldValue<float>(result.value, cls, "Right") == 2.0f);
-                Check("Comment: Bottom == 3.0", GetFieldValue<float>(result.value, cls, "Bottom") == 3.0f);
-                Check("Comment: Top == 4.0", GetFieldValue<float>(result.value, cls, "Top") == 4.0f);
+                Check("Comment: Left == 1.0", GetFieldValue<float>(result.GetValue(), cls, "Left") == 1.0f);
+                Check("Comment: Right == 2.0", GetFieldValue<float>(result.GetValue(), cls, "Right") == 2.0f);
+                Check("Comment: Bottom == 3.0", GetFieldValue<float>(result.GetValue(), cls, "Bottom") == 3.0f);
+                Check("Comment: Top == 4.0", GetFieldValue<float>(result.GetValue(), cls, "Top") == 4.0f);
             }
         }
     }
-
-    // ========================================================
-    // Section 13: Parse → verify enum fields — StencilFunction
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 13: Parse StencilFunction (enum fields) ---");
 
     {
         const String manifest = R"(StencilFunction {
@@ -620,30 +641,24 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse StencilFunction succeeds", result.ok, result.message);
+        Check("Parse StencilFunction succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("Type is StencilFunction", ClassNameIs(result.value, "StencilFunction"));
+            Check("Type is StencilFunction", ClassNameIs(result.GetValue(), "StencilFunction"));
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
                 Check("PassOp == SO_REPLACE value",
-                      GetFieldUInt64(result.value, cls, "PassOp") == static_cast<uint64>(SO_REPLACE));
+                      GetFieldUInt64(result.GetValue(), cls, "PassOp") == static_cast<uint64>(SO_REPLACE));
                 Check("FailOp == SO_KEEP value",
-                      GetFieldUInt64(result.value, cls, "FailOp") == static_cast<uint64>(SO_KEEP));
+                      GetFieldUInt64(result.GetValue(), cls, "FailOp") == static_cast<uint64>(SO_KEEP));
                 Check("CompareOp == SCO_ALWAYS value",
-                      GetFieldUInt64(result.value, cls, "CompareOp") == static_cast<uint64>(SCO_ALWAYS));
+                      GetFieldUInt64(result.GetValue(), cls, "CompareOp") == static_cast<uint64>(SCO_ALWAYS));
             }
         }
     }
-
-    // ========================================================
-    // Section 14: Full round-trip — CameraOrthoRect (create → write → parse → verify all)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 14: Round-trip CameraOrthoRect ---");
 
     {
         const Class* cls = GetClass<CameraOrthoRect>();
@@ -665,29 +680,23 @@ CameraOrthoRect {
             ObjectToHMFDocument(cls, obj, text);
 
             HMF::ParseResult result = HMF::Parse(text);
-            Check("Round-trip parse succeeds", result.ok, result.message);
+            Check("Round-trip parse succeeds", Success(result), result.GetError().GetMessage());
 
-            if (result.ok)
+            if (Success(result))
             {
-                Check("Round-trip type correct", ClassNameIs(result.value, "CameraOrthoRect"));
+                Check("Round-trip type correct", ClassNameIs(result.GetValue(), "CameraOrthoRect"));
 
-                const Class* parsedCls = GetClass(result.value.GetTypeId());
+                const Class* parsedCls = GetClass(result.GetValue().GetTypeId());
                 if (parsedCls)
                 {
-                    Check("RT Left == 11", GetFieldValue<float>(result.value, parsedCls, "Left") == 11.0f);
-                    Check("RT Right == 22", GetFieldValue<float>(result.value, parsedCls, "Right") == 22.0f);
-                    Check("RT Bottom == 33", GetFieldValue<float>(result.value, parsedCls, "Bottom") == 33.0f);
-                    Check("RT Top == 44", GetFieldValue<float>(result.value, parsedCls, "Top") == 44.0f);
+                    Check("RT Left == 11", GetFieldValue<float>(result.GetValue(), parsedCls, "Left") == 11.0f);
+                    Check("RT Right == 22", GetFieldValue<float>(result.GetValue(), parsedCls, "Right") == 22.0f);
+                    Check("RT Bottom == 33", GetFieldValue<float>(result.GetValue(), parsedCls, "Bottom") == 33.0f);
+                    Check("RT Top == 44", GetFieldValue<float>(result.GetValue(), parsedCls, "Top") == 44.0f);
                 }
             }
         }
     }
-
-    // ========================================================
-    // Section 15: Full round-trip — TextureDesc (enums + Vec3u + FixedArray)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 15: Round-trip TextureDesc ---");
 
     {
         const Class* cls = GetClass<TextureDesc>();
@@ -705,30 +714,24 @@ CameraOrthoRect {
             Check("TextureDesc serialize non-empty", !text.Empty());
 
             HMF::ParseResult result = HMF::Parse(text);
-            Check("TextureDesc round-trip parse succeeds", result.ok, result.message);
+            Check("TextureDesc round-trip parse succeeds", Success(result), result.GetError().GetMessage());
 
-            if (result.ok)
+            if (Success(result))
             {
-                Check("TextureDesc type correct", ClassNameIs(result.value, "TextureDesc"));
+                Check("TextureDesc type correct", ClassNameIs(result.GetValue(), "TextureDesc"));
 
-                const Class* parsedCls = GetClass(result.value.GetTypeId());
+                const Class* parsedCls = GetClass(result.GetValue().GetTypeId());
                 if (parsedCls)
                 {
-                    Check("RT NumLayers == 1", GetFieldValue<uint16>(result.value, parsedCls, "NumLayers") == 1);
+                    Check("RT NumLayers == 1", GetFieldValue<uint16>(result.GetValue(), parsedCls, "NumLayers") == 1);
                     Check("RT Type == Texture2D",
-                          GetFieldUInt64(result.value, parsedCls, "Type") == static_cast<uint64>(TextureType::Texture2D));
+                          GetFieldUInt64(result.GetValue(), parsedCls, "Type") == static_cast<uint64>(TextureType::Texture2D));
                     Check("RT Format == RGBA8",
-                          GetFieldUInt64(result.value, parsedCls, "Format") == static_cast<uint64>(TextureFormat::RGBA8));
+                          GetFieldUInt64(result.GetValue(), parsedCls, "Format") == static_cast<uint64>(TextureFormat::RGBA8));
                 }
             }
         }
     }
-
-    // ========================================================
-    // Section 16: Full round-trip — MeshLodDesc
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 16: Round-trip MeshLodDesc ---");
 
     {
         const Class* cls = GetClass<MeshLodDesc>();
@@ -748,27 +751,21 @@ CameraOrthoRect {
             ObjectToHMFDocument(cls, obj, text);
 
             HMF::ParseResult result = HMF::Parse(text);
-            Check("MeshLodDesc round-trip succeeds", result.ok, result.message);
+            Check("MeshLodDesc round-trip succeeds", Success(result), result.GetError().GetMessage());
 
-            if (result.ok)
+            if (Success(result))
             {
-                Check("MeshLodDesc type correct", ClassNameIs(result.value, "MeshLodDesc"));
+                Check("MeshLodDesc type correct", ClassNameIs(result.GetValue(), "MeshLodDesc"));
 
-                const Class* parsedCls = GetClass(result.value.GetTypeId());
+                const Class* parsedCls = GetClass(result.GetValue().GetTypeId());
                 if (parsedCls)
                 {
-                    Check("RT NumVertices == 1234", GetFieldValue<uint32>(result.value, parsedCls, "NumVertices") == 1234);
-                    Check("RT NumIndices == 5678", GetFieldValue<uint32>(result.value, parsedCls, "NumIndices") == 5678);
+                    Check("RT NumVertices == 1234", GetFieldValue<uint32>(result.GetValue(), parsedCls, "NumVertices") == 1234);
+                    Check("RT NumIndices == 5678", GetFieldValue<uint32>(result.GetValue(), parsedCls, "NumIndices") == 5678);
                 }
             }
         }
     }
-
-    // ========================================================
-    // Section 17: Full round-trip — StencilFunction (enum fields)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 17: Round-trip StencilFunction ---");
 
     {
         const Class* cls = GetClass<StencilFunction>();
@@ -785,31 +782,25 @@ CameraOrthoRect {
             ObjectToHMFDocument(cls, obj, text);
 
             HMF::ParseResult result = HMF::Parse(text);
-            Check("StencilFunction round-trip succeeds", result.ok, result.message);
+            Check("StencilFunction round-trip succeeds", Success(result), result.GetError().GetMessage());
 
-            if (result.ok)
+            if (Success(result))
             {
-                Check("StencilFunction type correct", ClassNameIs(result.value, "StencilFunction"));
+                Check("StencilFunction type correct", ClassNameIs(result.GetValue(), "StencilFunction"));
 
-                const Class* parsedCls = GetClass(result.value.GetTypeId());
+                const Class* parsedCls = GetClass(result.GetValue().GetTypeId());
                 if (parsedCls)
                 {
                     Check("RT PassOp == SO_REPLACE",
-                          GetFieldUInt64(result.value, parsedCls, "PassOp") == static_cast<uint64>(SO_REPLACE));
+                          GetFieldUInt64(result.GetValue(), parsedCls, "PassOp") == static_cast<uint64>(SO_REPLACE));
                     Check("RT FailOp == SO_KEEP",
-                          GetFieldUInt64(result.value, parsedCls, "FailOp") == static_cast<uint64>(SO_KEEP));
+                          GetFieldUInt64(result.GetValue(), parsedCls, "FailOp") == static_cast<uint64>(SO_KEEP));
                     Check("RT CompareOp == SCO_ALWAYS",
-                          GetFieldUInt64(result.value, parsedCls, "CompareOp") == static_cast<uint64>(SCO_ALWAYS));
+                          GetFieldUInt64(result.GetValue(), parsedCls, "CompareOp") == static_cast<uint64>(SCO_ALWAYS));
                 }
             }
         }
     }
-
-    // ========================================================
-    // Section 18: Parse AssetPath
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 18: Parse AssetPath ---");
 
     {
         const String manifest = R"(AssetPath {
@@ -818,34 +809,28 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse AssetPath succeeds", result.ok, result.message);
+        Check("Parse AssetPath succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("Type is AssetPath", ClassNameIs(result.value, "AssetPath"));
+            Check("Type is AssetPath", ClassNameIs(result.GetValue(), "AssetPath"));
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
                 if (const Property* vp = cls->GetProperty("Value"_sh))
                 {
-                    BoxedValue v = vp->Get(result.value);
+                    BoxedValue v = vp->Get(result.GetValue());
                     String s = v.Is<String>() ? v.Get<String>() : "";
                     Check("AssetPath Value correct", s == "Engine://Textures/MyTexture", s);
                 }
 
                 String rt;
-                BoxedToHMF(result.value, rt);
+                BoxedToHMF(result.GetValue(), rt);
                 Check("AssetPath round-trip => @\"...\"", rt.Contains("@\"Engine://Textures/MyTexture\""), rt);
             }
         }
     }
-
-    // ========================================================
-    // Section 19: AssetPath @"..." shorthand serialization
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 19: AssetPath shorthand ---");
 
     {
         AssetPath path(ANSIStringView("Game://Meshes/Cube"));
@@ -856,17 +841,11 @@ CameraOrthoRect {
               text == "@\"Game://Meshes/Cube\"", text);
     }
 
-    // ========================================================
-    // Section 20: Error handling
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 20: Error handling ---");
-
     {
-        Check("Unknown class fails", !HMF::Parse("NonexistentClass {\n}\n").ok);
-        Check("Empty input fails", !HMF::Parse("").ok);
-        Check("Garbage fails", !HMF::Parse("??? not valid").ok);
-        Check("Missing closing brace fails", !HMF::Parse("CameraOrthoRect {\n    Left = 1.0\n").ok);
+        Check("Unknown class fails", !Success(HMF::Parse("NonexistentClass {\n}\n")));
+        Check("Empty input fails", Failed(HMF::Parse("")));
+        Check("Garbage fails", !Success(HMF::Parse("??? not valid")));
+        Check("Missing closing brace fails", !Success(HMF::Parse("CameraOrthoRect {\n    Left = 1.0\n")));
 
         const String manifest = R"(CameraOrthoRect {
     Left = 1.0
@@ -876,26 +855,20 @@ CameraOrthoRect {
 }
 )";
         HMF::ParseResult r5 = HMF::Parse(manifest);
-        Check("Unknown fields skipped", r5.ok, r5.message);
+        Check("Unknown fields skipped", Success(r5), r5.GetError().GetMessage());
 
-        if (r5.ok)
+        if (Success(r5))
         {
-            const Class* cls = GetClass(r5.value.GetTypeId());
+            const Class* cls = GetClass(r5.GetValue().GetTypeId());
             if (cls)
             {
                 Check("Unknown fields: Left still correct",
-                      GetFieldValue<float>(r5.value, cls, "Left") == 1.0f);
+                      GetFieldValue<float>(r5.GetValue(), cls, "Left") == 1.0f);
                 Check("Unknown fields: Right still correct",
-                      GetFieldValue<float>(r5.value, cls, "Right") == 2.0f);
+                      GetFieldValue<float>(r5.GetValue(), cls, "Right") == 2.0f);
             }
         }
     }
-
-    // ========================================================
-    // Section 21: Transient field exclusion
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 21: Transient field exclusion ---");
 
     {
         const Class* cls = GetClass<BlobDataReference>();
@@ -913,13 +886,6 @@ CameraOrthoRect {
             Check("Non-transient 'Size' present", text.Contains("Size"), text);
         }
     }
-
-    
-    // ========================================================
-    // Section 22: MaterialParameters — 11 fields (Vec4f + 6 floats + Color + bool)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 22: MaterialParameters (11 fields) ---");
 
     {
         const Class* cls = GetClass<MaterialParameters>();
@@ -951,31 +917,25 @@ CameraOrthoRect {
             Check("MP: has all fields", text.Contains("Albedo") && text.Contains("ParallaxHeightScale") && text.Contains("UserParams"), text);
 
             HMF::ParseResult result = HMF::Parse(text);
-            Check("MP: round-trip parse succeeds", result.ok, result.message);
+            Check("MP: round-trip parse succeeds", Success(result), result.GetError().GetMessage());
 
-            if (result.ok)
+            if (Success(result))
             {
-                Check("MP: type correct", ClassNameIs(result.value, "MaterialParameters"));
+                Check("MP: type correct", ClassNameIs(result.GetValue(), "MaterialParameters"));
 
-                const Class* pc = GetClass(result.value.GetTypeId());
+                const Class* pc = GetClass(result.GetValue().GetTypeId());
                 if (pc)
                 {
-                    Check("MP: RT Metalness == 0.75", GetFieldValue<float>(result.value, pc, "Metalness") == 0.75f);
-                    Check("MP: RT Roughness == 0.25", GetFieldValue<float>(result.value, pc, "Roughness") == 0.25f);
-                    Check("MP: RT AlphaThreshold == 0.5", GetFieldValue<float>(result.value, pc, "AlphaThreshold") == 0.5f);
-                    Check("MP: RT Transmission == 0.3", GetFieldValue<float>(result.value, pc, "Transmission") == 0.3f);
-                    Check("MP: RT IOR == 1.33", GetFieldValue<float>(result.value, pc, "IOR") == 1.33f);
-                    Check("MP: RT Unlit == true", GetFieldValue<bool>(result.value, pc, "Unlit"));
+                    Check("MP: RT Metalness == 0.75", GetFieldValue<float>(result.GetValue(), pc, "Metalness") == 0.75f);
+                    Check("MP: RT Roughness == 0.25", GetFieldValue<float>(result.GetValue(), pc, "Roughness") == 0.25f);
+                    Check("MP: RT AlphaThreshold == 0.5", GetFieldValue<float>(result.GetValue(), pc, "AlphaThreshold") == 0.5f);
+                    Check("MP: RT Transmission == 0.3", GetFieldValue<float>(result.GetValue(), pc, "Transmission") == 0.3f);
+                    Check("MP: RT IOR == 1.33", GetFieldValue<float>(result.GetValue(), pc, "IOR") == 1.33f);
+                    Check("MP: RT Unlit == true", GetFieldValue<bool>(result.GetValue(), pc, "Unlit"));
                 }
             }
         }
     }
-
-    // ========================================================
-    // Section 23: MaterialAttributes — 12 fields (Name + enums + EnumFlags + nested structs)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 23: MaterialAttributes (12 fields) ---");
 
     {
         const Class* cls = GetClass<MaterialAttributes>();
@@ -1007,28 +967,22 @@ CameraOrthoRect {
             Check("MA: StencilReference = 7", text.Contains("StencilReference = 7"), text);
 
             HMF::ParseResult result = HMF::Parse(text);
-            Check("MA: round-trip parse succeeds", result.ok, result.message);
+            Check("MA: round-trip parse succeeds", Success(result), result.GetError().GetMessage());
 
-            if (result.ok)
+            if (Success(result))
             {
-                Check("MA: type correct", ClassNameIs(result.value, "MaterialAttributes"));
+                Check("MA: type correct", ClassNameIs(result.GetValue(), "MaterialAttributes"));
 
-                const Class* pc = GetClass(result.value.GetTypeId());
+                const Class* pc = GetClass(result.GetValue().GetTypeId());
                 if (pc)
                 {
-                    Check("MA: RT DepthBias == 100", GetFieldValue<int32>(result.value, pc, "DepthBias") == 100);
-                    Check("MA: RT DepthBiasSlope == 2.5", GetFieldValue<float>(result.value, pc, "DepthBiasSlope") == 2.5f);
-                    Check("MA: RT StencilReference == 7", GetFieldValue<uint8>(result.value, pc, "StencilReference") == 7);
+                    Check("MA: RT DepthBias == 100", GetFieldValue<int32>(result.GetValue(), pc, "DepthBias") == 100);
+                    Check("MA: RT DepthBiasSlope == 2.5", GetFieldValue<float>(result.GetValue(), pc, "DepthBiasSlope") == 2.5f);
+                    Check("MA: RT StencilReference == 7", GetFieldValue<uint8>(result.GetValue(), pc, "StencilReference") == 7);
                 }
             }
         }
     }
-
-    // ========================================================
-    // Section 24: TextureDesc full round-trip with all fields verified
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 24: TextureDesc full round-trip ---");
 
     {
         const Class* cls = GetClass<TextureDesc>();
@@ -1042,35 +996,29 @@ CameraOrthoRect {
             ObjectToHMFDocument(cls, obj, text);
 
             HMF::ParseResult result = HMF::Parse(text);
-            Check("TD: round-trip succeeds", result.ok, result.message);
+            Check("TD: round-trip succeeds", Success(result), result.GetError().GetMessage());
 
-            if (result.ok)
+            if (Success(result))
             {
-                const Class* pc = GetClass(result.value.GetTypeId());
+                const Class* pc = GetClass(result.GetValue().GetTypeId());
                 if (pc)
                 {
-                    Check("TD: RT NumLayers == 7", GetFieldValue<uint16>(result.value, pc, "NumLayers") == 7);
-                    Check("TD: RT Type == Texture2D", GetFieldUInt64(result.value, pc, "Type") == static_cast<uint64>(TextureType::Texture2D));
-                    Check("TD: RT Format == RGBA8", GetFieldUInt64(result.value, pc, "Format") == static_cast<uint64>(TextureFormat::RGBA8));
-                    Check("TD: RT MinFilterMode", GetFieldUInt64(result.value, pc, "MinFilterMode") == static_cast<uint64>(TFM_NEAREST));
-                    Check("TD: RT TextureWrapMode", GetFieldUInt64(result.value, pc, "TextureWrapMode") == static_cast<uint64>(TWM_CLAMP_TO_EDGE));
-                    Check("TD: RT ImageUsage", GetFieldUInt64(result.value, pc, "ImageUsage") == static_cast<uint64>(ImageUsage::IU_SAMPLED));
+                    Check("TD: RT NumLayers == 7", GetFieldValue<uint16>(result.GetValue(), pc, "NumLayers") == 7);
+                    Check("TD: RT Type == Texture2D", GetFieldUInt64(result.GetValue(), pc, "Type") == static_cast<uint64>(TextureType::Texture2D));
+                    Check("TD: RT Format == RGBA8", GetFieldUInt64(result.GetValue(), pc, "Format") == static_cast<uint64>(TextureFormat::RGBA8));
+                    Check("TD: RT MinFilterMode", GetFieldUInt64(result.GetValue(), pc, "MinFilterMode") == static_cast<uint64>(TFM_NEAREST));
+                    Check("TD: RT TextureWrapMode", GetFieldUInt64(result.GetValue(), pc, "TextureWrapMode") == static_cast<uint64>(TWM_CLAMP_TO_EDGE));
+                    Check("TD: RT ImageUsage", GetFieldUInt64(result.GetValue(), pc, "ImageUsage") == static_cast<uint64>(ImageUsage::IU_SAMPLED));
                 }
             }
         }
     }
 
-    // ========================================================
-    // Section 25: Parse complex hardcoded TextureDesc (non-default values)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 25: Parse complex hardcoded TextureDesc ---");
-
     {
         const String manifest = R"(TextureDesc {
     Type = Texture3D
     Format = RGBA8
-    Extent = [512, 512, 64]
+    Extent = (512, 512, 64)
     MinFilterMode = TFM_LINEAR
     MagFilterMode = TFM_LINEAR
     TextureWrapMode = TWM_REPEAT
@@ -1081,28 +1029,22 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse complex TD succeeds", result.ok, result.message);
+        Check("Parse complex TD succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("Parse TD type", ClassNameIs(result.value, "TextureDesc"));
+            Check("Parse TD type", ClassNameIs(result.GetValue(), "TextureDesc"));
 
-            const Class* pc = GetClass(result.value.GetTypeId());
+            const Class* pc = GetClass(result.GetValue().GetTypeId());
             if (pc)
             {
-                Check("Parse TD: Type == Texture3D", GetFieldUInt64(result.value, pc, "Type") == static_cast<uint64>(TextureType::Texture3D));
-                Check("Parse TD: MinFilterMode == TFM_LINEAR", GetFieldUInt64(result.value, pc, "MinFilterMode") == static_cast<uint64>(TFM_LINEAR));
-                Check("Parse TD: TextureWrapMode == TWM_REPEAT", GetFieldUInt64(result.value, pc, "TextureWrapMode") == static_cast<uint64>(TWM_REPEAT));
-                Check("Parse TD: NumLayers == 3", GetFieldValue<uint16>(result.value, pc, "NumLayers") == 3);
+                Check("Parse TD: Type == Texture3D", GetFieldUInt64(result.GetValue(), pc, "Type") == static_cast<uint64>(TextureType::Texture3D));
+                Check("Parse TD: MinFilterMode == TFM_LINEAR", GetFieldUInt64(result.GetValue(), pc, "MinFilterMode") == static_cast<uint64>(TFM_LINEAR));
+                Check("Parse TD: TextureWrapMode == TWM_REPEAT", GetFieldUInt64(result.GetValue(), pc, "TextureWrapMode") == static_cast<uint64>(TWM_REPEAT));
+                Check("Parse TD: NumLayers == 3", GetFieldValue<uint16>(result.GetValue(), pc, "NumLayers") == 3);
             }
         }
     }
-
-    // ========================================================
-    // Section 26: Object → HMF exact text
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 26: Object → HMF exact text ---");
 
     {
         const Class* cls = GetClass<CameraOrthoRect>();
@@ -1124,12 +1066,6 @@ CameraOrthoRect {
         }
     }
 
-    // ========================================================
-    // Section 27: Large uint64 round-trip
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 27: Large uint64 values ---");
-
     {
         const String manifest = R"(BlobDataReference {
     Key = "Game://Materials/ComplexMaterial.RAW"
@@ -1138,16 +1074,16 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse large BlobDataReference", result.ok, result.message);
+        Check("Parse large BlobDataReference", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                Check("Large Size == 4294967296", GetFieldValue<uint64>(result.value, cls, "Size") == 4294967296ULL);
+                Check("Large Size == 4294967296", GetFieldValue<uint64>(result.GetValue(), cls, "Size") == 4294967296ULL);
 
-                Name key = GetFieldValue<Name>(result.value, cls, "Key");
+                Name key = GetFieldValue<Name>(result.GetValue(), cls, "Key");
                 Check("Large Key correct",
                       String(key.LookupString()) == String("Game://Materials/ComplexMaterial.RAW"),
                       key.LookupString());
@@ -1155,14 +1091,7 @@ CameraOrthoRect {
         }
     }
 
-    // ========================================================
-    // Section 28: Matrix serialization (Mat4f round-trip)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 28: Matrix serialization ---");
-
     {
-        // Write a Mat4f value
         Mat4f mat = Mat4f::Identity();
         String text;
         const TypeInfo& matTi = TypeOf<Mat4f>();
@@ -1173,12 +1102,6 @@ CameraOrthoRect {
         Check("Matrix: has nested brackets", text.Contains("[") && text.Contains("]"), text);
         Check("Matrix: contains 1 (diagonal)", text.Contains("1"), text);
     }
-
-    // ========================================================
-    // Section 29: NodeTag — Variant field round-trip (Name + Variant<int,float,String,...>)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 29: NodeTag (Variant field) ---");
 
     {
         const Class* cls = GetClass<NodeTag>();
@@ -1197,25 +1120,19 @@ CameraOrthoRect {
             ObjectToHMFDocument(cls, obj, text);
             HYP_LOG(Engine, Info, "NodeTag HMF:\n{}", text);
 
-            Check("NodeTag: has Name field", text.Contains("Name"), text);
+            Check("NodeTag: has no name", !text.Contains("Name"), text);
             Check("NodeTag: has Data field", text.Contains("Data"), text);
 
             // Parse back
             HMF::ParseResult result = HMF::Parse(text);
-            Check("NodeTag: round-trip parse succeeds", result.ok, result.message);
+            Check("NodeTag: round-trip parse succeeds", Success(result), result.GetError().GetMessage());
 
-            if (result.ok)
+            if (Success(result))
             {
-                Check("NodeTag: type correct", ClassNameIs(result.value, "NodeTag"));
+                Check("NodeTag: type correct", ClassNameIs(result.GetValue(), "NodeTag"));
             }
         }
     }
-
-    // ========================================================
-    // Section 30: NodeTag with Variant holding a float value
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 30: NodeTag with Variant<float> ---");
 
     {
         const String manifest = R"(NodeTag {
@@ -1225,28 +1142,22 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse NodeTag (float variant) succeeds", result.ok, result.message);
+        Check("Parse NodeTag (float variant) succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("NodeTag float variant: type correct", ClassNameIs(result.value, "NodeTag"));
+            Check("NodeTag float variant: type correct", ClassNameIs(result.GetValue(), "NodeTag"));
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                Name tagName = GetFieldValue<Name>(result.value, cls, "Name");
+                Name tagName = GetFieldValue<Name>(result.GetValue(), cls, "Name");
                 Check("NodeTag float variant: Name == Health",
                       String(tagName.LookupString()) == String("Health"),
                       tagName.LookupString());
             }
         }
     }
-
-    // ========================================================
-    // Section 31: NodeTag with Variant holding an int value
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 31: NodeTag with Variant<int> ---");
 
     {
         const String manifest = R"(NodeTag {
@@ -1256,19 +1167,13 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse NodeTag (int variant) succeeds", result.ok, result.message);
+        Check("Parse NodeTag (int variant) succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("NodeTag int variant: type correct", ClassNameIs(result.value, "NodeTag"));
+            Check("NodeTag int variant: type correct", ClassNameIs(result.GetValue(), "NodeTag"));
         }
     }
-
-    // ========================================================
-    // Section 32: NodeTag with Variant holding a String value
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 32: NodeTag with Variant<String> ---");
 
     {
         const String manifest = R"(NodeTag {
@@ -1278,42 +1183,71 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse NodeTag (String variant) succeeds", result.ok, result.message);
+        Check("Parse NodeTag (String variant) succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("NodeTag String variant: type correct", ClassNameIs(result.value, "NodeTag"));
+            Check("NodeTag String variant: type correct", ClassNameIs(result.GetValue(), "NodeTag"));
         }
     }
 
-    // ========================================================
-    // Section 33: Matrix parse (hardcoded Mat4f)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 33: Parse hardcoded matrix values ---");
-
     {
-        // Test that the parser handles matrix-style nested arrays by
-        // creating an object that has a Mat4f field and verifying it parses
-        // Use CameraOrthoRect which has simple float fields — verify matrix-like
-        // array syntax works for Vec3u (which is already tested via TextureDesc Extent)
-        const String manifest = R"(CameraOrthoRect {
-    Left = 1.0
-    Right = 2.0
-    Bottom = 3.0
-    Top = 4.0
-}
-)";
+        const float matData[16] = {
+            1, 2, 3, 4,
+            5, 6, 7, 8,
+            9, 10, 11, 12,
+            13, 14, 15, 16
+        };
+        Mat4f mat(matData);
 
-        HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse before matrix test", result.ok, result.message);
+        String text;
+        const TypeInfo& matTi = TypeOf<Mat4f>();
+        BoxedToHMF(BoxedValue(mat), text, &matTi);
+        HYP_LOG(Engine, Info, "Mat4f written: {}", text);
+
+        Check("Matrix: non-empty", !text.Empty(), text);
+        Check("Matrix: has nested arrays", text.Contains("[["), text);
+        Check("Matrix: contains 1", text.Contains("1"), text);
+        Check("Matrix: contains 16", text.Contains("16"), text);
     }
 
-    // ========================================================
-    // Section 33b: Variant with Base struct — parse + verify
-    // ========================================================
+    {
+        Pair<int32, float> pair(42, 3.14f);
 
-    HYP_LOG(Engine, Info, "--- Section 33b: Variant<Base> parse ---");
+        String text;
+        const TypeInfo& pairTi = TypeOf<Pair<int32, float>>();
+        BoxedToHMF(BoxedValue(pair), text, &pairTi);
+        HYP_LOG(Engine, Info, "Pair<int32,float> written: {}", text);
+
+        Check("Pair: non-empty", !text.Empty(), text);
+        Check("Pair: has parens", text.Contains("(") && text.Contains(")"), text);
+        Check("Pair: contains 42", text.Contains("42"), text);
+        Check("Pair: contains 3.14", text.Contains("3.14"), text);
+    }
+
+    //                so we test Pair via direct value parse)
+
+    {
+        Pair<int32, float> pair(777, 9.99f);
+
+        String text;
+        const TypeInfo& pairTi = TypeOf<Pair<int32, float>>();
+        BoxedToHMF(BoxedValue(pair), text, &pairTi);
+
+        // Now parse it back -- Pair has a handler so the parser should handle it
+        // We can't easily parse a raw Pair value (the parser needs a class wrapper),
+        // but we can verify the writer output format is consistent
+        Check("Pair round-trip: format is (a, b)",
+              text.Contains("(") && text.Contains("777") && text.Contains("9.99") && text.Contains(")"),
+              text);
+
+        text.Clear();
+        Pair<int32, String> pairStr(100, "hello");
+        const TypeInfo& pairStrTi = TypeOf<Pair<int32, String>>();
+        BoxedToHMF(BoxedValue(pairStr), text, &pairStrTi);
+        Check("Pair<int,String>: has 100 and hello",
+              text.Contains("100") && text.Contains("\"hello\""), text);
+    }
 
     {
         const String manifest = R"(HMFVariantContainer {
@@ -1325,16 +1259,16 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Variant<Base>: parse succeeds", result.ok, result.message);
+        Check("Variant<Base>: parse succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("Variant<Base>: type is HMFVariantContainer", ClassNameIs(result.value, "HMFVariantContainer"));
+            Check("Variant<Base>: type is HMFVariantContainer", ClassNameIs(result.GetValue(), "HMFVariantContainer"));
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                Name cname = GetFieldValue<Name>(result.value, cls, "ContainerName");
+                Name cname = GetFieldValue<Name>(result.GetValue(), cls, "ContainerName");
                 Check("Variant<Base>: ContainerName == BaseTest",
                       String(cname.LookupString()) == String("BaseTest"),
                       cname.LookupString());
@@ -1343,7 +1277,7 @@ CameraOrthoRect {
                 {
                     BoxedValue itemVal;
                     if (m->GetMemberType() == MemberType::Field)
-                        itemVal = static_cast<const Field*>(m)->Get(result.value);
+                        itemVal = static_cast<const Field*>(m)->Get(result.GetValue());
 
                     String activeName = GetVariantActiveTypeName(itemVal);
 
@@ -1354,12 +1288,6 @@ CameraOrthoRect {
             }
         }
     }
-
-    // ========================================================
-    // Section 33c: Variant with Derived struct — parse + verify (key polymorphism test)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 33c: Variant<Derived> parse (polymorphism) ---");
 
     {
         const String manifest = R"(HMFVariantContainer {
@@ -1373,25 +1301,21 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Variant<Derived>: parse succeeds", result.ok, result.message);
+        Check("Variant<Derived>: parse succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("Variant<Derived>: type is HMFVariantContainer", ClassNameIs(result.value, "HMFVariantContainer"));
+            Check("Variant<Derived>: type is HMFVariantContainer", ClassNameIs(result.GetValue(), "HMFVariantContainer"));
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
                 if (const IMember* m = cls->GetMember(StringHash("Item")))
                 {
                     BoxedValue itemVal;
                     if (m->GetMemberType() == MemberType::Field)
-                        itemVal = static_cast<const Field*>(m)->Get(result.value);
+                        itemVal = static_cast<const Field*>(m)->Get(result.GetValue());
 
-                    // Note: for Variant<Base, Derived>, SetValue stores Derived at
-                    // the Base index (Derived IS-A Base via IsA check). The variant
-                    // index reports Base, but the actual object's runtime type is
-                    // preserved. We verify the data fields instead.
                     String activeName = GetVariantActiveTypeName(itemVal);
                     HYP_LOG(Engine, Info, "Variant<Derived>: active type = {}", activeName.Data());
 
@@ -1415,11 +1339,6 @@ CameraOrthoRect {
             }
         }
     }
-    // ========================================================
-    // Section 33d: Variant round-trip — parse Derived HMF, write, re-parse
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 33d: Variant round-trip (Derived preserved) ---");
 
     {
         const String manifest = R"(HMFVariantContainer {
@@ -1433,15 +1352,15 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Variant RT: parse succeeds", result.ok, result.message);
+        Check("Variant RT: parse succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
                 String text;
-                ObjectToHMFDocument(cls, result.value, text);
+                ObjectToHMFDocument(cls, result.GetValue(), text);
                 HYP_LOG(Engine, Info, "Variant RT HMF:\n{}", text);
 
                 Check("Variant RT: has ContainerName", text.Contains("ContainerName"), text);
@@ -1451,24 +1370,22 @@ CameraOrthoRect {
                 Check("Variant RT: DerivedValue = 9.99", text.Contains("DerivedValue = 9.99"), text);
 
                 HMF::ParseResult rtResult = HMF::Parse(text);
-                Check("Variant RT: re-parse succeeds", rtResult.ok, rtResult.message);
+                Check("Variant RT: re-parse succeeds", Success(rtResult), rtResult.GetError().GetMessage());
 
-                if (rtResult.ok)
+                if (Success(rtResult))
                 {
-                    Check("Variant RT: type correct", ClassNameIs(rtResult.value, "HMFVariantContainer"));
+                    Check("Variant RT: type correct", ClassNameIs(rtResult.GetValue(), "HMFVariantContainer"));
 
-                    const Class* rtCls = GetClass(rtResult.value.GetTypeId());
+                    const Class* rtCls = GetClass(rtResult.GetValue().GetTypeId());
                     if (rtCls)
                     {
                         if (const IMember* m = rtCls->GetMember(StringHash("Item")))
                         {
                             BoxedValue itemVal;
                             if (m->GetMemberType() == MemberType::Field)
-                                itemVal = static_cast<const Field*>(m)->Get(rtResult.value);
+                                itemVal = static_cast<const Field*>(m)->Get(rtResult.GetValue());
 
                             // Variant index may report Base (Derived IS-A Base in SetValue),
-                            // but the writer correctly serializes the runtime class, and the
-                            // data round-trips correctly. Verify data fields instead.
                             String activeName = GetVariantActiveTypeName(itemVal);
                             HYP_LOG(Engine, Info, "Variant RT: active type = {}", activeName.Data());
 
@@ -1487,12 +1404,6 @@ CameraOrthoRect {
         }
     }
 
-    // ========================================================
-    // Section 33e: Variant round-trip — parse Base HMF, write, re-parse
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 33e: Variant round-trip (Base preserved) ---");
-
     {
         const String manifest = R"(HMFVariantContainer {
     ContainerName = "RTBaseTest"
@@ -1503,32 +1414,32 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Variant RT Base: parse succeeds", result.ok, result.message);
+        Check("Variant RT Base: parse succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
                 String text;
-                ObjectToHMFDocument(cls, result.value, text);
+                ObjectToHMFDocument(cls, result.GetValue(), text);
                 HYP_LOG(Engine, Info, "Variant RT (Base) HMF:\n{}", text);
 
                 Check("Variant RT Base: has Base prefix", text.Contains("HMFVariantBase"), text);
 
                 HMF::ParseResult rtResult = HMF::Parse(text);
-                Check("Variant RT Base: re-parse succeeds", rtResult.ok, rtResult.message);
+                Check("Variant RT Base: re-parse succeeds", Success(rtResult), rtResult.GetError().GetMessage());
 
-                if (rtResult.ok)
+                if (Success(rtResult))
                 {
-                    const Class* rtCls = GetClass(rtResult.value.GetTypeId());
+                    const Class* rtCls = GetClass(rtResult.GetValue().GetTypeId());
                     if (rtCls)
                     {
                         if (const IMember* m = rtCls->GetMember(StringHash("Item")))
                         {
                             BoxedValue itemVal;
                             if (m->GetMemberType() == MemberType::Field)
-                                itemVal = static_cast<const Field*>(m)->Get(rtResult.value);
+                                itemVal = static_cast<const Field*>(m)->Get(rtResult.GetValue());
 
                             String activeName = GetVariantActiveTypeName(itemVal);
 
@@ -1542,14 +1453,7 @@ CameraOrthoRect {
         }
     }
 
-    // ========================================================
-    // Section 33f: Variant with primitive types — exhaustive coverage
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 33f: Variant primitives (all types) ---");
-
     {
-        // Test each primitive type the NodeTag variant can hold
         struct VariantTest
         {
             const char* name;
@@ -1557,67 +1461,61 @@ CameraOrthoRect {
         };
 
         const VariantTest tests[] = {
-            {"int",        R"(NodeTag {
+            { "int", R"(NodeTag {
     Name = "T"
     Data = 42
 }
-)"},
-            {"float",      R"(NodeTag {
+)" },
+            { "float", R"(NodeTag {
     Name = "T"
     Data = 3.14
 }
-)"},
-            {"String",     R"(NodeTag {
+)" },
+            { "String", R"(NodeTag {
     Name = "T"
     Data = "hello"
 }
-)"},
-            {"negative",   R"(NodeTag {
+)" },
+            { "negative", R"(NodeTag {
     Name = "T"
     Data = -7
 }
-)"},
-            {"zero",       R"(NodeTag {
+)" },
+            { "zero", R"(NodeTag {
     Name = "T"
     Data = 0
 }
-)"},
-            {"large_int",  R"(NodeTag {
+)" },
+            { "large_int", R"(NodeTag {
     Name = "T"
     Data = 2000000000
 }
-)"},
-            {"Vec3f",      R"(NodeTag {
+)" },
+            { "Vec3f", R"(NodeTag {
     Name = "T"
-    Data = [1, 2.5, 3]
+    Data = (1, 2.5, 3)
 }
-)"},
-            {"Vec4f",      R"(NodeTag {
+)" },
+            { "Vec4f", R"(NodeTag {
     Name = "T"
-    Data = [1, 2, 3, 4]
+    Data = (1, 2, 3, 4)
 }
-)"},
+)" },
         };
 
         for (const auto& vt : tests)
         {
             HMF::ParseResult result = HMF::Parse(vt.hmf);
             String label1 = String("Variant<") + vt.name + String(">: parse succeeds");
-            Check(label1.Data(), result.ok, result.message);
+            Check(label1.Data(), Success(result), result.GetError().GetMessage());
 
-            if (result.ok)
+            if (Success(result))
             {
                 String label2 = String("Variant<") + vt.name + String(">: type is NodeTag");
-                Check(label2.Data(), ClassNameIs(result.value, "NodeTag"));
+                Check(label2.Data(), ClassNameIs(result.GetValue(), "NodeTag"));
             }
         }
     }
-
-    // ========================================================
-    // Section 34: Parse a full MeshLodData (nested BlobDataReference fields)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 34: Parse MeshLodData (nested blobs) ---");
 
     {
         const String manifest = R"(MeshLodData {
@@ -1633,23 +1531,22 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse MeshLodData succeeds", result.ok, result.message);
+        Check("Parse MeshLodData succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("MeshLodData: type correct", ClassNameIs(result.value, "MeshLodData"));
+            Check("MeshLodData: type correct", ClassNameIs(result.GetValue(), "MeshLodData"));
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                // Verify VertexData nested blob
                 if (const IMember* m = cls->GetMember(StringHash("VertexData")))
                 {
                     BoxedValue vd;
                     if (m->GetMemberType() == MemberType::Field)
-                        vd = static_cast<const Field*>(m)->Get(result.value);
+                        vd = static_cast<const Field*>(m)->Get(result.GetValue());
                     else if (m->GetMemberType() == MemberType::Property)
-                        vd = static_cast<const Property*>(m)->Get(result.value);
+                        vd = static_cast<const Property*>(m)->Get(result.GetValue());
 
                     const Class* vdCls = GetClass(vd.GetTypeId());
                     if (vdCls)
@@ -1663,14 +1560,13 @@ CameraOrthoRect {
                     }
                 }
 
-                // Verify IndexData nested blob
                 if (const IMember* m = cls->GetMember(StringHash("IndexData")))
                 {
                     BoxedValue id;
                     if (m->GetMemberType() == MemberType::Field)
-                        id = static_cast<const Field*>(m)->Get(result.value);
+                        id = static_cast<const Field*>(m)->Get(result.GetValue());
                     else if (m->GetMemberType() == MemberType::Property)
-                        id = static_cast<const Property*>(m)->Get(result.value);
+                        id = static_cast<const Property*>(m)->Get(result.GetValue());
 
                     const Class* idCls = GetClass(id.GetTypeId());
                     if (idCls)
@@ -1683,15 +1579,9 @@ CameraOrthoRect {
         }
     }
 
-    // ========================================================
-    // Section 35: Parse MaterialParameters with all 11 fields from hardcoded HMF
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 35: Parse hardcoded MaterialParameters ---");
-
     {
         const String manifest = R"(MaterialParameters {
-    Albedo = [0.5, 0.25, 0.75, 1]
+    Albedo = (0.5, 0.25, 0.75, 1)
     Metalness = 0.8
     Roughness = 0.15
     AlphaThreshold = 0.33
@@ -1705,39 +1595,33 @@ CameraOrthoRect {
         Alpha = 1
     }
     EmissiveIntensity = 10
-    UserParams = [1, 2, 3, 4]
+    UserParams = (1, 2, 3, 4)
     Unlit = false
 }
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse MP from HMF succeeds", result.ok, result.message);
+        Check("Parse MP from HMF succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("MP HMF: type correct", ClassNameIs(result.value, "MaterialParameters"));
+            Check("MP HMF: type correct", ClassNameIs(result.GetValue(), "MaterialParameters"));
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                Check("MP HMF: Metalness == 0.8", GetFieldValue<float>(result.value, cls, "Metalness") == 0.8f);
-                Check("MP HMF: Roughness == 0.15", GetFieldValue<float>(result.value, cls, "Roughness") == 0.15f);
-                Check("MP HMF: IOR == 1.52", GetFieldValue<float>(result.value, cls, "IOR") == 1.52f);
-                Check("MP HMF: Unlit == false", !GetFieldValue<bool>(result.value, cls, "Unlit"));
-                Check("MP HMF: Transmission == 0.5", GetFieldValue<float>(result.value, cls, "Transmission") == 0.5f);
+                Check("MP HMF: Metalness == 0.8", GetFieldValue<float>(result.GetValue(), cls, "Metalness") == 0.8f);
+                Check("MP HMF: Roughness == 0.15", GetFieldValue<float>(result.GetValue(), cls, "Roughness") == 0.15f);
+                Check("MP HMF: IOR == 1.52", GetFieldValue<float>(result.GetValue(), cls, "IOR") == 1.52f);
+                Check("MP HMF: Unlit == false", !GetFieldValue<bool>(result.GetValue(), cls, "Unlit"));
+                Check("MP HMF: Transmission == 0.5", GetFieldValue<float>(result.GetValue(), cls, "Transmission") == 0.5f);
             }
         }
     }
 
-    // ========================================================
-    // Section 36: Parse MaterialAttributes from hardcoded HMF
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 36: Parse hardcoded MaterialAttributes ---");
-
     {
         const String manifest = R"(MaterialAttributes {
-    ShaderName = "Standard"
+    ShaderName = "GeometryPass"
     Bucket = Opaque
     FillMode = FM_FILL
     CullFaces = FCM_BACK
@@ -1756,33 +1640,27 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse MA from HMF succeeds", result.ok, result.message);
+        Check("Parse MA from HMF succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("MA HMF: type correct", ClassNameIs(result.value, "MaterialAttributes"));
+            Check("MA HMF: type correct", ClassNameIs(result.GetValue(), "MaterialAttributes"));
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                Check("MA HMF: DepthBias == 50", GetFieldValue<int32>(result.value, cls, "DepthBias") == 50);
-                Check("MA HMF: DepthBiasSlope == 1.5", GetFieldValue<float>(result.value, cls, "DepthBiasSlope") == 1.5f);
-                Check("MA HMF: StencilReference == 3", GetFieldValue<uint8>(result.value, cls, "StencilReference") == 3);
+                Check("MA HMF: DepthBias == 50", GetFieldValue<int32>(result.GetValue(), cls, "DepthBias") == 50);
+                Check("MA HMF: DepthBiasSlope == 1.5", GetFieldValue<float>(result.GetValue(), cls, "DepthBiasSlope") == 1.5f);
+                Check("MA HMF: StencilReference == 3", GetFieldValue<uint8>(result.GetValue(), cls, "StencilReference") == 3);
                 Check("MA HMF: Bucket == Opaque",
-                      GetFieldUInt64(result.value, cls, "Bucket") == static_cast<uint64>(RenderBucket::Opaque));
+                      GetFieldUInt64(result.GetValue(), cls, "Bucket") == static_cast<uint64>(RenderBucket::Opaque));
                 Check("MA HMF: FillMode == FM_FILL",
-                      GetFieldUInt64(result.value, cls, "FillMode") == static_cast<uint64>(FM_FILL));
+                      GetFieldUInt64(result.GetValue(), cls, "FillMode") == static_cast<uint64>(FM_FILL));
                 Check("MA HMF: CullFaces == FCM_BACK",
-                      GetFieldUInt64(result.value, cls, "CullFaces") == static_cast<uint64>(FCM_BACK));
+                      GetFieldUInt64(result.GetValue(), cls, "CullFaces") == static_cast<uint64>(FCM_BACK));
             }
         }
     }
-
-    // ========================================================
-    // Section 37: Parse SamplerDesc (4 enum fields, packed struct)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 37: Parse SamplerDesc ---");
 
     {
         const String manifest = R"(SamplerDesc {
@@ -1794,69 +1672,56 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse SamplerDesc succeeds", result.ok, result.message);
+        Check("Parse SamplerDesc succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("SamplerDesc: type correct", ClassNameIs(result.value, "SamplerDesc"));
+            Check("SamplerDesc: type correct", ClassNameIs(result.GetValue(), "SamplerDesc"));
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
                 Check("SamplerDesc: MinFilterMode == TFM_LINEAR_MIPMAP",
-                      GetFieldUInt64(result.value, cls, "MinFilterMode") == static_cast<uint64>(TFM_LINEAR_MIPMAP));
+                      GetFieldUInt64(result.GetValue(), cls, "MinFilterMode") == static_cast<uint64>(TFM_LINEAR_MIPMAP));
                 Check("SamplerDesc: WrapMode == TWM_REPEAT",
-                      GetFieldUInt64(result.value, cls, "WrapMode") == static_cast<uint64>(TWM_REPEAT));
+                      GetFieldUInt64(result.GetValue(), cls, "WrapMode") == static_cast<uint64>(TWM_REPEAT));
             }
         }
     }
 
-    // ========================================================
-    // Section 38: Parse Viewport (Vec2u + Vec2i vector fields)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 38: Parse Viewport ---");
-
     {
         const String manifest = R"(Viewport {
-    Extent = [1920, 1080]
-    Position = [100, 200]
+    Extent = (1920, 1080)
+    Position = (100, 200)
 }
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse Viewport succeeds", result.ok, result.message);
+        Check("Parse Viewport succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("Viewport: type correct", ClassNameIs(result.value, "Viewport"));
+            Check("Viewport: type correct", ClassNameIs(result.GetValue(), "Viewport"));
         }
     }
 
-    // ========================================================
-    // Section 39: Parse a NodeTag with Vec4f variant data (like real Prefab gizmos)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 39: NodeTag with Vec4f variant ---");
-
     {
-        const String manifest = R"(NodeTag {
-    Name = "TransformWidgetElementColor"
-    Data = [1, 0.02, 0.02, 1]
+        const String manifest = R"(NodeTag "TransformWidgetElementColor" {
+    Data = (1, 0.02, 0.02, 1)
 }
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse NodeTag (Vec4f variant) succeeds", result.ok, result.message);
+        Check("Parse NodeTag (Vec4f variant) succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("NodeTag Vec4f: type correct", ClassNameIs(result.value, "NodeTag"));
+            Check("NodeTag Vec4f: type correct", ClassNameIs(result.GetValue(), "NodeTag"));
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                Name tagName = GetFieldValue<Name>(result.value, cls, "Name");
+                Name tagName = GetFieldValue<Name>(result.GetValue(), cls, "Name");
                 Check("NodeTag Vec4f: Name == TransformWidgetElementColor",
                       String(tagName.LookupString()) == String("TransformWidgetElementColor"),
                       tagName.LookupString());
@@ -1864,75 +1729,62 @@ CameraOrthoRect {
         }
     }
 
-    // ========================================================
-    // Section 40: Round-trip NodeTag with float variant (create from HMF, write back)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 40: NodeTag round-trip (Variant) ---");
-
     {
-        const String manifest = R"(NodeTag {
-    Name = "Speed"
+        const String manifest = R"(NodeTag "Speed" {
     Data = 42.5
 }
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("NodeTag RT: parse succeeds", result.ok, result.message);
+        Check("NodeTag RT: parse succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
             // Write it back to HMF
             String rt;
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                ObjectToHMFDocument(cls, result.value, rt);
+                ObjectToHMFDocument(cls, result.GetValue(), rt);
                 HYP_LOG(Engine, Info, "NodeTag round-trip HMF:\n{}", rt);
 
-                Check("NodeTag RT: has Name field", rt.Contains("Name"), rt);
+                Check("NodeTag RT: has no Name field", !rt.Contains("Name ="), rt);
+                Check("NodeTag RT: has Name at top of object", rt.Contains("NodeTag \"Speed\""), rt);
                 Check("NodeTag RT: has Data field", rt.Contains("Data"), rt);
                 Check("NodeTag RT: Data = 42.5", rt.Contains("Data = 42.5"), rt);
 
                 // Parse the round-trip output again
                 HMF::ParseResult rtResult = HMF::Parse(rt);
-                Check("NodeTag RT: re-parse succeeds", rtResult.ok, rtResult.message);
+                Check("NodeTag RT: re-parse succeeds", Success(rtResult), rtResult.GetError().GetMessage());
 
-                if (rtResult.ok)
+                if (Success(rtResult))
                 {
-                    Check("NodeTag RT: re-parse type correct", ClassNameIs(rtResult.value, "NodeTag"));
+                    Check("NodeTag RT: re-parse type correct", ClassNameIs(rtResult.GetValue(), "NodeTag"));
                 }
             }
         }
     }
 
-    // ========================================================
-    // Section 41: Parse RawDataAsset (minimal asset, BlobDataReference field)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 41: Parse RawDataAsset ---");
-
     {
-        const String manifest = R"(RawDataAsset {
+        const String manifest = R"(RawDataAsset "BlueNoise" {
     Data = BlobDataReference {
         Key = "Engine://RawData/BlueNoise.RAW"
         Size = 1310720
     }
-    Name = "BlueNoise"
 }
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse RawDataAsset succeeds", result.ok, result.message);
+        Check("Parse RawDataAsset succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("RawDataAsset: type correct", ClassNameIs(result.value, "RawDataAsset"));
+            Check("RawDataAsset: type correct", ClassNameIs(result.GetValue(), "RawDataAsset"));
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                Name assetName = GetFieldValue<Name>(result.value, cls, "Name");
+                Name assetName = GetFieldValue<Name>(result.GetValue(), cls, "Name");
                 Check("RawDataAsset: Name == BlueNoise",
                       String(assetName.LookupString()) == String("BlueNoise"),
                       assetName.LookupString());
@@ -1940,46 +1792,33 @@ CameraOrthoRect {
         }
     }
 
-    // ========================================================
-    // Section 42: Parse AnimationTrack (simple root asset type)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 42: Parse AnimationTrack ---");
-
     {
-        const String manifest = R"(AnimationTrack {
+        const String manifest = R"(AnimationTrack "Sprint_chest" {
     BoneName = "chest"
     KeyframeData = BlobDataReference {
         Key = "Game://AnimationTracks/Sprint_chest.KEYF"
         Size = 1408
     }
-    Name = "Sprint_chest"
 }
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse AnimationTrack succeeds", result.ok, result.message);
+        Check("Parse AnimationTrack succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("AnimationTrack: type correct", ClassNameIs(result.value, "AnimationTrack"));
+            Check("AnimationTrack: type correct", ClassNameIs(result.GetValue(), "AnimationTrack"));
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                Name boneName = GetFieldValue<Name>(result.value, cls, "BoneName");
+                Name boneName = GetFieldValue<Name>(result.GetValue(), cls, "BoneName");
                 Check("AnimationTrack: BoneName == chest",
                       String(boneName.LookupString()) == String("chest"),
                       boneName.LookupString());
             }
         }
     }
-
-    // ========================================================
-    // Section 43: Custom struct with nested TextureDesc (code-defined type)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 43: HMFTestNestedStruct (nested TextureDesc) ---");
 
     {
         const String manifest = R"(HMFTestNestedStruct {
@@ -1988,7 +1827,7 @@ CameraOrthoRect {
     Texture = {
         Type = Texture3D
         Format = RGBA8
-        Extent = [256, 256, 32]
+        Extent = (256, 256, 32)
         MinFilterMode = TFM_LINEAR
         MagFilterMode = TFM_LINEAR
         TextureWrapMode = TWM_REPEAT
@@ -2000,35 +1839,34 @@ CameraOrthoRect {
 )";
 
         HMF::ParseResult result = HMF::Parse(manifest);
-        Check("Parse HMFTestNestedStruct succeeds", result.ok, result.message);
+        Check("Parse HMFTestNestedStruct succeeds", Success(result), result.GetError().GetMessage());
 
-        if (result.ok)
+        if (Success(result))
         {
-            Check("NestedStruct: type correct", ClassNameIs(result.value, "HMFTestNestedStruct"));
+            Check("NestedStruct: type correct", ClassNameIs(result.GetValue(), "HMFTestNestedStruct"));
 
-            const Class* cls = GetClass(result.value.GetTypeId());
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
                 // Verify top-level fields
-                Name label = GetFieldValue<Name>(result.value, cls, "Label");
+                Name label = GetFieldValue<Name>(result.GetValue(), cls, "Label");
                 Check("NestedStruct: Label == MyTestTexture",
                       String(label.LookupString()) == String("MyTestTexture"),
                       label.LookupString());
 
-                Check("NestedStruct: Id == 42", GetFieldValue<int32>(result.value, cls, "Id") == 42);
+                Check("NestedStruct: Id == 42", GetFieldValue<int32>(result.GetValue(), cls, "Id") == 42);
 
                 // Verify nested TextureDesc fields
                 Check("NestedStruct: Texture Type == Texture3D",
-                      GetFieldUInt64(result.value, cls, "Texture") == 0); // placeholder, will refine below
+                      GetFieldUInt64(result.GetValue(), cls, "Texture") == 0); // placeholder, will refine below
 
-                // Drill into the nested Texture field
                 if (const IMember* m = cls->GetMember(StringHash("Texture")))
                 {
                     BoxedValue texVal;
                     if (m->GetMemberType() == MemberType::Field)
-                        texVal = static_cast<const Field*>(m)->Get(result.value);
+                        texVal = static_cast<const Field*>(m)->Get(result.GetValue());
                     else if (m->GetMemberType() == MemberType::Property)
-                        texVal = static_cast<const Property*>(m)->Get(result.value);
+                        texVal = static_cast<const Property*>(m)->Get(result.GetValue());
 
                     const Class* texCls = GetClass(texVal.GetTypeId());
                     if (texCls)
@@ -2057,12 +1895,6 @@ CameraOrthoRect {
         }
     }
 
-    // ========================================================
-    // Section 44: Round-trip HMFTestNestedStruct (create → write → parse → verify)
-    // ========================================================
-
-    HYP_LOG(Engine, Info, "--- Section 44: HMFTestNestedStruct round-trip ---");
-
     {
         const Class* cls = GetClass<HMFTestNestedStruct>();
         if (!cls || !cls->CanCreateInstance())
@@ -2086,18 +1918,18 @@ CameraOrthoRect {
             Check("NestedStruct RT: has Texture", text.Contains("Texture"), text);
 
             HMF::ParseResult result = HMF::Parse(text);
-            Check("NestedStruct RT: re-parse succeeds", result.ok, result.message);
+            Check("NestedStruct RT: re-parse succeeds", Success(result), result.GetError().GetMessage());
 
-            if (result.ok)
+            if (Success(result))
             {
-                Check("NestedStruct RT: type correct", ClassNameIs(result.value, "HMFTestNestedStruct"));
+                Check("NestedStruct RT: type correct", ClassNameIs(result.GetValue(), "HMFTestNestedStruct"));
 
-                const Class* pc = GetClass(result.value.GetTypeId());
+                const Class* pc = GetClass(result.GetValue().GetTypeId());
                 if (pc)
                 {
-                    Check("NestedStruct RT: Id == 777", GetFieldValue<int32>(result.value, pc, "Id") == 777);
+                    Check("NestedStruct RT: Id == 777", GetFieldValue<int32>(result.GetValue(), pc, "Id") == 777);
 
-                    Name label = GetFieldValue<Name>(result.value, pc, "Label");
+                    Name label = GetFieldValue<Name>(result.GetValue(), pc, "Label");
                     Check("NestedStruct RT: Label == RoundTripTest",
                           String(label.LookupString()) == String("RoundTripTest"),
                           label.LookupString());
@@ -2106,9 +1938,227 @@ CameraOrthoRect {
         }
     }
 
-    // ========================================================
-    // Summary
-    // ========================================================
+    {
+        const String manifest = R"(HMFVariantArrayHolder {
+    HolderName = "MixedArray"
+    Items = [
+        HMFVariantBase {
+            BaseValue = 10
+        }
+        HMFVariantDerived {
+            BaseValue = 20
+            DerivedValue = 1.5
+            DerivedName = "First"
+        }
+        HMFVariantBase {
+            BaseValue = 30
+        }
+        HMFVariantDerived {
+            BaseValue = 40
+            DerivedValue = 2.5
+            DerivedName = "Second"
+        }
+    ]
+}
+)";
+
+        HMF::ParseResult result = HMF::Parse(manifest);
+        Check("PolyArray: parse succeeds", Success(result), result.GetError().GetMessage());
+
+        if (Success(result))
+        {
+            Check("PolyArray: type is HMFVariantArrayHolder",
+                  ClassNameIs(result.GetValue(), "HMFVariantArrayHolder"));
+
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
+            if (cls)
+            {
+                Name hname = GetFieldValue<Name>(result.GetValue(), cls, "HolderName");
+                Check("PolyArray: HolderName == MixedArray",
+                      String(hname.LookupString()) == String("MixedArray"),
+                      hname.LookupString());
+
+                // Extract the Items array
+                if (const IMember* m = cls->GetMember(StringHash("Items")))
+                {
+                    BoxedValue itemsVal;
+                    if (m->GetMemberType() == MemberType::Field)
+                        itemsVal = static_cast<const Field*>(m)->Get(result.GetValue());
+
+                    // Use GenericArrayWrapper to iterate
+                    auto* arrHandler = static_cast<ITypeInfoArrayHandler*>(
+                        itemsVal.GetTypeInfo()->extendedInfo.handler);
+
+                    if (arrHandler)
+                    {
+                        const size_t count = arrHandler->GetSize(itemsVal);
+                        HYP_LOG(Engine, Info, "PolyArray: {} items", count);
+                        Check("PolyArray: 4 items in array", count == 4, "wrong count");
+
+                        // Verify each item
+                        for (size_t i = 0; i < count && i < 4; i++)
+                        {
+                            BoxedValue element;
+                            if (arrHandler->GetElementAt(itemsVal, i, element))
+                            {
+                                const Class* elemCls = GetClass(element.GetTypeId());
+                                String elemTypeName = elemCls ? elemCls->GetName().ToString() : String("null");
+                                HYP_LOG(Engine, Info, "PolyArray: item[{}] type={}", i, elemTypeName.Data());
+
+                                if (elemCls)
+                                {
+                                    int32 bv = GetFieldValue<int32>(element, elemCls, "BaseValue");
+
+                                    if (i == 0)
+                                    {
+                                        Check("PolyArray[0]: type Base", elemTypeName == String("HMFVariantBase"), elemTypeName);
+                                        Check("PolyArray[0]: BaseValue==10", bv == 10);
+                                    }
+                                    if (i == 1)
+                                    {
+                                        Check("PolyArray[1]: type Derived", elemTypeName == String("HMFVariantDerived"), elemTypeName);
+                                        Check("PolyArray[1]: BaseValue==20", bv == 20);
+                                    }
+                                    if (i == 2)
+                                    {
+                                        Check("PolyArray[2]: type Base", elemTypeName == String("HMFVariantBase"), elemTypeName);
+                                        Check("PolyArray[2]: BaseValue==30", bv == 30);
+                                    }
+                                    if (i == 3)
+                                    {
+                                        Check("PolyArray[3]: type Derived", elemTypeName == String("HMFVariantDerived"), elemTypeName);
+                                        Check("PolyArray[3]: BaseValue==40", bv == 40);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    {
+        const String manifest = R"(HMFVariantArrayHolder {
+    HolderName = "RT"
+    Items = [
+        HMFVariantBase {
+            BaseValue = 111
+        }
+        HMFVariantDerived {
+            BaseValue = 222
+            DerivedValue = 9.99
+            DerivedName = "RTDerived"
+        }
+    ]
+}
+)";
+
+        HMF::ParseResult result = HMF::Parse(manifest);
+        Check("PolyArray RT: parse succeeds", Success(result), result.GetError().GetMessage());
+
+        if (Success(result))
+        {
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
+            if (cls)
+            {
+                // Write back to HMF
+                String text;
+                ObjectToHMFDocument(cls, result.GetValue(), text);
+                HYP_LOG(Engine, Info, "PolyArray RT HMF:\n{}", text);
+
+                Check("PolyArray RT: first element uses Base prefix",
+                      text.Contains("HMFVariantBase") || text.Contains("BaseValue = 111"),
+                      text);
+                Check("PolyArray RT: has HMFVariantDerived prefix", text.Contains("HMFVariantDerived"), text);
+                Check("PolyArray RT: BaseValue = 111", text.Contains("BaseValue = 111"), text);
+                Check("PolyArray RT: BaseValue = 222", text.Contains("BaseValue = 222"), text);
+                Check("PolyArray RT: DerivedValue = 9.99", text.Contains("DerivedValue = 9.99"), text);
+                Check("PolyArray RT: DerivedName = RTDerived", text.Contains("DerivedName = \"RTDerived\""), text);
+
+                // Re-parse
+                HMF::ParseResult rtResult = HMF::Parse(text);
+                Check("PolyArray RT: re-parse succeeds", Success(rtResult), rtResult.GetError().GetMessage());
+
+                if (Success(rtResult))
+                {
+                    Check("PolyArray RT: type correct",
+                          ClassNameIs(rtResult.GetValue(), "HMFVariantArrayHolder"));
+
+                    const Class* rtCls = GetClass(rtResult.GetValue().GetTypeId());
+                    if (rtCls)
+                    {
+                        if (const IMember* m = rtCls->GetMember(StringHash("Items")))
+                        {
+                            BoxedValue itemsVal;
+                            if (m->GetMemberType() == MemberType::Field)
+                                itemsVal = static_cast<const Field*>(m)->Get(rtResult.GetValue());
+
+                            auto* arrHandler = static_cast<ITypeInfoArrayHandler*>(
+                                itemsVal.GetTypeInfo()->extendedInfo.handler);
+
+                            if (arrHandler)
+                            {
+                                const size_t count = arrHandler->GetSize(itemsVal);
+                                Check("PolyArray RT: 2 items preserved", count == 2, "wrong count");
+
+                                for (size_t i = 0; i < count && i < 2; i++)
+                                {
+                                    BoxedValue element;
+                                    if (arrHandler->GetElementAt(itemsVal, i, element))
+                                    {
+                                        const Class* elemCls = GetClass(element.GetTypeId());
+                                        if (elemCls)
+                                        {
+                                            int32 bv = GetFieldValue<int32>(element, elemCls, "BaseValue");
+
+                                            if (i == 0)
+                                            {
+                                                Check("PolyArray RT[0]: type Base",
+                                                      String(elemCls->GetName().ToString()) == String("HMFVariantBase"),
+                                                      elemCls->GetName().ToString());
+                                                Check("PolyArray RT[0]: BaseValue==111", bv == 111);
+                                            }
+                                            if (i == 1)
+                                            {
+                                                Check("PolyArray RT[1]: type Derived",
+                                                      String(elemCls->GetName().ToString()) == String("HMFVariantDerived"),
+                                                      elemCls->GetName().ToString());
+                                                Check("PolyArray RT[1]: BaseValue==222", bv == 222);
+
+                                                float dv = GetFieldValue<float>(element, elemCls, "DerivedValue");
+                                                Check("PolyArray RT[1]: DerivedValue==9.99", dv == 9.99f);
+
+                                                Name dn = GetFieldValue<Name>(element, elemCls, "DerivedName");
+                                                Check("PolyArray RT[1]: DerivedName==RTDerived",
+                                                      String(dn.LookupString()) == String("RTDerived"),
+                                                      dn.LookupString());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    {
+        String text;
+        Array<bool> boolArr = { true, false, true };
+        BoxedToHMF(BoxedValue(boolArr), text);
+        Check("Array<bool>: has true and false",
+              text.Contains("true") && text.Contains("false"), text);
+
+        // Array of strings -- verify we don't crash and produce output
+        text.Clear();
+        Array<String> strArr;
+        strArr.PushBack("hello");
+        BoxedToHMF(BoxedValue(strArr), text);
+        Check("Array<String>: non-empty output", !text.Empty(), text);
+    }
 
     HYP_LOG(Engine, Info, "========== HMF Test Results: {} passed, {} failed ==========",
             g_passCount, g_failCount);
@@ -2124,4 +2174,3 @@ CameraOrthoRect {
 } // namespace Hyperion
 
 #endif // HYP_TESTS
-

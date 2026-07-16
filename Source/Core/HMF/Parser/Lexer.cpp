@@ -17,10 +17,10 @@ using namespace utf;
 Lexer::Lexer(
     const SourceStream& sourceStream,
     TokenStream* tokenStream,
-    CompilationUnit* compilationUnit)
+    ErrorList* errorList)
     : m_sourceStream(sourceStream),
       m_tokenStream(tokenStream),
-      m_compilationUnit(compilationUnit),
+      m_errorList(errorList),
       m_sourceLocation(0, 0, sourceStream.GetFile()->GetFilePath())
 {
 }
@@ -28,7 +28,7 @@ Lexer::Lexer(
 Lexer::Lexer(const Lexer& other)
     : m_sourceStream(other.m_sourceStream),
       m_tokenStream(other.m_tokenStream),
-      m_compilationUnit(other.m_compilationUnit),
+      m_errorList(other.m_errorList),
       m_sourceLocation(other.m_sourceLocation)
 {
 }
@@ -97,7 +97,7 @@ Token Lexer::NextToken()
     {
         return ReadHexNumberLiteral();
     }
-    else if (IsDecimal(ch[0]) || (ch[0] == '.' && IsDecimal(ch[1])) || (ch[0] == '-' && IsDecimal(ch[1])) || (ch[0] == '+' && IsDecimal(ch[1])))
+    else if (IsDecimal(ch[0]) || (ch[0] == '.' && IsDecimal(ch[1])) || (ch[0] == '-' && (IsDecimal(ch[1]) || ch[1] == 'i' || ch[1] == 'n')) || (ch[0] == '+' && (IsDecimal(ch[1]) || ch[1] == 'i' || ch[1] == 'n')))
     {
         return ReadNumberLiteral();
     }
@@ -205,8 +205,8 @@ Token Lexer::NextToken()
         utf::Char8 badTokenStr[sizeof(utf::Char32) + 1] = { '\0' };
         utf::Char32to8(badToken, badTokenStr);
 
-        m_compilationUnit->GetErrorList().AddError(CompilerError(
-            LEVEL_ERROR,
+        m_errorList->AddError(CompilerError(
+            ErrorLevel::Error,
             MSG_UNEXPECTED_TOKEN,
             location,
             String(badTokenStr)));
@@ -250,8 +250,8 @@ Char32 Lexer::ReadEscapeCode()
             // return the escape itself
             return esc;
         default:
-            m_compilationUnit->GetErrorList().AddError(CompilerError(
-                LEVEL_ERROR,
+            m_errorList->AddError(CompilerError(
+                ErrorLevel::Error,
                 MSG_UNRECOGNIZED_ESCAPE_SEQUENCE,
                 location,
                 String("\\") + reinterpret_cast<const String::CharType*>(chars)));
@@ -281,8 +281,8 @@ Token Lexer::ReadStringLiteral(TokenClass tokenClass)
         if (ch == (Char32)'\n' || !HasNext())
         {
             // unterminated string literal
-            m_compilationUnit->GetErrorList().AddError(CompilerError(
-                LEVEL_ERROR,
+            m_errorList->AddError(CompilerError(
+                ErrorLevel::Error,
                 MSG_UNTERMINATED_STRING_LITERAL,
                 m_sourceLocation));
 
@@ -368,6 +368,39 @@ Token Lexer::ReadNumberLiteral()
 
     Char32 ch = m_sourceStream.Peek();
 
+    if (ch == (Char32)'i' || ch == (Char32)'n')
+    {
+        String ident;
+
+        while (m_sourceStream.HasNext() && (utf::IsAlphabetical(ch) || ch == (Char32)'_'))
+        {
+            int posChange = 0;
+            Char32 nextChar = m_sourceStream.Next(posChange);
+
+            ident.Append(utf::ToUtf8Chars(nextChar));
+
+            m_sourceLocation.GetColumn() += posChange;
+            
+            ch = m_sourceStream.HasNext() ? m_sourceStream.Peek() : 0;
+        }
+
+        String lower = ident.ToLower();
+
+        if (lower == "inf" || lower == "infinity" || lower == "nan")
+        {
+            value += ident;
+            return Token(TK_FLOAT, value, location);
+        }
+
+        m_errorList->AddError(CompilerError(
+            ErrorLevel::Error,
+            MSG_UNEXPECTED_TOKEN,
+            location,
+            value + ident));
+
+        return Token::empty;
+    }
+
     bool hasExponent = false;
 
     while (m_sourceStream.HasNext() && IsDecimal(ch))
@@ -423,15 +456,13 @@ Token Lexer::ReadNumberLiteral()
 
                 ch = m_sourceStream.Peek();
 
-                // Handle negative exponent
-                if (ch == (Char32)'-')
+                // Handle exponent sign
+                if (ch == (Char32)'-' || ch == (Char32)'+')
                 {
                     value.Append(utf::ToUtf8Chars(ch));
 
                     int posChange = 0;
                     m_sourceStream.Next(posChange);
-                    m_sourceLocation.GetColumn() += posChange;
-
                     m_sourceLocation.GetColumn() += posChange;
                 }
             }
@@ -597,6 +628,16 @@ Token Lexer::ReadIdentifier()
         ch = m_sourceStream.Peek();
     }
 
+    // Check for special float literals
+    {
+        String lower = value.ToLower();
+
+        if (lower == "inf" || lower == "infinity" || lower == "nan")
+        {
+            return Token(TK_FLOAT, value, location);
+        }
+    }
+
     return Token(TK_IDENT, value, location);
 }
 
@@ -604,8 +645,8 @@ bool Lexer::HasNext()
 {
     if (!m_sourceStream.HasNext())
     {
-        m_compilationUnit->GetErrorList().AddError(CompilerError(
-            LEVEL_ERROR,
+        m_errorList->AddError(CompilerError(
+            ErrorLevel::Error,
             MSG_UNEXPECTED_EOF,
             m_sourceLocation));
 

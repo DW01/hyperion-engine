@@ -121,9 +121,26 @@ Result ObjectFromJSON(const JSON::Object& jsonObject, const Class* targetClass, 
 
 struct ToHMFOptions
 {
+    enum class FollowAssetPathsMode : int
+    {
+        Never = -1,
+        MatchingAttribute = 0,
+        Always
+    };
+
+    enum class SaveAssetsAsReferencesMode : int
+    {
+        No,
+        UnlessOtherwiseSpecified,
+        Yes
+    };
+
     bool skipTransientProperties = true;
     bool writeClassName = true;
     bool writeClassNamesForPolymorphic = true;
+
+    SaveAssetsAsReferencesMode saveAssetsAsReferences = SaveAssetsAsReferencesMode::UnlessOtherwiseSpecified;
+    FollowAssetPathsMode followAssetPaths = FollowAssetPathsMode::MatchingAttribute;
 };
 
 Result BoxedToHMF(

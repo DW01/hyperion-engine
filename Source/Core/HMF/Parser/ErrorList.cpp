@@ -52,7 +52,7 @@ bool ErrorList::HasFatalErrors() const
 {
     return m_errors.FindIf([](const CompilerError& error)
                {
-                   return error.GetLevel() == LEVEL_ERROR;
+                   return error.GetLevel() == ErrorLevel::Error;
                })
         != m_errors.End();
 }

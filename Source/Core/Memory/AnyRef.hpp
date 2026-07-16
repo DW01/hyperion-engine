@@ -21,6 +21,7 @@ class Class;
 
 CORE_API extern const Class* GetClass(const TypeId& typeId);
 CORE_API extern bool IsA(const Class* cls, const void* ptr, const TypeId& typeId);
+CORE_API extern bool AnyRef_IsUnderlyingEnumType(const TypeInfo* typeInfo, TypeId requestedTypeId);
 
 namespace memory {
 
@@ -165,7 +166,13 @@ public:
         const TypeId typeId = TypeId::ForType<NormalizedType<T>>();
         const TypeId thisTypeId = GetTypeId();
 
-        return m_ptr && (thisTypeId == typeId || IsA(Hyperion::GetClass(typeId), m_ptr, thisTypeId));
+        if (m_ptr && (thisTypeId == typeId || IsA(Hyperion::GetClass(typeId), m_ptr, thisTypeId)))
+            return true;
+
+        if (m_ptr && m_typeInfo && AnyRef_IsUnderlyingEnumType(m_typeInfo, typeId))
+            return true;
+
+        return false;
     }
 
     /*! \brief Returns true if the held object is of type \p typeId.

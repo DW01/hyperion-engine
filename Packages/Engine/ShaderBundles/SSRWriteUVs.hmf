@@ -1,0 +1,5 @@
+ShaderBundle "SSRWriteUVs" {
+    StaticProperties = []
+    CompiledShaders = [@"Engine://Shaders/SSRWriteUVs_6826059799620415254"]
+    FriendlyName = "SSRWriteUVs"
+}

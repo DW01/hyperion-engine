@@ -1,0 +1,71 @@
+Mesh "ScaleGizmo_AxisMesh" {
+    AABB = {
+        Min = (-0.12, 0, -0.12)
+        Max = (0.12, 0.94, 0.12)
+    }
+    MeshDesc = {
+        MeshAttributes = {
+            InputLayout = {
+                Mask = 7
+            }
+            Topology = TOP_TRIANGLES
+            IndexBufferElemType = GET_UNSIGNED_INT
+        }
+        Lods = [MeshLodDesc {
+            NumVertices = 124
+            NumIndices = 228
+        }, MeshLodDesc {
+            NumVertices = 0
+            NumIndices = 0
+        }, MeshLodDesc {
+            NumVertices = 0
+            NumIndices = 0
+        }, MeshLodDesc {
+            NumVertices = 0
+            NumIndices = 0
+        }]
+    }
+    LodData = [MeshLodData {
+        VertexData = {
+            Key = "Editor://Meshes/ScaleGizmo_AxisMesh.VB"
+            Size = 3968
+        }
+        IndexData = {
+            Key = "Editor://Meshes/ScaleGizmo_AxisMesh.IB"
+            Size = 912
+        }
+    }, MeshLodData {
+        VertexData = {
+            Key = ""
+            Size = 0
+        }
+        IndexData = {
+            Key = ""
+            Size = 0
+        }
+    }, MeshLodData {
+        VertexData = {
+            Key = ""
+            Size = 0
+        }
+        IndexData = {
+            Key = ""
+            Size = 0
+        }
+    }, MeshLodData {
+        VertexData = {
+            Key = ""
+            Size = 0
+        }
+        IndexData = {
+            Key = ""
+            Size = 0
+        }
+    }]
+    BvhData = {
+        Key = "Editor://Meshes/ScaleGizmo_AxisMesh.BVH"
+        Size = 6545
+    }
+    Flags = None
+    FriendlyName = "ScaleGizmoAxisMesh"
+}

@@ -279,7 +279,7 @@ void View::Init()
                 attachment->SetClearColor(Vec4f(attachmentDesc.clearColor));
             }
 
-            CheckResult(framebuffer->Create());
+            Check(framebuffer->Create());
 
             m_outputTarget = ViewOutputTarget(framebuffer);
         }

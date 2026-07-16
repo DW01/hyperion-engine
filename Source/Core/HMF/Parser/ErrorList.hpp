@@ -15,7 +15,7 @@
 
 namespace Hyperion::HMF {
 
-class ErrorList
+class CORE_API ErrorList
 {
 public:
     ErrorList();

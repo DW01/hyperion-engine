@@ -24,11 +24,11 @@ using memory::Arena;
 
 #pragma endregion Fwd declarations
 
-static constexpr size_t RenderPoolBlockSize = 16 * 1024 * 1024;    // 16 MiB
-static constexpr size_t RenderArenaSize = 4 * 1024 * 1024;
+static constexpr size_t RenderPoolBlockSize = 4 * 1024 * 1024;
+static constexpr size_t RenderArenaSize = 64 * 1024;
 
-static constexpr size_t RHIPoolBlockSize = 8 * 1024 * 1024;
-static constexpr size_t RHIArenaSize = 1 * 1024 * 1024;
+static constexpr size_t RHIPoolBlockSize = 1 * 1024 * 1024;
+static constexpr size_t RHIArenaSize = 64 * 1024;
 
 ENGINE_API extern Pool* g_renderPool;
 ENGINE_API extern Arena* g_renderArena;

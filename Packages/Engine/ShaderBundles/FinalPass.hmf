@@ -1,0 +1,5 @@
+ShaderBundle "FinalPass" {
+    StaticProperties = []
+    CompiledShaders = [@"Engine://Shaders/FinalPass_14917212823711398456"]
+    FriendlyName = "FinalPass"
+}

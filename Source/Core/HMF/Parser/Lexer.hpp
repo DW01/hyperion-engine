@@ -9,19 +9,19 @@
 #include <Core/HMF/Parser/SourceStream.hpp>
 #include <Core/HMF/Parser/TokenStream.hpp>
 #include <Core/HMF/Parser/SourceLocation.hpp>
-#include <Core/HMF/Parser/CompilationUnit.hpp>
+#include <Core/HMF/Parser/ErrorList.hpp>
 
 #include <Core/Unicode.hpp>
 
 namespace Hyperion::HMF {
 
-class Lexer
+class CORE_API Lexer
 {
 public:
     Lexer(
         const SourceStream& sourceStream,
         TokenStream* tokenStream,
-        CompilationUnit* compilationUnit);
+        ErrorList* errorList);
     Lexer(const Lexer& other);
 
     /** Forms the given TokenStream from the given SourceStream */
@@ -48,7 +48,7 @@ public:
 private:
     SourceStream m_sourceStream;
     TokenStream* m_tokenStream;
-    CompilationUnit* m_compilationUnit;
+    ErrorList* m_errorList;
     SourceLocation m_sourceLocation;
 
     /** Adds an end-of-file error if at the end, returns true if not */

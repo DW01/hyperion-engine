@@ -25,7 +25,7 @@
 namespace Hyperion {
 
 extern PhysicsMaterial& GetDefaultPhysicsMaterial();
-extern const Handle<PhysicsShape>& GetDefaultPhysicsShape();
+extern PhysicsShape* GetDefaultPhysicsShape();
 
 void PhysicsSystem::OnEntityAdded(Entity* entity)
 {

@@ -28,12 +28,15 @@ void Initialize()
         return;
     }
 
+#if 0
     // @TODO: Use application steam app id! 480 is a placeholder for now
     if (SteamAPI_RestartAppIfNecessary(480))
     {
         std::exit(0); // we are restarting through steam.
     }
-    else if (!SteamAPI_IsSteamRunning())
+#endif
+
+    if (!SteamAPI_IsSteamRunning())
     {
         HYP_LOG(Steam, Info, "Steam is not currently running. Steam Input and services will not be accessible.");
 

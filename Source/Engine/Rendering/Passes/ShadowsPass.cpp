@@ -241,7 +241,7 @@ void ShadowsPassBase::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
                 textureDesc.numLayers = 1;
 
                 cachedShadowMapTexture = MakeHandle<Texture>(textureDesc);
-                CheckResult(cachedShadowMapTexture->Create());
+                Check(cachedShadowMapTexture->Create());
             }
             else if (!cacheStaticShadowMaps && cachedShadowMapTexture.IsValid())
             {
@@ -284,7 +284,7 @@ void ShadowsPassBase::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
 
                         Assert(imageView.IsValid());
 
-                        CheckResult(imageView->Create());
+                        Check(imageView->Create());
                     }
 
                     framebuffer->AddAttachment(attachmentIndex, attachmentDesc, imageView);
@@ -300,7 +300,7 @@ void ShadowsPassBase::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
                     framebuffer->AddAttachment(attachmentIndex, attachmentDesc);
                 }
 
-                CheckResult(framebuffer->Create());
+                Check(framebuffer->Create());
             }
 
             enum : uint8

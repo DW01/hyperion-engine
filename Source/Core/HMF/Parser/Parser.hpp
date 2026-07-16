@@ -7,7 +7,7 @@
 #pragma once
 
 #include <Core/HMF/Parser/TokenStream.hpp>
-#include <Core/HMF/Parser/CompilationUnit.hpp>
+#include <Core/HMF/Parser/ErrorList.hpp>
 
 #include <Core/Reflection/BoxedValueFwd.hpp>
 #include <Core/Reflection/TypeInfoFwd.hpp>
@@ -20,7 +20,7 @@ namespace Hyperion::HMF {
 class Parser
 {
 public:
-    Parser(TokenStream* tokenStream, CompilationUnit* compilationUnit);
+    Parser(TokenStream* tokenStream, ErrorList* errorList);
 
     bool Parse(BoxedValue& out);
 
@@ -45,7 +45,7 @@ private:
     bool ParseMatrixValue(const TypeInfo& typeInfo, BoxedValue& out);
     bool ParseObjectValue(const TypeInfo& typeInfo, BoxedValue& out);
     bool ParseVariantValue(const TypeInfo& typeInfo, BoxedValue& out);
-    bool ParseAssetPathLiteral(BoxedValue& out);
+    bool ParseAssetPathLiteral(const TypeInfo& typeInfo, BoxedValue& out);
 
     void SkipValue();
     void SkipBracedBlock();
@@ -74,7 +74,7 @@ private:
     }
 
     TokenStream* m_tokenStream;
-    CompilationUnit* m_compilationUnit;
+    ErrorList* m_errorList;
 };
 
 } // namespace Hyperion::HMF

@@ -11,11 +11,11 @@
 
 namespace Hyperion::HMF {
 
-class SourceStream
+class CORE_API SourceStream
 {
 public:
-    SourceStream(const SourceFile* file);
-    SourceStream(const SourceStream& other);
+    explicit SourceStream(const SourceFile* file);
+    explicit SourceStream(const SourceStream& other);
 
     HYP_FORCE_INLINE const SourceFile* GetFile() const
     {

@@ -21,7 +21,7 @@ SourceFile::SourceFile(const FilePath& filepath, size_t size)
 
 SourceFile::SourceFile(const SourceFile& other)
     : m_filepath(other.m_filepath),
-      m_buffer(other.m_buffer.Copy()),
+      m_buffer(other.m_buffer),
       m_position(other.m_position)
 {
 }
@@ -33,7 +33,7 @@ SourceFile& SourceFile::operator=(const SourceFile& other)
         return *this;
     }
 
-    m_buffer = other.m_buffer.Copy();
+    m_buffer = other.m_buffer;
     m_position = other.m_position;
     m_filepath = other.m_filepath;
 
@@ -44,18 +44,7 @@ SourceFile::~SourceFile() = default;
 
 void SourceFile::ReadIntoBuffer(const ByteBuffer& inputBuffer)
 {
-    Assert(m_buffer.Size() >= inputBuffer.Size());
-
-    // make sure we have enough space in the buffer
-    if (m_position + inputBuffer.Size() >= m_buffer.Size())
-    {
-        Assert("not enough space in buffer");
-    }
-
-    for (size_t i = 0; i < inputBuffer.Size(); i++)
-    {
-        m_buffer.Data()[m_position++] = inputBuffer.Data()[i];
-    }
+    ReadIntoBuffer(inputBuffer.Data(), inputBuffer.Size());
 }
 
 void SourceFile::ReadIntoBuffer(const ubyte* data, size_t size)
@@ -63,15 +52,13 @@ void SourceFile::ReadIntoBuffer(const ubyte* data, size_t size)
     Assert(m_buffer.Size() >= size);
 
     // make sure we have enough space in the buffer
-    if (m_position + size >= m_buffer.Size())
+    if (m_buffer.Size() < m_position + size)
     {
         HYP_FAIL("not enough space in buffer");
     }
 
-    for (size_t i = 0; i < size; i++)
-    {
-        m_buffer.Data()[m_position++] = data[i];
-    }
+    Memory::Copy(m_buffer.Data() + m_position, data, size);
+    m_position += size;
 }
 
 } // namespace Hyperion

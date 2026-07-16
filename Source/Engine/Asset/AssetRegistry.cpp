@@ -30,6 +30,10 @@
 
 #include <Core/JSON/JSON.hpp>
 #include <Core/HMF/HMF.hpp>
+#include <Core/HMF/Parser/SourceFile.hpp>
+#include <Core/HMF/Parser/SourceStream.hpp>
+#include <Core/HMF/Parser/TokenStream.hpp>
+#include <Core/HMF/Parser/Lexer.hpp>
 
 #include <Core/Config/Config.hpp>
 
@@ -283,18 +287,20 @@ HYP_NODISCARD Name CreateFriendlyName(Name name)
     return CreateNameFromDynamicString(StringUtil::ToPascalCase(friendlyNameStr, true));
 }
 
-static Result ReadManifest(ByteReader& stream, const FilePath& manifestPath, BoxedValue& outManifestData)
+static Result ConstructObjectFromManifest(ByteReader& stream, const FilePath& manifestPath, BoxedValue& outManifestData, HMF::ErrorList* outErrorList)
 {
     String str = String(stream.Read().ToByteView());
 
-    HMF::ParseResult parseResult = HMF::Parse(str);
+    // @TODO Use the stream directly. No String copying.
+    HMF::ParseResult parseResult = HMF::Parse(manifestPath, str, outErrorList);
 
-    if (!parseResult.ok)
+    if (Failed(parseResult))
     {
-        return HYP_MAKE_ERROR(Error, "Failed to parse manifest HMF at {}: {}", manifestPath, parseResult.message);
+        return HYP_MAKE_ERROR(Error, "Failed to parse manifest file at {}! Message was: {}",
+            manifestPath, parseResult.GetError().GetMessage());
     }
 
-    outManifestData = std::move(parseResult.value);
+    outManifestData = std::move(parseResult.GetValue());
 
     return {};
 }
@@ -782,16 +788,17 @@ Handle<AssetObject> AssetRegistry::GetAsset(const AssetBucket& bucket, StringHas
     const FilePath manifestPath = GetManifestPath(AssetPath(m_registryId, bucket, Name(name)));
     FileByteReader stream { manifestPath };
 
-    BoxedValue manifestData;
+    BoxedValue objectBoxed;
+    HMF::ErrorList errorList;
 
-    if (Result readManifestResult = ReadManifest(stream, manifestPath, manifestData); readManifestResult.HasError())
+    if (Result readManifestResult = ConstructObjectFromManifest(stream, manifestPath, objectBoxed, &errorList); readManifestResult.HasError())
     {
         HYP_LOG(Assets, Warning, "Failed to read asset manifest: {}", readManifestResult.GetError().GetMessage());
 
         return Handle<AssetObject>::Null();
     }
 
-    Result loadResult = AssetObject::Load(manifestData, assetObject);
+    Result loadResult = AssetObject::Load(objectBoxed, assetObject);
 
     if (loadResult.HasError())
     {
@@ -1316,6 +1323,8 @@ bool AssetRegistry::LoadAssetDescs()
         HYP_LOG(Assets, Warning, "AssetRegistry root path does not exist at {}", rootPath);
         return false;
     }
+    
+    GlobalContextScope loadingContextScope { AssetLoadingContext {} };
 
     for (const AssetBucket* bucket : AssetBuckets::AllBuckets)
     {
@@ -1352,25 +1361,11 @@ bool AssetRegistry::LoadAssetDescs()
 
         for (const FilePath& entry : assetFiles)
         {
-            FileByteReader stream { entry };
-
-            BoxedValue manifestData;
-            if (Result readResult = ReadManifest(stream, entry, manifestData); readResult.HasError())
-            {
-                HYP_LOG(Assets, Warning, "Failed to read manifest '{}': {}", entry, readResult.GetError().GetMessage());
-                continue;
-            }
-
-            AssetDesc assetDesc;
-            if (Result loadDescResult = AssetObject::LoadDesc(manifestData, assetDesc); loadDescResult.HasError())
-            {
-                HYP_LOG(Assets, Warning, "Failed to load asset desc from '{}': {}", entry, loadDescResult.GetError().GetMessage());
-                continue;
-            }
-
+            AssetDesc& assetDesc = assetDescs.EmplaceBack();
+            assetDesc.index = AssetDesc::InvalidIndex;
+            assetDesc.name = CreateNameFromDynamicString(StringUtil::StripExtension(entry.Basename()).ToAnsi());
+            
             HYP_LOG(Assets, Verbose, "Found asset desc '{}' in '{}'", assetDesc.name, entry);
-
-            assetDescs.PushBack(std::move(assetDesc));
         }
 
         if (assetDescs.Any())

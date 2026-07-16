@@ -10,6 +10,18 @@
 #include <Core/Reflection/TypeInfo.hpp>
 
 namespace Hyperion {
+
+bool AnyRef_IsUnderlyingEnumType(const TypeInfo* typeInfo, TypeId requestedTypeId)
+{
+    if (!typeInfo || !typeInfo->IsEnum())
+    {
+        return false;
+    }
+
+    const TypeInfo* underlying = typeInfo->GetUnderlyingType();
+    return underlying && underlying->id == requestedTypeId;
+}
+
 namespace memory {
 
 TypeId AnyRefBase::GetTypeId() const

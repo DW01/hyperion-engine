@@ -1,0 +1,18 @@
+Texture "Checkerboard_3D" {
+    TextureDesc = {
+        Type = Texture3D
+        Format = RGBA8
+        Extent = (1, 1, 1)
+        MinFilterMode = TFM_NEAREST
+        MagFilterMode = TFM_NEAREST
+        TextureWrapMode = TWM_CLAMP_TO_EDGE
+        NumLayers = 1
+        ImageUsage = IU_SAMPLED
+        MipOffsets = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    }
+    ImageData = {
+        Key = "Engine://Textures/Checkerboard_3D.TEX"
+        Size = 4
+    }
+    FriendlyName = "Checkerboard3D"
+}

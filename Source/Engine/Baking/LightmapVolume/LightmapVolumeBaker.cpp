@@ -107,7 +107,7 @@ static void UpdateAtlasTextures(
 
         GetCurrentAssetRegistry()->PutAsset(atlasTexture);
 
-        CheckResult(atlasTexture->Create());
+        Check(atlasTexture->Create());
 
         lmv->SetAtlasTexture(atlasIndex, LightmapVolume::AtlasTextureType(textureTypeIndex), atlasTexture);
     }

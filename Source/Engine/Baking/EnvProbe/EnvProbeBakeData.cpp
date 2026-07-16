@@ -123,17 +123,17 @@ auto BakeData<EnvProbe>::ToVisibilityBitmap() const -> VisibilityBitmapType
 
     // The visibility texture must match the global envProbesDepthTexture dimensions
     // (see OnBindingChanged_EnvProbe which CopyImages into that array).
-    static constexpr uint32 visDim = 16;
+    static constexpr uint32 VisibilityTextureDimension = 16;
 
-    VisibilityBitmapType bitmap(visDim, visDim * 6);
+    VisibilityBitmapType bitmap(VisibilityTextureDimension, VisibilityTextureDimension * 6);
 
     for (uint32 face = 0; face < 6; face++)
     {
-        for (uint32 y = 0; y < visDim; y++)
+        for (uint32 y = 0; y < VisibilityTextureDimension; y++)
         {
-            for (uint32 x = 0; x < visDim; x++)
+            for (uint32 x = 0; x < VisibilityTextureDimension; x++)
             {
-                const uint32 bitmapY = face * visDim + y;
+                const uint32 bitmapY = face * VisibilityTextureDimension + y;
 
                 // Accumulate distance moments over the region of cubemap texels
                 // that map to this visibility texel.
@@ -141,10 +141,10 @@ auto BakeData<EnvProbe>::ToVisibilityBitmap() const -> VisibilityBitmapType
                 float accumDistSq = 0.0f;
                 float accumWeight = 0.0f;
 
-                const uint32 xStart = (x * dimensions.x) / visDim;
-                const uint32 xEnd = MathUtil::Max(xStart + 1, ((x + 1) * dimensions.x) / visDim);
-                const uint32 yStart = (y * dimensions.y) / visDim;
-                const uint32 yEnd = MathUtil::Max(yStart + 1, ((y + 1) * dimensions.y) / visDim);
+                const uint32 xStart = (x * dimensions.x) / VisibilityTextureDimension;
+                const uint32 xEnd = MathUtil::Max(xStart + 1, ((x + 1) * dimensions.x) / VisibilityTextureDimension);
+                const uint32 yStart = (y * dimensions.y) / VisibilityTextureDimension;
+                const uint32 yEnd = MathUtil::Max(yStart + 1, ((y + 1) * dimensions.y) / VisibilityTextureDimension);
 
                 for (uint32 sy = yStart; sy < yEnd; sy++)
                 {
@@ -163,10 +163,10 @@ auto BakeData<EnvProbe>::ToVisibilityBitmap() const -> VisibilityBitmapType
                         }
                         else
                         {
-                            // No distance data — treat as fully visible (no occluder).
-                            static const float missDist = 10000.0f;
-                            accumDist += missDist;
-                            accumDistSq += missDist * missDist;
+                            static constexpr float MissDist = 10000.0f;
+
+                            accumDist += MissDist;
+                            accumDistSq += MissDist * MissDist;
                             accumWeight += 1.0f;
                         }
                     }

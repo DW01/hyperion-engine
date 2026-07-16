@@ -85,13 +85,13 @@ void DX12AsyncCompute::Create()
         m_commandListType = D3D12_COMMAND_LIST_TYPE_DIRECT;
     }
 
-    CheckResult(m_fence->Create());
+    Check(m_fence->Create());
 
     const DX12QueueData* queueData = RI.GetQueueData(m_commandListType);
     Assert(queueData != nullptr && queueData->commandQueue != nullptr);
 
     m_commandBuffer = new DX12CommandBuffer(m_commandListType, queueData->commandQueue.Get());
-    CheckResult(m_commandBuffer->Create());
+    Check(m_commandBuffer->Create());
 }
 
 void DX12AsyncCompute::Submit()
@@ -100,7 +100,7 @@ void DX12AsyncCompute::Submit()
 
     if (m_fence->isSubmitted)
     {
-        CheckResult(m_fence->Wait(true));
+        Check(m_fence->Wait(true));
     }
 
     // Begin resets the allocator and opens the command list for recording
