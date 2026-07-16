@@ -2800,33 +2800,73 @@ Result BoxedToHMFImpl(
         return {};
     }
 
-    // Variant
     if (typeInfo.IsVariantType())
     {
-        // Emit as TypeName value
-        const Class* valueClass = GetClass(value.GetTypeId());
+        auto* handler = static_cast<ITypeInfoVariantHandler*>(typeInfo.extendedInfo.handler);
 
-        if (valueClass)
+        if (!handler)
         {
-            outText += valueClass->GetName().LookupString();
-            outText += " ";
-
-            return BoxedToHMFImpl(value, outText, value.GetTypeInfo(), opts, indent);
+            outText += "null";
+            return {};
         }
 
-        return HYP_MAKE_ERROR(Error, "Cannot serialize variant value");
+        const int activeIndex = handler->GetCurrentTypeIndex(value);
+
+        if (activeIndex < 0)
+        {
+            outText += "null";
+            return {};
+        }
+
+        AnyRef activeRef = handler->GetValue(value);
+
+        BoxedValue activeValue;
+
+        if (activeRef.HasValue())
+        {
+            const TypeInfo* activeTypeInfo = activeRef.GetTypeInfo();
+
+            if (activeTypeInfo && activeTypeInfo->IsHandleType())
+            {
+                Handle<ObjectBase>* handlePtr = static_cast<Handle<ObjectBase>*>(activeRef.GetPointer());
+
+                if (*handlePtr)
+                {
+                    activeValue = BoxedValue(*handlePtr);
+                }
+            }
+            else
+            {
+                activeValue = BoxedValue(activeRef);
+            }
+        }
+
+        if (!activeValue.IsValid())
+        {
+            outText += "null";
+            return {};
+        }
+
+        const TypeInfo* activeTypeInfo = activeValue.GetTypeInfo();
+        const Class* activeClass = GetClass(activeValue.GetTypeId());
+
+        if (activeClass && (activeClass->IsClassType() || activeClass->IsStructType()))
+        {
+            outText += activeClass->GetName().ToString();
+            outText += " ";
+        }
+
+        return BoxedToHMFImpl(activeValue, outText, activeTypeInfo, opts, indent);
     }
 
     // Object / struct
     if (typeInfo.IsClass() || typeInfo.IsStruct() || typeInfo.IsHandleType())
     {
-        const Class* valueClass = typeInfo.IsHandleType()
-            ? GetClass(value.GetTypeId())
-            : typeInfo.GetClass();
+        const Class* valueClass = typeInfo.GetClass();
 
         if (!valueClass)
         {
-            return HYP_MAKE_ERROR(Error, "Cannot determine class for value");
+            return HYP_MAKE_ERROR(Error, "Cannot determine class for value: (has TypeInfo name of: {})", value.GetTypeInfo()->name);
         }
 
         // Determine if we need a polymorphic class prefix
@@ -2931,8 +2971,8 @@ Result ObjectToHMFImpl(
             if (Result result = BoxedToHMFImpl(memberValue, outText, declaredTypeInfo, memberOpts, indent);
                 result.HasError())
             {
-                HYP_LOG(Core, Warning, "Failed to serialize property \"{}\" of Class \"{}\" to HMF",
-                        member.GetName(), cls->GetName());
+                HYP_LOG(Core, Warning, "Failed to serialize property \"{}\" of Class \"{}\" to HMF: {}",
+                        member.GetName(), cls->GetName(), result.GetError().GetMessage());
                 outText += "null";
             }
 

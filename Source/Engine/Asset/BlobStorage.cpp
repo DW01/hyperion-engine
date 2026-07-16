@@ -58,6 +58,10 @@ static void InitBlobStorage(BlobStorage& outStorage, const FilePath& baseDirecto
 
 #pragma region BlobTableOfContents
 
+// @TODO Refactor + fix...
+// AssetPaths are now 12-byte structs that could be bitwise copied,
+// no longer needing string keys.
+
 class BlobTableOfContents
 {
     enum class SlotState : uint8

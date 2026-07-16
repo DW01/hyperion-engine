@@ -8,6 +8,8 @@
 #include <Core/HMF/Parser/CompilerError.hpp>
 #include <Core/HMF/Parser/Token.hpp>
 
+#include <Core/Logging/Logger.hpp>
+
 #include <Core/Reflection/BoxedValue.hpp>
 #include <Core/Reflection/TypeInfo.hpp>
 #include <Core/Reflection/Class.hpp>
@@ -140,7 +142,7 @@ bool Parser::ParseObjectBody(const Class* cls, BoxedValue& target)
         if (!member)
         {
             // Unknown field: warn and skip its value
-            Warning(MSG_UNKNOWN_FIELD, Peek().GetLocation(), String(cls->GetName().LookupString()) + "::" + fieldName);
+            Warning(MSG_UNKNOWN_FIELD, Peek().GetLocation(), cls->GetName().ToString() + "::" + fieldName);
             SkipValue();
             continue;
         }
@@ -282,12 +284,7 @@ bool Parser::ParseValue(const TypeInfo& typeInfo, BoxedValue& out)
         return ParseObjectValue(typeInfo, out);
     }
 
-    if (typeInfo.IsHandleType())
-    {
-        return ParseObjectValue(typeInfo, out);
-    }
-
-    Error(MSG_NOT_IMPLEMENTED, next.GetLocation(), String("Parsing of type ") + TypeInfo_GetName(typeInfo).LookupString());
+    Error(MSG_NOT_IMPLEMENTED, next.GetLocation(), String("Parsing of type ") + TypeInfo_GetName(typeInfo).ToString());
 
     return false;
 }
@@ -480,7 +477,7 @@ bool Parser::ParseEnumValue(const TypeInfo& typeInfo, BoxedValue& out)
     if (!ResolveEnumName(enumClass, tok.GetValue(), out))
     {
         Warning(MSG_UNRESOLVED_ENUM_NAME, tok.GetLocation(),
-            enumClass ? String(enumClass->GetName().LookupString()) + "::" + tok.GetValue() : tok.GetValue());
+                enumClass ? enumClass->GetName().ToString() + "::" + tok.GetValue() : tok.GetValue());
 
         // Default to 0 -- still produce a value so we can keep going.
         out = BoxedValue(static_cast<uint64>(0));
@@ -546,7 +543,7 @@ bool Parser::ParseEnumFlagsValue(const TypeInfo& typeInfo, BoxedValue& out)
             else
             {
                 Warning(MSG_UNRESOLVED_ENUM_NAME, nameTok.GetLocation(),
-                    enumClass ? String(enumClass->GetName().LookupString()) + "::" + s : s);
+                        enumClass ? enumClass->GetName().ToString() + "::" + s : s);
             }
         }
     };
@@ -945,6 +942,7 @@ bool Parser::ParseObjectValue(const TypeInfo& typeInfo, BoxedValue& out)
 
     if (!actualClass->CanCreateInstance())
     {
+        // @TODO Better error.
         Error(MSG_CLASS_NOT_FOUND, Peek().GetLocation(), actualClass->GetName().LookupString());
         return false;
     }
@@ -1104,32 +1102,77 @@ bool Parser::ParseMatrixValue(const TypeInfo& typeInfo, BoxedValue& out)
 
 bool Parser::ParseVariantValue(const TypeInfo& typeInfo, BoxedValue& out)
 {
-    // Variant values are type-prefixed: TypeName value
-    Token tagTok = Peek();
+    auto* handler = static_cast<ITypeInfoVariantHandler*>(typeInfo.extendedInfo.handler);
 
-    if (tagTok.GetTokenClass() != TK_IDENT)
+    if (!handler)
     {
-        Error(MSG_UNEXPECTED_TOKEN, tagTok.GetLocation(), Token::TokenTypeToString(tagTok.GetTokenClass()));
-        
+        Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
         return false;
     }
 
-    Next();
-
-    const String& tagName = tagTok.GetValue();
-    const Class* taggedClass = Hyperion::GetClass(StringHash(tagName));
-
-    if (!taggedClass)
+    // null denotes uninitialized variant
+    if (Peek().GetTokenClass() == TK_IDENT && Peek().GetValue() == "null")
     {
-        Error(MSG_UNKNOWN_VARIANT_TAG, tagTok.GetLocation(), tagName);
+        Next();
 
+        if (!handler->CreateInstance(out))
+        {
+            Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+            return false;
+        }
+
+        return true;
+    }
+
+    BoxedValue variantInstance;
+
+    if (!handler->CreateInstance(variantInstance))
+    {
+        Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
         return false;
     }
 
-    // Look up the variant's type info to see if this type is a valid alternative
-    const TypeInfo& taggedTypeInfo = *taggedClass->GetTypeInfo();
+    const int numTypes = handler->GetNumTypes();
 
-    return ParseValue(taggedTypeInfo, out);
+    auto trySet = [&]() -> bool
+    {
+        for (int i = 0; i < numTypes; i++)
+        {
+            const TypeInfo* alternativeTypeInfo = handler->GetTypeInfoAtIndex(i);
+
+            if (!alternativeTypeInfo)
+            {
+                continue;
+            }
+
+            const size_t savedPos = m_tokenStream->GetPosition();
+
+            BoxedValue parsedValue;
+
+            if (ParseValue(*alternativeTypeInfo, parsedValue))
+            {
+                if (handler->SetValue(variantInstance, parsedValue))
+                {
+                    out = variantInstance;
+                    return true;
+                }
+
+
+            }
+            m_tokenStream->SetPosition(savedPos);
+        }
+
+        return false;
+    };
+
+    if (trySet())
+    {
+        return true;
+    }
+
+    Error(MSG_UNKNOWN_VARIANT_TAG, Peek().GetLocation(), String("could not match any alternative type"));
+
+    return false;
 }
 
 bool Parser::ParseAssetPathLiteral(BoxedValue& out)
@@ -1145,6 +1188,7 @@ bool Parser::ParseAssetPathLiteral(BoxedValue& out)
 
     Next();
 
+    // @TODO VERIFY
     // Store as String; the Engine-side Property::Set handles conversion to
     // AssetPath/AssetReference via their "Value"/"AssetPath" properties.
     out = BoxedValue(strTok.GetValue());

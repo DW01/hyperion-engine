@@ -158,6 +158,8 @@ void LightmapRenderer_GpuPathTracing::CleanJobData(BakeJobBase* job)
         return;
     }
 
+    // @NOTE this was commented out due to a gross crash, we need to re-enable it,
+    // but with proper care
     // m_jobData.Erase(jobDataIt);
 }
 

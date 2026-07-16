@@ -42,6 +42,8 @@ class ProcRef;
 
 using functional::ProcRef;
 
+#pragma region JSON
+
 struct ToJSONOptions
 {
     enum class FollowAssetPathsMode : int
@@ -113,9 +115,9 @@ Result BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Box
  */
 Result ObjectFromJSON(const JSON::Object& jsonObject, const Class* targetClass, BoxedValue& target);
 
-// ------------------------------------------------------------------------------------------------
-// HMF serialization
-// ------------------------------------------------------------------------------------------------
+#pragma endregion JSON
+
+#pragma region Hyperion Manifest
 
 struct ToHMFOptions
 {
@@ -124,45 +126,27 @@ struct ToHMFOptions
     bool writeClassNamesForPolymorphic = true;
 };
 
-/*! \brief Serializes a BoxedValue to HMF text.
- *  \param value The BoxedValue to serialize.
- *  \param outText The output String.
- *  \param typeInfo The declared TypeInfo of the value (used for enum/flags name resolution and
- *         polymorphism checks). If null, the BoxedValue's own TypeInfo is used.
- *  \param pOptions Optional serialization options.
- *  \return Result indicating success or failure. */
 Result BoxedToHMF(
     const BoxedValue& value,
     String& outText,
     const TypeInfo* declaredTypeInfo = nullptr,
     ToHMFOptions* pOptions = nullptr);
 
-/*! \brief Serializes an Object instance to HMF text (the manifest body, without the top-level
- *  ClassName header). Walks the class hierarchy emitting `FieldName = value` lines.
- *  \param cls The Class of the object.
- *  \param target The BoxedValue object to serialize.
- *  \param outText The output String.
- *  \param pOptions Optional serialization options.
- *  \return Result indicating success or failure. */
 Result ObjectToHMF(
     const Class* cls,
     const BoxedValue& target,
     String& outText,
     ToHMFOptions* pOptions = nullptr);
 
-/*! \brief Serializes an Object instance to a complete HMF manifest document (including the
- *  top-level `ClassName "name" { ... }` header). This is the full-file writer used by
- *  AssetObject::SaveManifest.
- *  \param cls The Class of the asset.
- *  \param target The BoxedValue object to serialize.
- *  \param outText The output String.
- *  \param pOptions Optional serialization options.
- *  \return Result indicating success or failure. */
 Result ObjectToHMFDocument(
     const Class* cls,
     const BoxedValue& target,
     String& outText,
     ToHMFOptions* pOptions = nullptr);
+
+#pragma endregion Hyperion Manifest
+
+#pragma region Shared
 
 void WalkBoxedValue(
     const BoxedValue& target,
@@ -179,5 +163,7 @@ void StripTransientMembers(BoxedValue& value);
  *  \param outDst The output BoxedValue (will be overwritten with the cleaned clone).
  *  \return True if the clone was successful. */
 bool CloneWithoutTransientMembers(const BoxedValue& src, BoxedValue& outDst);
+
+#pragma endregion Shared
 
 } // namespace Hyperion
