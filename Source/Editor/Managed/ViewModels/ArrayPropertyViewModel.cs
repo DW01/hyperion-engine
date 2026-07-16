@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Input;
 using Avalonia.Threading;
@@ -14,10 +15,13 @@ namespace Hyperion.Editor.ViewModels
 
         private readonly int _depth;
         private readonly TypeInfo _elementTypeInfo;
+        private readonly bool _isPolymorphic;
 
         // Sim-thread copy of the current array value.
-        // Sub-element VMs read/write from this copy; WriteArrayToParent() flushes it back.
         private BoxedValue? _currentArrayValue;
+
+        // Virtual element not yet committed to the real array.
+        private ObjectPropertyViewModel? _pendingElement;
 
         private int _isRefreshing;
 
@@ -43,7 +47,6 @@ namespace Hyperion.Editor.ViewModels
         public bool CanAddElement { get; }
         public bool CanRemoveElement { get; }
 
-        // Arrays span both label and value columns (like structs).
         public override bool ShowInlineLabel => false;
 
 
@@ -51,14 +54,12 @@ namespace Hyperion.Editor.ViewModels
             : base(target, property, isReadOnly)
         {
             _depth = depth;
+            _elementTypeInfo = property.TypeInfo.GetElementTypeInfo();
+            _isPolymorphic = DetectPolymorphic();
 
-            TypeInfo propertyTypeInfo = property.TypeInfo;
-            _elementTypeInfo = propertyTypeInfo.GetElementTypeInfo();
+            Value = property.TypeInfo.Name.ToString();
 
-            Value = propertyTypeInfo.Name.ToString();
-
-            bool isFixedArray = propertyTypeInfo.Name.ToString().Contains("FixedArray");
-
+            bool isFixedArray = property.TypeInfo.Name.ToString().Contains("FixedArray");
             CanAddElement = !isReadOnly && !isFixedArray;
             CanRemoveElement = !isReadOnly && !isFixedArray;
 
@@ -70,14 +71,12 @@ namespace Hyperion.Editor.ViewModels
             : base(classAddress, targetAddressResolver, property, isReadOnly)
         {
             _depth = depth;
+            _elementTypeInfo = property.TypeInfo.GetElementTypeInfo();
+            _isPolymorphic = DetectPolymorphic();
 
-            TypeInfo propertyTypeInfo = property.TypeInfo;
-            _elementTypeInfo = propertyTypeInfo.GetElementTypeInfo();
+            Value = property.TypeInfo.Name.ToString();
 
-            Value = propertyTypeInfo.Name.ToString();
-
-            bool isFixedArray = propertyTypeInfo.Name.ToString().Contains("FixedArray");
-
+            bool isFixedArray = property.TypeInfo.Name.ToString().Contains("FixedArray");
             CanAddElement = !isReadOnly && !isFixedArray;
             CanRemoveElement = !isReadOnly && !isFixedArray;
 
@@ -89,8 +88,8 @@ namespace Hyperion.Editor.ViewModels
             : base(label, typeInfoHint, getter, setter, isReadOnly)
         {
             _depth = depth;
-
             _elementTypeInfo = typeInfoHint.GetElementTypeInfo();
+            _isPolymorphic = DetectPolymorphic();
 
             Value = _elementTypeInfo.Name.ToString();
 
@@ -99,6 +98,20 @@ namespace Hyperion.Editor.ViewModels
 
             AddElementCommand = new RelayCommand(AddElement, () => !_isReadOnly);
             RemoveElementCommand = new RelayCommand<InspectorPropertyViewModelBase>(vm => RemoveElementAt(Elements.IndexOf(vm!)));
+        }
+
+
+        private bool DetectPolymorphic()
+        {
+            Class? elementClass = _elementTypeInfo.Class;
+            if (elementClass == null)
+                return false;
+
+            string className = elementClass.Value.Name.ToString();
+            bool found = false;
+            NameCallbackDelegate cb = (_, _) => found = true;
+            NativeBindings.Hyp_GetAllDerivedClassNames(className, cb, IntPtr.Zero);
+            return found;
         }
 
 
@@ -118,7 +131,6 @@ namespace Hyperion.Editor.ViewModels
             _currentArrayValue.SetArrayElement(index, value);
         }
 
-        /// <summary>Flush the in-memory array copy back to the real property.</summary>
         private void WriteArrayToParent()
         {
             if (_currentArrayValue == null)
@@ -146,40 +158,50 @@ namespace Hyperion.Editor.ViewModels
 
         public void AddElement()
         {
-            if (_depth >= MaxDepth)
+            if (_depth >= MaxDepth || _currentArrayValue == null)
                 return;
 
-            if (_currentArrayValue == null)
+            // @TODO should all arrays do this
+
+            if (_isPolymorphic)
+            {
+                if (_pendingElement != null)
+                    return;
+
+                int nextIndex = _currentArrayValue.GetArraySize();
+
+                var vm = new ObjectPropertyViewModel(
+                    $"[{nextIndex}]",
+                    _elementTypeInfo,
+                    getter: () => throw new InvalidOperationException("Pending element"),
+                    setter: _ => { },
+                    isReadOnly: _isReadOnly,
+                    depth: _depth + 1);
+
+                vm.IsPending = true;
+                vm.OnPendingCommitted = CommitPendingElement;
+                _pendingElement = vm;
+                Elements.Add(vm);
+
+                HasElements = Elements.Count > 0;
                 return;
+            }
 
             _ = EngineManager.PostToSimThread(() =>
             {
                 try
                 {
-                    // Resize by 1 — the underlying container default-constructs
-                    // the new element (null handle, zero float, etc.).
-                    int currentSize = _currentArrayValue!.GetArraySize();
-                    _currentArrayValue.ResizeArray(currentSize + 1);
-
+                    int sz = _currentArrayValue!.GetArraySize();
+                    _currentArrayValue.ResizeArray(sz + 1);
                     WriteArrayToParent();
 
-                    // Re-read the array to get the canonical copy from the engine.
                     BoxedValue refreshed = GetPropertyValue();
 
                     Dispatcher.UIThread.Post(() =>
                     {
                         _currentArrayValue = refreshed;
-
-                        // Full rebuild — keeps indices and labels consistent.
                         RebuildElementVMs(_currentArrayValue);
-
-                        foreach (var vm in Elements)
-                        {
-                            vm.RefreshValue();
-                        }
-
-                        HasElements = Elements.Count > 0;
-                        Value = $"(array, {Elements.Count} elem{(Elements.Count != 1 ? "s" : "")})";
+                        foreach (var vm in Elements) vm.RefreshValue();
                     });
                 }
                 catch (Exception ex)
@@ -189,8 +211,65 @@ namespace Hyperion.Editor.ViewModels
             });
         }
 
+
+        private void CommitPendingElement(string className)
+        {
+            _ = EngineManager.PostToSimThread(() =>
+            {
+                try
+                {
+                    // Create the instance.
+                    BoxedValueInternal result;
+
+                    unsafe
+                    {
+                        if (!Hyp_CreateInstanceOfClass(className, &result))
+                        {
+                            Logger.Log(LogLevel.Warning, $"Failed to create instance of '{className}'");
+                            return;
+                        }
+                    }
+
+                    // Push back the element
+                    using (BoxedValue instance = BoxedValue.FromBuffer(result))
+                    {
+                        _currentArrayValue!.PushBackArrayElement(instance);
+                    }
+
+                    WriteArrayToParent();
+
+                    BoxedValue refreshed = GetPropertyValue();
+
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        _currentArrayValue = refreshed;
+                        _pendingElement = null;
+                        RebuildElementVMs(_currentArrayValue);
+                        foreach (var vm in Elements) vm.RefreshValue();
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Warning, $"CommitPendingElement('{className}') failed: {ex.Message}");
+                }
+            });
+        }
+
+
         public void RemoveElementAt(int index)
         {
+            if (index < 0 || index >= Elements.Count)
+                return;
+
+            // Removing the virtual element: just drop it, no array work.
+            if (_pendingElement != null && Elements[index] == _pendingElement)
+            {
+                Elements.RemoveAt(index);
+                _pendingElement = null;
+                HasElements = Elements.Count > 0;
+                return;
+            }
+
             if (_currentArrayValue == null)
                 return;
 
@@ -206,16 +285,8 @@ namespace Hyperion.Editor.ViewModels
                     Dispatcher.UIThread.Post(() =>
                     {
                         _currentArrayValue = refreshed;
-
                         RebuildElementVMs(_currentArrayValue);
-
-                        foreach (var vm in Elements)
-                        {
-                            vm.RefreshValue();
-                        }
-
-                        HasElements = Elements.Count > 0;
-                        Value = $"(array, {Elements.Count} elem{(Elements.Count != 1 ? "s" : "")})";
+                        foreach (var vm in Elements) vm.RefreshValue();
                     });
                 }
                 catch (Exception ex)
@@ -230,27 +301,31 @@ namespace Hyperion.Editor.ViewModels
         {
             Elements.Clear();
 
-            if (_depth >= MaxDepth)
-            {
-                HasElements = false;
-                return;
-            }
-
             int count = 0;
 
-            try
+            if (_depth < MaxDepth)
             {
-                count = arrayValue.GetArraySize();
-            }
-            catch (Exception ex)
-            {
-                Logger.Log(LogLevel.Warning, $"ArrayPropertyViewModel: Failed to get array size: {ex.Message}");
+                try
+                {
+                    count = arrayValue.GetArraySize();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Warning, $"ArrayPropertyViewModel: Failed to get array size: {ex.Message}");
+                }
+
+                for (int i = 0; i < count; i++)
+                {
+                    var vm = CreateElementViewModel(i);
+                    Elements.Add(vm);
+                }
             }
 
-            for (int i = 0; i < count; i++)
+            // Re-attach the pending element if it still exists.
+            if (_pendingElement != null)
             {
-                var vm = CreateElementViewModel(i);
-                Elements.Add(vm);
+                Elements.Add(_pendingElement);
+                count++; // show it in the summary
             }
 
             HasElements = Elements.Count > 0;
@@ -272,14 +347,8 @@ namespace Hyperion.Editor.ViewModels
                     {
                         _isRefreshing = 0;
                         _currentArrayValue = newArrayValue;
-
                         RebuildElementVMs(_currentArrayValue);
-
-                        // Refresh each element VM now that the array copy is ready.
-                        foreach (var vm in Elements)
-                        {
-                            vm.RefreshValue();
-                        }
+                        foreach (var vm in Elements) vm.RefreshValue();
                     });
                 }
                 catch (Exception ex)
@@ -293,5 +362,9 @@ namespace Hyperion.Editor.ViewModels
         public override void CommitValue()
         {
         }
+
+
+        [DllImport("hyperion")]
+        private static extern unsafe bool Hyp_CreateInstanceOfClass(string className, BoxedValueInternal* pOutBoxed);
     }
 }

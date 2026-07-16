@@ -75,7 +75,10 @@ namespace Hyperion.Editor.ViewModels
 
         public bool IsPolymorphic => AvailableSubclasses.Count > 0;
 
-        public bool ShowSubclassPicker => IsPolymorphic && !HasSubObject;
+        public bool ShowSubclassPicker => IsPolymorphic;
+
+        internal bool IsPending { get; set; }
+        internal Action<string>? OnPendingCommitted { get; set; }
 
         private string? _selectedSubclass;
         public string? SelectedSubclass
@@ -95,6 +98,14 @@ namespace Hyperion.Editor.ViewModels
         {
             get => _subclassFilter;
             set => SetProperty(ref _subclassFilter, value);
+        }
+
+        private string _currentTypeName = string.Empty;
+
+        /// <summary>Restore the picker text to the current instance's type name.</summary>
+        public void ResetSubclassFilter()
+        {
+            SubclassFilter = _currentTypeName;
         }
 
         public ObjectPropertyViewModel(ObjectBase target, Property property, bool isReadOnly, int depth = 0)
@@ -193,6 +204,12 @@ namespace Hyperion.Editor.ViewModels
 
         private void CommitSubclass(string className)
         {
+            if (IsPending)
+            {
+                OnPendingCommitted?.Invoke(className);
+                return;
+            }
+
             _ = EngineManager.PostToSimThread(() =>
             {
                 try
@@ -211,8 +228,6 @@ namespace Hyperion.Editor.ViewModels
                     using BoxedValue boxed = BoxedValue.FromBuffer(result);
                     SetPropertyValue(boxed);
 
-                    // Re-read the value so HasSubObject / ShowSubclassPicker update
-                    // and the instance's properties appear inline.
                     Dispatcher.UIThread.Post(() => RefreshValue());
                 }
                 catch (Exception ex)
@@ -466,6 +481,9 @@ namespace Hyperion.Editor.ViewModels
 
         public override void RefreshValue()
         {
+            if (IsPending)
+                return;
+
             if (Interlocked.CompareExchange(ref _isRefreshing, 1, 0) == 1)
             {
                 return;
@@ -482,12 +500,16 @@ namespace Hyperion.Editor.ViewModels
                     string assetPathDisplay = "(None)";
                     string displayName = "(None)";
                     string pickerName = string.Empty;
+                    string typeNameForPicker = string.Empty;
 
                     if (val is ObjectBase obj && obj.IsValid && _depth < MaxDepth)
                     {
                         string subLabel = _property != null ? _property.Name.ToString() : Label;
                         subObjectVm = new ComponentSubObjectViewModel(subLabel, obj, _depth + 1, PostWriteCallback);
                         displayName = obj.Class.Name.ToString();
+
+                        if (IsPolymorphic)
+                            typeNameForPicker = displayName;
 
                         if (obj is AssetObject assetObj)
                         {
@@ -511,6 +533,12 @@ namespace Hyperion.Editor.ViewModels
                         AssetPathDisplay = assetPathDisplay;
                         SubObject = subObjectVm;
                         HasSubObject = subObjectVm != null;
+
+                        if (IsPolymorphic)
+                        {
+                            _currentTypeName = typeNameForPicker;
+                            SubclassFilter = typeNameForPicker;
+                        }
 
                         if (_isAssetObjectType)
                         {

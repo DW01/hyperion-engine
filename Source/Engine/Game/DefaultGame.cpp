@@ -355,7 +355,7 @@ void DefaultGame::OnUpdate_Impl(float delta)
     // Pass joystick movement to camera controller
     if (m_camera)
     {
-        if (CameraController* controller = m_camera->GetCameraController())
+        if (CameraController* controller = m_camera->GetCameraController(); controller != nullptr && controller->GetInputHandler().IsValid())
         {
             if (TouchControlsSubsystem* tcs = GetWorld()->GetSubsystem<TouchControlsSubsystem>())
             {

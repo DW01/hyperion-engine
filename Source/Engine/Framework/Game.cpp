@@ -271,8 +271,11 @@ bool Game::OnInputEvent(const Event& event)
         case EventType::KEYUP:
         {
             KeyboardEvent kbe = event.ToKeyboardEvent();
-            for (InputHandlerBase* inputHandler : m_inputHandlers)
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
             {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
                 if (inputHandler->OnKeyUp(kbe))
                 {
                     return true;
@@ -284,8 +287,11 @@ bool Game::OnInputEvent(const Event& event)
         case EventType::KEYDOWN:
         {
             KeyboardEvent kbe = event.ToKeyboardEvent();
-            for (InputHandlerBase* inputHandler : m_inputHandlers)
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
             {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
                 if (inputHandler->OnKeyDown(kbe))
                 {
                     return true;
@@ -297,8 +303,11 @@ bool Game::OnInputEvent(const Event& event)
         case EventType::MOUSEBUTTON_DOWN:
         {
             MouseEvent me = event.ToMouseEvent();
-            for (InputHandlerBase* inputHandler : m_inputHandlers)
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
             {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
                 if (inputHandler->OnMouseDown(me))
                 {
                     return true;
@@ -310,8 +319,11 @@ bool Game::OnInputEvent(const Event& event)
         case EventType::MOUSEBUTTON_UP:
         {
             MouseEvent me = event.ToMouseEvent();
-            for (InputHandlerBase* inputHandler : m_inputHandlers)
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
             {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
                 if (inputHandler->OnMouseUp(me))
                 {
                     return true;
@@ -323,8 +335,11 @@ bool Game::OnInputEvent(const Event& event)
         case EventType::MOUSEMOTION:
         {
             MouseEvent me = event.ToMouseEvent();
-            for (InputHandlerBase* inputHandler : m_inputHandlers)
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
             {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
                 if (inputHandler->OnMouseMove(me))
                 {
                     return true;
@@ -336,8 +351,11 @@ bool Game::OnInputEvent(const Event& event)
         case EventType::TOUCH_DOWN:
         {
             TouchEvent te = event.ToTouchEvent();
-            for (InputHandlerBase* inputHandler : m_inputHandlers)
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
             {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
                 if (inputHandler->OnTouchDown(te))
                 {
                     return true;
@@ -349,8 +367,11 @@ bool Game::OnInputEvent(const Event& event)
         case EventType::TOUCH_UP:
         {
             TouchEvent te = event.ToTouchEvent();
-            for (InputHandlerBase* inputHandler : m_inputHandlers)
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
             {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
                 if (inputHandler->OnTouchUp(te))
                 {
                     return true;
@@ -362,8 +383,11 @@ bool Game::OnInputEvent(const Event& event)
         case EventType::TOUCH_MOVE:
         {
             TouchEvent te = event.ToTouchEvent();
-            for (InputHandlerBase* inputHandler : m_inputHandlers)
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
             {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
                 if (inputHandler->OnTouchMove(te))
                 {
                     return true;
@@ -375,8 +399,11 @@ bool Game::OnInputEvent(const Event& event)
         case EventType::CONTROLLER_BUTTON_DOWN:
         {
             ControllerButton btn = event.GetControllerButton();
-            for (InputHandlerBase* inputHandler : m_inputHandlers)
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
             {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
                 if (inputHandler->OnControllerButtonDown(btn))
                 {
                     return true;
@@ -388,8 +415,11 @@ bool Game::OnInputEvent(const Event& event)
         case EventType::CONTROLLER_BUTTON_UP:
         {
             ControllerButton btn = event.GetControllerButton();
-            for (InputHandlerBase* inputHandler : m_inputHandlers)
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
             {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
                 if (inputHandler->OnControllerButtonUp(btn))
                 {
                     return true;
@@ -401,10 +431,13 @@ bool Game::OnInputEvent(const Event& event)
         case EventType::CONTROLLER_ANALOG_MOVE:
         {
             const ControllerAnalogData* analogData = event.GetControllerAnalogData();
+
             if (analogData)
             {
-                for (InputHandlerBase* inputHandler : m_inputHandlers)
+                for (size_t i = m_inputHandlers.Size(); i != 0; i--)
                 {
+                    InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
                     if (inputHandler->OnControllerAnalogMove(*analogData))
                     {
                         return true;

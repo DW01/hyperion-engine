@@ -43,31 +43,6 @@ static constexpr float CameraJitterScale = 0.25f;
 
 extern CVar<bool> g_cvTAA;
 
-static NullInputHandler* GetNullInputHandler()
-{
-    static struct NullInputHandlerInitializer
-    {
-        NullInputHandler* inputHandler;
-
-        NullInputHandlerInitializer()
-        {
-            inputHandler = new NullInputHandler;
-
-            g_engineDriver->GetDelegates().OnShutdown.Bind([this]()
-                                                           {
-                                                               if (inputHandler != nullptr)
-                                                               {
-                                                                   inputHandler->Release();
-                                                                   inputHandler = nullptr;
-                                                               }
-                                                           })
-                .Detach();
-        }
-    } s_initializer;
-
-    return s_initializer.inputHandler;
-}
-
 static NullCameraController* GetNullCameraController()
 {
     static struct NullCameraControllerInitializer
@@ -101,8 +76,8 @@ CameraController::CameraController()
 }
 
 CameraController::CameraController(CameraProjectionMode projectionMode)
-    : m_inputHandler(MakeStrongRef(GetNullInputHandler())),
-      m_camera(nullptr),
+    : m_camera(nullptr),
+      m_inputHandler(Handle<InputHandlerBase>::Null()),
       m_projectionMode(projectionMode),
       m_mouseLockRequested(false)
 {

@@ -32,22 +32,24 @@ Vec2f CharacterControllerInputHandler::GetMovementInput() const
     float forward = 0.0f;
     float strafe = 0.0f;
 
-    if (g_appContext != nullptr)
+    if (IsKeyDown(KeyCode::KEY_W))
     {
-        if (ApplicationWindow* mainWindow = g_appContext->GetMainWindow())
-        {
-            if (InputManager* inputManager = mainWindow->GetInputManager())
-            {
-                if (inputManager->IsKeyDown(KeyCode::KEY_W))
-                    forward += 1.0f;
-                if (inputManager->IsKeyDown(KeyCode::KEY_S))
-                    forward -= 1.0f;
-                if (inputManager->IsKeyDown(KeyCode::KEY_A))
-                    strafe -= 1.0f;
-                if (inputManager->IsKeyDown(KeyCode::KEY_D))
-                    strafe += 1.0f;
-            }
-        }
+        forward += 1.0f;
+    }
+
+    if (IsKeyDown(KeyCode::KEY_S))
+    {
+        forward -= 1.0f;
+    }
+
+    if (IsKeyDown(KeyCode::KEY_A))
+    {
+        strafe -= 1.0f;
+    }
+
+    if (IsKeyDown(KeyCode::KEY_D))
+    {
+        strafe += 1.0f;
     }
 
     return Vec2f(strafe, forward);
@@ -55,18 +57,7 @@ Vec2f CharacterControllerInputHandler::GetMovementInput() const
 
 bool CharacterControllerInputHandler::IsJumpPressed() const
 {
-    if (g_appContext != nullptr)
-    {
-        if (ApplicationWindow* mainWindow = g_appContext->GetMainWindow())
-        {
-            if (InputManager* inputManager = mainWindow->GetInputManager())
-            {
-                return inputManager->IsKeyDown(KeyCode::KEY_SPACE);
-            }
-        }
-    }
-
-    return false;
+    return IsKeyDown(KeyCode::KEY_SPACE);
 }
 
 bool CharacterControllerInputHandler::OnKeyDown(const KeyboardEvent& evt)
@@ -221,6 +212,7 @@ void CharacterControllerSystem::Process(float delta, Span<Handle<Scene>> scenes)
             if (component.inputHandler)
             {
                 CharacterControllerInputHandler* inputHandler = StaticCast<CharacterControllerInputHandler>(component.inputHandler.Get());
+                inputHandler->SetDeltaTime(GetWorld()->GetGameState().deltaTime);
 
                 Vec2f movementInput = inputHandler->GetMovementInput();
 

@@ -46,7 +46,7 @@ namespace Hyperion.Editor.Views.Inspector
         private void OnPickerBoxLostFocus(object? sender, RoutedEventArgs e)
         {
             if (DataContext is ObjectPropertyViewModel vm)
-                vm.SubclassFilter = string.Empty;
+                vm.ResetSubclassFilter();
         }
 
         private void OnPickerSelectionChanged(object? sender, SelectionChangedEventArgs e)

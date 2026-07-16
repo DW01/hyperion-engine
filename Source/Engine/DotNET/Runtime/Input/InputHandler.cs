@@ -11,10 +11,26 @@ namespace Hyperion
         }
     }
 
-    [ClassBinding(Name = "NullInputHandler")]
-    public class NullInputHandler : InputHandlerBase
+    [ClassBinding(Name = "FirstPersonCameraInputHandler")]
+    public class FirstPersonCameraInputHandler : InputHandlerBase
     {
-        public NullInputHandler()
+        public FirstPersonCameraInputHandler()
+        {
+        }
+    }
+
+    [ClassBinding(Name = "CharacterControllerInputHandler")]
+    public class CharacterControllerInputHandler : InputHandlerBase
+    {
+        public CharacterControllerInputHandler()
+        {
+        }
+    }
+
+    [ClassBinding(Name = "EditorCameraInputHandler")]
+    public class EditorCameraInputHandler : InputHandlerBase
+    {
+        public EditorCameraInputHandler()
         {
         }
     }

@@ -11,6 +11,14 @@ namespace Hyperion
         }
     }
 
+    [ClassBinding(Name = "NullCameraController")]
+    public class NullCameraController : CameraController
+    {
+        public NullCameraController()
+        {
+        }
+    }
+
     [ClassBinding(Name = "OrthoCameraController")]
     public class OrthoCameraController : CameraController
     {

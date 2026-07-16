@@ -701,6 +701,20 @@ bool TranslateEditorGizmo::OnKeyPress(const Handle<Camera>& camera, const Keyboa
         return false;
     }
 
+    const Handle<CameraController>& controller = camera->GetCameraController();
+
+    if (!controller)
+    {
+        return false;
+    }
+
+    InputHandlerBase* inputHandler = controller->GetInputHandler();
+
+    if (!inputHandler)
+    {
+        return false;
+    }
+
     switch (keyboardEvent.keyCode)
     {
     case KeyCode::KEY_LEFT:
@@ -708,7 +722,7 @@ bool TranslateEditorGizmo::OnKeyPress(const Handle<Camera>& camera, const Keyboa
     case KeyCode::KEY_UP:
     case KeyCode::KEY_DOWN: // fallthrough
     {
-        const BitField<NumKeyboardKeys>& keyStates = camera->GetCameraController()->GetInputHandler()->GetKeyStates();
+        const BitField<NumKeyboardKeys>& keyStates = inputHandler->GetKeyStates();
 
         const bool snapMovement = keyStates.Test(uint32(KeyCode::KEY_LALT)) || keyStates.Test(uint32(KeyCode::KEY_RALT));
 
@@ -2648,357 +2662,467 @@ void EditorSubsystem::InitViewport()
     uiSubsystem->GetUIStage()->UpdateSize(true);
 
     backdropPanel->OnClick.RemoveAllFromSet(m_delegateHandlers);
-    m_delegateHandlers.Add(backdropPanel->OnClick.Bind(backdropPanel.Get(), [this](const MouseEvent& event)
-                                                       {
-                                                           if (m_shouldCancelNextClick)
-                                                           {
-                                                               return UIEventHandlerResult::STOP_BUBBLING;
-                                                           }
+    m_delegateHandlers.Add(backdropPanel->OnClick.Bind(
+        backdropPanel.Get(),
+        [this](const MouseEvent& event)
+        {
+            if (m_shouldCancelNextClick)
+            {
+                return UIEventHandlerResult::STOP_BUBBLING;
+            }
 
-                                                           EditorViewport* activeViewport = GetActiveViewport();
-                                                           if (!activeViewport)
-                                                           {
-                                                               return UIEventHandlerResult::OK;
-                                                           }
+            EditorViewport* activeViewport = GetActiveViewport();
+            if (!activeViewport)
+            {
+                return UIEventHandlerResult::OK;
+            }
 
-                                                           // if (m_camera->GetCameraController()->GetInputHandler()->OnClick(event))
-                                                           // {
-                                                           //     return UIEventHandlerResult::STOP_BUBBLING;
-                                                           // }
+            // if (m_camera->GetCameraController()->GetInputHandler()->OnClick(event))
+            // {
+            //     return UIEventHandlerResult::STOP_BUBBLING;
+            // }
 
-                                                           if (GetWorld()->GetGameState().IsEditMode())
-                                                           {
-                                                               if (IsHoveringGizmo())
-                                                               {
-                                                                   return UIEventHandlerResult::STOP_BUBBLING;
-                                                               }
+            if (GetWorld()->GetGameState().IsEditMode())
+            {
+                if (IsHoveringGizmo())
+                {
+                    return UIEventHandlerResult::STOP_BUBBLING;
+                }
 
-                                                               const Vec4f mouseWorld = activeViewport->GetCamera()->TransformScreenToWorld(event.relativePos);
-                                                               const Vec4f rayDirection = mouseWorld.Normalized();
+                const Vec4f mouseWorld = activeViewport->GetCamera()->TransformScreenToWorld(event.relativePos);
+                const Vec4f rayDirection = mouseWorld.Normalized();
 
-                                                               const Ray ray { activeViewport->GetCamera()->GetWorldTranslation(), rayDirection.GetXYZ() };
+                const Ray ray { activeViewport->GetCamera()->GetWorldTranslation(), rayDirection.GetXYZ() };
 
-                                                               RayTestResults results;
+                RayTestResults results;
 
-                                                               bool hasHits = false;
-                                                               for (const Handle<EditorViewport>& vp : m_editorViewports)
-                                                               {
-                                                                   if (vp->GetView()->TestRay(ray, results, RayTestFlags::TestBVH | RayTestFlags::EditorPick))
-                                                                   {
-                                                                       hasHits = true;
-                                                                   }
-                                                               }
+                bool hasHits = false;
+                for (const Handle<EditorViewport>& vp : m_editorViewports)
+                {
+                    if (vp->GetView()->TestRay(ray, results, RayTestFlags::TestBVH | RayTestFlags::EditorPick))
+                    {
+                        hasHits = true;
+                    }
+                }
 
-                                                               if (hasHits)
-                                                               {
-                                                                   for (const RayHit& hit : results)
-                                                                   {
-                                                                       if (hit.node != nullptr)
-                                                                       {
-                                                                           Handle<Node> nodeStrong = MakeStrongRef(hit.node);
+                if (hasHits)
+                {
+                    for (const RayHit& hit : results)
+                    {
+                        if (hit.node != nullptr)
+                        {
+                            Handle<Node> nodeStrong = MakeStrongRef(hit.node);
 
-                                                                           bool shouldMutateSelection = false;
+                            bool shouldMutateSelection = false;
 
-                                                                           InputManager* inputManager = g_appContext->GetMainWindow()->GetInputManager();
+                            InputManager* inputManager = g_appContext->GetMainWindow()->GetInputManager();
 
-                                                                           // If CTRL key is down, add/remove from current selection.
-                                                                           if (inputManager->IsCtrlDown())
-                                                                           {
-                                                                               shouldMutateSelection = true;
-                                                                           }
+                            // If CTRL key is down, add/remove from current selection.
+                            if (inputManager->IsCtrlDown())
+                            {
+                                shouldMutateSelection = true;
+                            }
 
-                                                                           if (shouldMutateSelection)
-                                                                           {
-                                                                               // If already in selection, remove, otherwise add
-                                                                               if (m_selectedNodes.Contains(nodeStrong))
-                                                                               {
-                                                                                   m_selectedNodes.Erase(nodeStrong);
-                                                                                   // Don't set focused node if deselecting this node.
-                                                                               }
-                                                                               else
-                                                                               {
-                                                                                   m_selectedNodes.Add(nodeStrong);
-                                                                                   SetFocusedNode(nodeStrong, true);
-                                                                               }
-                                                                           }
-                                                                           else
-                                                                           {
-                                                                               m_selectedNodes = { nodeStrong };
-                                                                               SetFocusedNode(nodeStrong, true);
-                                                                           }
+                            if (shouldMutateSelection)
+                            {
+                                // If already in selection, remove, otherwise add
+                                if (m_selectedNodes.Contains(nodeStrong))
+                                {
+                                    m_selectedNodes.Erase(nodeStrong);
+                                    // Don't set focused node if deselecting this node.
+                                }
+                                else
+                                {
+                                    m_selectedNodes.Add(nodeStrong);
+                                    SetFocusedNode(nodeStrong, true);
+                                }
+                            }
+                            else
+                            {
+                                m_selectedNodes = { nodeStrong };
+                                SetFocusedNode(nodeStrong, true);
+                            }
 
-                                                                           OnSelectionChanged();
+                            OnSelectionChanged();
 
-                                                                           break;
-                                                                       }
-                                                                   }
+                            break;
+                        }
+                    }
 
-                                                                   return UIEventHandlerResult::STOP_BUBBLING;
-                                                               }
-                                                           }
+                    return UIEventHandlerResult::STOP_BUBBLING;
+                }
+            }
 
-                                                           return UIEventHandlerResult::OK;
-                                                       }));
+            return UIEventHandlerResult::OK;
+        }));
 
     backdropPanel->OnMouseLeave.RemoveAllFromSet(m_delegateHandlers);
-    m_delegateHandlers.Add(backdropPanel->OnMouseLeave.Bind(backdropPanel.Get(), [this](const MouseEvent& event)
-                                                            {
-                                                                EditorViewport* activeViewport = GetActiveViewport();
-                                                                if (!activeViewport)
-                                                                {
-                                                                    return UIEventHandlerResult::OK;
-                                                                }
+    m_delegateHandlers.Add(backdropPanel->OnMouseLeave.Bind(
+        backdropPanel.Get(),
+        [this](const MouseEvent& event)
+        {
+            EditorViewport* activeViewport = GetActiveViewport();
+            if (!activeViewport)
+            {
+                return UIEventHandlerResult::OK;
+            }
 
-                                                                if (IsHoveringGizmo())
-                                                                {
-                                                                    SetHoveredGizmo(event, nullptr, Handle<Node>::Null());
-                                                                }
+            if (IsHoveringGizmo())
+            {
+                SetHoveredGizmo(event, nullptr, Handle<Node>::Null());
+            }
 
-                                                                activeViewport->GetCamera()->GetCameraController()->GetInputHandler()->OnMouseLeave(event);
+            CameraController* controller = activeViewport->GetCamera()->GetCameraController();
 
-                                                                return UIEventHandlerResult::OK;
-                                                            }));
+            if (controller != nullptr)
+            {
+                InputHandlerBase* inputHandler = controller->GetInputHandler();
+
+                if (inputHandler != nullptr)
+                {
+                    inputHandler->OnMouseLeave(event);
+                }
+            }
+
+            return UIEventHandlerResult::OK;
+        }));
 
     backdropPanel->OnMouseDrag.RemoveAllFromSet(m_delegateHandlers);
-    m_delegateHandlers.Add(backdropPanel->OnMouseDrag.Bind(backdropPanel.Get(), [this, uiStage = uiSubsystem->GetUIStage().Get()](const MouseEvent& event)
-                                                           {
-                                                               // prevent click being triggered on release once mouse has been dragged
-                                                               m_shouldCancelNextClick = true;
+    m_delegateHandlers.Add(backdropPanel->OnMouseDrag.Bind(
+        backdropPanel.Get(),
+        [this, uiStage = uiSubsystem->GetUIStage().Get()](const MouseEvent& event)
+        {
+            // prevent click being triggered on release once mouse has been dragged
+            m_shouldCancelNextClick = true;
 
-                                                               EditorViewport* activeViewport = GetActiveViewport();
-                                                               if (!activeViewport)
-                                                               {
-                                                                   return UIEventHandlerResult::OK;
-                                                               }
+            EditorViewport* activeViewport = GetActiveViewport();
+            if (!activeViewport)
+            {
+                return UIEventHandlerResult::OK;
+            }
 
-                                                               if (IsHoveringGizmo())
-                                                               {
-                                                                   // If the mouse is currently over a manipulation widget, don't allow camera to handle the event
-                                                                   Handle<EditorGizmoBase> gizmo = m_hoveredGizmo.Lock();
-                                                                   Handle<Node> node = m_hoveredGizmoNode.Lock();
+            if (IsHoveringGizmo())
+            {
+                // If the mouse is currently over a manipulation widget, don't allow camera to handle the event
+                Handle<EditorGizmoBase> gizmo = m_hoveredGizmo.Lock();
+                Handle<Node> node = m_hoveredGizmoNode.Lock();
 
-                                                                   if (!gizmo || !node)
-                                                                   {
-                                                                       HYP_LOG(Editor, Warning, "Failed to lock hovered manipulation widget or node");
+                if (!gizmo || !node)
+                {
+                    HYP_LOG(Editor, Warning, "Failed to lock hovered manipulation widget or node");
 
-                                                                       return UIEventHandlerResult::ERR;
-                                                                   }
+                    return UIEventHandlerResult::ERR;
+                }
 
-                                                                   if (gizmo->OnMouseMove(activeViewport->GetCamera(), event, node))
-                                                                   {
-                                                                       return UIEventHandlerResult::STOP_BUBBLING;
-                                                                   }
-                                                               }
+                if (gizmo->OnMouseMove(activeViewport->GetCamera(), event, node))
+                {
+                    return UIEventHandlerResult::STOP_BUBBLING;
+                }
+            }
 
-                                                               if (activeViewport->GetCamera()->GetCameraController()->GetInputHandler()->OnMouseDrag(event))
-                                                               {
-                                                                   return UIEventHandlerResult::STOP_BUBBLING;
-                                                               }
+            CameraController* controller = activeViewport->GetCamera()->GetCameraController();
+            
+            if (controller != nullptr)
+            {
+                InputHandlerBase* inputHandler = controller->GetInputHandler();
 
-                                                               return UIEventHandlerResult::OK;
-                                                           }));
+                if (inputHandler != nullptr)
+                {
+                    if (inputHandler->OnMouseDrag(event))
+                    {
+                        return UIEventHandlerResult::STOP_BUBBLING;
+                    }
+                }
+            }
+
+            return UIEventHandlerResult::OK;
+        }));
 
     backdropPanel->OnMouseMove.RemoveAllFromSet(m_delegateHandlers);
-    m_delegateHandlers.Add(backdropPanel->OnMouseMove.Bind(backdropPanel.Get(), [this, uiStage = uiSubsystem->GetUIStage().Get()](const MouseEvent& event)
-                                                           {
-                                                               EditorViewport* activeViewport = GetActiveViewport();
-                                                               if (!activeViewport)
-                                                               {
-                                                                   return UIEventHandlerResult::OK;
-                                                               }
+    m_delegateHandlers.Add(backdropPanel->OnMouseMove.Bind(
+        backdropPanel.Get(),
+        [this, uiStage = uiSubsystem->GetUIStage().Get()](const MouseEvent& event)
+        {
+            EditorViewport* activeViewport = GetActiveViewport();
+            if (!activeViewport)
+            {
+                return UIEventHandlerResult::OK;
+            }
 
-                                                               // Hover over a manipulation widget when mouse is not down
-                                                               if (!event.mouseButtons[MouseButtonState::LEFT]
-                                                                   && GetWorld()->GetGameState().IsEditMode()
-                                                                   && GetSelectedManipulationMode() != EditorManipulationMode::NONE)
-                                                               {
-                                                                   // Ray test the widget
+            // Hover over a manipulation widget when mouse is not down
+            if (!event.mouseButtons[MouseButtonState::LEFT]
+                && GetWorld()->GetGameState().IsEditMode()
+                && GetSelectedManipulationMode() != EditorManipulationMode::NONE)
+            {
+                // Ray test the widget
 
-                                                                   const Vec4f mouseWorld = activeViewport->GetCamera()->TransformScreenToWorld(event.relativePos);
-                                                                   const Vec4f rayDirection = mouseWorld.Normalized();
+                const Vec4f mouseWorld = activeViewport->GetCamera()->TransformScreenToWorld(event.relativePos);
+                const Vec4f rayDirection = mouseWorld.Normalized();
 
-                                                                   const Ray ray { activeViewport->GetCamera()->GetWorldTranslation(), rayDirection.GetXYZ() };
+                const Ray ray { activeViewport->GetCamera()->GetWorldTranslation(), rayDirection.GetXYZ() };
 
-                                                                   RayTestResults results;
+                RayTestResults results;
 
-                                                                   EditorGizmoBase* gizmo = GetSelectedGizmo();
-                                                                   bool hitGizmo = false;
+                EditorGizmoBase* gizmo = GetSelectedGizmo();
+                bool hitGizmo = false;
 
-                                                                   if (gizmo && gizmo->GetNode()->TestRay(ray, results, RayTestFlags::TestBVH | RayTestFlags::EditorPick))
-                                                                   {
-                                                                       for (const RayHit& rayHit : results)
-                                                                       {
-                                                                           if (!rayHit.node)
-                                                                               continue;
+                if (gizmo && gizmo->GetNode()->TestRay(ray, results, RayTestFlags::TestBVH | RayTestFlags::EditorPick))
+                {
+                    for (const RayHit& rayHit : results)
+                    {
+                        if (!rayHit.node)
+                            continue;
 
-                                                                           if (rayHit.node == m_hoveredGizmoNode.GetUnsafe())
-                                                                           {
-                                                                               return UIEventHandlerResult::STOP_BUBBLING;
-                                                                           }
+                        if (rayHit.node == m_hoveredGizmoNode.GetUnsafe())
+                        {
+                            return UIEventHandlerResult::STOP_BUBBLING;
+                        }
 
-                                                                           Handle<Node> nodeHandle = MakeStrongRef(rayHit.node);
+                        Handle<Node> nodeHandle = MakeStrongRef(rayHit.node);
 
-                                                                           if (gizmo->OnMouseHover(activeViewport->GetCamera(), event, nodeHandle))
-                                                                           {
-                                                                               SetHoveredGizmo(event, gizmo, nodeHandle);
+                        if (gizmo->OnMouseHover(activeViewport->GetCamera(), event, nodeHandle))
+                        {
+                            SetHoveredGizmo(event, gizmo, nodeHandle);
 
-                                                                               return UIEventHandlerResult::STOP_BUBBLING;
-                                                                           }
-                                                                       }
-                                                                   }
+                            return UIEventHandlerResult::STOP_BUBBLING;
+                        }
+                    }
+                }
 
-                                                                   SetHoveredGizmo(event, nullptr, Handle<Node>::Null());
-                                                               }
+                SetHoveredGizmo(event, nullptr, Handle<Node>::Null());
+            }
 
-                                                               if (activeViewport->GetCamera()->GetCameraController()->GetInputHandler()->OnMouseMove(event))
-                                                               {
-                                                                   return UIEventHandlerResult::STOP_BUBBLING;
-                                                               }
+            CameraController* controller = activeViewport->GetCamera()->GetCameraController();
+            
+            if (controller != nullptr)
+            {
+                InputHandlerBase* inputHandler = controller->GetInputHandler();
 
-                                                               return UIEventHandlerResult::OK;
-                                                           }));
+                if (inputHandler != nullptr)
+                {
+                    if (inputHandler->OnMouseMove(event))
+                    {
+                        return UIEventHandlerResult::STOP_BUBBLING;
+                    }
+                }
+            }
+
+            return UIEventHandlerResult::OK;
+        }));
 
     backdropPanel->OnMouseDown.RemoveAllFromSet(m_delegateHandlers);
-    m_delegateHandlers.Add(backdropPanel->OnMouseDown.Bind(backdropPanel.Get(), [this, uiStageWeak = uiSubsystem->GetUIStage().ToWeak()](const MouseEvent& event)
-                                                           {
-                                                               m_shouldCancelNextClick = false;
+    m_delegateHandlers.Add(backdropPanel->OnMouseDown.Bind(
+        backdropPanel.Get(),
+        [this, uiStageWeak = uiSubsystem->GetUIStage().ToWeak()](const MouseEvent& event)
+        {
+            m_shouldCancelNextClick = false;
 
-                                                               EditorViewport* activeViewport = GetActiveViewport();
-                                                               if (!activeViewport)
-                                                               {
-                                                                   return UIEventHandlerResult::OK;
-                                                               }
+            EditorViewport* activeViewport = GetActiveViewport();
+            if (!activeViewport)
+            {
+                return UIEventHandlerResult::OK;
+            }
 
-                                                               if (IsHoveringGizmo())
-                                                               {
-                                                                   Handle<EditorGizmoBase> gizmo = m_hoveredGizmo.Lock();
-                                                                   Handle<Node> node = m_hoveredGizmoNode.Lock();
+            if (IsHoveringGizmo())
+            {
+                Handle<EditorGizmoBase> gizmo = m_hoveredGizmo.Lock();
+                Handle<Node> node = m_hoveredGizmoNode.Lock();
 
-                                                                   if (gizmo && node && !gizmo->IsDragging())
-                                                                   {
-                                                                       const Vec4f mouseWorld = activeViewport->GetCamera()->TransformScreenToWorld(event.relativePos);
-                                                                       const Vec4f rayDirection = mouseWorld.Normalized();
+                if (gizmo && node && !gizmo->IsDragging())
+                {
+                    const Vec4f mouseWorld = activeViewport->GetCamera()->TransformScreenToWorld(event.relativePos);
+                    const Vec4f rayDirection = mouseWorld.Normalized();
 
-                                                                       const Ray ray { activeViewport->GetCamera()->GetWorldTranslation(), rayDirection.GetXYZ() };
+                    const Ray ray { activeViewport->GetCamera()->GetWorldTranslation(), rayDirection.GetXYZ() };
 
-                                                                       RayTestResults results;
+                    RayTestResults results;
 
-                                                                       if (node->TestRay(ray, results, RayTestFlags::TestBVH | RayTestFlags::EditorPick))
-                                                                       {
-                                                                           for (const RayHit& rayHit : results)
-                                                                           {
-                                                                               gizmo->OnDragStart(activeViewport->GetCamera(), event, node, rayHit.hitpoint);
+                    if (node->TestRay(ray, results, RayTestFlags::TestBVH | RayTestFlags::EditorPick))
+                    {
+                        for (const RayHit& rayHit : results)
+                        {
+                            gizmo->OnDragStart(activeViewport->GetCamera(), event, node, rayHit.hitpoint);
 
-                                                                               return UIEventHandlerResult::STOP_BUBBLING;
-                                                                           }
-                                                                       }
-                                                                   }
-                                                               }
+                            return UIEventHandlerResult::STOP_BUBBLING;
+                        }
+                    }
+                }
+            }
 
-                                                               if (activeViewport->GetCamera()->GetCameraController()->GetInputHandler()->OnMouseDown(event))
-                                                               {
-                                                                   return UIEventHandlerResult::STOP_BUBBLING;
-                                                               }
+            CameraController* controller = activeViewport->GetCamera()->GetCameraController();
+            
+            if (controller != nullptr)
+            {
+                InputHandlerBase* inputHandler = controller->GetInputHandler();
 
-                                                               return UIEventHandlerResult::OK;
-                                                           }));
+                if (inputHandler != nullptr)
+                {
+                    if (inputHandler->OnMouseDown(event))
+                    {
+                        return UIEventHandlerResult::STOP_BUBBLING;
+                    }
+                }
+            }
+
+            return UIEventHandlerResult::OK;
+        }));
 
     backdropPanel->OnMouseUp.RemoveAllFromSet(m_delegateHandlers);
-    m_delegateHandlers.Add(backdropPanel->OnMouseUp.Bind(backdropPanel.Get(), [this](const MouseEvent& event)
-                                                         {
-                                                             m_shouldCancelNextClick = false;
+    m_delegateHandlers.Add(backdropPanel->OnMouseUp.Bind(
+        backdropPanel.Get(),
+        [this](const MouseEvent& event)
+        {
+            m_shouldCancelNextClick = false;
 
-                                                             EditorViewport* activeViewport = GetActiveViewport();
-                                                             if (!activeViewport)
-                                                             {
-                                                                 return UIEventHandlerResult::OK;
-                                                             }
+            EditorViewport* activeViewport = GetActiveViewport();
+            if (!activeViewport)
+            {
+                return UIEventHandlerResult::OK;
+            }
 
-                                                             activeViewport->GetCamera()->GetCameraController()->GetInputHandler()->OnMouseUp(event);
+            CameraController* controller = activeViewport->GetCamera()->GetCameraController();
+            
+            if (controller != nullptr)
+            {
+                InputHandlerBase* inputHandler = controller->GetInputHandler();
 
-                                                             if (EditorGizmoBase* gizmo = GetSelectedGizmo(); gizmo && gizmo->IsDragging())
-                                                             {
-                                                                 gizmo->OnDragEnd(activeViewport->GetCamera(), event);
-                                                             }
+                if (inputHandler != nullptr)
+                {
+                    inputHandler->OnMouseUp(event);
+                }
+            }
 
-                                                             return UIEventHandlerResult::OK;
-                                                         }));
+            if (EditorGizmoBase* gizmo = GetSelectedGizmo(); gizmo && gizmo->IsDragging())
+            {
+                gizmo->OnDragEnd(activeViewport->GetCamera(), event);
+            }
+
+            return UIEventHandlerResult::OK;
+        }));
 
     backdropPanel->OnKeyDown.RemoveAllFromSet(m_delegateHandlers);
-    m_delegateHandlers.Add(backdropPanel->OnKeyDown.Bind(backdropPanel.Get(), [this](const KeyboardEvent& event)
-                                                         {
-                                                             if (!GetWorld()->GetGameState().IsEditMode())
-                                                             {
-                                                                 return UIEventHandlerResult::OK;
-                                                             }
+    m_delegateHandlers.Add(backdropPanel->OnKeyDown.Bind(
+        backdropPanel.Get(),
+        [this](const KeyboardEvent& event)
+        {
+            if (!GetWorld()->GetGameState().IsEditMode())
+            {
+                return UIEventHandlerResult::OK;
+            }
 
-                                                             EditorViewport* activeViewport = GetActiveViewport();
-                                                             if (!activeViewport)
-                                                             {
-                                                                 return UIEventHandlerResult::OK;
-                                                             }
+            EditorViewport* activeViewport = GetActiveViewport();
+            if (!activeViewport)
+            {
+                return UIEventHandlerResult::OK;
+            }
 
-                                                             if (activeViewport->GetCamera()->GetCameraController()->GetInputHandler()->OnKeyDown(event))
-                                                             {
-                                                                 return UIEventHandlerResult::STOP_BUBBLING;
-                                                             }
+            CameraController* controller = activeViewport->GetCamera()->GetCameraController();
+            
+            if (controller != nullptr)
+            {
+                InputHandlerBase* inputHandler = controller->GetInputHandler();
 
-                                                             return UIEventHandlerResult::OK;
-                                                         }));
+                if (inputHandler != nullptr)
+                {
+                    if (inputHandler->OnKeyDown(event))
+                    {
+                        return UIEventHandlerResult::STOP_BUBBLING;
+                    }
+                }
+            }
+
+            return UIEventHandlerResult::OK;
+        }));
 
     backdropPanel->OnKeyUp.RemoveAllFromSet(m_delegateHandlers);
-    m_delegateHandlers.Add(backdropPanel->OnKeyUp.Bind(backdropPanel.Get(), [this](const KeyboardEvent& event)
-                                                       {
-                                                           if (!GetWorld()->GetGameState().IsEditMode())
-                                                           {
-                                                               return UIEventHandlerResult::OK;
-                                                           }
+    m_delegateHandlers.Add(backdropPanel->OnKeyUp.Bind(
+        backdropPanel.Get(),
+        [this](const KeyboardEvent& event)
+        {
+            if (!GetWorld()->GetGameState().IsEditMode())
+            {
+                return UIEventHandlerResult::OK;
+            }
 
-                                                           EditorViewport* activeViewport = GetActiveViewport();
-                                                           if (!activeViewport)
-                                                           {
-                                                               return UIEventHandlerResult::OK;
-                                                           }
+            EditorViewport* activeViewport = GetActiveViewport();
+            if (!activeViewport)
+            {
+                return UIEventHandlerResult::OK;
+            }
 
-                                                           if (activeViewport->GetCamera()->GetCameraController()->GetInputHandler()->OnKeyUp(event))
-                                                           {
-                                                               return UIEventHandlerResult::STOP_BUBBLING;
-                                                           }
+            CameraController* controller = activeViewport->GetCamera()->GetCameraController();
+            
+            if (controller != nullptr)
+            {
+                InputHandlerBase* inputHandler = controller->GetInputHandler();
 
-                                                           return UIEventHandlerResult::OK;
-                                                       }));
+                if (inputHandler != nullptr)
+                {
+                    inputHandler->OnKeyUp(event);
+                }
+            }
+
+            return UIEventHandlerResult::OK;
+        }));
 
     backdropPanel->OnGainFocus.RemoveAllFromSet(m_delegateHandlers);
-    m_delegateHandlers.Add(backdropPanel->OnGainFocus.Bind(backdropPanel.Get(), [this](const MouseEvent& event)
-                                                           {
-                                                               m_editorCameraEnabled = true;
+    m_delegateHandlers.Add(backdropPanel->OnGainFocus.Bind(
+        backdropPanel.Get(),
+        [this](const MouseEvent& event)
+        {
+            m_editorCameraEnabled = true;
 
-                                                               EditorViewport* activeViewport = GetActiveViewport();
-                                                               if (!activeViewport)
-                                                               {
-                                                                   return UIEventHandlerResult::OK;
-                                                               }
+            EditorViewport* activeViewport = GetActiveViewport();
+            if (!activeViewport)
+            {
+                return UIEventHandlerResult::OK;
+            }
 
-                                                               activeViewport->GetCamera()->GetCameraController()->GetInputHandler()->OnGainFocus(event);
+            CameraController* controller = activeViewport->GetCamera()->GetCameraController();
+            
+            if (controller != nullptr)
+            {
+                InputHandlerBase* inputHandler = controller->GetInputHandler();
 
-                                                               return UIEventHandlerResult::OK;
-                                                           }));
+                if (inputHandler != nullptr)
+                {
+                    if (inputHandler->OnGainFocus(event))
+                    {
+                        return UIEventHandlerResult::STOP_BUBBLING;
+                    }
+                }
+            }
+
+            return UIEventHandlerResult::OK;
+        }));
 
     backdropPanel->OnLoseFocus.RemoveAllFromSet(m_delegateHandlers);
-    m_delegateHandlers.Add(backdropPanel->OnLoseFocus.Bind(backdropPanel.Get(), [this](const MouseEvent& event)
-                                                           {
-                                                               m_editorCameraEnabled = false;
+    m_delegateHandlers.Add(backdropPanel->OnLoseFocus.Bind(
+        backdropPanel.Get(),
+        [this](const MouseEvent& event)
+        {
+            m_editorCameraEnabled = false;
 
-                                                               EditorViewport* activeViewport = GetActiveViewport();
-                                                               if (!activeViewport)
-                                                               {
-                                                                   return UIEventHandlerResult::OK;
-                                                               }
+            EditorViewport* activeViewport = GetActiveViewport();
+            if (!activeViewport)
+            {
+                return UIEventHandlerResult::OK;
+            }
 
-                                                               activeViewport->GetCamera()->GetCameraController()->GetInputHandler()->OnLoseFocus(event);
+            CameraController* controller = activeViewport->GetCamera()->GetCameraController();
+            
+            if (controller != nullptr)
+            {
+                InputHandlerBase* inputHandler = controller->GetInputHandler();
 
-                                                               return UIEventHandlerResult::OK;
-                                                           }));
+                if (inputHandler != nullptr)
+                {
+                    inputHandler->OnLoseFocus(event);
+                }
+            }
+
+            return UIEventHandlerResult::OK;
+        }));
 }
 
 void EditorSubsystem::StartWatchingNode(const Handle<Node>& node)

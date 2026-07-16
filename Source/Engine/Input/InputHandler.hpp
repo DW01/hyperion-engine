@@ -172,14 +172,4 @@ protected:
     double m_deltaTime;
 };
 
-HYP_CLASS()
-class NullInputHandler final : public InputHandlerBase
-{
-    HYP_OBJECT_BODY(NullInputHandler);
-
-public:
-    NullInputHandler() = default;
-    virtual ~NullInputHandler() override = default;
-};
-
 } // namespace Hyperion

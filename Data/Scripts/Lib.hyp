@@ -1858,8 +1858,6 @@ extern class InputManager
 end
 extern class InputHandlerBase
 end
-extern class NullInputHandler : InputHandlerBase
-end
 extern class CharacterControllerInputHandler : InputHandlerBase
     ParentInputHandler : InputHandlerBase
 end
