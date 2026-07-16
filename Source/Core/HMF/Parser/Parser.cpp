@@ -30,8 +30,6 @@
 
 namespace Hyperion::HMF {
 
-using ClassMemberTypes = EnumFlags<MemberType>;
-
 Parser::Parser(TokenStream* tokenStream, ErrorList* errorList)
     : m_tokenStream(tokenStream),
       m_errorList(errorList)
@@ -46,12 +44,14 @@ bool Parser::Parse(BoxedValue& out)
 bool Parser::ParseManifest(BoxedValue& out)
 {
     String className;
+
     if (!ExpectIdentifier(className))
     {
         return false;
     }
 
     const Class* cls = Hyperion::GetClass(StringHash(className));
+
     if (!cls)
     {
         Error(MSG_CLASS_NOT_FOUND, Peek().GetLocation(), className);
@@ -111,7 +111,8 @@ bool Parser::ParseObjectBody(const Class* cls, BoxedValue& target)
     {
         if (Peek().GetTokenClass() == TK_COMMA)
         {
-            Token comma = Next();
+            const Token comma = Next();
+
             if (Peek().GetTokenClass() == TK_CLOSE_BRACE)
             {
                 Error(MSG_UNEXPECTED_TOKEN, comma.GetLocation(), ",");
@@ -287,44 +288,48 @@ bool Parser::ParseValue(const TypeInfo& typeInfo, BoxedValue& out)
 
 bool Parser::ParseBoolValue(BoxedValue& out)
 {
-    Token tok = Peek();
-    if (tok.GetTokenClass() != TK_IDENT)
+    Token token = Peek();
+
+    if (token.GetTokenClass() != TK_IDENT)
     {
-        Error(MSG_UNEXPECTED_TOKEN, tok.GetLocation(), Token::TokenTypeToString(tok.GetTokenClass()));
+        Error(MSG_UNEXPECTED_TOKEN, token.GetLocation(), Token::TokenTypeToString(token.GetTokenClass()));
+
         return false;
     }
 
     Next();
 
-    if (tok.GetValue() == "true")
+    if (token.GetValue() == "true")
     {
         out = BoxedValue(true);
         return true;
     }
 
-    if (tok.GetValue() == "false")
+    if (token.GetValue() == "false")
     {
         out = BoxedValue(false);
         return true;
     }
 
-    Error(MSG_UNEXPECTED_IDENTIFIER, tok.GetLocation(), tok.GetValue());
+    Error(MSG_UNEXPECTED_IDENTIFIER, token.GetLocation(), token.GetValue());
 
     return false;
 }
 
 bool Parser::ParseIntegralValue(const TypeInfo& typeInfo, BoxedValue& out)
 {
-    Token tok = Peek();
-    if (tok.GetTokenClass() != TK_INTEGER)
+    Token token = Peek();
+
+    if (token.GetTokenClass() != TK_INTEGER)
     {
-        Error(MSG_UNEXPECTED_TOKEN, tok.GetLocation(), Token::TokenTypeToString(tok.GetTokenClass()));
+        Error(MSG_UNEXPECTED_TOKEN, token.GetLocation(), Token::TokenTypeToString(token.GetTokenClass()));
+
         return false;
     }
 
     Next();
 
-    const String& text = tok.GetValue();
+    const String& text = token.GetValue();
 
     const bool isHex = text.Size() >= 2 && text[0] == '0' && (text[1] == 'x' || text[1] == 'X');
     const int base = isHex ? 16 : 10;
@@ -369,7 +374,8 @@ bool Parser::ParseIntegralValue(const TypeInfo& typeInfo, BoxedValue& out)
     }
     else
     {
-        Error(MSG_INVALID_LITERAL_FOR_TYPE, tok.GetLocation(), text, typeInfo.name.LookupString());
+        Error(MSG_INVALID_LITERAL_FOR_TYPE, token.GetLocation(), text, typeInfo.name.LookupString());
+
         return false;
     }
 
@@ -378,16 +384,18 @@ bool Parser::ParseIntegralValue(const TypeInfo& typeInfo, BoxedValue& out)
 
 bool Parser::ParseFloatValue(const TypeInfo& typeInfo, BoxedValue& out)
 {
-    Token tok = Peek();
-    if (tok.GetTokenClass() != TK_FLOAT && tok.GetTokenClass() != TK_INTEGER)
+    Token token = Peek();
+
+    if (token.GetTokenClass() != TK_FLOAT && token.GetTokenClass() != TK_INTEGER)
     {
-        Error(MSG_UNEXPECTED_TOKEN, tok.GetLocation(), Token::TokenTypeToString(tok.GetTokenClass()));
+        Error(MSG_UNEXPECTED_TOKEN, token.GetLocation(), Token::TokenTypeToString(token.GetTokenClass()));
+
         return false;
     }
 
     Next();
 
-    const String& text = tok.GetValue();
+    const String& text = token.GetValue();
     const double parsed = std::strtod(text.Data(), nullptr);
 
     if (typeInfo.id == TypeId::ForType<float>())
@@ -400,7 +408,8 @@ bool Parser::ParseFloatValue(const TypeInfo& typeInfo, BoxedValue& out)
     }
     else
     {
-        Error(MSG_INVALID_LITERAL_FOR_TYPE, tok.GetLocation(), text, typeInfo.name.LookupString());
+        Error(MSG_INVALID_LITERAL_FOR_TYPE, token.GetLocation(), text, typeInfo.name.LookupString());
+
         return false;
     }
 
@@ -409,16 +418,18 @@ bool Parser::ParseFloatValue(const TypeInfo& typeInfo, BoxedValue& out)
 
 bool Parser::ParseStringValue(const TypeInfo& typeInfo, BoxedValue& out)
 {
-    Token tok = Peek();
-    if (tok.GetTokenClass() != TK_STRING && tok.GetTokenClass() != TK_AT_STRING)
+    Token token = Peek();
+
+    if (token.GetTokenClass() != TK_STRING && token.GetTokenClass() != TK_AT_STRING)
     {
-        Error(MSG_UNEXPECTED_TOKEN, tok.GetLocation(), Token::TokenTypeToString(tok.GetTokenClass()));
+        Error(MSG_UNEXPECTED_TOKEN, token.GetLocation(), Token::TokenTypeToString(token.GetTokenClass()));
+
         return false;
     }
 
     Next();
 
-    const String& text = tok.GetValue();
+    const String& text = token.GetValue();
 
     // Name / StringHash are stored as Name internally
     if (typeInfo.id == TypeId::ForType<Name>()
@@ -441,9 +452,9 @@ bool Parser::ResolveEnumName(const Class* enumClass, const String& name, BoxedVa
         return false;
     }
 
-    if (StaticField* sf = enumClass->GetStaticField(StringHash(name)))
+    if (StaticField* staticField = enumClass->GetStaticField(StringHash(name)))
     {
-        outValue = sf->Get();
+        outValue = staticField->Get();
 
         // NOT strict, we want to check if it is 'a' numeric type.
         if (outValue.Is<uint64>(/* strict */ false))
@@ -457,19 +468,19 @@ bool Parser::ResolveEnumName(const Class* enumClass, const String& name, BoxedVa
 
 bool Parser::ParseEnumValue(const TypeInfo& typeInfo, BoxedValue& out)
 {
-    Token tok = Peek();
+    Token token = Peek();
 
     // Identifier - enum literal
-    if (tok.GetTokenClass() == TK_IDENT)
+    if (token.GetTokenClass() == TK_IDENT)
     {
         Next();
 
         const Class* enumClass = typeInfo.GetClass();
 
-        if (!ResolveEnumName(enumClass, tok.GetValue(), out))
+        if (!ResolveEnumName(enumClass, token.GetValue(), out))
         {
-            Error(MSG_UNRESOLVED_ENUM_NAME, tok.GetLocation(),
-                    enumClass ? enumClass->GetName().ToString() + "::" + tok.GetValue() : tok.GetValue());
+            Error(MSG_UNRESOLVED_ENUM_NAME, token.GetLocation(),
+                    enumClass ? enumClass->GetName().ToString() + "::" + token.GetValue() : token.GetValue());
 
             return false;
         }
@@ -480,13 +491,13 @@ bool Parser::ParseEnumValue(const TypeInfo& typeInfo, BoxedValue& out)
     // Integral value representing the enum value
     // We need this as we sometimes use enum classes as strongly typed integer IDs
     // (For ex. see LightmapElementId)
-    if (tok.GetTokenClass() == TK_INTEGER)
+    if (token.GetTokenClass() == TK_INTEGER)
     {
         Next();
         
         uint64 uValue;
 
-        if (StringUtil::Parse(tok.GetValue(), &uValue))
+        if (StringUtil::Parse(token.GetValue(), &uValue))
         {
             out = BoxedValue(uValue);
 
@@ -494,7 +505,7 @@ bool Parser::ParseEnumValue(const TypeInfo& typeInfo, BoxedValue& out)
         }
     }
     
-    Error(MSG_UNEXPECTED_TOKEN, tok.GetLocation(), Token::TokenTypeToString(tok.GetTokenClass()));
+    Error(MSG_UNEXPECTED_TOKEN, token.GetLocation(), Token::TokenTypeToString(token.GetTokenClass()));
 
     return false;
 }
@@ -512,11 +523,11 @@ bool Parser::ParseEnumFlagsValue(const TypeInfo& typeInfo, BoxedValue& out)
 
     const Class* enumClass = enumType->GetClass();
 
-    Token firstTok = Peek();
+    Token firstToken = Peek();
 
-    if (firstTok.GetTokenClass() != TK_IDENT)
+    if (firstToken.GetTokenClass() != TK_IDENT)
     {
-        Error(MSG_UNEXPECTED_TOKEN, firstTok.GetLocation(), Token::TokenTypeToString(firstTok.GetTokenClass()));
+        Error(MSG_UNEXPECTED_TOKEN, firstToken.GetLocation(), Token::TokenTypeToString(firstToken.GetTokenClass()));
 
         return false;
     }
@@ -526,10 +537,10 @@ bool Parser::ParseEnumFlagsValue(const TypeInfo& typeInfo, BoxedValue& out)
     uint64 combined = 0;
     bool anyResolved = false;
 
-    auto resolveOne = [&](const Token& nameTok)
+    auto resolveOne = [&](const Token& nameToken)
     {
         BoxedValue boxed;
-        if (ResolveEnumName(enumClass, nameTok.GetValue(), boxed))
+        if (ResolveEnumName(enumClass, nameToken.GetValue(), boxed))
         {
             Assert(boxed.Is<uint64>());
             combined |= boxed.Get<uint64>();
@@ -538,7 +549,7 @@ bool Parser::ParseEnumFlagsValue(const TypeInfo& typeInfo, BoxedValue& out)
         else
         {
             // Check for numeric
-            const String& s = nameTok.GetValue();
+            const String& s = nameToken.GetValue();
 
             if (!s.Empty() && std::isdigit(s.GetChar(0)))
             {
@@ -550,36 +561,36 @@ bool Parser::ParseEnumFlagsValue(const TypeInfo& typeInfo, BoxedValue& out)
                 }
                 else
                 {
-                    Error(MSG_UNEXPECTED_TOKEN, nameTok.GetLocation());
+                    Error(MSG_UNEXPECTED_TOKEN, nameToken.GetLocation());
                 }
             }
             else
             {
-                Warning(MSG_UNRESOLVED_ENUM_NAME, nameTok.GetLocation(),
+                Warning(MSG_UNRESOLVED_ENUM_NAME, nameToken.GetLocation(),
                         enumClass ? enumClass->GetName().ToString() + "::" + s : s);
             }
         }
     };
 
-    resolveOne(firstTok);
+    resolveOne(firstToken);
 
     // Consume any "| Name" pairs
     while (Peek().GetTokenClass() == TK_PIPE)
     {
         Next(); // consume '|'
 
-        Token nameTok = Peek();
+        const Token nameToken = Peek();
 
-        if (nameTok.GetTokenClass() != TK_IDENT)
+        if (nameToken.GetTokenClass() != TK_IDENT)
         {
-            Error(MSG_EXPECTED_IDENTIFIER, nameTok.GetLocation());
+            Error(MSG_EXPECTED_IDENTIFIER, nameToken.GetLocation());
 
             return false;
         }
 
         Next();
 
-        resolveOne(nameTok);
+        resolveOne(nameToken);
     }
 
     if (!anyResolved)
@@ -611,12 +622,14 @@ bool Parser::ParseVectorValue(const TypeInfo& typeInfo, BoxedValue& out)
     if (!handler)
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
         return false;
     }
 
     if (!handler->CreateInstance(out))
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
         return false;
     }
 
@@ -636,6 +649,7 @@ bool Parser::ParseVectorValue(const TypeInfo& typeInfo, BoxedValue& out)
             if (Peek().GetTokenClass() == TK_CLOSE_PARENTH)
             {
                 Error(MSG_UNEXPECTED_TOKEN, comma.GetLocation(), ",");
+
                 return false;
             }
         }
@@ -665,9 +679,11 @@ bool Parser::ParseArrayValue(const TypeInfo& typeInfo, BoxedValue& out)
     }
 
     const TypeInfo* elementType = typeInfo.GetElementType();
+
     if (!elementType)
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
         return false;
     }
 
@@ -707,12 +723,14 @@ bool Parser::ParseArrayValue(const TypeInfo& typeInfo, BoxedValue& out)
     if (!handler)
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
         return false;
     }
 
     if (!handler->CreateInstance(out))
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
         return false;
     }
 
@@ -804,6 +822,7 @@ bool Parser::ParseMapValue(const TypeInfo& typeInfo, BoxedValue& out)
     if (!keyType || !valueType)
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
         return false;
     }
 
@@ -812,12 +831,14 @@ bool Parser::ParseMapValue(const TypeInfo& typeInfo, BoxedValue& out)
     if (!handler)
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
         return false;
     }
 
     if (!handler->CreateInstance(out))
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
         return false;
     }
 
@@ -939,20 +960,22 @@ bool Parser::ParseObjectValue(const TypeInfo& typeInfo, BoxedValue& out)
 
     if (Peek().GetTokenClass() == TK_IDENT && Peek(1).GetTokenClass() == TK_OPEN_BRACE)
     {
-        Token classTok = Next(); // consume IDENT
-        const String& runtimeClassName = classTok.GetValue();
+        Token classToken = Next(); // consume IDENT
+        const String& runtimeClassName = classToken.GetValue();
 
         actualClass = Hyperion::GetClass(StringHash(runtimeClassName));
+
         if (!actualClass)
         {
-            Error(MSG_CLASS_NOT_FOUND, classTok.GetLocation(), runtimeClassName);
+            Error(MSG_CLASS_NOT_FOUND, classToken.GetLocation(), runtimeClassName);
+
             return false;
         }
 
         if (declaredClass && !actualClass->IsDerivedFrom(declaredClass))
         {
-            Error(MSG_CLASS_NOT_DERIVED, classTok.GetLocation(),
-                runtimeClassName, declaredClass->GetName().LookupString());
+            Error(MSG_CLASS_NOT_DERIVED, classToken.GetLocation(), runtimeClassName, declaredClass->GetName().LookupString());
+
             return false;
         }
     }
@@ -960,6 +983,7 @@ bool Parser::ParseObjectValue(const TypeInfo& typeInfo, BoxedValue& out)
     if (!actualClass)
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
         return false;
     }
 
@@ -967,6 +991,7 @@ bool Parser::ParseObjectValue(const TypeInfo& typeInfo, BoxedValue& out)
     {
         // @TODO Better error.
         Error(MSG_CLASS_NOT_FOUND, Peek().GetLocation(), actualClass->GetName().LookupString());
+
         return false;
     }
 
@@ -978,6 +1003,7 @@ bool Parser::ParseObjectValue(const TypeInfo& typeInfo, BoxedValue& out)
     if (!actualClass->CreateInstance(out))
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
         return false;
     }
 
@@ -1001,12 +1027,14 @@ bool Parser::ParseTupleValue(const TypeInfo& typeInfo, BoxedValue& out)
     if (!handler)
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
         return false;
     }
 
     if (!handler->CreateInstance(out))
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
         return false;
     }
 
@@ -1026,6 +1054,7 @@ bool Parser::ParseTupleValue(const TypeInfo& typeInfo, BoxedValue& out)
             if (Peek().GetTokenClass() == TK_CLOSE_PARENTH)
             {
                 Error(MSG_UNEXPECTED_TOKEN, comma.GetLocation(), ",");
+
                 return false;
             }
         }
@@ -1052,15 +1081,10 @@ bool Parser::ParseMatrixValue(const TypeInfo& typeInfo, BoxedValue& out)
 {
     auto* handler = static_cast<ITypeInfoMatrixHandler*>(typeInfo.extendedInfo.handler);
 
-    if (!handler)
+    if (!handler || !handler->CreateInstance(out))
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
-        return false;
-    }
 
-    if (!handler->CreateInstance(out))
-    {
-        Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
         return false;
     }
 
@@ -1110,6 +1134,7 @@ bool Parser::ParseMatrixValue(const TypeInfo& typeInfo, BoxedValue& out)
             if (!element.Is<float>())
             {
                 Error(MSG_TYPE_MISMATCH, Peek().GetLocation());
+
                 return false;
             }
 
@@ -1137,6 +1162,7 @@ bool Parser::ParseVariantValue(const TypeInfo& typeInfo, BoxedValue& out)
     if (!handler)
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
         return false;
     }
 
@@ -1148,6 +1174,7 @@ bool Parser::ParseVariantValue(const TypeInfo& typeInfo, BoxedValue& out)
         if (!handler->CreateInstance(out))
         {
             Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
             return false;
         }
 
@@ -1159,6 +1186,7 @@ bool Parser::ParseVariantValue(const TypeInfo& typeInfo, BoxedValue& out)
     if (!handler->CreateInstance(variantInstance))
     {
         Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+
         return false;
     }
 
@@ -1188,6 +1216,7 @@ bool Parser::ParseVariantValue(const TypeInfo& typeInfo, BoxedValue& out)
                 if (handler->SetValue(variantInstance, parsedValue))
                 {
                     out = variantInstance;
+                    
                     return true;
                 }
             }
@@ -1209,11 +1238,11 @@ bool Parser::ParseVariantValue(const TypeInfo& typeInfo, BoxedValue& out)
 
 bool Parser::ParseAssetPathLiteral(const TypeInfo& typeInfo, BoxedValue& out)
 {
-    Token strTok = Peek();
+    Token strToken = Peek();
 
-    if (strTok.GetTokenClass() != TK_AT_STRING)
+    if (strToken.GetTokenClass() != TK_AT_STRING)
     {
-        Error(MSG_UNEXPECTED_TOKEN, strTok.GetLocation(), Token::TokenTypeToString(strTok.GetTokenClass()));
+        Error(MSG_UNEXPECTED_TOKEN, strToken.GetLocation(), Token::TokenTypeToString(strToken.GetTokenClass()));
 
         return false;
     }
@@ -1224,14 +1253,14 @@ bool Parser::ParseAssetPathLiteral(const TypeInfo& typeInfo, BoxedValue& out)
 
     // Give the Engine-side resolver a chance to produce a correctly-typed BoxedValue
     // (e.g. Handle<T>, AssetPath, AssetReference) instead of a raw String.
-    if (g_resolveAssetPath && g_resolveAssetPath(strTok.GetValue(), typeInfo, out))
+    if (g_resolveAssetPath && g_resolveAssetPath(strToken.GetValue(), typeInfo, out))
     {
         return true;
     }
 
     // Fallback: store as String; the Engine-side Property::Set handles conversion to
     // AssetPath/AssetReference via their "Value"/"AssetPath" properties.
-    out = BoxedValue(strTok.GetValue());
+    out = BoxedValue(strToken.GetValue());
 
     return true;
 }
@@ -1243,15 +1272,16 @@ void Parser::SkipValue()
 
     while (true)
     {
-        Token tok = Peek();
-        if (tok.GetTokenClass() == TK_EMPTY)
+        Token token = Peek();
+
+        if (token.GetTokenClass() == TK_EMPTY)
         {
             return;
         }
 
         if (consumedAny && depth == 0)
         {
-            const TokenClass tc = tok.GetTokenClass();
+            const TokenClass tc = token.GetTokenClass();
 
             // End of containing object or array
             if (tc == TK_CLOSE_BRACE || tc == TK_CLOSE_BRACKET)
@@ -1273,13 +1303,13 @@ void Parser::SkipValue()
         }
 
         // Track nesting
-        const TokenClass tc = tok.GetTokenClass();
+        const TokenClass tokenClass = token.GetTokenClass();
 
-        if (tc == TK_OPEN_BRACE || tc == TK_OPEN_BRACKET)
+        if (tokenClass == TK_OPEN_BRACE || tokenClass == TK_OPEN_BRACKET)
         {
             depth++;
         }
-        else if (tc == TK_CLOSE_BRACE || tc == TK_CLOSE_BRACKET)
+        else if (tokenClass == TK_CLOSE_BRACE || tokenClass == TK_CLOSE_BRACKET)
         {
             if (depth == 0)
             {
@@ -1291,6 +1321,7 @@ void Parser::SkipValue()
         }
 
         Next();
+
         consumedAny = true;
     }
 }
@@ -1306,13 +1337,13 @@ void Parser::SkipBracedBlock()
 
     while (depth > 0 && Peek().GetTokenClass() != TK_EMPTY)
     {
-        Token tok = Next();
+        Token token = Next();
 
-        if (tok.GetTokenClass() == TK_OPEN_BRACE)
+        if (token.GetTokenClass() == TK_OPEN_BRACE)
         {
             depth++;
         }
-        else if (tok.GetTokenClass() == TK_CLOSE_BRACE)
+        else if (token.GetTokenClass() == TK_CLOSE_BRACE)
         {
             depth--;
         }
@@ -1327,15 +1358,16 @@ void Parser::SkipBracketedBlock()
     }
 
     int depth = 1;
+
     while (depth > 0 && Peek().GetTokenClass() != TK_EMPTY)
     {
-        Token tok = Next();
+        Token token = Next();
 
-        if (tok.GetTokenClass() == TK_OPEN_BRACE)
+        if (token.GetTokenClass() == TK_OPEN_BRACE)
         {
             depth++;
         }
-        else if (tok.GetTokenClass() == TK_CLOSE_BRACE)
+        else if (token.GetTokenClass() == TK_CLOSE_BRACE)
         {
             depth--;
         }
@@ -1358,25 +1390,29 @@ bool Parser::Expect(TokenClass tokenClass, const char* what)
     if (Peek().GetTokenClass() == tokenClass)
     {
         Next();
+
         return true;
     }
 
     Error(MSG_EXPECTED_TOKEN, Peek().GetLocation(), String(what));
+
     return false;
 }
 
 bool Parser::ExpectIdentifier(String& outName)
 {
-    Token tok = Peek();
-    if (tok.GetTokenClass() != TK_IDENT)
+    Token token = Peek();
+
+    if (token.GetTokenClass() != TK_IDENT)
     {
-        Error(MSG_EXPECTED_IDENTIFIER, tok.GetLocation());
+        Error(MSG_EXPECTED_IDENTIFIER, token.GetLocation());
+
         return false;
     }
     
     Next();
     
-    outName = tok.GetValue();
+    outName = token.GetValue();
 
     return true;
 }
