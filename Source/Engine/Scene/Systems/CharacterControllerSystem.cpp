@@ -62,6 +62,8 @@ bool CharacterControllerInputHandler::IsJumpPressed() const
 
 bool CharacterControllerInputHandler::OnKeyDown(const KeyboardEvent& evt)
 {
+    InputHandlerBase::OnKeyDown(evt);
+
     switch (evt.keyCode)
     {
     case KeyCode::KEY_W:
@@ -88,6 +90,8 @@ bool CharacterControllerInputHandler::OnKeyDown(const KeyboardEvent& evt)
 
 bool CharacterControllerInputHandler::OnKeyUp(const KeyboardEvent& evt)
 {
+    InputHandlerBase::OnKeyUp(evt);
+
     switch (evt.keyCode)
     {
     case KeyCode::KEY_W:

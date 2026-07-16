@@ -437,7 +437,17 @@
                                                             BorderBrush="{DynamicResource Brush.Border}"
                                                             BorderThickness="1">
                                                             <StackPanel Spacing="4">
-                                                                <TextBlock FontWeight="Bold" Text="{Binding Label}" />
+                                                                <Grid ColumnDefinitions="*,Auto">
+                                                                    <TextBlock Grid.Column="0" FontWeight="Bold" VerticalAlignment="Center" Text="{Binding Label}" />
+                                                                    <Button
+                                                                        Grid.Column="1"
+                                                                        Padding="4,2"
+                                                                        ToolTip.Tip="Remove component"
+                                                                        Command="{Binding DataContext.Inspector.RemoveComponentCommand, ElementName=Root}"
+                                                                        CommandParameter="{Binding}">
+                                                                        <LucideIcon Kind="Trash2" Size="14" />
+                                                                    </Button>
+                                                                </Grid>
 
                                                                 <!--  Component-level scalar properties  -->
                                                                 <inspector:InspectorPropertyItemsControl

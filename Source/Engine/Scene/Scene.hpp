@@ -229,24 +229,24 @@ private:
     HYP_FIELD(Property = "SceneFlags")
     EnumFlags<SceneFlags> m_sceneFlags;
 
-    HYP_FIELD(Property = "Root")
+    HYP_FIELD(Property = "Root", Editor = false)
     Handle<Node> m_root;
 
-    HYP_FIELD(Property = "OwnerThreadId", Transient)
+    HYP_FIELD(Property = "OwnerThreadId", Transient, Editor = false)
     ThreadId m_ownerThreadId;
 
-    HYP_FIELD(Property = "World", Transient)
+    HYP_FIELD(Property = "World", Transient, Editor = false)
     World* m_world;
 
-    HYP_FIELD(Property = "EntityManager", Transient)
+    HYP_FIELD(Property = "EntityManager", Transient = true, Editor = false)
     Handle<EntityManager> m_entityManager;
 
     SceneOctree m_octree;
 
-    HYP_FIELD(Property = "PreviousDelta", Transient)
+    HYP_FIELD(Property = "PreviousDelta", Transient, Editor = false)
     float m_previousDelta;
 
-    HYP_FIELD(Property = "StreamingCentroid")
+    HYP_FIELD(Property = "StreamingCentroid", Serialize = true, Editor = true)
     Vec2i m_streamingCentroid;
 
     bool m_isInitialized;

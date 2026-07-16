@@ -504,7 +504,7 @@ namespace Hyperion.Editor.ViewModels
 
                     if (val is ObjectBase obj && obj.IsValid && _depth < MaxDepth)
                     {
-                        string subLabel = _property != null ? _property.Name.ToString() : Label;
+                        string subLabel = _property.Name.ToString();
                         subObjectVm = new ComponentSubObjectViewModel(subLabel, obj, _depth + 1, PostWriteCallback);
                         displayName = obj.Class.Name.ToString();
 

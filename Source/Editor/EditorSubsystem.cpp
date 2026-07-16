@@ -56,7 +56,6 @@
 #include <UI/UIObject.hpp>
 #include <UI/UIStage.hpp>
 #include <UI/UIImage.hpp>
-#include <UI/UIEvent.hpp>
 #include <UI/UIListView.hpp>
 #include <UI/UIWindow.hpp>
 #include <UI/UIGrid.hpp>

@@ -136,6 +136,16 @@ extern "C"
         }
     }
 
+    HYP_EXPORT int8 EntityManager_RemoveComponent(EntityManager* pManager, uint32 componentTypeIdValue, Entity* pEntity)
+    {
+        Assert(pManager != nullptr);
+        Assert(pEntity != nullptr);
+
+        const TypeId componentTypeId { componentTypeIdValue };
+
+        return pManager->RemoveComponent(componentTypeId, pEntity);
+    }
+
     HYP_EXPORT int8 EntityManager_AddTypedEntity(EntityManager* pManager, const Class* pClass, BoxedValue* pOutBoxed)
     {
         Assert(pManager != nullptr);

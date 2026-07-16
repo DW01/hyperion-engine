@@ -118,6 +118,11 @@ namespace Hyperion
             EntityManager_AddComponent(NativeAddress, entity.NativeAddress, componentClass.TypeId, 0);
         }
 
+        public bool RemoveComponent(Entity entity, TypeId componentTypeId)
+        {
+            return EntityManager_RemoveComponent(NativeAddress, componentTypeId, entity.NativeAddress);
+        }
+
         public ref T GetComponent<T>(Entity entity) where T : IComponent, allows ref struct
         {
             Class componentClass = Class.GetClass(typeof(T));
@@ -203,6 +208,10 @@ namespace Hyperion
 
         [DllImport("hyperion", EntryPoint = "EntityManager_AddComponent")]
         private static extern void EntityManager_AddComponent(IntPtr pManager, IntPtr pEntity, TypeId componentTypeId, IntPtr pComponent);
+
+        [DllImport("hyperion", EntryPoint = "EntityManager_RemoveComponent")]
+        [return: MarshalAs(UnmanagedType.I1)]
+        private static extern bool EntityManager_RemoveComponent(IntPtr pManager, TypeId componentTypeId, IntPtr pEntity);
 
         [DllImport("hyperion", EntryPoint = "EntityManager_AddTypedEntity")]
         [return: MarshalAs(UnmanagedType.I1)]

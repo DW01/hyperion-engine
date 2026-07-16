@@ -257,8 +257,7 @@ bool Game::OnInputEvent(const Event& event)
 
     if (m_uiSubsystem.IsValid())
     {
-        if (m_uiSubsystem->GetUIStage()->OnInputEvent(event)
-            || m_uiSubsystem->GetUIStage()->HasFocus())
+        if (m_uiSubsystem->GetUIStage()->OnInputEvent(event) == UIEventHandlerResult::STOP_BUBBLING)
         {
             return true;
         }
