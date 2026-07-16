@@ -228,8 +228,8 @@ bool Parser::ParseValue(const TypeInfo& typeInfo, BoxedValue& out)
 
     // Name / StringHash handling.
     {
-        const TypeId id = TypeInfo_GetId(typeInfo);
-        if (id == TypeId::ForType<Name>() || id == TypeId::ForType<StringHash>())
+        if (typeInfo.id == TypeId::ForType<Name>()
+            || typeInfo.id == TypeId::ForType<StringHash>())
         {
             return ParseStringValue(typeInfo, out);
         }
@@ -280,7 +280,7 @@ bool Parser::ParseValue(const TypeInfo& typeInfo, BoxedValue& out)
         return ParseObjectValue(typeInfo, out);
     }
 
-    Error(MSG_NOT_IMPLEMENTED, next.GetLocation(), String("Parsing of type ") + TypeInfo_GetName(typeInfo).ToString());
+    Error(MSG_NOT_IMPLEMENTED, next.GetLocation(), String("Parsing of type ") + typeInfo.name.ToString());
 
     return false;
 }
@@ -329,7 +329,7 @@ bool Parser::ParseIntegralValue(const TypeInfo& typeInfo, BoxedValue& out)
     const bool isHex = text.Size() >= 2 && text[0] == '0' && (text[1] == 'x' || text[1] == 'X');
     const int base = isHex ? 16 : 10;
 
-    const TypeId id = TypeInfo_GetId(typeInfo);
+    const TypeId& id = typeInfo.id;
 
     if (id == TypeId::ForType<int8>())
     {
@@ -369,7 +369,7 @@ bool Parser::ParseIntegralValue(const TypeInfo& typeInfo, BoxedValue& out)
     }
     else
     {
-        Error(MSG_INVALID_LITERAL_FOR_TYPE, tok.GetLocation(), text, TypeInfo_GetName(typeInfo).LookupString());
+        Error(MSG_INVALID_LITERAL_FOR_TYPE, tok.GetLocation(), text, typeInfo.name.LookupString());
         return false;
     }
 
@@ -389,19 +389,18 @@ bool Parser::ParseFloatValue(const TypeInfo& typeInfo, BoxedValue& out)
 
     const String& text = tok.GetValue();
     const double parsed = std::strtod(text.Data(), nullptr);
-    const TypeId id = TypeInfo_GetId(typeInfo);
 
-    if (id == TypeId::ForType<float>())
+    if (typeInfo.id == TypeId::ForType<float>())
     {
         out = BoxedValue(static_cast<float>(parsed));
     }
-    else if (id == TypeId::ForType<double>())
+    else if (typeInfo.id == TypeId::ForType<double>())
     {
         out = BoxedValue(parsed);
     }
     else
     {
-        Error(MSG_INVALID_LITERAL_FOR_TYPE, tok.GetLocation(), text, TypeInfo_GetName(typeInfo).LookupString());
+        Error(MSG_INVALID_LITERAL_FOR_TYPE, tok.GetLocation(), text, typeInfo.name.LookupString());
         return false;
     }
 
@@ -420,10 +419,10 @@ bool Parser::ParseStringValue(const TypeInfo& typeInfo, BoxedValue& out)
     Next();
 
     const String& text = tok.GetValue();
-    const TypeId id = TypeInfo_GetId(typeInfo);
 
     // Name / StringHash are stored as Name internally
-    if (id == TypeId::ForType<Name>() || id == TypeId::ForType<StringHash>())
+    if (typeInfo.id == TypeId::ForType<Name>()
+        || typeInfo.id == TypeId::ForType<StringHash>())
     {
         out = BoxedValue(CreateNameFromDynamicString(text.Data()));
     }
@@ -459,27 +458,45 @@ bool Parser::ResolveEnumName(const Class* enumClass, const String& name, BoxedVa
 bool Parser::ParseEnumValue(const TypeInfo& typeInfo, BoxedValue& out)
 {
     Token tok = Peek();
-    if (tok.GetTokenClass() != TK_IDENT)
-    {
-        Error(MSG_UNEXPECTED_TOKEN, tok.GetLocation(), Token::TokenTypeToString(tok.GetTokenClass()));
 
-        return false;
+    // Identifier - enum literal
+    if (tok.GetTokenClass() == TK_IDENT)
+    {
+        Next();
+
+        const Class* enumClass = typeInfo.GetClass();
+
+        if (!ResolveEnumName(enumClass, tok.GetValue(), out))
+        {
+            Error(MSG_UNRESOLVED_ENUM_NAME, tok.GetLocation(),
+                    enumClass ? enumClass->GetName().ToString() + "::" + tok.GetValue() : tok.GetValue());
+
+            return false;
+        }
+
+        return true;
     }
 
-    Next();
-
-    const Class* enumClass = typeInfo.GetClass();
-
-    if (!ResolveEnumName(enumClass, tok.GetValue(), out))
+    // Integral value representing the enum value
+    // We need this as we sometimes use enum classes as strongly typed integer IDs
+    // (For ex. see LightmapElementId)
+    if (tok.GetTokenClass() == TK_INTEGER)
     {
-        Warning(MSG_UNRESOLVED_ENUM_NAME, tok.GetLocation(),
-                enumClass ? enumClass->GetName().ToString() + "::" + tok.GetValue() : tok.GetValue());
+        Next();
+        
+        uint64 uValue;
 
-        // Default to 0 -- still produce a value so we can keep going.
-        out = BoxedValue(static_cast<uint64>(0));
+        if (StringUtil::Parse(tok.GetValue(), &uValue))
+        {
+            out = BoxedValue(uValue);
+
+            return true;
+        }
     }
+    
+    Error(MSG_UNEXPECTED_TOKEN, tok.GetLocation(), Token::TokenTypeToString(tok.GetTokenClass()));
 
-    return true;
+    return false;
 }
 
 bool Parser::ParseEnumFlagsValue(const TypeInfo& typeInfo, BoxedValue& out)
@@ -488,7 +505,7 @@ bool Parser::ParseEnumFlagsValue(const TypeInfo& typeInfo, BoxedValue& out)
 
     if (!enumType)
     {
-        Error(MSG_NOT_AN_ENUM_FLAGS_TYPE, Peek().GetLocation(), TypeInfo_GetName(typeInfo).LookupString());
+        Error(MSG_NOT_AN_ENUM_FLAGS_TYPE, Peek().GetLocation(), typeInfo.name.LookupString());
 
         return false;
     }
@@ -571,18 +588,18 @@ bool Parser::ParseEnumFlagsValue(const TypeInfo& typeInfo, BoxedValue& out)
     }
 
     // Store as the enum's underlying integer type
-    const TypeInfo* underlying = typeInfo.GetUnderlyingType();
-    const TypeId underlyingId = underlying ? TypeInfo_GetId(*underlying) : TypeId::ForType<uint32>();
+    const TypeInfo* underlyingTypeInfo = typeInfo.GetUnderlyingType();
+    const TypeId underlyingTypeId = underlyingTypeInfo != nullptr ? underlyingTypeInfo->id : TypeId::ForType<uint32>();
 
     // Select the proper type based on underlying type id
-    if (underlyingId == TypeId::ForType<int8>()) { out = BoxedValue(static_cast<int8>(combined)); }
-    else if (underlyingId == TypeId::ForType<int16>()) { out = BoxedValue(static_cast<int16>(combined)); }
-    else if (underlyingId == TypeId::ForType<int32>()) { out = BoxedValue(static_cast<int32>(combined)); }
-    else if (underlyingId == TypeId::ForType<int64>()) { out = BoxedValue(static_cast<int64>(combined)); }
-    else if (underlyingId == TypeId::ForType<uint8>()) { out = BoxedValue(static_cast<uint8>(combined)); }
-    else if (underlyingId == TypeId::ForType<uint16>()) { out = BoxedValue(static_cast<uint16>(combined)); }
-    else if (underlyingId == TypeId::ForType<uint32>()) { out = BoxedValue(static_cast<uint32>(combined)); }
-    else if (underlyingId == TypeId::ForType<uint64>()) { out = BoxedValue(static_cast<uint64>(combined)); }
+    if (underlyingTypeId == TypeId::ForType<int8>()) { out = BoxedValue(static_cast<int8>(combined)); }
+    else if (underlyingTypeId == TypeId::ForType<int16>()) { out = BoxedValue(static_cast<int16>(combined)); }
+    else if (underlyingTypeId == TypeId::ForType<int32>()) { out = BoxedValue(static_cast<int32>(combined)); }
+    else if (underlyingTypeId == TypeId::ForType<int64>()) { out = BoxedValue(static_cast<int64>(combined)); }
+    else if (underlyingTypeId == TypeId::ForType<uint8>()) { out = BoxedValue(static_cast<uint8>(combined)); }
+    else if (underlyingTypeId == TypeId::ForType<uint16>()) { out = BoxedValue(static_cast<uint16>(combined)); }
+    else if (underlyingTypeId == TypeId::ForType<uint32>()) { out = BoxedValue(static_cast<uint32>(combined)); }
+    else if (underlyingTypeId == TypeId::ForType<uint64>()) { out = BoxedValue(static_cast<uint64>(combined)); }
     else { out = BoxedValue(static_cast<uint32>(combined)); }
 
     return true;

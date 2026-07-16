@@ -1,5 +1,5 @@
 ShaderBundle "DeferredDirect" {
     StaticProperties = [("TILE_SIZE", 32), ("TILE_Z_BINS", 16), ("MAX_CLUSTERED_SHADOW_MAPS", 16)]
-    CompiledShaders = [@"Engine://Shaders/DeferredDirect_652090781691541502", @"Engine://Shaders/DeferredDirect_3579567509353136114", @"Engine://Shaders/DeferredDirect_3402352593726621579", @"Engine://Shaders/DeferredDirect_14938946883609554348"]
+    CompiledShaders = [@"Engine://Shaders/DeferredDirect_704153348278809604", @"Engine://Shaders/DeferredDirect_652090781691541502", @"Engine://Shaders/DeferredDirect_5655943903844392140", @"Engine://Shaders/DeferredDirect_3579567509353136114", @"Engine://Shaders/DeferredDirect_3402352593726621579", @"Engine://Shaders/DeferredDirect_2318812748977459788", @"Engine://Shaders/DeferredDirect_17065496105979892622", @"Engine://Shaders/DeferredDirect_14938946883609554348"]
     FriendlyName = "DeferredDirect"
 }
