@@ -158,7 +158,7 @@ using debug::LogType;
 #define AssertDebug(cond, ...) (void)(cond)
 #endif
 
-#if HYP_DEBUG_MODE
+#ifdef HYP_ENABLE_CORE_ASSERTIONS
 // Assert used for internal Hyperion libraries. Uses a simple printf-style format string, rather than the internal Hyperion formatting library.
 // Opt to use this macro over AssertDebug() and Assert() to not pollute dependency on including logging headers.
 // These assertions are stripped from released builds.

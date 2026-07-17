@@ -295,7 +295,7 @@ Handle<Texture> AcquireTexture(GltfLoadContext& ctx, const cgltf_texture_view& t
                 textureResult.HasValue())
             {
                 const Handle<Texture>& texture = textureResult->Result();
-                CheckResult(texture->Create());
+                Check(texture->Create());
 
                 GetCurrentAssetRegistry()->PutAssetUnique(texture);
 
@@ -568,13 +568,13 @@ SplitMetalnessRoughnessResult SplitMetalnessRoughnessTexture(
 
     Handle<Texture> roughnessTexture = MakeHandle<Texture>(channelDesc, roughnessData.ToByteView());
     roughnessTexture->SetName(NAME_FMT("{}_Roughness", baseName));
-    CheckResult(roughnessTexture->Create());
+    Check(roughnessTexture->Create());
 
     GetCurrentAssetRegistry()->PutAssetUnique(roughnessTexture);
 
     Handle<Texture> metalnessTexture = MakeHandle<Texture>(metalnessDesc, metalnessData.ToByteView());
     metalnessTexture->SetName(NAME_FMT("{}_Metalness", baseName));
-    CheckResult(metalnessTexture->Create());
+    Check(metalnessTexture->Create());
 
     GetCurrentAssetRegistry()->PutAssetUnique(metalnessTexture);
 

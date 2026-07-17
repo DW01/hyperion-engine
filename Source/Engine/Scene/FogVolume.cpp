@@ -66,12 +66,12 @@ void FogVolume::Init()
 
     if (m_volumeTexture)
     {
-        CheckResult(m_volumeTexture->Create());
+        Check(m_volumeTexture->Create());
     }
 
     if (m_noiseTexture)
     {
-        CheckResult(m_noiseTexture->Create());
+        Check(m_noiseTexture->Create());
     }
 
     SetNeedsRenderProxyUpdate();
@@ -107,7 +107,7 @@ void FogVolume::SetTextures(
     {
         if (m_volumeTexture.IsValid())
         {
-            CheckResult(m_volumeTexture->Create());
+            Check(m_volumeTexture->Create());
         }
 
         SetNeedsRenderProxyUpdate();
@@ -120,7 +120,7 @@ void FogVolume::UpdateRenderProxy(RenderProxyFogVolume* proxy)
 
     const BoundingBox worldAabb = GetWorldBounds();
 
-    proxy->fogVolume = WeakHandleFromThis();
+    proxy->fogVolume = this;
     proxy->worldAabb = worldAabb;
 
     if (proxy->volumeTexture != m_volumeTexture)

@@ -90,10 +90,10 @@ Vec3f RandomInHemisphere(Vec3f rnd, Vec3f n)
 
 Vec2f VogelDisk(uint32 sampleIndex, uint32 numSamples, float phi)
 {
-    constexpr float goldenAngle = 2.4f;
+    static constexpr float GoldenAngle = 2.4f;
 
     float r = Sqrt(float(sampleIndex) + 0.5f) / Sqrt(float(numSamples));
-    float theta = sampleIndex * goldenAngle + phi;
+    float theta = sampleIndex * GoldenAngle + phi;
 
     return { r * Cos(theta), r * Sin(theta) };
 }

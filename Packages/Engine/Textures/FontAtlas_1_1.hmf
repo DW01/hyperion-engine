@@ -1,0 +1,19 @@
+Texture "FontAtlas_1_1" {
+    TextureDesc = TextureDesc {
+        Type = Texture2D
+        Format = R8
+        Extent = (1220, 370, 1)
+        MinFilterMode = TFM_NEAREST
+        MagFilterMode = TFM_NEAREST
+        TextureWrapMode = TWM_CLAMP_TO_EDGE
+        NumLayers = 1
+        ImageUsage = IU_SAMPLED
+        MipOffsets = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    }
+    ImageData = BlobDataReference {
+        Key = "Engine://Textures/FontAtlas_1_1.TEX"
+        Size = 451400
+    }
+    Name = "FontAtlas_1_1"
+    FriendlyName = "FontAtlas11"
+}

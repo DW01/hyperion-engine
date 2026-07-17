@@ -23,7 +23,7 @@ void RawBuffer::Initialize()
         return;
     }
 
-    CheckResult(gpuBuffer->Create());
+    Check(gpuBuffer->Create());
 }
 
 void RawBuffer::Shutdown()

@@ -745,7 +745,7 @@ void Texture::Readback(GpuBufferRef& outBuffer, bool allMips)
     outBuffer->SetDebugName(NAME("Texture_ReadbackBuffer"));
 #endif
 
-    CheckResult(outBuffer->Create());
+    Check(outBuffer->Create());
 
     UniquePtr<SingleTimeCommands> singleTimeCommands = RI.GetSingleTimeCommands();
 
@@ -804,7 +804,7 @@ void Texture::Readback(GpuBufferRef& outBuffer, bool allMips)
         outBuffer = RI.MakeGpuBuffer(GpuBufferType::ReadbackBuffer, tightSize);
         outBuffer->SetIsCpuAccessible(true);
 
-        CheckResult(outBuffer->Create());
+        Check(outBuffer->Create());
 
         outBuffer->Copy(tightSize, tightBuffer.Data());
     }
@@ -837,7 +837,7 @@ void Texture::EnqueueReadback(Proc<void(GpuBuffer&)>&& callback, bool allMips)
     readbackBuffer->SetDebugName(NAME("Texture_EnqueueReadbackBuffer"));
 #endif
 
-    CheckResult(readbackBuffer->Create());
+    Check(readbackBuffer->Create());
 
     CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder();
     HYP_DEFER({ cr.Done(); });
@@ -922,7 +922,7 @@ void Texture::EnqueueReadback(Proc<void(GpuBuffer&)>&& callback, bool allMips)
                               payload->readbackBuffer = RI.MakeGpuBuffer(GpuBufferType::ReadbackBuffer, tightSize);
                               payload->readbackBuffer->SetIsCpuAccessible(true);
 
-                              if (CheckResult(payload->readbackBuffer->Create()))
+                              if (Check(payload->readbackBuffer->Create()))
                               {
                                   payload->readbackBuffer->Copy(tightSize, tightBuffer.Data());
                                   payload->readbackBuffer->Flush(0, tightSize);

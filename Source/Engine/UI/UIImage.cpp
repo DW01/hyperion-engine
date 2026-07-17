@@ -37,7 +37,7 @@ void UIImage::SetTexture(const Handle<Texture>& texture)
 
     if (m_texture.IsValid() && !m_texture->IsCreated())
     {
-        CheckResult(m_texture->Create());
+        Check(m_texture->Create());
     }
 
     UpdateMaterial(false);

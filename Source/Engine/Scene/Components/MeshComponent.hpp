@@ -42,10 +42,10 @@ struct ENGINE_API MeshComponent
     HYP_FIELD(Property = "Skeleton")
     Handle<Skeleton> skeleton;
 
-    HYP_FIELD(Property = "EnableAutoInstancing", Serialize, EditHide, NoScriptBindings)
+    HYP_FIELD(Property = "EnableAutoInstancing", Serialize, Editor = false, NoScriptBindings)
     bool enableAutoInstancing = false;
 
-    HYP_FIELD(Property = "InstanceData", Serialize, EditHide, NoScriptBindings)
+    HYP_FIELD(Property = "InstanceData", Serialize, Editor = false, NoScriptBindings)
     AssetReference instanceData;
 
     HYP_FIELD(Transient)

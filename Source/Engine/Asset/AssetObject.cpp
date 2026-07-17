@@ -19,7 +19,7 @@
 #include <Core/IO/BufferedByteReader.hpp>
 #include <Core/IO/ByteWriter.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <System/MessageBox.hpp>
 
@@ -207,9 +207,9 @@ Result AssetObject::SaveAs(const FilePath& manifestPath)
         return HYP_MAKE_ERROR(Error, "Asset manifest path is empty, cannot save");
     }
 
-    if (manifestPath.GetExtension() != "json")
+    if (manifestPath.GetExtension() != "hmf")
     {
-        return HYP_MAKE_ERROR(Error, "Asset manifest path must have .json extension");
+        return HYP_MAKE_ERROR(Error, "Asset manifest path must have .hmf extension");
     }
 
     const FilePath dir = manifestPath.BasePath();
@@ -262,15 +262,15 @@ Result AssetObject::SaveAs(const FilePath& manifestPath)
 
 Result AssetObject::SaveManifest(ByteWriter& stream) const
 {
-    JSON::Object manifestJson;
+    String text;
 
-    ToJSONOptions opts;
+    ToHMFOptions opts;
     opts.skipTransientProperties = true;
-    opts.writeClassNames = true;
+    opts.writeClassName = true;
 
-    ObjectToJSON(InstanceClass(), BoxedValue(HandleFromThis()), manifestJson, &opts);
+    ObjectToHMFDocument(InstanceClass(), BoxedValue(HandleFromThis()), text, &opts);
 
-    stream.WriteString(JSON::Value(std::move(manifestJson)).ToString(true).ToUtf8());
+    stream.WriteString(text.ToUtf8());
 
     return {};
 }
@@ -339,24 +339,8 @@ Result AssetObject::SaveBlobData(BlobStorage* storage, const Optional<FilePath>&
     return {};
 }
 
-Result AssetObject::LoadDesc(
-    JSON::Object& manifestData,
-    AssetDesc& outAssetDesc)
-{
-    if (!manifestData["Name"].IsString() || !manifestData["$Class"].IsString())
-    {
-        return HYP_MAKE_ERROR(Error, "Manifest must have 'Name', '$Class' values to be considered valid!");
-    }
-
-    outAssetDesc = {};
-    outAssetDesc.name = CreateNameFromDynamicString(*manifestData["Name"].ToString());
-    outAssetDesc.index = AssetDesc::InvalidIndex;
-
-    return {};
-}
-
 Result AssetObject::Load(
-    JSON::Object& manifestData,
+    BoxedValue& manifestData,
     Handle<AssetObject>& outAssetObject)
 {
     static constexpr uint32 MaxRecursionDepth = 32;
@@ -369,47 +353,30 @@ Result AssetObject::Load(
         return HYP_MAKE_ERROR(Error, "Recursion depth limit reached. Is the asset self-referential causing a circular dependency?");
     }
 
-    JSON::Value classNameValue = manifestData["$Class"];
-
-    if (!classNameValue.IsString())
+    if (!manifestData.IsValid())
     {
-        return HYP_MAKE_ERROR(Error, "Manifest JSON must contain a '$Class' string");
+        return HYP_MAKE_ERROR(Error, "Manifest data is null/invalid");
     }
 
-    const Class* cls = GetClass(classNameValue.AsString().ToUtf8());
+    const TypeInfo* typeInfo = manifestData.GetTypeInfo();
+    Assert(typeInfo != nullptr);
+
+    const Class* cls = typeInfo->GetClass();
 
     if (!cls)
     {
-        return HYP_MAKE_ERROR(Error, "Class '{}' not found!", classNameValue.AsString());
+        return HYP_MAKE_ERROR(Error, "Manifest data has unknown class");
     }
 
     if (!cls->IsDerivedFrom(AssetObject::StaticClass()))
     {
-        return HYP_MAKE_ERROR(Error, "Class '{}' is not derived from AssetObject!", classNameValue.AsString());
+        return HYP_MAKE_ERROR(Error, "Class '{}' is not derived from AssetObject!", cls->GetName());
     }
 
-    BoxedValue targetData;
-    if (!cls->CreateInstance(targetData))
-    {
-        return HYP_MAKE_ERROR(Error, "Failed to create instance of class '{}'", classNameValue.AsString());
-    }
+    const Handle<AssetObject>& targetAssetObject = manifestData.Get<Handle<AssetObject>>();
+    Assert(targetAssetObject.IsValid());
 
-    AssetObject* targetAssetObject = &targetData.Get<AssetObject>();
-    Assert(targetAssetObject != nullptr);
-
-    // remove class property
-    manifestData.Erase("$Class");
-
-    {
-        GlobalContextScope loadingContextScope { AssetLoadingContext {} };
-
-        if (!ObjectFromJSON(manifestData, cls, targetData))
-        {
-            return HYP_MAKE_ERROR(Error, "Failed to deserialize asset object from manifest JSON");
-        }
-    }
-
-    outAssetObject = MakeStrongRef(targetAssetObject);
+    outAssetObject = targetAssetObject;
 
     return {};
 }

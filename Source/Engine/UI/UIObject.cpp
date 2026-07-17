@@ -1510,18 +1510,19 @@ bool UIObject::HasFocus(bool includeChildren) const
     bool hasFocus = false;
 
     // check if any child has focus
-    ForEachChildUIObject([&hasFocus](UIObject* child)
-                         {
-                             // Don't include children in the `HasFocus` check as we're already iterating over them
-                             if (child->HasFocus(false))
-                             {
-                                 hasFocus = true;
+    ForEachChildUIObject(
+        [&hasFocus](UIObject* child)
+        {
+            // Don't include children in the `HasFocus` check as we're already iterating over them
+            if (child->HasFocus(false))
+            {
+                hasFocus = true;
 
-                                 return IterationResult::STOP;
-                             }
+                return IterationResult::STOP;
+            }
 
-                             return IterationResult::CONTINUE;
-                         });
+            return IterationResult::CONTINUE;
+        });
 
     return hasFocus;
 }
@@ -1914,7 +1915,7 @@ MaterialAttributes UIObject::GetMaterialAttributes() const
 {
     MaterialAttributes attrs;
     attrs.shaderName = NAME("UIObject");
-    attrs.blendFunction = BlendFunction(BMF_SRC_ALPHA, BMF_ONE_MINUS_SRC_ALPHA, BMF_ONE, BMF_ONE_MINUS_SRC_ALPHA);
+    attrs.blendFunction = BlendFunction(BlendModeFactor::SrcAlpha, BlendModeFactor::OneMinusSrcAlpha, BlendModeFactor::One, BlendModeFactor::OneMinusSrcAlpha);
     attrs.cullFaces = FCM_NONE; // FCM_BACK;
     attrs.flags = MAF_NONE;
 

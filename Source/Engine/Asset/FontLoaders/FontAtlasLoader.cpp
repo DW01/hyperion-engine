@@ -15,18 +15,17 @@
 
 #include <Rendering/Texture.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <FontAtlasLoader.generated.inl>
 
 namespace Hyperion {
 
-using namespace JSON;
-
 AssetLoadResult FontAtlasLoader::LoadAsset(LoaderState& state) const
 {
     Assert(state.assetManager != nullptr);
-    Value json;
+
+    JSON::Value json;
 
     const ByteBuffer byteBuffer = state.stream.Read();
 
@@ -142,7 +141,7 @@ AssetLoadResult FontAtlasLoader::LoadAsset(LoaderState& state) const
             return HYP_MAKE_ERROR(AssetLoadError, "Glyph metrics expected to be an array");
         }
 
-        for (const Value& glyphMetricValue : glyphMetricsValue.AsArray())
+        for (const JSON::Value& glyphMetricValue : glyphMetricsValue.AsArray())
         {
             GlyphMetrics metrics {};
 
@@ -172,7 +171,7 @@ AssetLoadResult FontAtlasLoader::LoadAsset(LoaderState& state) const
             return HYP_MAKE_ERROR(AssetLoadError, "Symbol list expected to be an array");
         }
 
-        for (const Value& symbolValue : symbolListValue.AsArray())
+        for (const JSON::Value& symbolValue : symbolListValue.AsArray())
         {
             if (!symbolValue.IsNumber())
             {

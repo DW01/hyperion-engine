@@ -138,7 +138,7 @@ void SSGI::Create()
         IU_STORAGE | IU_SAMPLED });
     m_ssgiTexture->SetIsTransient(true);
     m_ssgiTexture->SetName(NAME("SSGITexture"));
-    CheckResult(m_ssgiTexture->Create());
+    Check(m_ssgiTexture->Create());
 
     GetEngineAssetRegistry()->PutAsset(m_ssgiTexture);
 
@@ -154,7 +154,7 @@ void SSGI::Create()
             1,
             IU_SAMPLED });
         m_downsampleTextures[i]->SetName(NAME_FMT("SSGIDownsampleTexture{}", i));
-        CheckResult(m_downsampleTextures[i]->Create());
+        Check(m_downsampleTextures[i]->Create());
     }
 
     for (uint32 i = 0; i < NumDownsamplePasses; i++)

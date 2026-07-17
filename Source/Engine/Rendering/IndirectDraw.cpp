@@ -95,14 +95,14 @@ static inline bool CreateOrResizeBuffer(
             buffer->SetIsCpuAccessible(true);
         }
 
-        CheckResult(buffer->Create());
+        Check(buffer->Create());
 
         return true;
     }
 
     if (!buffer->IsCreated())
     {
-        CheckResult(buffer->Create());
+        Check(buffer->Create());
 
         return true;
     }
@@ -206,14 +206,14 @@ void IndirectDrawState::Create()
 #if HYP_DEBUG_MODE
         m_instanceBuffers[frameIndex]->SetDebugName(NAME_FMT("IndirectDraw_InstancesBuffer_Frame{}", frameIndex));
 #endif
-        CheckResult(m_instanceBuffers[frameIndex]->Create());
+        Check(m_instanceBuffers[frameIndex]->Create());
 
         m_indirectBuffers[frameIndex] = RI.MakeGpuBuffer(GpuBufferType::IndirectArgsBuffer, drawCommandsBuffer.ByteSize());
 #if HYP_DEBUG_MODE
         m_indirectBuffers[frameIndex]->SetDebugName(NAME_FMT("IndirectDraw_IndirectBuffer_Frame{}", frameIndex));
 #endif
 
-        CheckResult(m_indirectBuffers[frameIndex]->Create());
+        Check(m_indirectBuffers[frameIndex]->Create());
     }
 }
 

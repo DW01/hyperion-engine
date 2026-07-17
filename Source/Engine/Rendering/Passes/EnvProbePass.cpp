@@ -399,7 +399,7 @@ void ComputeEnvProbeSphericalHarmonics(const EnvProbe& envProbe, const Texture& 
         static constexpr uint32 ShDataSize = sizeof(EnvProbeShaderData::shData);
 
         GpuBufferRef shBuffer = RI.MakeGpuBuffer(GpuBufferType::RWStructuredBuffer, MathUtil::NextPowerOf2(ShDataSize));
-        CheckResult(shBuffer->Create());
+        Check(shBuffer->Create());
 
         cr << InsertBarrier(shTilesBuffers[0].gpuBuffer, RS_UNORDERED_ACCESS, ShaderModuleType::Compute);
         cr << InsertBarrier(shBuffer, RS_UNORDERED_ACCESS, ShaderModuleType::Compute);
@@ -508,7 +508,7 @@ void ComputeEnvProbeSphericalHarmonics(const EnvProbe& envProbe, const Texture& 
 #ifdef HYP_RHI_DEBUG_NAMES
         readbackBuffer->SetDebugName(NAME("ComputeEnvProbeSphericalHarmonics_ReadbackBuffer"));
 #endif // HYP_DEBUG_MODE
-        CheckResult(readbackBuffer->Create());
+        Check(readbackBuffer->Create());
 
         // Copy to readback buffer
         cr << InsertBarrier(readbackBuffer, RS_COPY_DST, ShaderModuleType::Compute);

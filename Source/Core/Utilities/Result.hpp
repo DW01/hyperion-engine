@@ -606,7 +606,7 @@ template <class T>
 constexpr bool IsResultType = std::is_same_v<T, Result> || (std::is_class_v<T> && std::is_base_of_v<TResult<typename T::ValueType, typename T::ErrorType>, T>);
 
 template <class TResultType, typename = std::enable_if_t<IsResultType<TResultType>>>
-static inline bool CheckResult(const TResultType& result)
+static inline bool Check(const TResultType& result)
 {
     static constexpr const char* NoMessageText = "<no message>";
 
@@ -620,19 +620,33 @@ static inline bool CheckResult(const TResultType& result)
     return bool(result);
 }
 
+template <class TResultType, typename = std::enable_if_t<IsResultType<TResultType>>>
+static inline bool Success(const TResultType& result)
+{
+    return !result.HasError();
+}
+
+template <class TResultType, typename = std::enable_if_t<IsResultType<TResultType>>>
+static inline bool Failed(const TResultType& result)
+{
+    return result.HasError();
+}
+
 /// On error, exits the current functon returning the result
 #define CheckResultOrReturn(result)    \
     do                                 \
     {                                  \
         const auto _result = (result); \
-        if (!CheckResult(_result))     \
+        if (!Check(_result))     \
             return _result.GetError(); \
     }                                  \
     while (0)
 
 } // namespace utilities
 
-using utilities::CheckResult;
+using utilities::Check;
+using utilities::Success;
+using utilities::Failed;
 using utilities::Error;
 using utilities::GetNullError;
 using utilities::IsResultType;

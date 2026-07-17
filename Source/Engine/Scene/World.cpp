@@ -21,6 +21,7 @@
 #include <Scene/Systems/AnimationSystem.hpp>
 #include <Scene/Systems/AudioSystem.hpp>
 #include <Scene/Systems/PhysicsSystem.hpp>
+#include <Scene/Systems/CameraSystem.hpp>
 #include <Scene/Systems/CharacterControllerSystem.hpp>
 #include <Scene/Systems/ScriptSystem.hpp>
 #include <Scene/Systems/MeshSystem.hpp>
@@ -215,6 +216,11 @@ void World::Initialize()
         }
 
         m_physicsWorld->Initialize();
+
+        if (!HasSystem<PhysicsSystem>())
+        {
+            AddSystem(MakeHandle<PhysicsSystem>());
+        }
     }
 
     if (!HasSystem<VisibilityStateUpdaterSystem>())
@@ -229,17 +235,14 @@ void World::Initialize()
     if (!HasSystem<AudioSystem>())
         AddSystem(MakeHandle<AudioSystem>());
 
-    if (!HasSystem<PhysicsSystem>())
-        AddSystem(MakeHandle<PhysicsSystem>());
-
-    if (!HasSystem<CharacterControllerSystem>())
-        AddSystem(MakeHandle<CharacterControllerSystem>());
-
     if (!HasSystem<ScriptSystem>())
         AddSystem(MakeHandle<ScriptSystem>());
 
     if (!HasSystem<MeshSystem>())
         AddSystem(MakeHandle<MeshSystem>());
+
+    if (!HasSystem<CameraSystem>())
+        AddSystem(MakeHandle<CameraSystem>());
 
     m_isInitialized = true;
 
@@ -248,6 +251,7 @@ void World::Initialize()
         system->InitComponentInfos_Internal();
 
         const bool wasAddedToExecutionGroup = AddSystemToExecutionGroup(system);
+        Assert(wasAddedToExecutionGroup);
 
         system->m_world = this;
 
@@ -401,6 +405,11 @@ void World::SetWorldFlags(EnumFlags<WorldFlags> flags)
             }
 
             m_physicsWorld->Initialize();
+
+            if (!HasSystem<PhysicsSystem>())
+            {
+                AddSystem(MakeHandle<PhysicsSystem>());
+            }
         }
         else
         {
@@ -408,6 +417,13 @@ void World::SetWorldFlags(EnumFlags<WorldFlags> flags)
             {
                 m_physicsWorld->Teardown();
                 m_physicsWorld.Reset();
+            }
+            
+            PhysicsSystem* physicsSystem = GetSystem<PhysicsSystem>();
+
+            if (physicsSystem != nullptr)
+            {
+                RemoveSystem(physicsSystem);
             }
         }
     }
@@ -1552,6 +1568,7 @@ SystemBase* World::AddSystem(const Handle<SystemBase>& system)
         system->InitComponentInfos_Internal();
 
         const bool wasAddedToExecutionGroup = AddSystemToExecutionGroup(system);
+        Assert(wasAddedToExecutionGroup);
 
         system->m_world = this;
 
@@ -1622,18 +1639,15 @@ bool World::AddSystemToExecutionGroup(SystemBase* system)
 
     bool wasAdded = false;
 
-    if (system->AllowParallelExecution())
+    for (SystemExecutionGroup* systemExecutionGroup : m_systemExecutionGroups)
     {
-        for (SystemExecutionGroup* systemExecutionGroup : m_systemExecutionGroups)
+        if (systemExecutionGroup->IsValidForSystem(system))
         {
-            if (systemExecutionGroup->IsValidForSystem(system))
+            if (systemExecutionGroup->AddSystem(system))
             {
-                if (systemExecutionGroup->AddSystem(system))
-                {
-                    wasAdded = true;
+                wasAdded = true;
 
-                    break;
-                }
+                break;
             }
         }
     }

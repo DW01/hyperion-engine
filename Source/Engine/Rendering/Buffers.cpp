@@ -138,7 +138,7 @@ struct StagingBufferPoolImpl
         newBuffer.buffer->SetDebugName(NAME("StagingBufferPoolTempBuffer"));
 #endif
 
-        CheckResult(newBuffer.buffer->Create());
+        Check(newBuffer.buffer->Create());
 
         void* dataPtr = newBuffer.buffer->Map();
         Assert(dataPtr != nullptr);
@@ -210,7 +210,7 @@ void GpuBufferHolderBase::CreateBuffers(GpuBufferType bufferType, size_t initial
 #endif
 
     m_gpuBuffer->SetIsCpuAccessible(m_cpuAccessible);
-    CheckResult(m_gpuBuffer->Create());
+    Check(m_gpuBuffer->Create());
 }
 
 void GpuBufferHolderBase::CopyStagingToGpu(

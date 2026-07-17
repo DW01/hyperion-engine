@@ -94,7 +94,7 @@ void HBAO::Render(Frame* frame, const RenderSetup& renderSetup)
         constants.power = cvHBAOPower.Get();
 
         m_cbuffer = RI.MakeGpuBuffer(GpuBufferType::ConstantBuffer, sizeof(constants));
-        CheckResult(m_cbuffer->Create());
+        Check(m_cbuffer->Create());
 
         m_cbuffer->Copy(sizeof(constants), &constants);
         m_cbuffer->Flush(0, sizeof(constants));

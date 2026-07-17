@@ -46,10 +46,6 @@
 
 #include <Scene/TextSprite.hpp>
 
-#include <Input/InputManager.hpp>
-#include <Input/Mouse.hpp>
-#include <Input/Event.hpp>
-
 #include <System/AppContext.hpp>
 
 #include <UI/UISubsystem.hpp>
@@ -106,7 +102,7 @@ void DefaultGame::OnLaunch_Impl()
     GetWorld()->AddSubsystem(MakeHandle<TouchControlsSubsystem>());
 #endif
 
-#if 1
+#if 0
     // Get MainScene
     Handle<AssetObject> mainSceneAsset = GetCurrentAssetRegistry()->GetAsset<Scene>(AssetBuckets::Scenes, "MainScene"_sh);
     Assert(mainSceneAsset.IsValid());
@@ -178,7 +174,7 @@ void DefaultGame::OnLaunch_Impl()
 
                 if (m_sun.IsValid())
                 {
-                    m_sun->SetIntensity(15.0f);
+                    m_sun->SetIntensity(100.0f);
                     m_sun->SetNumShadowMapCascades(4);
                 }
             }
@@ -359,7 +355,7 @@ void DefaultGame::OnUpdate_Impl(float delta)
     // Pass joystick movement to camera controller
     if (m_camera)
     {
-        if (CameraController* controller = m_camera->GetCameraController())
+        if (CameraController* controller = m_camera->GetCameraController(); controller != nullptr && controller->GetInputHandler().IsValid())
         {
             if (TouchControlsSubsystem* tcs = GetWorld()->GetSubsystem<TouchControlsSubsystem>())
             {
@@ -387,116 +383,6 @@ void DefaultGame::OnUpdate_Impl(float delta)
     //    Vec3f dir = Vec3f(MathUtil::Sin(m_sunAngle), 0.7f, MathUtil::Cos(m_sunAngle)).Normalize();
     //    m_sun->SetDirection(dir);
     //}
-}
-
-bool DefaultGame::OnInputEvent(const Event& event)
-{
-    if (Game::OnInputEvent(event))
-    {
-        if (GetUISubsystem()->GetUIStage()->HasFocus())
-        {
-            return true;
-        }
-    }
-
-    if (!m_camera)
-    {
-        return false;
-    }
-
-    CameraController* controller = m_camera->GetCameraController();
-
-    if (!controller)
-    {
-        return false;
-    }
-
-    switch (event.GetType())
-    {
-    case EventType::KEYUP:
-        controller->GetInputHandler()->OnKeyUp(event.ToKeyboardEvent());
-        break;
-    case EventType::KEYDOWN:
-        if (event.GetKeyCode() == KeyCode::KEY_TILDE)
-        {
-            break;
-        }
-
-        controller->GetInputHandler()->OnKeyDown(event.ToKeyboardEvent());
-        break;
-    case EventType::MOUSEBUTTON_DOWN:
-        controller->GetInputHandler()->OnMouseDown(event.ToMouseEvent());
-        break;
-    case EventType::MOUSEBUTTON_UP:
-        controller->GetInputHandler()->OnMouseUp(event.ToMouseEvent());
-        break;
-    case EventType::MOUSEMOTION:
-        controller->GetInputHandler()->OnMouseMove(event.ToMouseEvent());
-        break;
-    case EventType::TOUCH_DOWN:
-    {
-        TouchEvent touchEvent = event.ToTouchEvent();
-
-        if (TouchControlsSubsystem* tcs = GetWorld()->GetSubsystem<TouchControlsSubsystem>())
-        {
-            TouchPoint touchPoint;
-            if (tcs->GetTouchPoint(touchEvent.pointerId, touchPoint) && !touchPoint.isLeftSide)
-            {
-                controller->GetInputHandler()->OnTouchDown(touchEvent);
-            }
-        }
-        break;
-    }
-    case EventType::TOUCH_UP:
-    {
-        TouchEvent touchEvent = event.ToTouchEvent();
-
-        if (TouchControlsSubsystem* tcs = GetWorld()->GetSubsystem<TouchControlsSubsystem>())
-        {
-            TouchPoint touchPoint;
-            if (tcs->GetTouchPoint(touchEvent.pointerId, touchPoint) && !touchPoint.isLeftSide)
-            {
-                controller->GetInputHandler()->OnTouchUp(touchEvent);
-            }
-        }
-        break;
-    }
-    case EventType::TOUCH_MOVE:
-    {
-        TouchEvent touchEvent = event.ToTouchEvent();
-
-        if (TouchControlsSubsystem* tcs = GetWorld()->GetSubsystem<TouchControlsSubsystem>())
-        {
-            TouchPoint touchPoint;
-            if (tcs->GetTouchPoint(touchEvent.pointerId, touchPoint) && !touchPoint.isLeftSide)
-            {
-                controller->GetInputHandler()->OnTouchMove(touchEvent);
-            }
-        }
-        break;
-    }
-    case EventType::CONTROLLER_BUTTON_DOWN:
-        controller->GetInputHandler()->OnControllerButtonDown(event.GetControllerButton());
-        break;
-    case EventType::CONTROLLER_BUTTON_UP:
-        controller->GetInputHandler()->OnControllerButtonUp(event.GetControllerButton());
-        break;
-    case EventType::CONTROLLER_ANALOG_MOVE:
-    {
-        const ControllerAnalogData* analogData = event.GetControllerAnalogData();
-
-        if (analogData)
-        {
-            controller->GetInputHandler()->OnControllerAnalogMove(*analogData);
-        }
-
-        break;
-    }
-    default:
-        break;
-    }
-
-    return true;
 }
 
 } // namespace game

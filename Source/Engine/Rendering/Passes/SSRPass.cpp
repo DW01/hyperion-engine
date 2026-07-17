@@ -143,7 +143,7 @@ void SSRPass::CreatePasses()
             attachmentDesc,
             RI.MakeImageView(m_uvsTexture->GetGpuImage()));
 
-        CheckResult(writeUVsFramebuffer->Create());
+        Check(writeUVsFramebuffer->Create());
 
         delete m_writeUvs;
 
@@ -181,7 +181,7 @@ void SSRPass::CreatePasses()
             attachmentDesc,
             RI.MakeImageView(m_sampledResultTexture->GetGpuImage()));
 
-        CheckResult(sampleGBufferFramebuffer->Create());
+        Check(sampleGBufferFramebuffer->Create());
 
         delete m_sampleGbuffer;
 
@@ -237,7 +237,7 @@ void SSRPass::UpdatePipelineState(Frame* frame, const RenderSetup& renderSetup)
             IU_ATTACHMENT | IU_SAMPLED });
 
         m_uvsTexture->SetName(NAME("SSRTexture_UVs"));
-        CheckResult(m_uvsTexture->Create());
+        Check(m_uvsTexture->Create());
 
         m_sampledResultTexture = MakeHandle<Texture>(TextureDesc {
             TextureType::Texture2D,
@@ -250,7 +250,7 @@ void SSRPass::UpdatePipelineState(Frame* frame, const RenderSetup& renderSetup)
             IU_ATTACHMENT | IU_SAMPLED });
 
         m_sampledResultTexture->SetName(NAME("SSRTexture_SampledResult"));
-        CheckResult(m_sampledResultTexture->Create());
+        Check(m_sampledResultTexture->Create());
 
         // Create temporal blending
         if (UseTemporalBlending)

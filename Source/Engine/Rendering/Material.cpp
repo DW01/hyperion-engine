@@ -194,7 +194,7 @@ void Material::Init()
             continue;
         }
 
-        CheckResult(keyValue.second->Create());
+        Check(keyValue.second->Create());
     }
 
     AssetObject::Init();
@@ -302,7 +302,7 @@ void Material::SetTexture(MaterialTextureKey key, const Handle<Texture>& texture
         m_textures[key] = texture;
     }
 
-    CheckResult(texture->Create());
+    Check(texture->Create());
 
     SetNeedsRenderProxyUpdate();
     MarkDirty();
@@ -339,7 +339,7 @@ void Material::SetTextures(const MaterialTextures& textures)
             continue;
         }
 
-        CheckResult(m_textures.AtIndex(i)->Create());
+        Check(m_textures.AtIndex(i)->Create());
     }
 
     SetNeedsRenderProxyUpdate();
@@ -374,10 +374,7 @@ void Material::UpdateRenderProxy(RenderProxyMaterial* proxy)
 {
     const bool useBindlessTextures = RI.GetRenderConfig().bindlessTextures;
 
-    if (proxy->material.GetUnsafe() != this)
-    {
-        proxy->material = MakeWeakRef(this);
-    }
+    proxy->material = this;
 
     proxy->attributes = GetAttributes();
 
@@ -396,8 +393,7 @@ void Material::UpdateRenderProxy(RenderProxyMaterial* proxy)
             m_parameters.emissiveColor.GetGreen(),
             m_parameters.emissiveColor.GetBlue(),
             m_parameters.emissiveIntensity }),
-        ByteUtil::PackVec4f(Vec4f::Zero()),
-        ByteUtil::PackVec4f(Vec4f::Zero()));
+        0, 0);
 
     union
     {
@@ -482,13 +478,13 @@ void MaterialCache::Add(const Handle<Material>& material)
         return;
     }
 
-    Mutex::Guard guard(m_mutex);
-
     const HashCode hc = GetMaterialHashCode(
         material->GetBaseMaterial().Get(),
         material->GetAttributes(),
         material->GetParameters(),
         material->GetTextures());
+
+    TUniqueLock lock(m_mutex);
 
     m_map.Set(hc, material);
 }
@@ -544,7 +540,7 @@ Handle<Material> MaterialCache::GetOrCreate(
     Handle<Material> strongRef;
 
     {
-        Mutex::Guard guard(m_mutex);
+        TSharedLock sharedLock(m_mutex);
 
         const auto it = m_map.FindByHashCode(hc);
 
@@ -560,7 +556,7 @@ Handle<Material> MaterialCache::GetOrCreate(
 
         if (!name.IsValid())
         {
-            name = Name::Unique(ANSIString("cached_material_") + ANSIString::ToString(hc.Value()));
+            name = NAME_FMT("Mat_{}", hc.Value());
         }
 
         Handle<Material> material = MakeHandle<Material>(
@@ -569,9 +565,13 @@ Handle<Material> MaterialCache::GetOrCreate(
             parameters,
             textures);
 
-        GetCurrentAssetRegistry()->PutAsset(material);
+        material->SetIsTransient(true);
 
         strongRef = std::move(material);
+
+        sharedLock.Reset();
+
+        TUniqueLock uniqueLock(m_mutex);
 
         m_map.Set(hc, strongRef);
     }

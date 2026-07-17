@@ -17,7 +17,7 @@ namespace Hyperion {
 enum ResourceState : uint8;
 enum FaceCullMode : uint8;
 enum Topology : uint8;
-enum BlendModeFactor : uint8;
+enum class BlendModeFactor : uint8;
 enum StencilOp : uint8;
 enum StencilCompareOp : uint8;
 enum DepthCompareOp : uint8;

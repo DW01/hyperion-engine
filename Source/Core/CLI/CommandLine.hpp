@@ -22,7 +22,7 @@
 
 #include <Core/Defines.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 namespace Hyperion {
 

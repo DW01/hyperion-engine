@@ -317,7 +317,7 @@ LightingPass::LightingPass(DeferredPassMode mode, Vec2u extent, GBuffer* gbuffer
     SetPassName(NAME("Deferred"));
     Assert(m_framebuffer.IsValid());
 
-    SetBlendFunction(BlendFunction(BMF_ONE, BMF_ONE, BMF_ONE, BMF_ONE));
+    SetBlendFunction(BlendFunction(BlendModeFactor::One, BlendModeFactor::One, BlendModeFactor::One, BlendModeFactor::One));
 }
 
 LightingPass::~LightingPass()
@@ -349,7 +349,7 @@ void LightingPass::Create()
             ltcMatrixData.ToByteView());
 
         m_ltcMatrixTexture->SetName(NAME("LTC_Matrix"));
-        CheckResult(m_ltcMatrixTexture->Create());
+        Check(m_ltcMatrixTexture->Create());
 
         ByteBuffer ltcBrdfData(sizeof(s_ltcBrdf), s_ltcBrdf);
 
@@ -364,7 +364,7 @@ void LightingPass::Create()
             ltcBrdfData.ToByteView());
 
         m_ltcBrdfTexture->SetName(NAME("LTC_BRDF"));
-        CheckResult(m_ltcBrdfTexture->Create());
+        Check(m_ltcBrdfTexture->Create());
     }
 }
 
@@ -1031,7 +1031,7 @@ void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
     // // We store irradiance weight from the Indirect pass which samples EnvProbes.
     // // EnvProbes take priority over lightmap volumes.
     // // So we want to apply: 1.0 - irradianceWeight
-    // cr << SetCurrentBlendFunction(BlendFunction(BMF_ONE_MINUS_DST_ALPHA, BMF_DST_ALPHA));
+    // cr << SetCurrentBlendFunction(BlendFunction(BlendModeFactor::OneMinusDstAlpha, BlendModeFactor::DstAlpha));
 
     cr << SetCurrentBlendFunction(BlendFunction::Additive());
 
@@ -1113,7 +1113,7 @@ void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
         if (!uniformBuffer)
         {
             uniformBuffer = RI.MakeGpuBuffer(GpuBufferType::ConstantBuffer, sizeof(LightmapVolumeUniforms));
-            CheckResult(uniformBuffer->Create());
+            Check(uniformBuffer->Create());
         }
 
         uniformBuffer->Copy(sizeof(uniforms), &uniforms);
@@ -1355,7 +1355,7 @@ ReflectionsPass::ReflectionsPass(Vec2u extent, GBuffer* gbuffer, const GpuImageV
     m_shaderDesc = ShaderDesc(NAME("ApplyReflectionProbe"));
 
     SetBlendFunction(BlendFunction(
-        BMF_SRC_ALPHA, BMF_ONE_MINUS_SRC_ALPHA, BMF_ONE, BMF_ONE_MINUS_SRC_ALPHA));
+        BlendModeFactor::SrcAlpha, BlendModeFactor::OneMinusSrcAlpha, BlendModeFactor::One, BlendModeFactor::OneMinusSrcAlpha));
 }
 
 ReflectionsPass::~ReflectionsPass()
@@ -1425,7 +1425,7 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
     cr << SetDepthWrite(false);
     cr << SetStencilTest(false);
     cr << SetCurrentBlendFunction(BlendFunction(
-        BMF_SRC_ALPHA, BMF_ONE_MINUS_SRC_ALPHA, BMF_ONE, BMF_ONE_MINUS_SRC_ALPHA));
+        BlendModeFactor::SrcAlpha, BlendModeFactor::OneMinusSrcAlpha, BlendModeFactor::One, BlendModeFactor::OneMinusSrcAlpha));
     cr << SetFillMode(FM_FILL);
     cr << SetFaceCullMode(FCM_BACK);
 
@@ -1517,7 +1517,7 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
         // render SSR to screen
         FramebufferDesc framebufferDesc = rs.view->GetOutputTarget().GetFramebuffer()->GetFramebufferDesc();
         framebufferDesc.attachments[0].loadOp = LoadOperation::LOAD;
-        framebufferDesc.attachments[0].blendFunction = BlendFunction(BMF_SRC_ALPHA, BMF_ONE_MINUS_SRC_ALPHA, BMF_ONE, BMF_ONE_MINUS_SRC_ALPHA);
+        framebufferDesc.attachments[0].blendFunction = BlendFunction(BlendModeFactor::SrcAlpha, BlendModeFactor::OneMinusSrcAlpha, BlendModeFactor::One, BlendModeFactor::OneMinusSrcAlpha);
 
         cr << SetCurrentViewport(rs.viewport);
 
@@ -1526,7 +1526,7 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
         // reset
         cr << SetDepthTest(false);
         cr << SetDepthWrite(false);
-        cr << SetCurrentBlendFunction(BlendFunction(BMF_SRC_ALPHA, BMF_ONE_MINUS_SRC_ALPHA, BMF_ONE, BMF_ONE_MINUS_SRC_ALPHA));
+        cr << SetCurrentBlendFunction(BlendFunction(BlendModeFactor::SrcAlpha, BlendModeFactor::OneMinusSrcAlpha, BlendModeFactor::One, BlendModeFactor::OneMinusSrcAlpha));
 
         cr << SetShaderUniform(0, "SamplerLinear"_sh, RI.placeholderData->GetSamplerLinear());
         cr << SetShaderUniform(1, "WorldsBuffer"_sh, RI.namedBuffers[NamedBuffer::Worlds]);
@@ -1648,7 +1648,7 @@ static FramebufferRef CreateLightingFramebuffer(GBuffer* gbuffer)
         depthAttachmentDesc,
         depthImageView);
 
-    CheckResult(framebuffer->Create());
+    Check(framebuffer->Create());
 
 #ifdef HYP_RHI_DEBUG_NAMES
     colorAttachment->GetGpuImage()->SetDebugName(NAME("DeferredShadingTarget_Color"));
@@ -1681,7 +1681,7 @@ static FramebufferRef CreateDepthPrepassFramebuffer(GBuffer* gbuffer)
         depthAttachmentDesc,
         depthImageView);
 
-    CheckResult(framebuffer->Create());
+    Check(framebuffer->Create());
 
 #ifdef HYP_RHI_DEBUG_NAMES
     depthAttachment->GetGpuImage()->SetDebugName(NAME("DepthPrepassAttachment"));
@@ -2291,7 +2291,7 @@ PassData* DeferredPass::CreateViewPassData(View* view, PassDataExt&)
             IU_SAMPLED | IU_ATTACHMENT });
 
         passData.mipChain->SetName(NAME("DeferredPassMipChain"));
-        CheckResult(passData.mipChain->Create());
+        Check(passData.mipChain->Create());
 
         // Create framebuffers for each mip level (for downsampling)
         {
@@ -2331,7 +2331,7 @@ PassData* DeferredPass::CreateViewPassData(View* view, PassDataExt&)
                         StoreOperation::STORE },
                     mipImageView);
 
-                CheckResult(passData.mipChainFramebuffers[mipLevel]->Create());
+                Check(passData.mipChainFramebuffers[mipLevel]->Create());
             }
         }
 
@@ -2422,7 +2422,7 @@ void DeferredPass::CreateViewTopLevelAccelerationStructures(View* view, RayTraci
     defaultMesh->UploadGpuData();
 
     BottomLevelASRef blas = BLASBuilder::Build(defaultMesh);
-    CheckResult(blas->Create());
+    Check(blas->Create());
 
     for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
     {
@@ -2431,7 +2431,7 @@ void DeferredPass::CreateViewTopLevelAccelerationStructures(View* view, RayTraci
         tlas = RI.MakeTLAS();
         tlas->AddBLAS(0, blas);
 
-        CheckResult(tlas->Create());
+        Check(tlas->Create());
     }
 }
 
@@ -2495,7 +2495,7 @@ void DeferredPass::ResizeView(Viewport viewport, View* view, DeferredPassData& p
         1,
         IU_SAMPLED | IU_ATTACHMENT });
     passData.mipChain->SetName(NAME("DeferredPassMipChain"));
-    CheckResult(passData.mipChain->Create());
+    Check(passData.mipChain->Create());
 
     // Recreate framebuffers for each mip level
     {
@@ -2535,7 +2535,7 @@ void DeferredPass::ResizeView(Viewport viewport, View* view, DeferredPassData& p
                     StoreOperation::STORE },
                 mipImageView);
 
-            CheckResult(passData.mipChainFramebuffers[mipLevel]->Create());
+            Check(passData.mipChainFramebuffers[mipLevel]->Create());
         }
     }
 
@@ -2890,24 +2890,12 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         AssertDebug(depthPrepassFramebuffer != nullptr);
 
         renderCollector.BeginRecordDrawCalls(frame, rs, PrepassRenderBucketsMask, true);
-    }
-    else
-    {
-        {
-            ENGINE_STAT_GPU_SCOPE(&s_statOcclusionCulling);
-
-            renderCollector.PerformOcclusionCulling(frame, rs, AllRenderBucketsMask);
-        }
-
-        renderCollector.BeginRecordDrawCalls(frame, rs, AllRenderBucketsMask);
-    }
-
-    if (performDepthPrepass)
-    {
+        
         { // Render prepass
             ENGINE_STAT_GPU_SCOPE(&s_statDepthPrepass);
 
-            if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Any() || renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any())
+            if (renderCollector.mappingsByBucket[uint32(RenderBucket::Opaque)].Any()
+                || renderCollector.mappingsByBucket[uint32(RenderBucket::Lightmapped)].Any())
             {
                 renderCollector.ExecuteDrawCalls(frame, rs, depthPrepassFramebuffer, PrepassRenderBucketsMask, true);
             }
@@ -2918,23 +2906,23 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
                 frame->cr << SetCurrentFramebuffer(nullptr);
             }
         }
-
-        { // Build hi-z
-            ENGINE_STAT_GPU_SCOPE(&s_statBuildHiZ);
-
-            passData.depthPyramidRenderer->Render(frame);
-            passData.cullData.depthPyramidImageView = passData.depthPyramidRenderer->GetResultImageView();
-            passData.cullData.depthPyramidDimensions = passData.depthPyramidRenderer->GetExtent();
-        }
-
-        {
-            ENGINE_STAT_GPU_SCOPE(&s_statOcclusionCulling);
-
-            renderCollector.PerformOcclusionCulling(frame, rs, AllRenderBucketsMask);
-        }
-
-        renderCollector.BeginRecordDrawCalls(frame, rs, AllRenderBucketsMask);
     }
+    
+    { // Build hi-z with depth from prepass or prev frame depth
+        ENGINE_STAT_GPU_SCOPE(&s_statBuildHiZ);
+
+        passData.depthPyramidRenderer->Render(frame);
+        passData.cullData.depthPyramidImageView = passData.depthPyramidRenderer->GetResultImageView();
+        passData.cullData.depthPyramidDimensions = passData.depthPyramidRenderer->GetExtent();
+    }
+
+    {
+        ENGINE_STAT_GPU_SCOPE(&s_statOcclusionCulling);
+
+        renderCollector.PerformOcclusionCulling(frame, rs, AllRenderBucketsMask);
+    }
+            
+    renderCollector.BeginRecordDrawCalls(frame, rs, AllRenderBucketsMask);
 
     Framebuffer* lightmapPassFramebuffer = view->GetOutputTarget().GetFramebuffer(GBufferPass::Lightmapped);
     Framebuffer* translucentPassFramebuffer = view->GetOutputTarget().GetFramebuffer(GBufferPass::Translucent);
@@ -3141,16 +3129,6 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
     { // generate mipchain after rendering opaque objects' lighting, now we can use it for transmission
         const GpuImageRef& srcImage = passData.lightingFramebuffer->GetAttachment(0)->GetGpuImage();
         GenerateMipChain(frame, rs, renderCollector, srcImage);
-    }
-
-    if (!performDepthPrepass)
-    { // render Hi-Z
-        ENGINE_STAT_GPU_SCOPE(&s_statBuildHiZ);
-
-        passData.depthPyramidRenderer->Render(frame);
-
-        passData.cullData.depthPyramidImageView = passData.depthPyramidRenderer->GetResultImageView();
-        passData.cullData.depthPyramidDimensions = passData.depthPyramidRenderer->GetExtent();
     }
 
     { // Render the deferred lighting into the color target with a full screen quad.
@@ -3418,7 +3396,7 @@ void DeferredPass::UpdateRayTracingView(Frame* frame, const RenderSetup& rs)
             const uint32 materialBinding = Resources::GetBinding(meshProxy->material);
             blas->SetMaterialBinding(materialBinding);
 
-            CheckResult(blas->Create());
+            Check(blas->Create());
         }
         else
         {
@@ -3445,7 +3423,7 @@ void DeferredPass::UpdateRayTracingView(Frame* frame, const RenderSetup& rs)
         {
             for (TopLevelASRef& tlas : pd->rayTracingTlases)
             {
-                CheckResult(tlas->Create());
+                Check(tlas->Create());
             }
         }
 

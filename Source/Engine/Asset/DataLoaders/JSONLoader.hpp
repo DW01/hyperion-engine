@@ -7,13 +7,11 @@
 #pragma once
 
 #include <Asset/Assets.hpp>
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <Core/Types.hpp>
 
 namespace Hyperion {
-
-using namespace JSON;
 
 HYP_CLASS(NoScriptBindings)
 class JSONLoader : public AssetLoaderBase

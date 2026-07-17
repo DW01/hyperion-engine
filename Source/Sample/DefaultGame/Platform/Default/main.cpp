@@ -12,6 +12,12 @@ namespace tests {
 namespace profiling {
 HYP_IMPORT void PrintContainerProfiling(size_t runsPer = 5, size_t numIterations = 50, size_t runsPerIteration = 10);
 } // namespace profiling
+namespace hmf {
+HYP_IMPORT void RunHMFTest();
+} // namespace hmf
+namespace script {
+HYP_IMPORT void RunScriptTest();
+} // namespace script
 } // namespace tests
 } // namespace Hyperion
 #endif
@@ -23,10 +29,11 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    //#ifdef HYP_TESTS
-    //    tests::profiling::PrintContainerProfiling(5, 5, 15);
-    //    return 0;
-    //#endif
+#ifdef HYP_TESTS
+    //tests::hmf::RunHMFTest();
+    //tests::script::RunScriptTest();
+    //return 0;
+#endif
 
     auto defaultGame = MakeUnique<game::DefaultGame>();
 

@@ -1631,18 +1631,18 @@ extern enum ShaderResourceCategory : uint8
     AccelerationStructure
 end
 extern enum BlendModeFactor : uint8
-    BMF_NONE,
-    BMF_ONE,
-    BMF_ZERO,
-    BMF_SRC_COLOR,
-    BMF_SRC_ALPHA,
-    BMF_DST_COLOR,
-    BMF_DST_ALPHA,
-    BMF_ONE_MINUS_SRC_COLOR,
-    BMF_ONE_MINUS_SRC_ALPHA,
-    BMF_ONE_MINUS_DST_COLOR,
-    BMF_ONE_MINUS_DST_ALPHA,
-    BMF_MAX
+    None,
+    One,
+    Zero,
+    SrcColor,
+    SrcAlpha,
+    DstColor,
+    DstAlpha,
+    OneMinusSrcColor,
+    OneMinusSrcAlpha,
+    OneMinusDstColor,
+    OneMinusDstAlpha,
+    Max
 end
 extern enum Topology : uint8
     TOP_TRIANGLES,
@@ -1652,6 +1652,14 @@ extern enum Topology : uint8
     TOP_POINTS
 end
 extern struct BlendFunction
+    GetSrcColor() -> BlendModeFactor
+    SetSrcColor(src : BlendModeFactor) -> void
+    GetDstColor() -> BlendModeFactor
+    SetDstColor(dst : BlendModeFactor) -> void
+    GetSrcAlpha() -> BlendModeFactor
+    SetSrcAlpha(src : BlendModeFactor) -> void
+    GetDstAlpha() -> BlendModeFactor
+    SetDstAlpha(dst : BlendModeFactor) -> void
 end
 extern struct MeshRayTracingData
 end
@@ -1704,6 +1712,7 @@ extern struct MaterialParameters
     EmissiveColor : Color
     EmissiveIntensity : float
     UserParams : Vec4f
+    Unlit : bool
 end
 extern enum MaterialTextureKey : uint64
     NONE = 0,
@@ -1857,9 +1866,8 @@ extern class InputManager
 end
 extern class InputHandlerBase
 end
-extern class NullInputHandler : InputHandlerBase
-end
 extern class CharacterControllerInputHandler : InputHandlerBase
+    ParentInputHandler : InputHandlerBase
 end
 extern class FirstPersonCameraController : PerspectiveCameraController
     GetMode() -> FirstPersonCameraControllerMode
@@ -1982,6 +1990,8 @@ extern class Game
     StartSimulating() -> void
     StopSimulating() -> void
     PauseSimulation() -> void
+    RegisterInputHandler(inputHandler : InputHandlerBase) -> void
+    UnregisterInputHandler(inputHandler : InputHandlerBase) -> void
     static OnLaunched : any
     static OnGameStateChange : any
     OnLaunch() -> void
@@ -2474,6 +2484,7 @@ extern class InstancedMeshData : AssetObject
     BufferStructAlignments : Array<uint32>
 end
 extern class PhysicsShape : AssetObject
+    GetType() -> PhysicsShapeType
 end
 extern class PlanePhysicsShape : PhysicsShape
     Plane : Vec4f
@@ -2482,6 +2493,7 @@ extern class BoxPhysicsShape : PhysicsShape
     Aabb : BoundingBox
 end
 extern class ConvexHullPhysicsShape : PhysicsShape
+    VertexData : BlobDataReference
 end
 extern class SpherePhysicsShape : PhysicsShape
     Sphere : BoundingSphere
@@ -2491,11 +2503,12 @@ extern class CapsulePhysicsShape : PhysicsShape
     Height : float
 end
 extern enum PhysicsShapeType : uint8
-    BOX,
-    SPHERE,
-    PLANE,
-    CONVEX_HULL,
-    CAPSULE
+    Box,
+    Sphere,
+    Plane,
+    ConvexHull,
+    Capsule,
+    Max
 end
 extern class RawDataAsset : AssetObject
     Data : BlobDataReference

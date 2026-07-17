@@ -1,7 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia.Threading;
 using Hyperion;
@@ -16,7 +20,6 @@ namespace Hyperion.Editor.ViewModels
         private readonly int _depth;
         private readonly bool _isAssetObjectType;
 
-        // Sub-object expansion
         private ComponentSubObjectViewModel? _subObject;
         public ComponentSubObjectViewModel? SubObject
         {
@@ -28,7 +31,11 @@ namespace Hyperion.Editor.ViewModels
         public bool HasSubObject
         {
             get => _hasSubObject;
-            private set => SetProperty(ref _hasSubObject, value);
+            private set
+            {
+                if (SetProperty(ref _hasSubObject, value))
+                    OnPropertyChanged(nameof(ShowSubclassPicker));
+            }
         }
 
         public bool IsAssetObject => _isAssetObjectType;
@@ -47,42 +54,103 @@ namespace Hyperion.Editor.ViewModels
             private set => SetProperty(ref _canSelectFromContentBrowser, value);
         }
 
+
+        private string _pickerFilter = string.Empty;
+
+        public string PickerFilter
+        {
+            get => _pickerFilter;
+            set => SetProperty(ref _pickerFilter, value);
+        }
+
+        private string _currentSelectedName = string.Empty;
+
         private readonly Class? _propertyTypeClass;
 
         public ICommand SelectCommand { get; }
         public ICommand ClearCommand { get; }
 
+
+        public ObservableCollection<string> AvailableSubclasses { get; } = new();
+
+        public bool IsPolymorphic => AvailableSubclasses.Count > 0;
+
+        public bool ShowSubclassPicker => IsPolymorphic;
+
+        internal bool IsPending { get; set; }
+        internal Action<string>? OnPendingCommitted { get; set; }
+
+        private string? _selectedSubclass;
+        public string? SelectedSubclass
+        {
+            get => _selectedSubclass;
+            set
+            {
+                if (SetProperty(ref _selectedSubclass, value) && !string.IsNullOrEmpty(value))
+                {
+                    CommitSubclass(value);
+                }
+            }
+        }
+
+        private string _subclassFilter = string.Empty;
+        public string SubclassFilter
+        {
+            get => _subclassFilter;
+            set => SetProperty(ref _subclassFilter, value);
+        }
+
+        private string _currentTypeName = string.Empty;
+
+        /// <summary>Restore the picker text to the current instance's type name.</summary>
+        public void ResetSubclassFilter()
+        {
+            SubclassFilter = _currentTypeName;
+        }
+
         public ObjectPropertyViewModel(ObjectBase target, Property property, bool isReadOnly, int depth = 0)
             : base(target, property, isReadOnly)
         {
             _depth = depth;
+            
             _isAssetObjectType = DetectIsAssetObjectType(property.TypeInfo);
             _propertyTypeClass = GetPropertyTypeClass(property.TypeInfo);
+            
             SelectCommand = new RelayCommand(OnSelect);
             ClearCommand = new RelayCommand(OnClear);
+
             HookContentBrowser();
+            PopulateSubclasses();
         }
 
         public ObjectPropertyViewModel(IntPtr classAddress, Func<IntPtr> targetAddressResolver, Property property, bool isReadOnly, int depth = 0)
             : base(classAddress, targetAddressResolver, property, isReadOnly)
         {
             _depth = depth;
+            
             _isAssetObjectType = DetectIsAssetObjectType(property.TypeInfo);
             _propertyTypeClass = GetPropertyTypeClass(property.TypeInfo);
+            
             SelectCommand = new RelayCommand(OnSelect);
             ClearCommand = new RelayCommand(OnClear);
+
             HookContentBrowser();
+            PopulateSubclasses();
         }
 
         public ObjectPropertyViewModel(string label, TypeInfo typeInfo, Func<BoxedValue> getter, Action<BoxedValue> setter, bool isReadOnly, int depth = 0)
             : base(label, typeInfo, getter, setter, isReadOnly)
         {
             _depth = depth;
+            
             _isAssetObjectType = DetectIsAssetObjectType(typeInfo);
             _propertyTypeClass = GetPropertyTypeClass(typeInfo);
+            
             SelectCommand = new RelayCommand(OnSelect);
             ClearCommand = new RelayCommand(OnClear);
+
             HookContentBrowser();
+            PopulateSubclasses();
         }
 
         public override bool ShowInlineLabel => false;
@@ -113,6 +181,60 @@ namespace Hyperion.Editor.ViewModels
             }
 
             return typeInfo.Class.Value;
+        }
+
+        private void PopulateSubclasses()
+        {
+            if (_isAssetObjectType || _propertyTypeClass == null)
+                return;
+
+            string className = _propertyTypeClass.Value.Name.ToString();
+
+            List<string> names = [];
+            NameCallbackDelegate callback = (name, _) => names.Add(name);
+
+            NativeBindings.Hyp_GetAllDerivedClassNames(className, callback, IntPtr.Zero);
+
+            foreach (string name in names)
+                AvailableSubclasses.Add(name);
+
+            if (AvailableSubclasses.Count > 0)
+                OnPropertyChanged(nameof(ShowSubclassPicker));
+        }
+
+        private void CommitSubclass(string className)
+        {
+            if (IsPending)
+            {
+                OnPendingCommitted?.Invoke(className);
+                return;
+            }
+
+            _ = EngineManager.PostToSimThread(() =>
+            {
+                try
+                {
+                    BoxedValueInternal result;
+
+                    unsafe
+                    {
+                        if (!Hyp_CreateInstanceOfClass(className, &result))
+                        {
+                            Logger.Log(LogLevel.Warning, $"Failed to create instance of class '{className}'");
+                            return;
+                        }
+                    }
+
+                    using BoxedValue boxed = BoxedValue.FromBuffer(result);
+                    SetPropertyValue(boxed);
+
+                    Dispatcher.UIThread.Post(() => RefreshValue());
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Warning, $"Failed to create subclass instance '{className}': {ex.Message}");
+                }
+            });
         }
 
         private void HookContentBrowser()
@@ -247,8 +369,121 @@ namespace Hyperion.Editor.ViewModels
             });
         }
 
+        public async Task<IEnumerable<object>> QueryMatchingAssetsAsync(string? search, int maxResults)
+        {
+            if (!_isAssetObjectType || _propertyTypeClass == null)
+            {
+                return Array.Empty<object>();
+            }
+
+            Class expectedClass = _propertyTypeClass.Value;
+            string filter = search ?? string.Empty;
+
+            List<AssetPickerItemViewModel> results = await EngineManager.PostToSimThread(() =>
+            {
+                var found = new List<AssetPickerItemViewModel>();
+
+                try
+                {
+                    AssetRegistry registry = AssetManager.Instance.AssetRegistry;
+
+                    foreach (AssetBucket bucket in AssetBucket.AllBuckets)
+                    {
+                        foreach (AssetDesc desc in registry.GetBucketAssetDescs(bucket.Value))
+                        {
+                            try
+                            {
+                                string nameStr = desc.Name.ToString();
+
+                                if (filter.Length != 0 &&
+                                    !nameStr.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    continue;
+                                }
+
+                                AssetObject? obj = registry.GetAsset(bucket.Value, desc.Name);
+
+                                if (obj == null || !obj.IsValid)
+                                {
+                                    continue;
+                                }
+
+                                Class objClass = obj.Class;
+
+                                if (objClass == expectedClass || objClass.IsSubclassOf(expectedClass))
+                                {
+                                    found.Add(new AssetPickerItemViewModel(desc.Name, bucket.Value, nameStr, objClass.Name.ToString()));
+                                }
+                            }
+                            catch
+                            {
+                                // Skip any asset we can't resolve.
+                            }
+
+                            if (found.Count >= maxResults)
+                            {
+                                break;
+                            }
+                        }
+
+                        if (found.Count >= maxResults)
+                        {
+                            break;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Warning, $"Failed to query assets for picker: {ex.Message}");
+                }
+
+                found.Sort((a, b) => string.CompareOrdinal(a.DisplayName, b.DisplayName));
+                return found;
+            });
+
+            return results;
+        }
+
+        public void CommitPickerItem(AssetPickerItemViewModel item)
+        {
+            uint bucketIndex = item.BucketIndex;
+            Name assetName = item.AssetName;
+
+            _ = EngineManager.PostToSimThread(() =>
+            {
+                try
+                {
+                    AssetObject? obj = AssetManager.Instance.AssetRegistry.GetAsset(bucketIndex, assetName);
+
+                    if (obj == null || !obj.IsValid)
+                    {
+                        return;
+                    }
+
+                    using BoxedValue boxed = new BoxedValue(obj);
+                    CommitPropertyChange($"Set {_property.Name}", boxed);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Warning, $"Failed to set asset property '{_property.Name}': {ex.Message}");
+                }
+            });
+        }
+
+        /// <summary>
+        /// Restores the picker text to the currently assigned asset's name, e.g. when
+        /// the user typed a filter but clicked away without selecting anything.
+        /// </summary>
+        public void ResetFilterToSelection()
+        {
+            PickerFilter = _currentSelectedName;
+        }
+
         public override void RefreshValue()
         {
+            if (IsPending)
+                return;
+
             if (Interlocked.CompareExchange(ref _isRefreshing, 1, 0) == 1)
             {
                 return;
@@ -264,17 +499,24 @@ namespace Hyperion.Editor.ViewModels
                     ComponentSubObjectViewModel? subObjectVm = null;
                     string assetPathDisplay = "(None)";
                     string displayName = "(None)";
+                    string pickerName = string.Empty;
+                    string typeNameForPicker = string.Empty;
 
                     if (val is ObjectBase obj && obj.IsValid && _depth < MaxDepth)
                     {
-                        subObjectVm = new ComponentSubObjectViewModel(_property.Name.ToString(), obj, _depth + 1, PostWriteCallback);
+                        string subLabel = _property.Name.ToString();
+                        subObjectVm = new ComponentSubObjectViewModel(subLabel, obj, _depth + 1, PostWriteCallback);
                         displayName = obj.Class.Name.ToString();
+
+                        if (IsPolymorphic)
+                            typeNameForPicker = displayName;
 
                         if (obj is AssetObject assetObj)
                         {
                             if (assetObj.IsRegistered())
                             {
                                 assetPathDisplay = assetObj.Path.ToString();
+                                pickerName = assetObj.Name.ToString();
                             }
                             else
                             {
@@ -292,8 +534,16 @@ namespace Hyperion.Editor.ViewModels
                         SubObject = subObjectVm;
                         HasSubObject = subObjectVm != null;
 
+                        if (IsPolymorphic)
+                        {
+                            _currentTypeName = typeNameForPicker;
+                            SubclassFilter = typeNameForPicker;
+                        }
+
                         if (_isAssetObjectType)
                         {
+                            _currentSelectedName = pickerName;
+                            PickerFilter = pickerName;
                             OnContentBrowserSelectionChanged();
                         }
                     });
@@ -306,5 +556,9 @@ namespace Hyperion.Editor.ViewModels
                 }
             });
         }
+
+
+        [DllImport("hyperion")]
+        private static extern unsafe bool Hyp_CreateInstanceOfClass(string className, BoxedValueInternal* pOutBoxed);
     }
 }

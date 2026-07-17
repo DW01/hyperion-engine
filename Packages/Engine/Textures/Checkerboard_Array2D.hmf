@@ -1,0 +1,18 @@
+Texture "Checkerboard_Array2D" {
+    TextureDesc = {
+        Type = Texture2DArray
+        Format = RGBA8
+        Extent = (8, 8, 1)
+        MinFilterMode = TFM_NEAREST
+        MagFilterMode = TFM_NEAREST
+        TextureWrapMode = TWM_REPEAT
+        NumLayers = 1
+        ImageUsage = IU_SAMPLED
+        MipOffsets = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    }
+    ImageData = {
+        Key = "Engine://Textures/Checkerboard_Array2D.TEX"
+        Size = 256
+    }
+    FriendlyName = "CheckerboardArray2D"
+}

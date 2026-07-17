@@ -24,7 +24,7 @@
 
 #include <Core/FileSystem/FsUtil.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <Core/Utilities/ByteUtil.hpp>
 #include <Core/Utilities/ForEach.hpp>
@@ -1654,6 +1654,11 @@ bool ShaderCompiler::HandleBundle(
         auto requestedIt = inOutBundle->compiledShaders.FindIf(
             [&](const Handle<Shader>& shader)
             {
+                if (!shader.IsValid())
+                {
+                    return false;
+                }
+
                 return SatisfiesRequested(
                     shaderRequest->properties,
                     shaderRequest->inputLayout,
@@ -1676,6 +1681,13 @@ bool ShaderCompiler::HandleBundle(
 
             for (const Handle<Shader>& shader : inOutBundle->compiledShaders)
             {
+                if (!shader.IsValid())
+                {
+                    HYP_LOG(ShaderCompiler, Warning, "Null shader found!");
+
+                    continue;
+                }
+
                 String shaderString = "\tProperties: " + shader->properties.GetDebugString();
                 shaderString += "\n\tVertex attributes: " + (shader->inputLayout.mask ? InputLayoutToString(shader->inputLayout) : "<none>");
 
@@ -3342,6 +3354,11 @@ bool ShaderCompiler::CompileBundle(
             auto existingIt = outBundle->compiledShaders.FindIf(
                 [name = shader->GetName()](const Handle<Shader>& existing)
                 {
+                    if (!existing.IsValid())
+                    {
+                        return false;
+                    }
+
                     if (existing->GetName() == name)
                     {
                         return true;
@@ -3376,6 +3393,19 @@ bool ShaderCompiler::CompileBundle(
     else
     {
         ForEachPermutation(permsToCompile, CompilePermFunctor, true);
+    }
+
+    // Remove all null entries
+    for (auto it = outBundle->compiledShaders.Begin(); it != outBundle->compiledShaders.End();)
+    {
+        if (!it->IsValid())
+        {
+            it = outBundle->compiledShaders.Erase(it);
+
+            continue;
+        }
+
+        ++it;
     }
 
     outBundle->MarkDirty();
@@ -3471,11 +3501,25 @@ bool ShaderCompiler::CompileBundle(
         outBundle->compiledShaders.End(),
         [](const Handle<Shader>& a, const Handle<Shader>& b) -> bool
         {
-            if (ByteUtil::BitCount(a->inputLayout.mask) < ByteUtil::BitCount(b->inputLayout.mask))
+            if (!a.IsValid())
+            {
                 return false;
+            }
+
+            if (!b.IsValid())
+            {
+                return true;
+            }
+
+            if (ByteUtil::BitCount(a->inputLayout.mask) < ByteUtil::BitCount(b->inputLayout.mask))
+            {
+                return false;
+            }
 
             if (std::strcmp(a->GetName().LookupString(), b->GetName().LookupString()) < 0)
+            {
                 return false;
+            }
 
             return true;
         });

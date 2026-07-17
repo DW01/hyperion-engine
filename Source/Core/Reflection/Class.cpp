@@ -74,7 +74,6 @@ CORE_API const Name g_attrEditor = NAME("editor");
 CORE_API const Name g_attrEditorOnly = NAME("editoronly");
 CORE_API const Name g_attrEditOrder = NAME("editorder");
 CORE_API const Name g_attrEditEnabled = NAME("editenabled");
-CORE_API const Name g_attrEditHide = NAME("edithide");
 CORE_API const Name g_attrLabel = NAME("label");
 CORE_API const Name g_attrDescription = NAME("description");
 CORE_API const Name g_attrEditAction = NAME("editaction");

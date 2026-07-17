@@ -136,8 +136,11 @@ void ShadowsPassBase::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
 
     RenderProxyLight* lightProxy = static_cast<RenderProxyLight*>(GetRenderProxy(light));
     Assert(lightProxy != nullptr, "Proxy for Light {} not found when rendering shadows!", light->Id());
+    
+    const bool isOmni = (static_cast<LightType>(lightProxy->bufferData.lightType) == LightType::Point);
 
     const bool isVarianceShadowMap = light->GetShadowMapFilter() == ShadowMapFilter::SMF_VSM;
+
     const bool hasBakedStaticShadowMaps = (light->GetLightFlags() & LightFlags::BakeStaticShadows) && lightProxy->bakedShadowMap != nullptr;
     const bool cacheStaticShadowMaps = g_cvCacheShadowMaps.Get() && !hasBakedStaticShadowMaps && (light->GetLightFlags() & LightFlags::CacheStaticShadowMaps);
 
@@ -151,32 +154,12 @@ void ShadowsPassBase::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
         // init shadow data
 
         cachedData = &m_cachedShadowMapData[key.hash];
-
-        /*if (isVarianceShadowMap)
-        {
-            for (uint32 frameIndex = 0; frameIndex < NumFramesInFlight; frameIndex++)
-            {
-                GpuBufferRef& buffer = cachedData->blurUniformBuffers[frameIndex];
-
-                buffer = RI.MakeGpuBuffer(GpuBufferType::ConstantBuffer, sizeof(Vec2u) * 3);
-                
-#ifdef HYP_RHI_DEBUG_NAMES
-                buffer->SetDebugName(NAME_FMT("BlurShadowMap_UniformBuffer_Frame{}", frameIndex));
-#endif
-
-                CheckResult(buffer->Create());
-            }
-
-            /// TODO: Add re-alloc of shadow maps if parameters have changed
-        }*/
     }
 
     cachedData->lastUsedFrame = GetFrameCounter();
 
     FatArray<RenderProxyList*, FixedAllocator<6 * 2>> renderProxyLists;
     HYP_DEFER({ for (RenderProxyList* rpl : renderProxyLists) rpl->EndRead(); });
-
-    const bool isOmni = lightProxy->light.GetUnsafe()->IsA<PointLight>();
 
     RenderProxyCamera* shadowCameraProxy = nullptr;
 
@@ -258,7 +241,7 @@ void ShadowsPassBase::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
                 textureDesc.numLayers = 1;
 
                 cachedShadowMapTexture = MakeHandle<Texture>(textureDesc);
-                CheckResult(cachedShadowMapTexture->Create());
+                Check(cachedShadowMapTexture->Create());
             }
             else if (!cacheStaticShadowMaps && cachedShadowMapTexture.IsValid())
             {
@@ -301,7 +284,7 @@ void ShadowsPassBase::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
 
                         Assert(imageView.IsValid());
 
-                        CheckResult(imageView->Create());
+                        Check(imageView->Create());
                     }
 
                     framebuffer->AddAttachment(attachmentIndex, attachmentDesc, imageView);
@@ -317,7 +300,7 @@ void ShadowsPassBase::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
                     framebuffer->AddAttachment(attachmentIndex, attachmentDesc);
                 }
 
-                CheckResult(framebuffer->Create());
+                Check(framebuffer->Create());
             }
 
             enum : uint8

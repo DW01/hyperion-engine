@@ -4074,9 +4074,21 @@ void VirtualMachine::InvokeImmediate(ScriptInstance* instance, BoxedValue&& valu
 
         Assert(instance->thread.GetStack().GetStackPointer() >= stackSizeBefore);
         instance->thread.GetStack().Pop(instance->thread.GetStack().GetStackPointer() - stackSizeBefore);
-    }
 
-    bs->SetPosition(positionBefore);
+        bs->SetPosition(positionBefore);
+    }
+    else if (bs->Position() != positionBefore)
+    {
+        // Exception was handled inside a try block -- HandleException already
+        // sought the stream to the catch address. Do NOT reset to positionBefore.
+        // The stream is now positioned past the catch block if it was already
+        // consumed by the loop above, or at the catch address if the loop was
+        // skipped. Either way, let the caller continue from the current position.
+    }
+    else
+    {
+        bs->SetPosition(positionBefore);
+    }
 }
 
 void VirtualMachine::CreateTrace(ScriptInstance* instance, Script_Trace* outTrace)
@@ -4123,6 +4135,11 @@ bool VirtualMachine::HandleException(ScriptInstance* instance)
 
         while (topVmData && topVmData->type != ScriptObjectData::Type::ExceptionState)
         {
+            if (topVmData->type == ScriptObjectData::Type::StackFrame)
+            {
+                --instance->thread.m_funcDepth;
+            }
+
             instance->thread.m_stack.Pop();
 
             top = &instance->thread.m_stack.Top();

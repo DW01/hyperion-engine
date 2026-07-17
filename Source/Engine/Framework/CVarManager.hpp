@@ -27,10 +27,12 @@ namespace Hyperion {
 
 static constexpr uint32 MaxCVars = 128;
 
-namespace JSON {
+namespace DataProcessing::JSON {
 // Fwd declaration for ConfigValue
 class Value;
-} // namespace JSON
+} // namespace DataProcessing::JSON
+
+namespace JSON = DataProcessing::JSON;
 
 namespace config {
 class ConfigBase;

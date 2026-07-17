@@ -86,7 +86,7 @@ void VulkanAsyncCompute::Submit()
     cr.Execute(m_commandBuffer);
     m_commandBuffer->End();
 
-    CheckResult(m_commandBuffer->Submit(m_deviceQueue, m_fence, nullptr, nullptr));
+    Check(m_commandBuffer->Submit(m_deviceQueue, m_fence, nullptr, nullptr));
 
     m_isSubmitted = true;
 }
@@ -108,7 +108,7 @@ void VulkanAsyncCompute::Create()
         m_deviceQueue = RI.GetDevice()->GetGraphicsQueue();
     }
 
-    CheckResult(m_commandBuffer->Create(m_deviceQueue->commandPools[0]));
+    Check(m_commandBuffer->Create(m_deviceQueue->commandPools[0]));
     m_fence->Create(/* createSignalled */ true);
 }
 

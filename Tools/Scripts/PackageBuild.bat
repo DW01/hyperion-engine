@@ -25,6 +25,8 @@ echo Creating packaged build at: %OUT_DIR%
 if not exist "%OUT_DIR%" mkdir "%OUT_DIR%"
 if not exist "%OUT_DIR%\Source\Shaders" mkdir "%OUT_DIR%\Source\Shaders"
 
+REM Run build script (BuildHyperion.bat)
+
 echo Copying executables...
 copy "%BIN_DIR%\*.exe" "%OUT_DIR%\" >nul
 

@@ -235,7 +235,7 @@ void EnvProbe::CreateVisibilityTexture()
 
     m_visibilityTexture->SetName(NAME_FMT("{}_VisibilityMap", GetName()));
 
-    CheckResult(m_visibilityTexture->Create());
+    Check(m_visibilityTexture->Create());
 
     GetCurrentAssetRegistry()->PutAssetUnique(m_visibilityTexture);
 
@@ -298,7 +298,7 @@ void EnvProbe::SetEnvProbeFlags(EnumFlags<EnvProbeFlags> envProbeFlags)
         {
             if (m_visibilityTexture.IsValid())
             {
-                CheckResult(m_visibilityTexture->Create());
+                Check(m_visibilityTexture->Create());
             }
             else
             {
@@ -380,14 +380,14 @@ void EnvProbe::OnAddedToWorld(World* world)
 
     if (m_texture.IsValid())
     {
-        CheckResult(m_texture->Create());
+        Check(m_texture->Create());
     }
 
     if (m_envProbeFlags & EPF_VISIBILITY)
     {
         if (m_visibilityTexture.IsValid())
         {
-            CheckResult(m_visibilityTexture->Create());
+            Check(m_visibilityTexture->Create());
         }
         else
         {
@@ -530,7 +530,7 @@ void EnvProbe::CreateViewData()
 
     for (const GpuImageRef& image : attachmentImages)
     {
-        CheckResult(image->Create());
+        Check(image->Create());
     }
 
     MaterialAttributes materialAttributes;
@@ -562,12 +562,12 @@ void EnvProbe::CreateViewData()
 
             // Create 2D view to the cubemap face
             GpuImageViewRef imageView = RI.MakeImageView(image, 0, 1, viewIndex, 1, TextureType::Texture2D);
-            CheckResult(imageView->Create());
+            Check(imageView->Create());
 
             viewFramebuffer->AddAttachment(attachmentIndex, attachmentDesc, imageView);
         }
 
-        CheckResult(viewFramebuffer->Create());
+        Check(viewFramebuffer->Create());
 
         m_framebuffers[viewIndex] = std::move(viewFramebuffer);
 
@@ -885,7 +885,7 @@ void EnvProbe::EnqueueViewsUpdate()
 
 void EnvProbe::UpdateRenderProxy(RenderProxyEnvProbe* proxy)
 {
-    proxy->envProbe = WeakHandleFromThis();
+    proxy->envProbe = this;
 
     if (proxy->texture != m_texture)
     {
@@ -956,7 +956,7 @@ void EnvProbe::SetBakedTexture(const Handle<Texture>& texture)
 
     if (m_texture.IsValid())
     {
-        CheckResult(m_texture->Create());
+        Check(m_texture->Create());
     }
 
     MarkDirty();
@@ -984,7 +984,7 @@ void EnvProbe::SetVisibilityTexture(const Handle<Texture>& visibilityTexture)
             HYP_LOG(Scene, Warning, "EnvProbe {} does not have visibility flag set, visibility texture will be unused unless the flag is set", GetName());
         }
 
-        CheckResult(m_visibilityTexture->Create());
+        Check(m_visibilityTexture->Create());
 
         GetCurrentAssetRegistry()->PutAssetUnique(m_visibilityTexture);
 

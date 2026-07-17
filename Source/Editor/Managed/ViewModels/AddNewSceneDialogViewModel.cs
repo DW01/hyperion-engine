@@ -49,10 +49,12 @@ namespace Hyperion.Editor.ViewModels
 
             foreach (StaticField staticField in sceneFlagsClass.Value.StaticFields)
             {
-                ClassAttribute? editHideAttribute = staticField.GetAttribute("edithide");
+                ClassAttribute? attrEditor = staticField.GetAttribute("editor");
 
-                if (editHideAttribute?.GetBool() == true)
+                if (attrEditor != null && attrEditor.Value.GetBool() == false)
+                {
                     continue;
+                }
 
                 object? flagValue = staticField.ReadObject();
 

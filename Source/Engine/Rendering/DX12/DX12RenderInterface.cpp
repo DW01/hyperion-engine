@@ -145,8 +145,6 @@ public:
         DX12Frame tempFrame;
         CheckResultOrReturn(tempFrame.Create());
 
-        cr.Prepare(&tempFrame);
-
         DX12Fence fence;
         CheckResultOrReturn(fence.Create());
 
@@ -837,7 +835,7 @@ DX12CommandBuffer& DX12RenderInterface::GetTransientCommandBuffer()
         AssertDebug(queueData != nullptr && queueData->commandQueue != nullptr);
 
         pCommandBuffer = &pendingList.EmplaceBack(D3D12_COMMAND_LIST_TYPE_DIRECT, queueData->commandQueue.Get());
-        CheckResult(pCommandBuffer->Create());
+        Check(pCommandBuffer->Create());
     }
 
     pCommandBuffer->Begin();

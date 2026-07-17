@@ -48,7 +48,13 @@ void OverlayBase::Initialize(UIObject* spawnParent)
 
 Handle<UIObject> OverlayBase::CreateUIObject_Impl(UIObject* spawnParent)
 {
-    return spawnParent->CreateUIObject<UIImage>(InstanceClass()->GetName(), Vec2i::Zero(), UIObjectSize({ 100, UIObjectSize::PIXEL }, { 75, UIObjectSize::PIXEL }));
+    return spawnParent->CreateUIObject<UIImage>(
+        InstanceClass()->GetName(),
+        Vec2i::Zero(),
+        UIObjectSize(
+            { 100, UIObjectSize::PIXEL },
+            { 75, UIObjectSize::PIXEL }
+        ));
 }
 
 #pragma endregion OverlayBase
@@ -80,11 +86,12 @@ Handle<UIObject> TextureOverlay::CreateUIObject_Impl(UIObject* spawnParent)
     Vec2u extent = { 500, 250 };
 
     Mutex::Guard guard(m_textureMtx);
+    
     if (m_texture)
     {
         if (!m_texture->IsCreated())
         {
-            CheckResult(m_texture->Create());
+            Check(m_texture->Create());
         }
 
         extent = m_texture->GetExtent().GetXY();

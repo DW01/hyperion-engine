@@ -10,7 +10,7 @@
 #include <Asset/BlobStorageViews.hpp>
 #include <Asset/SerializationUtils.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <Core/IO/ByteReader.hpp>
 #include <Core/IO/ByteWriter.hpp>
@@ -57,6 +57,10 @@ static void InitBlobStorage(BlobStorage& outStorage, const FilePath& baseDirecto
 }
 
 #pragma region BlobTableOfContents
+
+// @TODO Refactor + fix...
+// AssetPaths are now 12-byte structs that could be bitwise copied,
+// no longer needing string keys.
 
 class BlobTableOfContents
 {

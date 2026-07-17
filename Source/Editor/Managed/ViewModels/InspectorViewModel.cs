@@ -19,6 +19,7 @@ namespace Hyperion.Editor.ViewModels
         public ObservableCollection<AddComponentOptionViewModel> AddableComponents { get; } = new ObservableCollection<AddComponentOptionViewModel>();
 
         public ICommand AddComponentCommand { get; }
+        public ICommand RemoveComponentCommand { get; }
 
         private bool _hasActions;
         public bool HasActions
@@ -97,6 +98,7 @@ namespace Hyperion.Editor.ViewModels
         public InspectorViewModel()
         {
             AddComponentCommand = new AsyncRelayCommand(AddComponentAsync, CanAddComponent);
+            RemoveComponentCommand = new AsyncRelayCommand(RemoveComponentAsync, CanRemoveComponent);
         }
 
         ~InspectorViewModel()
@@ -209,13 +211,13 @@ namespace Hyperion.Editor.ViewModels
                 {
                     if (property.Name == "Components")
                     {
-                        continue; // skip Components property -- now handled separately
+                        continue; // skip Components property -- they're handled separately
                     }
 
                     // skip non-editor properties
-                    ClassAttribute? attrEditHide = property.GetAttribute("edithide");
+                    ClassAttribute? attrEditor = property.GetAttribute("editor");
 
-                    if (attrEditHide != null && attrEditHide.Value.GetBool() == true)
+                    if (attrEditor != null && attrEditor.Value.GetBool() == false)
                     {
                         continue;
                     }
@@ -277,9 +279,9 @@ namespace Hyperion.Editor.ViewModels
             {
                 try
                 {
-                    ClassAttribute? attrEditHide = method.GetAttribute("edithide");
+                    ClassAttribute? attrEditor = method.GetAttribute("editor");
 
-                    if (attrEditHide != null && attrEditHide.Value.IsBool && attrEditHide.Value.GetBool())
+                    if (attrEditor != null && attrEditor.Value.GetBool() == false)
                     {
                         continue;
                     }
@@ -396,9 +398,12 @@ namespace Hyperion.Editor.ViewModels
             {
                 try
                 {
-                    ClassAttribute? attrEditHide = method.GetAttribute("edithide");
-                    if (attrEditHide != null && attrEditHide.Value.IsBool && attrEditHide.Value.GetBool())
+                    ClassAttribute? attrEditor = method.GetAttribute("editor");
+
+                    if (attrEditor != null && attrEditor.Value.GetBool() == false)
+                    {
                         continue;
+                    }
 
                     string label = method.Name.ToString();
                     ClassAttribute? attrEditAction = method.GetAttribute("editaction");
@@ -452,8 +457,9 @@ namespace Hyperion.Editor.ViewModels
                         return false;
                     }
 
-                    ClassAttribute? attrEditHide = p.GetAttribute("edithide");
-                    if (attrEditHide != null && attrEditHide.Value.GetBool() == true)
+                    ClassAttribute? attrEditor = p.GetAttribute("editor");
+
+                    if (attrEditor != null && attrEditor.Value.GetBool() == false)
                     {
                         return false;
                     }
@@ -614,6 +620,103 @@ namespace Hyperion.Editor.ViewModels
                     catch (Exception ex)
                     {
                         Logger.Log(LogLevel.Warning, $"Inspector failed to add component '{option.Label}': {ex.Message}");
+                    }
+                });
+            }
+            finally
+            {
+                Dispatcher.UIThread.Post(RefreshProperties);
+            }
+        }
+
+        private bool CanRemoveComponent(object? parameter)
+        {
+            return parameter is InspectorComponentViewModelBase && SelectedNode is Entity;
+        }
+
+        private async Task RemoveComponentAsync(object? parameter)
+        {
+            if (parameter is not InspectorComponentViewModelBase componentVm)
+                return;
+
+            if (SelectedNode is not Entity entity || entity.EntityManager == null)
+                return;
+
+            // Confirm before removing.
+            var lifetime = Avalonia.Application.Current?.ApplicationLifetime
+                as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+
+            if (lifetime?.MainWindow == null)
+                return;
+
+            bool confirmed = false;
+
+            var btnPanel = new Avalonia.Controls.StackPanel
+            {
+                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                Spacing = 8,
+            };
+
+            var cancelBtn = new Avalonia.Controls.Button { Content = "Cancel" };
+            var removeBtn = new Avalonia.Controls.Button { Content = "Remove" };
+            removeBtn.Classes.Add("Primary");
+
+            var dialog = new Avalonia.Controls.Window
+            {
+                Title = "Remove Component",
+                Width = 360,
+                Height = 150,
+                CanResize = false,
+                ShowInTaskbar = false,
+                WindowStartupLocation = Avalonia.Controls.WindowStartupLocation.CenterOwner,
+                Content = new Avalonia.Controls.StackPanel
+                {
+                    Margin = new Avalonia.Thickness(16),
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                    Spacing = 16,
+                    Children =
+                    {
+                        new Avalonia.Controls.TextBlock
+                        {
+                            Text = $"Remove '{componentVm.Label}' component?",
+                            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                        },
+                        btnPanel,
+                    },
+                },
+            };
+
+            btnPanel.Children.Add(cancelBtn);
+            btnPanel.Children.Add(removeBtn);
+
+            cancelBtn.Click += (_, _) => dialog.Close();
+            removeBtn.Click += (_, _) => { confirmed = true; dialog.Close(); };
+
+            await dialog.ShowDialog(lifetime.MainWindow);
+
+            if (!confirmed)
+                return;
+
+            try
+            {
+                await EngineManager.PostToSimThread(() =>
+                {
+                    EntityManager? mgr = entity.EntityManager;
+
+                    if (mgr == null)
+                    {
+                        Logger.Log(LogLevel.Warning, "Inspector failed to get EntityManager while removing component");
+                        return;
+                    }
+
+                    try
+                    {
+                        mgr.RemoveComponent(entity, componentVm.TypeId);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log(LogLevel.Warning, $"Inspector failed to remove component '{componentVm.Label}': {ex.Message}");
                     }
                 });
             }

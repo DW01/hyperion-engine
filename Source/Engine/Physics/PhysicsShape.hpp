@@ -26,11 +26,13 @@ namespace Hyperion {
 HYP_ENUM()
 enum class PhysicsShapeType : uint8
 {
-    BOX,
-    SPHERE,
-    PLANE,
-    CONVEX_HULL,
-    CAPSULE
+    Box,
+    Sphere,
+    Plane,
+    ConvexHull,
+    Capsule,
+
+    Max
 };
 
 HYP_CLASS(Abstract, AssetBucket = "PhysicsShapes")
@@ -40,7 +42,6 @@ class PhysicsShape : public AssetObject
 
 protected:
     PhysicsShape() = default;
-
     PhysicsShape(Name name, PhysicsShapeType type)
         : AssetObject(name),
           m_type(type)
@@ -50,28 +51,29 @@ protected:
 public:
     ~PhysicsShape() override = default;
 
-    HYP_FORCE_INLINE PhysicsShapeType GetType() const
+    HYP_METHOD()
+    PhysicsShapeType GetType() const
     {
         return m_type;
     }
 
     /*! \brief Return the handle specific to the physics engine in use */
-    HYP_FORCE_INLINE void* GetHandle() const
+    HYP_FORCE_INLINE void* GetInternalData() const
     {
-        return m_handle.Get();
+        return m_internalData.Get();
     }
 
     /*! \brief Set the internal handle of the PhysicsShape. Only to be used
         by a PhysicsAdapter. */
-    HYP_FORCE_INLINE void SetHandle(SharedPtr<void>&& handle)
+    HYP_FORCE_INLINE void SetInternalData(SharedPtr<void>&& internalData)
     {
-        m_handle = std::move(handle);
+        m_internalData = std::move(internalData);
     }
 
 protected:
-    PhysicsShapeType m_type;
+    const PhysicsShapeType m_type;
 
-    SharedPtr<void> m_handle;
+    SharedPtr<void> m_internalData;
 };
 
 HYP_CLASS()
@@ -80,10 +82,14 @@ class BoxPhysicsShape final : public PhysicsShape
     HYP_OBJECT_BODY(BoxPhysicsShape);
 
 public:
-    BoxPhysicsShape() = default;
+    BoxPhysicsShape()
+        : PhysicsShape(Name::Invalid(), PhysicsShapeType::Box),
+          m_aabb(Vec3f(-1.0f), Vec3f(1.0f))
+    {
+    }
 
     BoxPhysicsShape(Name name, const BoundingBox& aabb)
-        : PhysicsShape(name, PhysicsShapeType::BOX),
+        : PhysicsShape(name, PhysicsShapeType::Box),
           m_aabb(aabb)
     {
     }
@@ -106,10 +112,14 @@ class SpherePhysicsShape final : public PhysicsShape
     HYP_OBJECT_BODY(SpherePhysicsShape);
 
 public:
-    SpherePhysicsShape() = default;
+    SpherePhysicsShape()
+        : PhysicsShape(Name::Invalid(), PhysicsShapeType::Sphere),
+          m_sphere(Vec3f::Zero(), 1.0f)
+    {
+    }
 
     SpherePhysicsShape(Name name, const BoundingSphere& sphere)
-        : PhysicsShape(name, PhysicsShapeType::SPHERE),
+        : PhysicsShape(name, PhysicsShapeType::Sphere),
           m_sphere(sphere)
     {
     }
@@ -132,10 +142,14 @@ class PlanePhysicsShape final : public PhysicsShape
     HYP_OBJECT_BODY(PlanePhysicsShape);
 
 public:
-    PlanePhysicsShape() = default;
+    PlanePhysicsShape()
+        : PhysicsShape(Name::Invalid(), PhysicsShapeType::Plane),
+          m_plane(0.0f, 1.0f, 0.0f, 0.0f)
+    {
+    }
 
     PlanePhysicsShape(Name name, const Vec4f& plane)
-        : PhysicsShape(name, PhysicsShapeType::PLANE),
+        : PhysicsShape(name, PhysicsShapeType::Plane),
           m_plane(plane)
     {
     }
@@ -158,37 +172,36 @@ class ConvexHullPhysicsShape final : public PhysicsShape
     HYP_OBJECT_BODY(ConvexHullPhysicsShape);
 
 public:
-    ConvexHullPhysicsShape() = default;
-
-    ConvexHullPhysicsShape(Name name, const Array<Vec3f>& vertices)
-        : PhysicsShape(name, PhysicsShapeType::CONVEX_HULL)
+    ConvexHullPhysicsShape()
+        : PhysicsShape(Name::Invalid(), PhysicsShapeType::ConvexHull)
     {
-        m_vertices.Resize(vertices.Size() * 3);
-
-        for (size_t index = 0; index < vertices.Size(); index++)
-        {
-            m_vertices[index * 3] = vertices[index].x;
-            m_vertices[index * 3 + 1] = vertices[index].y;
-            m_vertices[index * 3 + 2] = vertices[index].z;
-        }
     }
 
-    ~ConvexHullPhysicsShape() override = default;
+    ConvexHullPhysicsShape(Name name, const struct VertexArrayView& vertexData);
+
+    ConvexHullPhysicsShape(const ConvexHullPhysicsShape&) = delete;
+    ConvexHullPhysicsShape& operator=(const ConvexHullPhysicsShape&) = delete;
+
+    ConvexHullPhysicsShape(ConvexHullPhysicsShape&&) noexcept = delete;
+    ConvexHullPhysicsShape& operator=(ConvexHullPhysicsShape&&) noexcept = delete;
+
+    ~ConvexHullPhysicsShape() override;
 
     HYP_FORCE_INLINE const float* GetVertexData() const
     {
-        return m_vertices.Data();
+        return reinterpret_cast<const float*>(m_vertexData.raw);
     }
 
     HYP_FORCE_INLINE size_t NumVertices() const
     {
-        return m_vertices.Size() / 3;
+        return m_vertexData.size / (sizeof(float) * 3);
     }
 
-protected:
-    // @TODO Use blob data for this to serialize.
+    void SetVertexData(const struct VertexArrayView& vertexData);
 
-    Array<float> m_vertices;
+protected:
+    HYP_FIELD(Property = "VertexData", Serialize)
+    BlobDataReference m_vertexData;
 };
 
 HYP_CLASS()
@@ -197,10 +210,15 @@ class CapsulePhysicsShape final : public PhysicsShape
     HYP_OBJECT_BODY(CapsulePhysicsShape);
 
 public:
-    CapsulePhysicsShape() = default;
+    CapsulePhysicsShape()
+        : PhysicsShape(Name::Invalid(), PhysicsShapeType::Capsule),
+          m_radius(0.2f),
+          m_height(1.7f) // Avg. height of a human :)
+    {
+    }
 
     CapsulePhysicsShape(Name name, float radius, float height)
-        : PhysicsShape(name, PhysicsShapeType::CAPSULE),
+        : PhysicsShape(name, PhysicsShapeType::Capsule),
           m_radius(radius),
           m_height(height)
     {

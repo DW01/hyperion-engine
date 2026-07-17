@@ -192,6 +192,9 @@ bool EnumMemberName(EnumType value, Name& outName)
     return false;
 }
 
+/*! \brief See EnumMemberName (template version) for explanation - this uses a runtime Class* instead. */
+CORE_API bool EnumMemberName(const Class* enumClass, uint64 value, Name& outName);
+
 /*! \brief Find the name of an enum member for a given Class, using the members' value. If the enum value is found,
  *  the name is returned as a String. If the member is not found, a string representation of the enum value is returned.
  *  \tparam EnumType The enum type the member is a part of.

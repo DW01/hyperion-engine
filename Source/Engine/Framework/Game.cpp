@@ -134,14 +134,14 @@ void Game::Shutdown(bool shutdownWorld)
             m_uiSubsystem.Reset();
         }
 
-        m_world->m_gameInstance = nullptr;
-
         g_engineDriver->RemoveWorld(m_world);
 
         if (shutdownWorld)
         {
             m_world->Shutdown();
         }
+
+        m_world->m_gameInstance = nullptr;
     }
 
     if (m_assetRegistry && m_assetRegistryActive)
@@ -257,9 +257,195 @@ bool Game::OnInputEvent(const Event& event)
 
     if (m_uiSubsystem.IsValid())
     {
-        if (m_uiSubsystem->GetUIStage()->OnInputEvent(event))
+        if (m_uiSubsystem->GetUIStage()->OnInputEvent(event) == UIEventHandlerResult::STOP_BUBBLING)
         {
             return true;
+        }
+    }
+
+    if (m_inputHandlers.Any())
+    {
+        switch (event.GetType())
+        {
+        case EventType::KEYUP:
+        {
+            KeyboardEvent kbe = event.ToKeyboardEvent();
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
+            {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
+                if (inputHandler->OnKeyUp(kbe))
+                {
+                    return true;
+                }
+            }
+            
+            break;
+        }
+        case EventType::KEYDOWN:
+        {
+            KeyboardEvent kbe = event.ToKeyboardEvent();
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
+            {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
+                if (inputHandler->OnKeyDown(kbe))
+                {
+                    return true;
+                }
+            }
+            
+            break;
+        }
+        case EventType::MOUSEBUTTON_DOWN:
+        {
+            MouseEvent me = event.ToMouseEvent();
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
+            {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
+                if (inputHandler->OnMouseDown(me))
+                {
+                    return true;
+                }
+            }
+            
+            break;
+        }
+        case EventType::MOUSEBUTTON_UP:
+        {
+            MouseEvent me = event.ToMouseEvent();
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
+            {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
+                if (inputHandler->OnMouseUp(me))
+                {
+                    return true;
+                }
+            }
+            
+            break;
+        }
+        case EventType::MOUSEMOTION:
+        {
+            MouseEvent me = event.ToMouseEvent();
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
+            {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
+                if (inputHandler->OnMouseMove(me))
+                {
+                    return true;
+                }
+            }
+            
+            break;
+        }
+        case EventType::TOUCH_DOWN:
+        {
+            TouchEvent te = event.ToTouchEvent();
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
+            {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
+                if (inputHandler->OnTouchDown(te))
+                {
+                    return true;
+                }
+            }
+            
+            break;
+        }
+        case EventType::TOUCH_UP:
+        {
+            TouchEvent te = event.ToTouchEvent();
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
+            {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
+                if (inputHandler->OnTouchUp(te))
+                {
+                    return true;
+                }
+            }
+            
+            break;
+        }
+        case EventType::TOUCH_MOVE:
+        {
+            TouchEvent te = event.ToTouchEvent();
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
+            {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
+                if (inputHandler->OnTouchMove(te))
+                {
+                    return true;
+                }
+            }
+            
+            break;
+        }
+        case EventType::CONTROLLER_BUTTON_DOWN:
+        {
+            ControllerButton btn = event.GetControllerButton();
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
+            {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
+                if (inputHandler->OnControllerButtonDown(btn))
+                {
+                    return true;
+                }
+            }
+            
+            break;
+        }
+        case EventType::CONTROLLER_BUTTON_UP:
+        {
+            ControllerButton btn = event.GetControllerButton();
+
+            for (size_t i = m_inputHandlers.Size(); i != 0; i--)
+            {
+                InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
+                if (inputHandler->OnControllerButtonUp(btn))
+                {
+                    return true;
+                }
+            }
+            
+            break;
+        }
+        case EventType::CONTROLLER_ANALOG_MOVE:
+        {
+            const ControllerAnalogData* analogData = event.GetControllerAnalogData();
+
+            if (analogData)
+            {
+                for (size_t i = m_inputHandlers.Size(); i != 0; i--)
+                {
+                    InputHandlerBase* inputHandler = m_inputHandlers[i - 1];
+
+                    if (inputHandler->OnControllerAnalogMove(*analogData))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            break;
+        }
         }
     }
 
@@ -337,5 +523,43 @@ void Game::SetToEditMode()
 }
 
 #endif
+
+void Game::RegisterInputHandler(InputHandlerBase* inputHandler)
+{
+    AssertOnThread(g_simThread);
+
+    if (!inputHandler)
+    {
+        return;
+    }
+
+    auto it = m_inputHandlers.Find(inputHandler);
+
+    if (it != m_inputHandlers.End())
+    {
+        return;
+    }
+    
+    m_inputHandlers.PushBack(inputHandler);
+}
+
+void Game::UnregisterInputHandler(InputHandlerBase* inputHandler)
+{
+    AssertOnThread(g_simThread);
+
+    if (!inputHandler)
+    {
+        return;
+    }
+    
+    auto it = m_inputHandlers.Find(inputHandler);
+
+    if (it == m_inputHandlers.End())
+    {
+        return;
+    }
+
+    m_inputHandlers.Erase(it);
+}
 
 } // namespace Hyperion

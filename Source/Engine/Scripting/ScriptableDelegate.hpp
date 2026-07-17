@@ -181,7 +181,6 @@ public:
 
     virtual ~ScriptableDelegate() override = default;
 
-    /*! Non-target overloads — delegate to target-aware versions with nullptr target. */
     HYP_NODISCARD virtual DelegateHandler BindMethod(ANSIStringView methodName, Proc<ScriptObjectResource*()>&& getFn) override
     {
         return BindMethod(nullptr, methodName, std::move(getFn));

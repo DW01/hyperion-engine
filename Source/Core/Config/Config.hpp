@@ -23,7 +23,7 @@
 
 #include <Core/Reflection/ObjectFwd.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <Core/Types.hpp>
 

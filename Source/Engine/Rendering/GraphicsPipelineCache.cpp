@@ -438,7 +438,7 @@ void GraphicsPipelineCache::GetOrCreate(
             shaderString);
 #endif
 
-    if (!CheckResult(graphicsPipeline->Create()))
+    if (!Check(graphicsPipeline->Create()))
     {
         return;
     }

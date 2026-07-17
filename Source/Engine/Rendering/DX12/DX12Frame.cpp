@@ -60,11 +60,6 @@ void DX12Frame::WriteCommandBuffer(CommandBuffer* commandBuffer)
     commandRecorders.PushBack(&RI.commandRecorderAllocator.root);
     commandRecorders.PushBack(&postRenderCommands);
 
-    for (CommandRecorder* commandRecorder : commandRecorders)
-    {
-        commandRecorder->Prepare(this);
-    }
-
     if (OnPresent.AnyBound())
     {
         OnPresent(this);

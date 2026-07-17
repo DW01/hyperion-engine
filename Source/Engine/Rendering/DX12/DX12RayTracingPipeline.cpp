@@ -482,12 +482,11 @@ RendererResult DX12RayTracingPipeline::BuildShaderBindingTables()
     const uint32 shaderIdentifierSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
     const uint32 sbtEntrySize = MathUtil::NextMultiple(shaderIdentifierSize, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
 
-    auto BuildTableEntry = [&](const wchar_t* exportName, ShaderBindingTableEntry& outEntry, const char* debugName) -> RendererResult
+    auto buildTableEntry = [&](const wchar_t* exportName, ShaderBindingTableEntry& outEntry, const char* debugName) -> RendererResult
     {
         void* shaderId = m_stateObjectProperties->GetShaderIdentifier(exportName);
         if (!shaderId)
         {
-            // Export may not exist (e.g., no miss shader) — leave entry empty
             return {};
         }
 
@@ -506,9 +505,9 @@ RendererResult DX12RayTracingPipeline::BuildShaderBindingTables()
         return {};
     };
 
-    CheckResultOrReturn(BuildTableEntry(L"RayGenMain", m_rayGenShaderTable, "RayGenShaderTable"));
-    CheckResultOrReturn(BuildTableEntry(L"MissMain", m_missShaderTable, "MissShaderTable"));
-    CheckResultOrReturn(BuildTableEntry(L"HitGroup", m_hitGroupShaderTable, "HitGroupShaderTable"));
+    CheckResultOrReturn(buildTableEntry(L"RayGenMain", m_rayGenShaderTable, "RayGenShaderTable"));
+    CheckResultOrReturn(buildTableEntry(L"MissMain", m_missShaderTable, "MissShaderTable"));
+    CheckResultOrReturn(buildTableEntry(L"HitGroup", m_hitGroupShaderTable, "HitGroupShaderTable"));
 
     return {};
 }

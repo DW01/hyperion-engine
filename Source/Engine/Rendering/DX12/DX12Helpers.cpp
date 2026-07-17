@@ -183,25 +183,25 @@ D3D12_BLEND ToDX12Blend(BlendModeFactor factor)
 {
     switch (factor)
     {
-    case BMF_ONE:
+    case BlendModeFactor::One:
         return D3D12_BLEND_ONE;
-    case BMF_ZERO:
+    case BlendModeFactor::Zero:
         return D3D12_BLEND_ZERO;
-    case BMF_SRC_COLOR:
+    case BlendModeFactor::SrcColor:
         return D3D12_BLEND_SRC_COLOR;
-    case BMF_SRC_ALPHA:
+    case BlendModeFactor::SrcAlpha:
         return D3D12_BLEND_SRC_ALPHA;
-    case BMF_DST_COLOR:
+    case BlendModeFactor::DstColor:
         return D3D12_BLEND_DEST_COLOR;
-    case BMF_DST_ALPHA:
+    case BlendModeFactor::DstAlpha:
         return D3D12_BLEND_DEST_ALPHA;
-    case BMF_ONE_MINUS_SRC_COLOR:
+    case BlendModeFactor::OneMinusSrcColor:
         return D3D12_BLEND_INV_SRC_COLOR;
-    case BMF_ONE_MINUS_SRC_ALPHA:
+    case BlendModeFactor::OneMinusSrcAlpha:
         return D3D12_BLEND_INV_SRC_ALPHA;
-    case BMF_ONE_MINUS_DST_COLOR:
+    case BlendModeFactor::OneMinusDstColor:
         return D3D12_BLEND_INV_DEST_COLOR;
-    case BMF_ONE_MINUS_DST_ALPHA:
+    case BlendModeFactor::OneMinusDstAlpha:
         return D3D12_BLEND_INV_DEST_ALPHA;
     default:
         return D3D12_BLEND_ONE;

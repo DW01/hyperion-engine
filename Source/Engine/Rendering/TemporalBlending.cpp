@@ -109,7 +109,7 @@ void TemporalBlending::Create()
 
     if (m_inputFramebuffer.IsValid())
     {
-        CheckResult(m_inputFramebuffer->Create());
+        Check(m_inputFramebuffer->Create());
     }
 
     CreateImages();
@@ -192,7 +192,7 @@ void TemporalBlending::CreateImages()
         IU_STORAGE | IU_SAMPLED });
 
     m_resultTexture->SetName(NAME("TemporalBlendingResult"));
-    CheckResult(m_resultTexture->Create());
+    Check(m_resultTexture->Create());
 
     m_historyTexture = MakeHandle<Texture>(TextureDesc {
         TextureType::Texture2D,
@@ -205,7 +205,7 @@ void TemporalBlending::CreateImages()
         IU_STORAGE | IU_SAMPLED });
 
     m_historyTexture->SetName(NAME("TemporalBlendingHistory"));
-    CheckResult(m_historyTexture->Create());
+    Check(m_historyTexture->Create());
 }
 
 void TemporalBlending::Render(Frame* frame, const RenderSetup& renderSetup)

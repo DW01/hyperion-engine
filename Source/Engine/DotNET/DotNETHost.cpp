@@ -22,7 +22,7 @@
 #include <Core/Logging/Logger.hpp>
 
 #include <Core/FileSystem/FsUtil.hpp>
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <System/AppContext.hpp>
 

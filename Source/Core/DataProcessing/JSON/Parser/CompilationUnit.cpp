@@ -1,0 +1,17 @@
+/*!
+ *  @author: The Hyperion Contributors
+ *  @date 2016-2026
+ *  @licence MIT
+*/
+
+#include <Core/DataProcessing/JSON/Parser/CompilationUnit.hpp>
+
+namespace Hyperion::DataProcessing::JSON {
+
+CompilationUnit::CompilationUnit()
+{
+}
+
+CompilationUnit::~CompilationUnit() = default;
+
+} // namespace Hyperion::DataProcessing::JSON

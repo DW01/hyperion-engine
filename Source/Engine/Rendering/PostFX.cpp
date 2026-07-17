@@ -218,7 +218,7 @@ void PostProcessing::CreateUniformBuffer()
     const PostProcessingUniforms postProcessingUniforms = GetUniforms();
 
     m_uniformBuffer = RI.MakeGpuBuffer(GpuBufferType::ConstantBuffer, sizeof(postProcessingUniforms));
-    CheckResult(m_uniformBuffer->Create());
+    Check(m_uniformBuffer->Create());
 
     m_uniformBuffer->Copy(sizeof(postProcessingUniforms), &postProcessingUniforms);
     m_uniformBuffer->Flush(0, sizeof(postProcessingUniforms));

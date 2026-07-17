@@ -1,0 +1,71 @@
+Mesh "RotateGizmo_TorusMesh" {
+    AABB = {
+        Min = (-0.83, -0.03, -0.83)
+        Max = (0.83, 0.03, 0.83)
+    }
+    MeshDesc = {
+        MeshAttributes = {
+            InputLayout = {
+                Mask = 7
+            }
+            Topology = TOP_TRIANGLES
+            IndexBufferElemType = GET_UNSIGNED_INT
+        }
+        Lods = [MeshLodDesc {
+            NumVertices = 833
+            NumIndices = 4608
+        }, MeshLodDesc {
+            NumVertices = 0
+            NumIndices = 0
+        }, MeshLodDesc {
+            NumVertices = 0
+            NumIndices = 0
+        }, MeshLodDesc {
+            NumVertices = 0
+            NumIndices = 0
+        }]
+    }
+    LodData = [MeshLodData {
+        VertexData = {
+            Key = "Editor://Meshes/RotateGizmo_TorusMesh.VB"
+            Size = 26656
+        }
+        IndexData = {
+            Key = "Editor://Meshes/RotateGizmo_TorusMesh.IB"
+            Size = 18432
+        }
+    }, MeshLodData {
+        VertexData = {
+            Key = ""
+            Size = 0
+        }
+        IndexData = {
+            Key = ""
+            Size = 0
+        }
+    }, MeshLodData {
+        VertexData = {
+            Key = ""
+            Size = 0
+        }
+        IndexData = {
+            Key = ""
+            Size = 0
+        }
+    }, MeshLodData {
+        VertexData = {
+            Key = ""
+            Size = 0
+        }
+        IndexData = {
+            Key = ""
+            Size = 0
+        }
+    }]
+    BvhData = {
+        Key = "Editor://Meshes/RotateGizmo_TorusMesh.BVH"
+        Size = 29037
+    }
+    Flags = None
+    FriendlyName = "RotateGizmoTorusMesh"
+}

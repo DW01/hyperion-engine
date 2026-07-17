@@ -102,7 +102,7 @@ void Baker<Light>::OnCompleted_Internal()
 
     Handle<Texture> shadowMap = MakeHandle<Texture>(textureDesc, bitmap.ToByteView());
     shadowMap->SetName(NAME_FMT("{}_BakedShadowMap", m_light->GetName()));
-    CheckResult(shadowMap->Create());
+    Check(shadowMap->Create());
 
     //auto writeScope = TUniqueResLock<Light>(*m_light);
     m_light->SetBakedShadowMap(shadowMap);

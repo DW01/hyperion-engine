@@ -3249,7 +3249,7 @@ SharedPtr<AstExportStatement> Parser::ParseExportStatement()
 {
     if (Token exportToken = ExpectKeyword(Keyword_export, true))
     {
-        if (auto stmt = ParseStatement())
+        if (auto stmt = ParseStatement(false, false))
         {
             return SharedPtr<AstExportStatement>(new AstExportStatement(
                 stmt,

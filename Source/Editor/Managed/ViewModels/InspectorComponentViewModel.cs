@@ -13,6 +13,8 @@ namespace Hyperion.Editor.ViewModels
 
         public string Label { get; }
 
+        public virtual TypeId TypeId => default;
+
         public ObservableCollection<InspectorPropertyViewModelBase> Properties { get; } = new();
         public ObservableCollection<ComponentSubObjectViewModel> SubObjects { get; } = new();
 
@@ -68,6 +70,8 @@ namespace Hyperion.Editor.ViewModels
         }
 
         public override bool IsEditorVisible => _isEditorVisible;
+
+        public override TypeId TypeId => _componentClass?.TypeId ?? default;
 
         public InspectorComponentViewModel(Entity? target)
             : base(target, GetLabel())
@@ -143,9 +147,9 @@ namespace Hyperion.Editor.ViewModels
                     List<Property> componentProperties = cls.Properties
                         .Where(p =>
                         {
-                            ClassAttribute? attrEditHide = p.GetAttribute("edithide");
+                            ClassAttribute? attrEditor = p.GetAttribute("editor");
 
-                            if (attrEditHide != null && attrEditHide.Value.GetBool() == true)
+                            if (attrEditor != null && attrEditor.Value.GetBool() == false)
                             {
                                 return false;
                             }

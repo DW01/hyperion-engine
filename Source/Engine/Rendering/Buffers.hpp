@@ -312,7 +312,7 @@ public:
     void EnsureGpuBufferCapacity(const GpuBufferRef& buffer, uint32 frameIndex)
     {
         bool wasResized = false;
-        CheckResult(buffer->EnsureCapacity(NumAllocatedElements() * sizeof(StructType), &wasResized));
+        Check(buffer->EnsureCapacity(NumAllocatedElements() * sizeof(StructType), &wasResized));
 
         if (wasResized)
         {

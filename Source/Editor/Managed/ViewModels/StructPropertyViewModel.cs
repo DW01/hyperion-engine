@@ -96,8 +96,9 @@ namespace Hyperion.Editor.ViewModels
                 properties = _structClass.Properties
                     .Where(p =>
                     {
-                        ClassAttribute? attrEditHide = p.GetAttribute("edithide");
-                        return attrEditHide == null || attrEditHide.Value.GetBool() == false;
+                        ClassAttribute? attrEditor = p.GetAttribute("editor");
+
+                        return attrEditor == null || attrEditor.Value.GetBool() == true;
                     })
                     .OrderBy(p =>
                     {

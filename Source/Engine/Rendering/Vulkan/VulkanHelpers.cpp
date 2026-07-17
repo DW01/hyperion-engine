@@ -630,25 +630,25 @@ VkBlendFactor ToVkBlendFactor(BlendModeFactor blendMode)
 {
     switch (blendMode)
     {
-    case BMF_ONE:
+    case BlendModeFactor::One:
         return VK_BLEND_FACTOR_ONE;
-    case BMF_ZERO:
+    case BlendModeFactor::Zero:
         return VK_BLEND_FACTOR_ZERO;
-    case BMF_SRC_COLOR:
+    case BlendModeFactor::SrcColor:
         return VK_BLEND_FACTOR_SRC_COLOR;
-    case BMF_SRC_ALPHA:
+    case BlendModeFactor::SrcAlpha:
         return VK_BLEND_FACTOR_SRC_ALPHA;
-    case BMF_DST_COLOR:
+    case BlendModeFactor::DstColor:
         return VK_BLEND_FACTOR_DST_COLOR;
-    case BMF_DST_ALPHA:
+    case BlendModeFactor::DstAlpha:
         return VK_BLEND_FACTOR_DST_ALPHA;
-    case BMF_ONE_MINUS_SRC_COLOR:
+    case BlendModeFactor::OneMinusSrcColor:
         return VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
-    case BMF_ONE_MINUS_SRC_ALPHA:
+    case BlendModeFactor::OneMinusSrcAlpha:
         return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    case BMF_ONE_MINUS_DST_COLOR:
+    case BlendModeFactor::OneMinusDstColor:
         return VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
-    case BMF_ONE_MINUS_DST_ALPHA:
+    case BlendModeFactor::OneMinusDstAlpha:
         return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
     default:
         return VK_BLEND_FACTOR_ONE;

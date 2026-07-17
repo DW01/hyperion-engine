@@ -26,12 +26,14 @@ struct TypeId;
 using utilities::TypeId;
 using utilities::TypeInfo;
 
-namespace JSON {
+namespace DataProcessing::JSON {
 
 class Value;
 class Object;
 
-} // namespace JSON
+} // namespace DataProcessing::JSON
+
+namespace JSON = DataProcessing::JSON;
 
 namespace functional {
 
@@ -41,6 +43,8 @@ class ProcRef;
 } // namespace functional
 
 using functional::ProcRef;
+
+#pragma region JSON
 
 struct ToJSONOptions
 {
@@ -113,6 +117,56 @@ Result BoxedFromJSON(const JSON::Value& jsonValue, const TypeInfo& typeInfo, Box
  */
 Result ObjectFromJSON(const JSON::Object& jsonObject, const Class* targetClass, BoxedValue& target);
 
+#pragma endregion JSON
+
+#pragma region Hyperion Manifest
+
+struct ToHMFOptions
+{
+    enum class FollowAssetPathsMode : int
+    {
+        Never = -1,
+        MatchingAttribute = 0,
+        Always
+    };
+
+    enum class SaveAssetsAsReferencesMode : int
+    {
+        No,
+        UnlessOtherwiseSpecified,
+        Yes
+    };
+
+    bool skipTransientProperties = true;
+    bool writeClassName = true;
+    bool writeClassNamesForPolymorphic = true;
+
+    SaveAssetsAsReferencesMode saveAssetsAsReferences = SaveAssetsAsReferencesMode::UnlessOtherwiseSpecified;
+    FollowAssetPathsMode followAssetPaths = FollowAssetPathsMode::MatchingAttribute;
+};
+
+Result BoxedToHMF(
+    const BoxedValue& value,
+    String& outText,
+    const TypeInfo* declaredTypeInfo = nullptr,
+    ToHMFOptions* pOptions = nullptr);
+
+Result ObjectToHMF(
+    const Class* cls,
+    const BoxedValue& target,
+    String& outText,
+    ToHMFOptions* pOptions = nullptr);
+
+Result ObjectToHMFDocument(
+    const Class* cls,
+    const BoxedValue& target,
+    String& outText,
+    ToHMFOptions* pOptions = nullptr);
+
+#pragma endregion Hyperion Manifest
+
+#pragma region Shared
+
 void WalkBoxedValue(
     const BoxedValue& target,
     const ProcRef<void(const BoxedValue& current)>& func);
@@ -128,5 +182,7 @@ void StripTransientMembers(BoxedValue& value);
  *  \param outDst The output BoxedValue (will be overwritten with the cleaned clone).
  *  \return True if the clone was successful. */
 bool CloneWithoutTransientMembers(const BoxedValue& src, BoxedValue& outDst);
+
+#pragma endregion Shared
 
 } // namespace Hyperion

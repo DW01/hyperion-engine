@@ -70,10 +70,10 @@ RendererResult DX12Attachment::Create()
 
     if (!m_gpuImage->IsCreated())
     {
-        CheckResult(m_gpuImage->Create());
+        Check(m_gpuImage->Create());
     }
 
-    CheckResult(m_imageView->Create());
+    Check(m_imageView->Create());
 
     return Texture::Create();
 }

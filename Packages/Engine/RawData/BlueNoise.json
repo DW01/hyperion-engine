@@ -1,9 +1,0 @@
-{
-  "$Class": "RawDataAsset",
-  "Data": {
-    "Key": "Engine://RawData/BlueNoise.RAW",
-    "Size": 1310720
-  },
-  "Name": "BlueNoise",
-  "FriendlyName": "BlueNoise"
-}

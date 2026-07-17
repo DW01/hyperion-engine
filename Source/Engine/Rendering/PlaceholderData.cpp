@@ -204,20 +204,20 @@ void PlaceholderData::Initialize()
 
 #pragma region Image and ImageView
     // These will soon be deprecated (except the samplers) - we will instead use Texture instead of individual image/image view
-    CheckResult(m_image2d1x1R8->Create());
-    CheckResult(m_imageView2d1x1R8->Create());
-    CheckResult(m_image2d1x1R8Storage->Create());
-    CheckResult(m_imageView2d1x1R8Storage->Create());
-    CheckResult(m_image3d1x1x1R8->Create());
-    CheckResult(m_imageView3d1x1x1R8->Create());
-    CheckResult(m_image3d1x1x1R8Storage->Create());
-    CheckResult(m_imageView3d1x1x1R8Storage->Create());
-    CheckResult(m_imageCube1x1R8->Create());
-    CheckResult(m_imageViewCube1x1R8->Create());
-    CheckResult(m_image2d1x1R8Array->Create());
-    CheckResult(m_imageView2d1x1R8Array->Create());
-    CheckResult(m_imageCube1x1R8Array->Create());
-    CheckResult(m_imageViewCube1x1R8Array->Create());
+    Check(m_image2d1x1R8->Create());
+    Check(m_imageView2d1x1R8->Create());
+    Check(m_image2d1x1R8Storage->Create());
+    Check(m_imageView2d1x1R8Storage->Create());
+    Check(m_image3d1x1x1R8->Create());
+    Check(m_imageView3d1x1x1R8->Create());
+    Check(m_image3d1x1x1R8Storage->Create());
+    Check(m_imageView3d1x1x1R8Storage->Create());
+    Check(m_imageCube1x1R8->Create());
+    Check(m_imageViewCube1x1R8->Create());
+    Check(m_image2d1x1R8Array->Create());
+    Check(m_imageView2d1x1R8Array->Create());
+    Check(m_imageCube1x1R8Array->Create());
+    Check(m_imageViewCube1x1R8Array->Create());
 
 #pragma endregion Image and ImageView
 
@@ -241,7 +241,7 @@ void PlaceholderData::Initialize()
 
             textureAsset->SetPersistentRequested(true, /* setFlag */ true);
 
-            CheckResult(textureAsset->Create());
+            Check(textureAsset->Create());
 
             outTexture = textureAsset;
 
@@ -256,7 +256,7 @@ void PlaceholderData::Initialize()
 
         GetEngineAssetRegistry()->PutAsset(outTexture);
 
-        CheckResult(outTexture->Create());
+        Check(outTexture->Create());
     };
 
     PlaceholderBufferData placeholderBufferTex2d {};
@@ -376,19 +376,19 @@ void PlaceholderData::Initialize()
     m_samplerLinear->SetDebugName(NAME("Placeholder_Sampler_Linear"));
 #endif
 
-    CheckResult(m_samplerLinear->Create());
+    Check(m_samplerLinear->Create());
 
 #if HYP_DEBUG_MODE
     m_samplerLinearMipmap->SetDebugName(NAME("Placeholder_Sampler_Linear_Mipmap"));
 #endif
 
-    CheckResult(m_samplerLinearMipmap->Create());
+    Check(m_samplerLinearMipmap->Create());
 
 #ifdef HYP_RHI_DEBUG_NAMES
     m_samplerNearest->SetDebugName(NAME("Placeholder_Sampler_Nearest"));
 #endif
 
-    CheckResult(m_samplerNearest->Create());
+    Check(m_samplerNearest->Create());
 
 #pragma endregion Samplers
 }

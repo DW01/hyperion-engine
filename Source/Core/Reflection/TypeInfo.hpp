@@ -368,8 +368,8 @@ public:
     virtual int GetNumRows() const = 0;
     virtual int GetNumColumns() const = 0;
 
-    virtual AnyRef GetElement(const BoxedValue& instance, int row, int column) const = 0;
-    virtual void SetElement(const BoxedValue& instance, int row, int column, const BoxedValue& value) const = 0;
+    virtual float GetElement(const BoxedValue& instance, int row, int column) const = 0;
+    virtual void SetElement(const BoxedValue& instance, int row, int column, float value) const = 0;
 };
 
 class ITypeInfoVariantHandler : public ITypeInfoHandler
@@ -1084,7 +1084,7 @@ void TypeInfoImpl<ArrayType, TBoxed, std::enable_if_t<IsArray<ArrayType>::value>
                 return false;
             }
 
-            outValue = TBoxed(AnyRef(&array[index]));
+            outValue = TBoxed(array[index]);
 
             return true;
         }
@@ -1155,7 +1155,7 @@ void TypeInfoImpl<containers::FixedArray<T, Size>, TBoxed>::operator()(TypeInfo&
                 return false;
             }
 
-            outValue = BoxedValue(AnyRef(&array[index]));
+            outValue = TBoxed(array[index]);
 
             return true;
         }
@@ -2557,18 +2557,18 @@ void TypeInfoImpl<T, TBoxed, std::enable_if_t<std::is_same_v<T, Mat3f>>>::operat
             return 3;
         }
 
-        virtual AnyRef GetElement(const TBoxed& instance, int row, int column) const override
+        virtual float GetElement(const TBoxed& instance, int row, int column) const override
         {
             MatrixType& mat = instance.template Get<MatrixType>();
             if (row < 0 || row >= 3 || column < 0 || column >= 3)
             {
-                return AnyRef();
+                return NAN;
             }
 
-            return AnyRef(&mat[row][column]);
+            return mat[row][column];
         }
 
-        virtual void SetElement(const TBoxed& instance, int row, int column, const TBoxed& value) const override
+        virtual void SetElement(const TBoxed& instance, int row, int column, float value) const override
         {
             MatrixType& mat = instance.template Get<MatrixType>();
             if (row < 0 || row >= 3 || column < 0 || column >= 3)
@@ -2576,7 +2576,7 @@ void TypeInfoImpl<T, TBoxed, std::enable_if_t<std::is_same_v<T, Mat3f>>>::operat
                 return;
             }
 
-            mat[row][column] = value.template Get<float>();
+            mat[row][column] = value;
         }
     };
 
@@ -2613,18 +2613,18 @@ void TypeInfoImpl<T, TBoxed, std::enable_if_t<std::is_same_v<T, Mat4f>>>::operat
             return 4;
         }
 
-        virtual AnyRef GetElement(const TBoxed& instance, int row, int column) const override
+        virtual float GetElement(const TBoxed& instance, int row, int column) const override
         {
             MatrixType& mat = instance.template Get<MatrixType>();
             if (row < 0 || row >= 4 || column < 0 || column >= 4)
             {
-                return AnyRef();
+                return NAN;
             }
 
-            return AnyRef(&mat[row][column]);
+            return mat[row][column];
         }
 
-        virtual void SetElement(const TBoxed& instance, int row, int column, const TBoxed& value) const override
+        virtual void SetElement(const TBoxed& instance, int row, int column, float value) const override
         {
             MatrixType& mat = instance.template Get<MatrixType>();
             if (row < 0 || row >= 4 || column < 0 || column >= 4)
@@ -2632,7 +2632,7 @@ void TypeInfoImpl<T, TBoxed, std::enable_if_t<std::is_same_v<T, Mat4f>>>::operat
                 return;
             }
 
-            mat[row][column] = value.template Get<float>();
+            mat[row][column] = value;
         }
     };
 

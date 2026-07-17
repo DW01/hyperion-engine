@@ -39,7 +39,7 @@ ParticleVolume::ParticleVolume(const BoundingBox& localBounds)
 
     //if (m_params.texture.IsValid())
     //{
-    //    CheckResult(m_params.texture->Create());
+    //    Check(m_params.texture->Create());
     //}
 }
 
@@ -53,7 +53,7 @@ void ParticleVolume::UpdateRenderProxy(RenderProxyParticleVolume* proxy)
 {
     AssertDebug(proxy != nullptr);
 
-    proxy->particleVolume = WeakHandleFromThis();
+    proxy->particleVolume = this;
 
     if (proxy->particleTexture != texture)
     {

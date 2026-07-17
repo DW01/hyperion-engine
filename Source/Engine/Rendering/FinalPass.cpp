@@ -111,8 +111,8 @@ void FinalPass::Render(Frame* frame, const RenderSetup& rs)
 
     // Need blending to composite passes and ui
     cr << SetCurrentBlendFunction(BlendFunction(
-        BMF_SRC_ALPHA, BMF_ONE_MINUS_SRC_ALPHA,
-        BMF_ONE, BMF_ONE_MINUS_SRC_ALPHA));
+        BlendModeFactor::SrcAlpha, BlendModeFactor::OneMinusSrcAlpha,
+        BlendModeFactor::One, BlendModeFactor::OneMinusSrcAlpha));
 
     cr << SetDepthTest(false);
     cr << SetDepthWrite(false);

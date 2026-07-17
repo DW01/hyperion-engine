@@ -226,12 +226,6 @@ RendererResult DX12GpuImage::Create(ResourceState initialState)
     D3D12MA::ALLOCATION_DESC allocDesc {};
     allocDesc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
 
-    // D3D12MA places resources on NOT_ZEROED heaps by default. For render
-    // targets the initial-state + clear-value auto-initialization only
-    // takes effect with COMMITTED allocations.
-    // Force committed so D3D12 honors the clear value and initializes
-    // every subresource — avoids EXECUTION ERROR #1422 for cubemap faces
-    // that were never explicitly cleared/drawn before a copy/sample.
     if (resourceDesc.Flags & (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL))
     {
         allocDesc.Flags = D3D12MA::ALLOCATION_FLAG_COMMITTED;
@@ -514,12 +508,6 @@ void DX12GpuImage::InsertBarrier(
     D3D12_RESOURCE_STATES stateBefore = GetDX12State(effectiveCurrState);
     D3D12_RESOURCE_STATES stateAfter = GetDX12State(newState);
 
-    // If we don't know the current state (UNDEFINED), we can't issue a single
-    // ALL_SUBRESOURCES barrier because subresources have divergent states.
-    // Instead, fall through to the per-subresource barrier loop below which
-    // transitions each subresource individually using the correct tracked state.
-    // Same applies when depth and stencil states have diverged — ALL_SUBRESOURCES
-    // would use the wrong before-state for one of the planes.
     const bool stencilDiverged = (hasStencil && !onlyDepth && !onlyStencil
         && currResourceState != RS_UNDEFINED
         && currStencilState != currResourceState);

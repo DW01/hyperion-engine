@@ -744,27 +744,27 @@ enum Topology : uint8
 };
 
 HYP_ENUM()
-enum BlendModeFactor : uint8
+enum class BlendModeFactor : uint8
 {
-    BMF_NONE,
+    None,
 
-    BMF_ONE,
-    BMF_ZERO,
-    BMF_SRC_COLOR,
-    BMF_SRC_ALPHA,
-    BMF_DST_COLOR,
-    BMF_DST_ALPHA,
-    BMF_ONE_MINUS_SRC_COLOR,
-    BMF_ONE_MINUS_SRC_ALPHA,
-    BMF_ONE_MINUS_DST_COLOR,
-    BMF_ONE_MINUS_DST_ALPHA,
+    One,
+    Zero,
+    SrcColor,
+    SrcAlpha,
+    DstColor,
+    DstAlpha,
+    OneMinusSrcColor,
+    OneMinusSrcAlpha,
+    OneMinusDstColor,
+    OneMinusDstAlpha,
 
-    BMF_MAX
+    Max
 };
 
-static_assert(uint32(BMF_MAX) <= 15, "BlendModeFactor enum too large to fit in 4 bits");
+static_assert(uint32(BlendModeFactor::Max) <= 15, "BlendModeFactor enum too large to fit in 4 bits");
 
-HYP_STRUCT(Serialize = "bitwise", Size = 4)
+HYP_STRUCT()
 struct BlendFunction
 {
     HYP_STRUCT_BODY(BlendFunction);
@@ -772,7 +772,7 @@ struct BlendFunction
     uint32 value;
 
     constexpr BlendFunction()
-        : BlendFunction(BMF_ONE, BMF_ZERO)
+        : BlendFunction(BlendModeFactor::One, BlendModeFactor::Zero)
     {
     }
 
@@ -794,41 +794,49 @@ struct BlendFunction
 
     ~BlendFunction() = default;
 
+    HYP_METHOD(Property = "SrcColor", Serialize)
     HYP_FORCE_INLINE constexpr BlendModeFactor GetSrcColor() const
     {
         return BlendModeFactor(value & 0xF);
     }
 
+    HYP_METHOD(Property = "SrcColor", Serialize)
     HYP_FORCE_INLINE void SetSrcColor(BlendModeFactor src)
     {
         value |= uint32(src);
     }
 
+    HYP_METHOD(Property = "DstColor", Serialize)
     HYP_FORCE_INLINE constexpr BlendModeFactor GetDstColor() const
     {
         return BlendModeFactor((value >> 4) & 0xF);
     }
 
+    HYP_METHOD(Property = "DstColor", Serialize)
     HYP_FORCE_INLINE void SetDstColor(BlendModeFactor dst)
     {
         value |= uint32(dst) << 4;
     }
 
+    HYP_METHOD(Property = "SrcAlpha", Serialize)
     HYP_FORCE_INLINE constexpr BlendModeFactor GetSrcAlpha() const
     {
         return BlendModeFactor((value >> 8) & 0xF);
     }
 
+    HYP_METHOD(Property = "SrcAlpha", Serialize)
     HYP_FORCE_INLINE void SetSrcAlpha(BlendModeFactor src)
     {
         value |= uint32(src) << 8;
     }
 
+    HYP_METHOD(Property = "DstAlpha", Serialize)
     HYP_FORCE_INLINE constexpr BlendModeFactor GetDstAlpha() const
     {
         return BlendModeFactor((value >> 12) & 0xF);
     }
 
+    HYP_METHOD(Property = "DstAlpha", Serialize)
     HYP_FORCE_INLINE void SetDstAlpha(BlendModeFactor dst)
     {
         value |= uint32(dst) << 12;
@@ -856,22 +864,22 @@ struct BlendFunction
 
     HYP_FORCE_INLINE static constexpr BlendFunction None()
     {
-        return BlendFunction(BMF_NONE, BMF_NONE);
+        return BlendFunction(BlendModeFactor::None, BlendModeFactor::None);
     }
 
     HYP_FORCE_INLINE static constexpr BlendFunction Default()
     {
-        return BlendFunction(BMF_ONE, BMF_ZERO);
+        return BlendFunction(BlendModeFactor::One, BlendModeFactor::Zero);
     }
 
     HYP_FORCE_INLINE static constexpr BlendFunction AlphaBlending()
     {
-        return BlendFunction(BMF_SRC_ALPHA, BMF_ONE_MINUS_SRC_ALPHA, BMF_ONE, BMF_ZERO);
+        return BlendFunction(BlendModeFactor::SrcAlpha, BlendModeFactor::OneMinusSrcAlpha, BlendModeFactor::One, BlendModeFactor::Zero);
     }
 
     HYP_FORCE_INLINE static constexpr BlendFunction Additive()
     {
-        return BlendFunction(BMF_ONE, BMF_ONE);
+        return BlendFunction(BlendModeFactor::One, BlendModeFactor::One);
     }
 };
 

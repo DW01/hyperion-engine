@@ -72,8 +72,8 @@ private:
 
 InputEventQueue::~InputEventQueue()
 {
-    const uint32 head = std::bit_cast<uint32>(AtomicAdd(&m_head, 0));
-    uint32 tail = std::bit_cast<uint32>(AtomicAdd(&m_tail, 0));
+    const uint32 head = static_cast<uint32>(AtomicAdd(&m_head, 0));
+    uint32 tail = static_cast<uint32>(AtomicAdd(&m_tail, 0));
 
     while (tail != head)
     {
@@ -85,8 +85,8 @@ InputEventQueue::~InputEventQueue()
 
 bool InputEventQueue::Push(Event&& evt)
 {
-    const uint32 head = std::bit_cast<uint32>(AtomicAdd(&m_head, 0));
-    const uint32 tail = std::bit_cast<uint32>(AtomicAdd(&m_tail, 0));
+    const uint32 head = static_cast<uint32>(AtomicAdd(&m_head, 0));
+    const uint32 tail = static_cast<uint32>(AtomicAdd(&m_tail, 0));
 
     if (Full(head, tail))
     {
@@ -102,8 +102,8 @@ bool InputEventQueue::Push(Event&& evt)
 
 bool InputEventQueue::Pop(Event& outEvent)
 {
-    const uint32 head = std::bit_cast<uint32>(AtomicAdd(&m_head, 0));
-    const uint32 tail = std::bit_cast<uint32>(AtomicAdd(&m_tail, 0));
+    const uint32 head = static_cast<uint32>(AtomicAdd(&m_head, 0));
+    const uint32 tail = static_cast<uint32>(AtomicAdd(&m_tail, 0));
 
     if (Empty(head, tail))
     {
@@ -335,7 +335,7 @@ void InputManager::SetKey(KeyCode key, bool pressed)
 {
     AssertOnThread(g_mainThread);
 
-    if (uint32(key) < NUM_KEYBOARD_KEYS)
+    if (uint32(key) < NumKeyboardKeys)
     {
         const uint32 bitIdx = uint32(key) / 32;
         const uint32 bitMask = 1u << (uint32(key) % 32);
@@ -355,7 +355,7 @@ void InputManager::SetMouseButton(MouseButtonKey btn, bool pressed)
 {
     AssertOnThread(g_mainThread);
 
-    if (uint32(btn) < NUM_MOUSE_BUTTONS)
+    if (uint32(btn) < NumMouseButtons)
     {
         const uint32 bitIdx = uint32(btn) / 32;
         const uint32 bitMask = 1u << (uint32(btn) % 32);
@@ -373,7 +373,7 @@ void InputManager::SetMouseButton(MouseButtonKey btn, bool pressed)
 
 bool InputManager::IsKeyDown(KeyCode key) const
 {
-    if (uint32(key) < NUM_KEYBOARD_KEYS)
+    if (uint32(key) < NumKeyboardKeys)
     {
         const uint32 bitIdx = uint32(key) / 32;
         const uint32 bitMask = 1u << (uint32(key) % 32);
@@ -386,7 +386,7 @@ bool InputManager::IsKeyDown(KeyCode key) const
 
 bool InputManager::IsButtonDown(MouseButtonKey btn) const
 {
-    if (uint32(btn) < NUM_MOUSE_BUTTONS)
+    if (uint32(btn) < NumMouseButtons)
     {
         const uint32 bitMask = 1u << (uint32(btn) % 32);
 
@@ -402,7 +402,7 @@ EnumFlags<MouseButtonState> InputManager::GetButtonStates() const
 
     const uint32 states = AtomicAdd(&m_inputState.mouseButtonStates, 0);
 
-    for (uint32 i = 0; i < NUM_MOUSE_BUTTONS; i++)
+    for (uint32 i = 0; i < NumMouseButtons; i++)
     {
         if (states & (1u << i))
         {
@@ -513,6 +513,40 @@ void InputManager::RemoveController(ControllerHandle controller)
     m_controllers[controllerIndex] = InvalidControllerHandle;
     m_validControllersMask &= ~(1u << controllerIndex);
 }
+
+// void InputManager::AddInputHandler(InputHandlerBase* inputHandler)
+// {
+//     if (!inputHandler)
+//     {
+//         return;
+//     }
+
+//     TUniqueLock lock(m_inputHandlersMutex);
+
+//     auto it = m_inputHandlers.Find(inputHandler);
+
+//     if (it == m_inputHandlers.End())
+//     {
+//         m_inputHandlers.PushBack(inputHandler);
+//     }
+// }
+
+// void InputManager::RemoveInputHandler(InputHandlerBase* inputHandler)
+// {
+//     if (!inputHandler)
+//     {
+//         return;
+//     }
+
+//     TUniqueLock lock(m_inputHandlersMutex);
+
+//     auto it = m_inputHandlers.Find(inputHandler);
+
+//     if (it != m_inputHandlers.End())
+//     {
+//         m_inputHandlers.Erase(inputHandler);
+//     }
+// }
 
 void InputManager::ProcessEvent(Event&& event)
 {

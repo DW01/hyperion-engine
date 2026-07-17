@@ -145,7 +145,7 @@ FontAtlas::FontAtlas(
             continue;
         }
 
-        CheckResult(it.second->Create());
+        Check(it.second->Create());
     }
 }
 
@@ -255,7 +255,7 @@ Result FontAtlas::RenderAtlasTextures(float mainAtlasScale, float maxScale, floa
 
         Handle<Texture> atlasTexture = MakeHandle<Texture>(atlasTextureDesc, imageData.ToByteView());
         atlasTexture->SetName(NAME_FMT("FontAtlas_{}", scale));
-        CheckResult(atlasTexture->Create());
+        Check(atlasTexture->Create());
 
         // register the texture to the asset registry
         GetCurrentAssetRegistry()->PutAsset(atlasTexture);

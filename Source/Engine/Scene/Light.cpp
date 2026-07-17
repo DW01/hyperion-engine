@@ -134,7 +134,7 @@ void Light::Init()
 
     if (m_shadowMap.IsValid())
     {
-        CheckResult(m_shadowMap->Create());
+        Check(m_shadowMap->Create());
     }
 
     SetReady(true);
@@ -410,7 +410,7 @@ void Light::SetBakedShadowMap(const Handle<Texture>& shadowMap)
 
         if (IsInitCalled())
         {
-            CheckResult(m_shadowMap->Create());
+            Check(m_shadowMap->Create());
         }
     }
 
@@ -506,7 +506,7 @@ BoundingSphere Light::GetBoundingSphere(bool worldSpace) const
 
 void Light::UpdateRenderProxy(RenderProxyLight* proxy)
 {
-    proxy->light = MakeWeakRef(this);
+    proxy->light = this;
     proxy->lightMaterial = m_material.Get();
     proxy->bakedShadowMap = m_shadowMap.Get();
     proxy->numCascades = m_numShadowMapCascades;

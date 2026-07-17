@@ -19,15 +19,17 @@
             BorderThickness="0,1,0,0"
             Padding="12,8">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-                <Button
-                    Padding="20,6"
-                    Click="OnCancel"
-                    Content="Cancel" />
+
                 <Button
                     Padding="20,6"
                     Click="OnConfirm"
                     Classes="Primary"
-                    Content="Create Scene" />
+                    Content="Create" />
+                    
+                <Button
+                    Padding="20,6"
+                    Click="OnCancel"
+                    Content="Cancel" />
             </StackPanel>
         </Border>
 

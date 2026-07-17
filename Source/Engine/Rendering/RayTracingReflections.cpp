@@ -295,7 +295,7 @@ void RayTracingReflections::CreateImages()
 
     m_texture->SetName(NAME("RayTracingReflectionsTexture"));
 
-    CheckResult(m_texture->Create());
+    Check(m_texture->Create());
 }
 
 void RayTracingReflections::InitTemporalBlending(bool isPathTracer)

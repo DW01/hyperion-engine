@@ -26,14 +26,14 @@ PhysicsMaterial& GetDefaultPhysicsMaterial()
     return s_defaultPhysicsMaterial;
 }
 
-PhysicsShape& GetDefaultPhysicsShape()
+PhysicsShape* GetDefaultPhysicsShape()
 {
-    static BoxPhysicsShape s_defaultPhysicsShape(Name::Invalid(), BoundingBox());
+    static BoxPhysicsShape* s_defaultPhysicsShape = new BoxPhysicsShape;
     return s_defaultPhysicsShape;
 }
 
 RigidBody::RigidBody()
-    : shape(&GetDefaultPhysicsShape()),
+    : shape(GetDefaultPhysicsShape()),
       physicsMaterial(&GetDefaultPhysicsMaterial()),
       m_isKinematic(true)
 {
