@@ -1,12 +1,6 @@
-/*!
- *  @author: The Hyperion Contributors
- *  @date 2016-2026
- *  @licence MIT
-*/
+#include <Core/DataProcessing/Shared/SourceLocation.hpp>
 
-#include <Core/HMF/Parser/SourceLocation.hpp>
-
-namespace Hyperion::HMF {
+namespace Hyperion::DataProcessing {
 
 const SourceLocation SourceLocation::eof(-1, -1, "<eof>");
 
@@ -49,8 +43,7 @@ bool SourceLocation::operator==(const SourceLocation& other) const
 {
     return m_line == other.m_line
         && m_column == other.m_column
-        && m_filename == other.m_filename
-        && m_line == other.m_line;
+        && m_filename == other.m_filename;
 }
 
-} // namespace Hyperion::HMF
+} // namespace Hyperion::DataProcessing

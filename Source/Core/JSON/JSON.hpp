@@ -17,13 +17,13 @@
 
 #include <Core/Defines.hpp>
 
+#include <Core/JSON/Parser/SourceFile.hpp>
+
 namespace Hyperion {
 
 class BufferedReader;
 
 namespace JSON {
-
-class SourceFile;
 
 template <class JSONValueType>
 struct JSONSubscriptWrapper;

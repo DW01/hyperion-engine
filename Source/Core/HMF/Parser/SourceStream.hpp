@@ -1,46 +1,7 @@
-/*!
- *  @author: The Hyperion Contributors
- *  @date 2016-2026
- *  @licence MIT
-*/
-
 #pragma once
 
-#include <Core/HMF/Parser/SourceFile.hpp>
-#include <Core/Unicode.hpp>
+#include <Core/DataProcessing/Shared/SourceStream.hpp>
 
 namespace Hyperion::HMF {
-
-class CORE_API SourceStream
-{
-public:
-    explicit SourceStream(const SourceFile* file);
-    explicit SourceStream(const SourceStream& other);
-
-    HYP_FORCE_INLINE const SourceFile* GetFile() const
-    {
-        return m_file;
-    }
-
-    HYP_FORCE_INLINE size_t GetPosition() const
-    {
-        return m_position;
-    }
-
-    HYP_FORCE_INLINE bool HasNext() const
-    {
-        return m_position < m_file->GetSize();
-    }
-
-    utf::Char32 Peek() const;
-    utf::Char32 Next();
-    utf::Char32 Next(int& posChange);
-    void GoBack(int n = 1);
-    void Read(char* ptr, size_t numBytes);
-
-private:
-    const SourceFile* m_file;
-    size_t m_position;
-};
-
+using Hyperion::DataProcessing::SourceStream;
 } // namespace Hyperion::HMF

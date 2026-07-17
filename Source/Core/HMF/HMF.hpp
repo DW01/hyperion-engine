@@ -16,9 +16,10 @@
 
 #include <Core/Defines.hpp>
 
+#include <Core/HMF/Parser/SourceFile.hpp>
+
 namespace Hyperion::HMF {
 
-class SourceFile;
 class ErrorList;
 
 using ParseResult = TResult<BoxedValue>;
