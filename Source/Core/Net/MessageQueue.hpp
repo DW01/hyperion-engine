@@ -11,7 +11,7 @@
 
 #include <Core/Containers/Queue.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 namespace Hyperion {
 namespace net {

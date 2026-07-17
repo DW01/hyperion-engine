@@ -19,7 +19,7 @@
 #include <Core/IO/BufferedByteReader.hpp>
 #include <Core/IO/ByteWriter.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <System/MessageBox.hpp>
 

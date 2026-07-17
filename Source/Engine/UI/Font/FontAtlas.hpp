@@ -22,7 +22,7 @@
 #include <UI/Font/FontFace.hpp>
 #include <UI/Font/Glyph.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <Util/Img/Bitmap.hpp>
 

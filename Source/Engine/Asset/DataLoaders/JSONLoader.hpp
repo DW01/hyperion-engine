@@ -7,7 +7,7 @@
 #pragma once
 
 #include <Asset/Assets.hpp>
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <Core/Types.hpp>
 

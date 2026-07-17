@@ -24,7 +24,7 @@
 
 #include <Core/FileSystem/FsUtil.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <Core/Utilities/ByteUtil.hpp>
 #include <Core/Utilities/ForEach.hpp>

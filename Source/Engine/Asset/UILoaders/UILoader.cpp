@@ -39,7 +39,7 @@
 
 #include <Util/XML/SAXParser.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <Core/Reflection/Property.hpp>
 #include <Core/Reflection/Field.hpp>

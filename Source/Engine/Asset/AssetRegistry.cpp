@@ -28,12 +28,12 @@
 
 #include <Core/IO/ByteWriter.hpp>
 
-#include <Core/JSON/JSON.hpp>
-#include <Core/HMF/HMF.hpp>
-#include <Core/HMF/Parser/SourceFile.hpp>
-#include <Core/HMF/Parser/SourceStream.hpp>
-#include <Core/HMF/Parser/TokenStream.hpp>
-#include <Core/HMF/Parser/Lexer.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
+#include <Core/DataProcessing/HMF/HMF.hpp>
+#include <Core/DataProcessing/Shared/SourceFile.hpp>
+#include <Core/DataProcessing/Shared/SourceStream.hpp>
+#include <Core/DataProcessing/HMF/Parser/TokenStream.hpp>
+#include <Core/DataProcessing/HMF/Parser/Lexer.hpp>
 
 #include <Core/Config/Config.hpp>
 

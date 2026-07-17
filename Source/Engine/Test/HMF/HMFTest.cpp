@@ -6,7 +6,7 @@
 
 #ifdef HYP_TESTS
 
-#include <Core/HMF/HMF.hpp>
+#include <Core/DataProcessing/HMF/HMF.hpp>
 
 #include <Core/Reflection/BoxedValue.hpp>
 #include <Core/Reflection/TypeInfo.hpp>

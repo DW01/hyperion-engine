@@ -15,7 +15,7 @@
 
 #include <Rendering/Texture.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <FontAtlasLoader.generated.inl>
 

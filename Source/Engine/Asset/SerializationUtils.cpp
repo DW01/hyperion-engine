@@ -8,9 +8,9 @@
 #include <Asset/AssetObject.hpp>
 #include <Asset/AssetReference.hpp>
 
-#include <Core/HMF/HMF.hpp>
+#include <Core/DataProcessing/HMF/HMF.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <Core/Config/Config.hpp>
 

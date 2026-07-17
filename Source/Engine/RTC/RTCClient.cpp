@@ -11,7 +11,7 @@
 #include <RTC/RTCTrack.hpp>
 #include <RTC/RTCDataChannel.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #ifdef HYP_LIBDATACHANNEL
 

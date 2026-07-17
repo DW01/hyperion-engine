@@ -33,7 +33,7 @@
 
 #include <Core/CLI/CommandLine.hpp>
 
-#include <Core/JSON/JSON.hpp>
+#include <Core/DataProcessing/JSON/JSON.hpp>
 
 #include <Core/Core.hpp>
 
