@@ -6,8 +6,8 @@
 
 #include <Core/DataProcessing/HMF/HMF.hpp>
 #include <Core/DataProcessing/HMF/Parser/Parser.hpp>
-#include <Core/DataProcessing/HMF/Parser/CompilerError.hpp>
-#include <Core/DataProcessing/HMF/Parser/Token.hpp>
+#include <Core/DataProcessing/Shared/CompilerError.hpp>
+#include <Core/DataProcessing/Shared/Token.hpp>
 
 #include <Core/Logging/Logger.hpp>
 
@@ -28,9 +28,9 @@
 
 #include <cstdlib>
 
-namespace Hyperion::HMF {
+namespace Hyperion::DataProcessing::HMF {
 
-Parser::Parser(TokenStream* tokenStream, ErrorList* errorList)
+Parser::Parser(TokenStream* tokenStream, DataProcessing::ErrorList<CompilerError>* errorList)
     : m_tokenStream(tokenStream),
       m_errorList(errorList)
 {
@@ -1442,4 +1442,4 @@ void Parser::Warning(ErrorMessage msg, const SourceLocation& loc, const String& 
     m_errorList->AddError(CompilerError(ErrorLevel::Warning, msg, loc, arg1));
 }
 
-} // namespace Hyperion::HMF
+} // namespace Hyperion::DataProcessing::HMF

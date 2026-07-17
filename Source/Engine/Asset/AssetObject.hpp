@@ -50,10 +50,6 @@ class ProcRef;
 
 using functional::ProcRef;
 
-namespace JSON {
-class Object;
-} // namespace JSON
-
 ENGINE_API extern Pool* g_assetPool;
 using AssetAllocator = AllocatorInstance<Pool, &g_assetPool>;
 

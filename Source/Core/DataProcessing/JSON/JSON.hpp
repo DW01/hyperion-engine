@@ -18,10 +18,15 @@
 #include <Core/Defines.hpp>
 
 namespace Hyperion {
-
 class BufferedReader;
+} // namespace Hyperion
 
-namespace JSON {
+
+namespace Hyperion::DataProcessing {
+class SourceFile;
+} // namespace Hyperion::DataProcessing
+
+namespace Hyperion::DataProcessing::JSON {
 
 template <class JSONValueType>
 struct JSONSubscriptWrapper;
@@ -866,5 +871,8 @@ CORE_API ParseResult Parse(const String& jsonString);
 CORE_API ParseResult Parse(BufferedReader& reader);
 CORE_API ParseResult Parse(const SourceFile& sourceFile);
 
-} // namespace JSON
+} // namespace Hyperion::DataProcessing::JSON
+
+namespace Hyperion {
+namespace JSON = DataProcessing::JSON;
 } // namespace Hyperion

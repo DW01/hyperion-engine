@@ -6,8 +6,10 @@
 
 #pragma once
 
-#include <Core/DataProcessing/HMF/Parser/TokenStream.hpp>
-#include <Core/DataProcessing/HMF/Parser/ErrorList.hpp>
+#include <Core/DataProcessing/Shared/SourceLocation.hpp>
+#include <Core/DataProcessing/Shared/Token.hpp>
+#include <Core/DataProcessing/Shared/TokenStream.hpp>
+#include <Core/DataProcessing/Shared/ErrorList.hpp>
 
 #include <Core/Reflection/BoxedValueFwd.hpp>
 #include <Core/Reflection/TypeInfoFwd.hpp>
@@ -15,12 +17,20 @@
 #include <Core/Containers/String.hpp>
 #include <Core/Types.hpp>
 
-namespace Hyperion::HMF {
+namespace Hyperion::DataProcessing {
+
+enum ErrorMessage : uint8;
+
+class CompilerError;
+
+} // namespace Hyperion::DataProcessing
+
+namespace Hyperion::DataProcessing::HMF {
 
 class Parser
 {
 public:
-    Parser(TokenStream* tokenStream, ErrorList* errorList);
+    Parser(TokenStream* tokenStream, DataProcessing::ErrorList<CompilerError>* errorList);
 
     bool Parse(BoxedValue& out);
 
@@ -74,7 +84,7 @@ private:
     }
 
     TokenStream* m_tokenStream;
-    ErrorList* m_errorList;
+    DataProcessing::ErrorList<CompilerError>* m_errorList;
 };
 
-} // namespace Hyperion::HMF
+} // namespace Hyperion::DataProcessing::HMF

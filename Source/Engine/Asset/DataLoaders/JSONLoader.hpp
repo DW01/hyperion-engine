@@ -13,8 +13,6 @@
 
 namespace Hyperion {
 
-using namespace JSON;
-
 HYP_CLASS(NoScriptBindings)
 class JSONLoader : public AssetLoaderBase
 {

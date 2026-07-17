@@ -70,6 +70,18 @@ public:
         }
     }
 
+    bool HasFatalErrors() const
+    {
+        for (auto& error : m_errors)
+        {
+            using LevelType = std::decay_t<decltype(error.GetLevel())>;
+            if (error.GetLevel() == LevelType(0))
+                return true;
+        }
+
+        return false;
+    }
+
     template <class F>
     bool HasError(F&& pred) const
     {

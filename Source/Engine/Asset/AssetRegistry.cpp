@@ -32,8 +32,8 @@
 #include <Core/DataProcessing/HMF/HMF.hpp>
 #include <Core/DataProcessing/Shared/SourceFile.hpp>
 #include <Core/DataProcessing/Shared/SourceStream.hpp>
-#include <Core/DataProcessing/HMF/Parser/TokenStream.hpp>
-#include <Core/DataProcessing/HMF/Parser/Lexer.hpp>
+#include <Core/DataProcessing/Shared/TokenStream.hpp>
+#include <Core/DataProcessing/Shared/Lexer.hpp>
 
 #include <Core/Config/Config.hpp>
 

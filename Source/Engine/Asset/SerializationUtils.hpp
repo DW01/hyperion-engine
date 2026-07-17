@@ -26,12 +26,14 @@ struct TypeId;
 using utilities::TypeId;
 using utilities::TypeInfo;
 
-namespace JSON {
+namespace DataProcessing::JSON {
 
 class Value;
 class Object;
 
-} // namespace JSON
+} // namespace DataProcessing::JSON
+
+namespace JSON = DataProcessing::JSON;
 
 namespace functional {
 

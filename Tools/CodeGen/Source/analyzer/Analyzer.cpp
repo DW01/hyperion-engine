@@ -36,8 +36,6 @@ HYP_DECLARE_LOG_CHANNEL(Tool);
 
 #define HYP_CODEGEN_FRIENDLY_NAMES 1
 
-using namespace JSON;
-
 static const Map<String, ClassDefinitionType> s_classDefinitionTypes = {
     { "HYP_CLASS", ClassDefinitionType::Class },
     { "HYP_STRUCT", ClassDefinitionType::Struct },

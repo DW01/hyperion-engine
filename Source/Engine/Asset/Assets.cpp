@@ -272,7 +272,7 @@ void AssetManager::RegisterDefaultLoaders()
     Register<FBXModelLoader, Prefab>("fbx");
     Register<GLTFModelLoader, Prefab>("gltf", "glb");
     // Register<PLYModelLoader, PLYModel>("ply");
-    Register<JSONLoader, Value>("json");
+    Register<JSONLoader, JSON::Value>("json");
     // freetype font loader
     Register<FontFaceLoader, SharedPtr<FontFace>>(
         "ttf", "otf", "ttc", "dfont");

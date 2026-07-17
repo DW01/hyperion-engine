@@ -19,7 +19,8 @@ namespace Hyperion {
 AssetLoadResult JSONLoader::LoadAsset(LoaderState& state) const
 {
     Assert(state.assetManager != nullptr);
-    Value json;
+
+    JSON::Value json;
 
     const ByteBuffer byteBuffer = state.stream.Read();
 

@@ -16,13 +16,20 @@
 
 #include <Core/Defines.hpp>
 
-#include <Core/DataProcessing/Shared/SourceFile.hpp>
 
-namespace Hyperion::HMF {
+namespace Hyperion::DataProcessing {
 
-using Hyperion::DataProcessing::SourceFile;
-
+template <class TErrorType>
 class ErrorList;
+
+class SourceFile;
+class CompilerError;
+
+} // namespace Hyperion::DataProcessing
+
+namespace Hyperion::DataProcessing::HMF {
+
+using ErrorList = ::Hyperion::DataProcessing::ErrorList<CompilerError>;
 
 using ParseResult = TResult<BoxedValue>;
 
@@ -35,4 +42,8 @@ CORE_API ParseResult Parse(const String& source, ErrorList* outErrors = nullptr)
 
 CORE_API ParseResult Parse(const SourceFile& sourceFile);
 
-} // namespace Hyperion::HMF
+} // namespace Hyperion::DataProcessing::HMF
+
+namespace Hyperion {
+namespace HMF = DataProcessing::HMF;
+} // namespace Hyperion

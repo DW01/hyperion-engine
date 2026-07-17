@@ -5,7 +5,8 @@
  */
 
 #include <Core/DataProcessing/JSON/JSON.hpp>
-#include <Core/DataProcessing/JSON/Parser/Lexer.hpp>
+#include <Core/DataProcessing/Shared/Lexer.hpp>
+#include <Core/DataProcessing/JSON/Parser/CompilationUnit.hpp>
 
 #include <Core/Containers/FixedArray.hpp>
 
@@ -18,8 +19,11 @@
 // needed for TypeInfo
 #include <Core/Reflection/BoxedValue.hpp>
 
-namespace Hyperion {
-namespace JSON {
+namespace Hyperion::DataProcessing::JSON {
+
+using DataProcessing::CompilerError;
+using DataProcessing::ErrorLevel;
+using DataProcessing::SourceLocation;
 
 static const Value s_undefined = JSON::JSUndefined();
 static const Value s_null = JSON::JSNull();
@@ -692,7 +696,7 @@ public:
         if (m_tokenStream->HasNext())
         {
             m_compilationUnit->GetErrorList().AddError(CompilerError(
-                ErrorLevel::LEVEL_ERROR,
+                ErrorLevel::Error,
                 ErrorMessage::MSG_UNEXPECTED_TOKEN,
                 CurrentLocation()));
         }
@@ -743,7 +747,7 @@ private:
             }
 
             m_compilationUnit->GetErrorList().AddError(CompilerError(
-                ErrorLevel::LEVEL_ERROR,
+                ErrorLevel::Error,
                 ErrorMessage::MSG_UNEXPECTED_IDENTIFIER,
                 location));
         }
@@ -898,7 +902,7 @@ private:
             }
 
             m_compilationUnit->GetErrorList().AddError(CompilerError(
-                ErrorLevel::LEVEL_ERROR,
+                ErrorLevel::Error,
                 errorMsg,
                 location,
                 errorStr));
@@ -939,7 +943,7 @@ private:
             const SourceLocation location = CurrentLocation();
 
             m_compilationUnit->GetErrorList().AddError(CompilerError(
-                ErrorLevel::LEVEL_ERROR,
+                ErrorLevel::Error,
                 ErrorMessage::MSG_UNEXPECTED_IDENTIFIER,
                 location));
 
@@ -1275,7 +1279,7 @@ ParseResult Parse(const SourceFile& sourceFile)
         return { false, errorMessage, Value() };
     };
 
-    Lexer lexer(SourceStream(&sourceFile), &tokenStream, &unit);
+    Lexer lexer(SourceStream(&sourceFile), &tokenStream, &unit.GetErrorList());
     lexer.Analyze();
 
     if (unit.GetErrorList().HasFatalErrors())
@@ -1299,5 +1303,4 @@ ParseResult Parse(const SourceFile& sourceFile)
 
 #pragma endregion JSON
 
-} // namespace JSON
-} // namespace Hyperion
+} // namespace Hyperion::DataProcessing::JSON

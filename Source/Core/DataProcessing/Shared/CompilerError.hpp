@@ -1,9 +1,3 @@
-/*!
- *  @author: The Hyperion Contributors
- *  @date 2016-2026
- *  @licence MIT
-*/
-
 #pragma once
 
 #include <Core/DataProcessing/Shared/SourceLocation.hpp>
@@ -13,9 +7,7 @@
 
 #include <Core/Utilities/Format.hpp>
 
-namespace Hyperion::HMF {
-
-// Error starts at zero so when we sort the error list, they appear first in the list.
+namespace Hyperion::DataProcessing {
 
 enum class ErrorLevel : uint8
 {
@@ -24,13 +16,15 @@ enum class ErrorLevel : uint8
     Diagnostic
 };
 
-enum ErrorMessage
+enum ErrorMessage : uint8
 {
-    /* Generic / lexical errors */
+    /* Generic / lexical errors (shared between all parsers) */
     MSG_INTERNAL_ERROR,
     MSG_CUSTOM_ERROR,
     MSG_NOT_IMPLEMENTED,
     MSG_ILLEGAL_SYNTAX,
+    MSG_ILLEGAL_EXPRESSION,
+    MSG_ILLEGAL_OPERATOR,
     MSG_UNEXPECTED_CHARACTER,
     MSG_UNEXPECTED_IDENTIFIER,
     MSG_UNEXPECTED_TOKEN,
@@ -41,20 +35,40 @@ enum ErrorMessage
     MSG_EXPECTED_IDENTIFIER,
     MSG_EXPECTED_TOKEN,
 
+    /* Expression / type errors (from JSON/lang parser) */
+    MSG_INVALID_OPERATOR_FOR_TYPE,
+    MSG_CANNOT_OVERLOAD_OPERATOR,
+    MSG_CONST_MISSING_ASSIGNMENT,
+    MSG_REF_MISSING_ASSIGNMENT,
+    MSG_CANNOT_CREATE_REFERENCE,
+    MSG_CONST_ASSIGNED_TO_NON_CONST_REF,
+    MSG_CANNOT_MODIFY_RVALUE,
+    MSG_PROHIBITED_ACTION_ATTRIBUTE,
+    MSG_UNBALANCED_EXPRESSION,
+    MSG_UNMATCHED_PARENTHESES,
+    MSG_ARGUMENT_AFTER_VARARGS,
+    MSG_INCORRECT_NUMBER_OF_ARGUMENTS,
+    MSG_MAXIMUM_NUMBER_OF_ARGUMENTS,
+    MSG_ARG_TYPE_INCOMPATIBLE,
+    MSG_NAMED_ARG_NOT_FOUND,
+    MSG_REDECLARED_IDENTIFIER,
+    MSG_REDECLARED_IDENTIFIER_TYPE,
+    MSG_UNDECLARED_IDENTIFIER,
+
     /* HMF-specific semantic errors */
-    MSG_UNKNOWN_FIELD,            // class '%' has no field '%'
-    MSG_CANNOT_ASSIGN_PROPERTY,   // property '%' is not assignable
-    MSG_UNRESOLVED_ENUM_NAME,     // enum '%' has no value named '%'
-    MSG_TYPE_MISMATCH,            // value of type '%' is not assignable to '%'
-    MSG_CLASS_NOT_FOUND,          // class '%' is not registered
-    MSG_CLASS_NOT_DERIVED,        // class '%' is not derived from '%'
-    MSG_NOT_AN_ENUM_FLAGS_TYPE,   // flag-list syntax used on non-EnumFlags type '%'
-    MSG_NOT_AN_ENUM_TYPE,         // enum bareword used on non-enum type '%'
-    MSG_UNKNOWN_VARIANT_TAG,      // variant has no type tagged '%'
-    MSG_INVALID_LITERAL_FOR_TYPE, // literal '%' is not valid for type '%'
-    MSG_UNBALANCED_BRACES,        // expected '}'
-    MSG_UNBALANCED_BRACKETS,      // expected ']'
-    MSG_UNKNOWN_ASSET_PATH        // asset path '%' could not be resolved
+    MSG_UNKNOWN_FIELD,
+    MSG_CANNOT_ASSIGN_PROPERTY,
+    MSG_UNRESOLVED_ENUM_NAME,
+    MSG_TYPE_MISMATCH,
+    MSG_CLASS_NOT_FOUND,
+    MSG_CLASS_NOT_DERIVED,
+    MSG_NOT_AN_ENUM_FLAGS_TYPE,
+    MSG_NOT_AN_ENUM_TYPE,
+    MSG_UNKNOWN_VARIANT_TAG,
+    MSG_INVALID_LITERAL_FOR_TYPE,
+    MSG_UNBALANCED_BRACES,
+    MSG_UNBALANCED_BRACKETS,
+    MSG_UNKNOWN_ASSET_PATH
 };
 
 class CORE_API CompilerError
@@ -75,25 +89,10 @@ public:
     CompilerError(const CompilerError& other);
     ~CompilerError() = default;
 
-    HYP_NODISCARD HYP_FORCE_INLINE ErrorLevel GetLevel() const
-    {
-        return m_level;
-    }
-
-    HYP_NODISCARD HYP_FORCE_INLINE ErrorMessage GetMessage() const
-    {
-        return m_msg;
-    }
-
-    HYP_NODISCARD HYP_FORCE_INLINE const SourceLocation& GetLocation() const
-    {
-        return m_location;
-    }
-
-    HYP_NODISCARD HYP_FORCE_INLINE const String& GetText() const
-    {
-        return m_text;
-    }
+    HYP_NODISCARD HYP_FORCE_INLINE ErrorLevel GetLevel() const { return m_level; }
+    HYP_NODISCARD HYP_FORCE_INLINE ErrorMessage GetMessage() const { return m_msg; }
+    HYP_NODISCARD HYP_FORCE_INLINE const SourceLocation& GetLocation() const { return m_location; }
+    HYP_NODISCARD HYP_FORCE_INLINE const String& GetText() const { return m_text; }
 
     HYP_NODISCARD HYP_FORCE_INLINE bool operator==(const CompilerError& other) const
     {
@@ -138,4 +137,4 @@ private:
     String m_text;
 };
 
-} // namespace Hyperion::HMF
+} // namespace Hyperion::DataProcessing

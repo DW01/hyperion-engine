@@ -1,14 +1,9 @@
-/*!
- *  @author: The Hyperion Contributors
- *  @date 2016-2026
- *  @licence MIT
-*/
-
 #pragma once
 
-#include <Core/DataProcessing/JSON/Parser/ErrorList.hpp>
+#include <Core/DataProcessing/Shared/ErrorList.hpp>
+#include <Core/DataProcessing/Shared/CompilerError.hpp>
 
-namespace Hyperion::JSON {
+namespace Hyperion::DataProcessing::JSON {
 
 class CompilationUnit
 {
@@ -17,18 +12,18 @@ public:
     CompilationUnit(const CompilationUnit& other) = delete;
     ~CompilationUnit();
 
-    ErrorList& GetErrorList()
+    DataProcessing::ErrorList<DataProcessing::CompilerError>& GetErrorList()
     {
         return m_errorList;
     }
 
-    const ErrorList& GetErrorList() const
+    const DataProcessing::ErrorList<DataProcessing::CompilerError>& GetErrorList() const
     {
         return m_errorList;
     }
 
 private:
-    ErrorList m_errorList;
+    DataProcessing::ErrorList<DataProcessing::CompilerError> m_errorList;
 };
 
-} // namespace Hyperion::JSON
+} // namespace Hyperion::DataProcessing::JSON

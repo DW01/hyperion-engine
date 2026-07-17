@@ -1651,6 +1651,16 @@ extern enum Topology : uint8
     TOP_LINES,
     TOP_POINTS
 end
+extern struct BlendFunction
+    GetSrcColor() -> BlendModeFactor
+    SetSrcColor(src : BlendModeFactor) -> void
+    GetDstColor() -> BlendModeFactor
+    SetDstColor(dst : BlendModeFactor) -> void
+    GetSrcAlpha() -> BlendModeFactor
+    SetSrcAlpha(src : BlendModeFactor) -> void
+    GetDstAlpha() -> BlendModeFactor
+    SetDstAlpha(dst : BlendModeFactor) -> void
+end
 extern struct MeshRayTracingData
 end
 extern enum RenderBucket : uint8
