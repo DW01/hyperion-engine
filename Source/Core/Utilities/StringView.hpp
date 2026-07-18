@@ -476,7 +476,7 @@ public:
     /*! \brief Find the first occurrence of the character
      *  \param ch The character to search for.
      *  \returns The index of the first occurrence of the character or NotFound if it is not in the string. */
-    HYP_FORCE_INLINE constexpr size_t FindFirstIndex(WidestCharType ch) const
+    constexpr size_t FindFirstIndex(WidestCharType ch) const
     {
         if (ch == 0)
         {
@@ -499,7 +499,7 @@ public:
     /*! \brief Find the last occurrence of the character
      *  \param ch The character to search for.
      *  \returns The index of the last occurrence of the character or NotFound if it is not in the string. */
-    HYP_FORCE_INLINE constexpr size_t FindLastIndex(WidestCharType ch) const
+    constexpr size_t FindLastIndex(WidestCharType ch) const
     {
         if (ch == 0)
         {
@@ -523,7 +523,7 @@ public:
     /*! \brief Find the first occurrence of the substring.
      *  \param substr The substring to search for.
      *  \returns The index of the first occurrence of the substring. */
-    HYP_FORCE_INLINE constexpr size_t FindFirstIndex(const StringView& substr) const
+    constexpr size_t FindFirstIndex(const StringView& substr) const
     {
         const StringView str = StrStr(substr);
 
@@ -545,7 +545,7 @@ public:
     /*! \brief Find the last occurrence of the substring.
      *  \param substr The substring to search for.
      *  \returns The index of the last occurrence of the substring or NotFound if it is not in the string. */
-    HYP_FORCE_INLINE constexpr size_t FindLastIndex(const StringView& substr) const
+    constexpr size_t FindLastIndex(const StringView& substr) const
     {
         const size_t thisSize = Size();
         const size_t otherSize = substr.Size();
