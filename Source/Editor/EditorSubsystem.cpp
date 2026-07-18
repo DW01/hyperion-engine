@@ -2485,7 +2485,7 @@ void EditorSubsystem::CreateHighlightNode()
 
 bool EditorSubsystem::StartSimulation()
 {
-    if (m_editorViewports.Empty() || !m_currentProject.IsValid())
+    if (!m_currentProject.IsValid())
     {
         return false;
     }

@@ -1,5 +1,8 @@
 ShaderBundle "DebugVis" {
     StaticProperties = []
-    CompiledShaders = [@"Engine://Shaders/DebugVis_8342295170788631938", @"Engine://Shaders/DebugVis_7081072907723937429"]
+    CompiledShaders = [
+        @"Engine://Shaders/DebugVis_8342295170788631938"
+        @"Engine://Shaders/DebugVis_7081072907723937429"
+    ]
     FriendlyName = "DebugVis"
 }

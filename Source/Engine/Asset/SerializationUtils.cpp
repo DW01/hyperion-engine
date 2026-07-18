@@ -2625,16 +2625,20 @@ Result BoxedToHMFImpl(
 
         const size_t count = handler->GetSize(value);
 
-        outText += "[";
+        if (count == 0)
+        {
+            // Don't break line for empty array.
+            outText += "[]";
+            return {};
+        }
+
+        outText += "[\n";
 
         const TypeInfo* elementType = typeInfo.GetElementType();
 
         for (size_t i = 0; i < count; i++)
         {
-            if (i > 0)
-            {
-                outText += ", ";
-            }
+            WriteIndent(outText, indent + 1);
 
             BoxedValue element;
 
@@ -2662,14 +2666,16 @@ Result BoxedToHMFImpl(
                     actualElementType = element.GetTypeInfo();
                 }
 
-                if (Result elementResult = BoxedToHMFImpl(element, outText, actualElementType, elementOpts, indent);
-                    elementResult.HasError())
+                if (Result elementResult = BoxedToHMFImpl(element, outText, actualElementType, elementOpts, indent + 1);  elementResult.HasError())
                 {
                     outText += "null";
                 }
             }
+            
+            outText += "\n";
         }
 
+        WriteIndent(outText, indent);
         outText += "]";
 
         return {};
@@ -2767,15 +2773,11 @@ Result BoxedToHMFImpl(
         const int numRows = handler->GetNumRows();
         const int numCols = handler->GetNumColumns();
 
-        outText += "[";
+        outText += "[\n";
 
         for (int row = 0; row < numRows; row++)
         {
-            if (row > 0)
-            {
-                outText += ", ";
-            }
-
+            WriteIndent(outText, indent + 1);
             outText += "[";
 
             for (int col = 0; col < numCols; col++)
@@ -2790,9 +2792,10 @@ Result BoxedToHMFImpl(
                 BoxedToHMFImpl(BoxedValue(floatValue), outText, elementType, opts, indent);
             }
 
-            outText += "]";
+            outText += "]\n";
         }
 
+        WriteIndent(outText, indent);
         outText += "]";
 
         return {};

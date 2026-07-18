@@ -44,6 +44,7 @@
 
 #include <Rendering/Texture.hpp>
 #include <Rendering/Mesh.hpp>
+#include <Rendering/Material.hpp>
 
 #include <Rendering/Util/MeshBuilder.hpp>
 
@@ -1012,12 +1013,16 @@ public:
 
     virtual String GetText() const override
     {
-        return HYP_FORMAT("Add {}", Derived::s_defaultNodeName);
+        static const auto s_typeNameNoNamespace = TypeNameWithoutNamespace<typename Derived::NodeType>();
+
+        return HYP_FORMAT("Add {}", s_typeNameNoNamespace.Data());
     }
 
     virtual void Execute(EditorSubsystem* subsystem) override
     {
-        AddNodeOfTypeImpl<Derived, typename Derived::NodeType>(subsystem, Derived::s_defaultNodeName);
+        static const auto s_typeNameNoNamespace = TypeNameWithoutNamespace<typename Derived::NodeType>();
+
+        AddNodeOfTypeImpl<Derived, typename Derived::NodeType>(subsystem, NAME_FMT("New{}", s_typeNameNoNamespace.Data()));
     }
 };
 
@@ -1029,7 +1034,6 @@ class EditorCommandAddEntity final : public EditorCommandAddNodeBase<EditorComma
 
 public:
     using NodeType = Entity;
-    static inline const Name s_defaultNodeName = NAME("New Entity");
 };
 
 DEFINE_EDITOR_COMMAND(AddEntity);
@@ -1044,7 +1048,6 @@ class EditorCommandAddEmptyNode final : public EditorCommandAddNodeBase<EditorCo
 
 public:
     using NodeType = Node;
-    static inline const Name s_defaultNodeName = NAME("New Node");
 };
 
 DEFINE_EDITOR_COMMAND(AddEmptyNode);
@@ -1059,7 +1062,6 @@ class EditorCommandAddInstance final : public EditorCommandAddNodeBase<EditorCom
 
 public:
     using NodeType = InstancedMeshProxy;
-    static inline const Name s_defaultNodeName = NAME("New Instance");
 };
 
 DEFINE_EDITOR_COMMAND(AddInstance);
@@ -1072,7 +1074,6 @@ class EditorCommandAddCamera final : public EditorCommandAddNodeBase<EditorComma
 
 public:
     using NodeType = Camera;
-    static inline const Name s_defaultNodeName = NAME("New Camera");
 };
 
 DEFINE_EDITOR_COMMAND(AddCamera);
@@ -1087,7 +1088,6 @@ class EditorCommandAddSprite final : public EditorCommandAddNodeBase<EditorComma
 
 public:
     using NodeType = Sprite;
-    static inline const Name s_defaultNodeName = NAME("New Sprite");
 };
 
 DEFINE_EDITOR_COMMAND(AddSprite);
@@ -1102,7 +1102,6 @@ class EditorCommandAddTextSprite final : public EditorCommandAddNodeBase<EditorC
 
 public:
     using NodeType = TextSprite;
-    static inline const Name s_defaultNodeName = NAME("New Text Sprite");
 };
 
 DEFINE_EDITOR_COMMAND(AddTextSprite);
@@ -1117,7 +1116,6 @@ class EDITOR_API EditorCommandAddPointLight final : public EditorCommandAddNodeB
 
 public:
     using NodeType = PointLight;
-    static inline const Name s_defaultNodeName = NAME("New Point Light");
 };
 
 DEFINE_EDITOR_COMMAND(AddPointLight);
@@ -1132,7 +1130,6 @@ class EditorCommandAddDirectionalLight final : public EditorCommandAddNodeBase<E
 
 public:
     using NodeType = DirectionalLight;
-    static inline const Name s_defaultNodeName = NAME("New Directional Light");
 };
 
 DEFINE_EDITOR_COMMAND(AddDirectionalLight);
@@ -1147,7 +1144,6 @@ class EditorCommandAddSpotLight final : public EditorCommandAddNodeBase<EditorCo
 
 public:
     using NodeType = SpotLight;
-    static inline const Name s_defaultNodeName = NAME("New Spot Light");
 };
 
 DEFINE_EDITOR_COMMAND(AddSpotLight);
@@ -1162,7 +1158,6 @@ class EditorCommandAddAreaRectLight final : public EditorCommandAddNodeBase<Edit
 
 public:
     using NodeType = AreaRectLight;
-    static inline const Name s_defaultNodeName = NAME("New Rectangular Area Light");
 };
 
 DEFINE_EDITOR_COMMAND(AddAreaRectLight);
@@ -2283,6 +2278,99 @@ public:
 DEFINE_EDITOR_COMMAND(NewPhysicsShape);
 
 #pragma endregion NewPhysicsShape
+
+// Shapes
+
+#pragma region AddCube
+
+class EditorCommandAddCube final : public EditorCommandBase
+{
+    HYP_OBJECT_BODY(EditorCommandAddCube);
+
+public:
+    virtual ~EditorCommandAddCube() override = default;
+
+    virtual String GetText() const override
+    {
+        return "Add Cube";
+    }
+
+    virtual void Execute(EditorSubsystem* subsystem) override
+    {
+        Handle<EditorProject> currentProject = subsystem->GetCurrentProject();
+        if (!currentProject.IsValid())
+        {
+            HYP_LOG(Editor, Error, "No project loaded; cannot add cube!");
+
+            return;
+        }
+
+        // Use mesh builder to create cube mesh
+
+        Handle<Mesh> cubeMesh = MeshBuilder::Cube();
+        cubeMesh->SetName(NAME("CubeMesh"));
+
+        MaterialAttributes attributes;
+        attributes.shaderName = NAME("GeometryPass");
+
+        Handle<Material> material = MakeHandle<Material>(NAME("CubeMaterial"), attributes);
+
+        Handle<Entity> entity = MakeHandle<Entity>();
+        entity->SetName(NAME("CubeEntity"));
+
+        Handle<FunctionalEditorAction> action = MakeHandle<FunctionalEditorAction>(
+            GetText(),
+            Proc<EditorActionFunctions()>(
+                [cubeMesh, entity, material]() -> EditorActionFunctions
+                {
+                    return EditorActionFunctions {
+                        .execute = Proc<void(EditorSubsystem*, EditorProject*)>(
+                            [&](EditorSubsystem* subsystem, EditorProject* project)
+                            {
+                                GetCurrentAssetRegistry()->PutAsset(cubeMesh);
+
+                                // Make an entity , assign MeshComponent w/ Mesh and a base Material
+
+                                Handle<Scene> activeScene = subsystem->GetActiveScene();
+
+                                if (activeScene.IsValid())
+                                {
+                                    activeScene->GetRoot()->AddChild(entity);
+
+                                    GetCurrentAssetRegistry()->PutAsset(cubeMesh);
+                                    GetCurrentAssetRegistry()->PutAsset(material);
+
+                                    // assign mesh component
+                                    MeshComponent meshComponent;
+                                    meshComponent.mesh = cubeMesh;
+                                    meshComponent.material = material;
+                                    entity->AddComponent<MeshComponent>(meshComponent);
+
+                                    entity->SetLocalBounds(cubeMesh->GetAABB());
+                                }
+                            }),
+                        .revert = Proc<void(EditorSubsystem*, EditorProject*)>(
+                            [&](EditorSubsystem*, EditorProject* project)
+                            {
+                                // revert: remove cube mesh, material from registry and the entity from the scene.
+
+                                GetCurrentAssetRegistry()->RemoveAsset(cubeMesh);
+                                GetCurrentAssetRegistry()->RemoveAsset(material);
+
+                                entity->Remove();
+                            })
+                    };
+                }));
+
+        InitObject(action);
+
+        currentProject->GetActionStack()->PushAction(action);
+    }
+};
+
+DEFINE_EDITOR_COMMAND(AddCube);
+
+#pragma endregion AddCube
 
 #undef DEFINE_EDITOR_COMMAND
 

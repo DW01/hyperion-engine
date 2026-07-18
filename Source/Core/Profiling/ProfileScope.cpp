@@ -464,7 +464,7 @@ public:
 
         ++m_numRecordedScopes;
 
-        m_head = std::ref(m_head.get().children.EmplaceBack(label, location, m_head));
+        m_head = std::ref(m_head.get().children.EmplaceBack(label, location, &m_head.get()));
         return m_head.get();
     }
 

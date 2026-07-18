@@ -8,7 +8,24 @@ Texture "PointLightShadowMapImage" {
         TextureWrapMode = TWM_CLAMP_TO_EDGE
         NumLayers = 48
         ImageUsage = IU_SAMPLED|IU_ATTACHMENT
-        MipOffsets = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        MipOffsets = [
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+        ]
     }
     ImageData = {
         Key = ""

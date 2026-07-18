@@ -66,7 +66,7 @@ bool Parser::Parse(BoxedValue& out, bool moveResult)
     }
     else
     {
-        out = m_target;
+        out = *m_target;
     }
 
     return true;

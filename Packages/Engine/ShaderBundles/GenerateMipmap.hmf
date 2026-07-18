@@ -1,5 +1,8 @@
 ShaderBundle "GenerateMipmap" {
-    StaticProperties = []
-    CompiledShaders = [@"Engine://Shaders/GenerateMipmap_13803781059551201562"]
+    StaticProperties = [
+    ]
+    CompiledShaders = [
+        @"Engine://Shaders/GenerateMipmap_13803781059551201562"
+    ]
     FriendlyName = "GenerateMipmap"
 }

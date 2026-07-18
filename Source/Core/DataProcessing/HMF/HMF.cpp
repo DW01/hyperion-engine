@@ -42,7 +42,7 @@ ParseResult RunParse(const SourceFile& sourceFile, ErrorList* outErrors, BoxedVa
         if (parser.Parse())
         {
             // ok
-            result = {};
+            result = *target;
         }
     }
     else
@@ -80,7 +80,7 @@ ParseResult RunParse(const SourceFile& sourceFile, ErrorList* outErrors, BoxedVa
 
 } // namespace anonymous
 
-ParseResult Parse(const FilePath& filePath, const String& source, ErrorList* outErrors, BoxedValue* target = nullptr)
+ParseResult Parse(const FilePath& filePath, const String& source, ErrorList* outErrors, BoxedValue* target)
 {
     SourceFile sourceFile(filePath, source.Size());
     sourceFile.ReadIntoBuffer(reinterpret_cast<const ubyte*>(source.Data()), source.Size());
@@ -88,12 +88,12 @@ ParseResult Parse(const FilePath& filePath, const String& source, ErrorList* out
     return RunParse(sourceFile, outErrors, target);
 }
 
-ParseResult Parse(const String& source, ErrorList* outErrors, BoxedValue* target = nullptr)
+ParseResult Parse(const String& source, ErrorList* outErrors, BoxedValue* target)
 {
     return Parse(s_inMemoryFilePath, source, outErrors, target);
 }
 
-ParseResult Parse(const SourceFile& sourceFile, BoxedValue* target = nullptr)
+ParseResult Parse(const SourceFile& sourceFile, BoxedValue* target)
 {
     return RunParse(sourceFile, nullptr, target);
 }

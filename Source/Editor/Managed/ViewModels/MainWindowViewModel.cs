@@ -140,6 +140,12 @@ namespace Hyperion.Editor.ViewModels
 
         public EditorCommand NewScript => new EditorCommand("NewScript");
 
+        // Shapes
+        public EditorCommand AddCube => new EditorCommand("AddCube");
+        public EditorCommand AddNormalizedCubeSphere => new EditorCommand("AddNormalizedCubeSphere");
+        public EditorCommand AddPlane => new EditorCommand("AddPlane");
+        public EditorCommand AddCylinder => new EditorCommand("AddCylinder");
+
         private string GetSelectedNodeName() => SceneHierarchy.SelectedNode?.Node?.Name.ToString() ?? string.Empty;
 
         public EditorCommand DeleteNode => new EditorCommand("DeleteNode");

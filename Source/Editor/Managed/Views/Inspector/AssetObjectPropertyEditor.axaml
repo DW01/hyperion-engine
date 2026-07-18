@@ -71,7 +71,7 @@
                     Command="{Binding SelectCommand}"
                     Content="Swap"
                     IsEnabled="{Binding CanSelectFromContentBrowser}"
-                    ToolTip.Tip="Assign to the currently selected asset in the Content Browser" />
+                    ToolTip.Tip="Assign to the currently selected asset in the Assets drawer" />
                 <Button
                     Padding="8,2"
                     FontSize="11"

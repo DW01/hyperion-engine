@@ -1,12 +1,30 @@
 Material "BasicOBJMaterial" {
     BaseMaterial = null
     Textures = {
-        Values = [null, null, null, null, null, null, null, null]
+        Values = [
+            null
+            null
+            null
+            null
+            null
+            null
+            null
+            null
+        ]
     }
     Attributes = {
         ShaderName = "GeometryPass"
         ShaderProperties = {
-            Chunks = [0, 0, 0, 0, 0, 0, 0, 0]
+            Chunks = [
+                0
+                0
+                0
+                0
+                0
+                0
+                0
+                0
+            ]
         }
         Bucket = Opaque
         FillMode = FM_FILL
