@@ -171,7 +171,7 @@ Camera::Camera(int width, int height)
       m_height(height),
       m_near(0.01f),
       m_far(1000.0f),
-      m_fov(50.0f),
+      m_fov(75.0f),
       m_streamingVolumeAdded(false)
 {
     // make sure there is always at least 1 camera controller
