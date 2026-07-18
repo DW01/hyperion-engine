@@ -186,12 +186,12 @@ bool EditorCameraInputHandler::OnMouseDrag(const MouseEvent& evt)
     }
     else if (evt.mouseButtons & MouseButtonState::LEFT)
     {
-        camera->Rotate(camera->GetUpVector(), MathUtil::DegToRad(-mouseDeltaX * lookMultiplier));
-        camera->Rotate(dirCrossY, MathUtil::DegToRad(-mouseDeltaY * lookMultiplier));
+        camera->Rotate(Vec3f::UnitY(), MathUtil::DegToRad(mouseDeltaX * lookMultiplier));
+        camera->Rotate(dirCrossY, MathUtil::DegToRad(mouseDeltaY * lookMultiplier));
 
         if (camera->GetDirection().y > 0.98f || camera->GetDirection().y < -0.98f)
         {
-            camera->Rotate(dirCrossY, MathUtil::DegToRad(mouseDeltaY * lookMultiplier));
+            camera->Rotate(dirCrossY, MathUtil::DegToRad(-mouseDeltaY * lookMultiplier));
         }
     }
 

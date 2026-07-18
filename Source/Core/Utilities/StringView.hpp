@@ -55,6 +55,12 @@ private:
     template <bool IsConst>
     struct IteratorBase
     {
+        using iterator_category = std::input_iterator_tag;
+        using value_type = WidestCharType;
+        using difference_type = std::ptrdiff_t;
+        using pointer = value_type*;
+        using reference = value_type;
+
         std::conditional_t<IsConst, const CharType*, CharType*> ptr;
         std::conditional_t<IsConst, const CharType*, CharType*> end;
 
@@ -210,6 +216,21 @@ private:
         HYP_FORCE_INLINE bool operator>=(const IteratorBase& other) const
         {
             return ptr >= other.ptr;
+        }
+
+        struct ArrowProxy
+        {
+            WidestCharType value;
+
+            HYP_FORCE_INLINE const WidestCharType* operator->() const
+            {
+                return &value;
+            }
+        };
+
+        HYP_FORCE_INLINE ArrowProxy operator->() const
+        {
+            return ArrowProxy{ operator*() };
         }
     };
 

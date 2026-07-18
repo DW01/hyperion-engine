@@ -393,14 +393,14 @@ float3 CalculateF0(float3 albedo, float metalness)
     return F0;
 }
 
-float3 CalculateFresnelTerm(float3 F0, float roughness, float NdotV)
+float3 CalculateFresnelTerm(float3 F0, float VdotH)
 {
-    return SchlickFresnelRoughness(F0, roughness, NdotV);
+    return F_Schlick(F0, VdotH);
 }
 
-float4 CalculateFresnelTerm(float4 F0, float roughness, float NdotV)
+float4 CalculateFresnelTerm(float4 F0, float VdotH)
 {
-    return SchlickFresnelRoughness(F0, roughness, NdotV);
+    return float4(F_Schlick(F0.rgb, VdotH), F0.a);
 }
 
 float CalculateGeometryTerm(float NdotL, float NdotV, float HdotV, float NdotH)
@@ -413,38 +413,23 @@ float CalculateDistributionTerm(float roughness, float NdotH)
     return Trowbridge(NdotH, roughness);
 }
 
-float3 CalculateDFG(float3 F, float roughness, float NdotV)
+// These are taken from Filament
+float3 CalculateDFG(float roughness, float NdotV)
 {
     const float2 AB = BRDFMap(roughness, NdotV);
 
-    return F * AB.x + AB.y;
+    return float3(AB.x, AB.y, AB.x + AB.y);
 }
 
-float4 CalculateDFG(float4 F, float roughness, float NdotV)
-{
-    const float2 AB = BRDFMap(roughness, NdotV);
-
-    return F * AB.x + AB.y;
-}
-
+// These are taken from Filament
 float3 CalculateE(float3 F0, float3 dfg)
 {
-    return lerp(dfg.xxx, dfg.yyy, F0);
-}
-
-float4 CalculateE(float4 F0, float4 dfg)
-{
-    return lerp(dfg.xxxx, dfg.yyyy, F0);
+    return F0 * dfg.x + dfg.y;
 }
 
 float3 CalculateEnergyCompensation(float3 F0, float3 dfg)
 {
-    return 1.0 + F0 * ((1.0 / max(dfg.y, 0.0001)) - 1.0);
-}
-
-float4 CalculateEnergyCompensation(float4 F0, float4 dfg)
-{
-    return 1.0 + F0 * ((1.0 / max(dfg.y, 0.0001)) - 1.0);
+    return 1.0 + F0 * ((1.0 / max(dfg.z, 0.0001)) - 1.0);
 }
 
 float3 SampleCosineWeightedHemisphere(float2 Xi)

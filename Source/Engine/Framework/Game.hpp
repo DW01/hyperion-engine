@@ -109,7 +109,7 @@ public:
     void PauseSimulation();
 
     HYP_METHOD()
-    void RegisterInputHandler(InputHandlerBase* inputHandler);
+    void RegisterInputHandler(const Handle<InputHandlerBase>& inputHandler);
 
     HYP_METHOD()
     void UnregisterInputHandler(InputHandlerBase* inputHandler);
@@ -163,7 +163,7 @@ protected:
     Handle<AssetRegistry> m_assetRegistry;
     Handle<UISubsystem> m_uiSubsystem;
 
-    Array<InputHandlerBase*> m_inputHandlers;
+    Array<Handle<InputHandlerBase>> m_inputHandlers;
 
     bool m_assetRegistryActive;
     bool m_isInitialized;

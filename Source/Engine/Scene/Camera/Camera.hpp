@@ -39,9 +39,9 @@ enum class CameraProjectionMode : uint32
 HYP_ENUM()
 enum class CameraFlags : uint32
 {
-    NONE = 0x0,
-    MatchWindowSize = 0x1,
-    HasStreamingVolume = 0x2
+    None = 0x0,              //!< @editor=false
+    MatchWindowSize = 0x1,   //!< @title="Match window dimensions" @description="Camera dimensions will be matched to the application's window size."
+    HasStreamingVolume = 0x2 //!< @title="Acts as streaming source" @description="If enabled, triggers content to stream in based on camera distance"
 };
 
 HYP_MAKE_ENUM_FLAGS(CameraFlags);
@@ -367,22 +367,22 @@ public:
 
     void SetNextTranslation(const Vec3f& translation);
 
-    HYP_METHOD(Property = "Direction", Editor = true, Serialize = true)
-    const Vec3f& GetDirection() const
+    HYP_METHOD(Property = "Direction", Editor = true, Serialize = false)
+    Vec3f GetDirection() const
     {
-        return m_direction;
+        return GetWorldRotation().RotateVector(Vec3f::UnitZ());
     }
 
-    HYP_METHOD(Property = "Direction", Editor = true, Serialize = true)
+    HYP_METHOD(Property = "Direction", Editor = true, Serialize = false)
     void SetDirection(const Vec3f& direction);
 
-    HYP_METHOD(Property = "UpVector", Editor = true, Serialize = true)
-    const Vec3f& GetUpVector() const
+    HYP_METHOD(Property = "UpVector", Editor = true, Serialize = false)
+    Vec3f GetUpVector() const
     {
-        return m_up;
+        return Vec3f::UnitY();
     }
 
-    HYP_METHOD(Property = "UpVector", Editor = true, Serialize = true)
+    HYP_METHOD(Property = "UpVector", Editor = true, Serialize = false)
     void SetUpVector(const Vec3f& up);
 
     HYP_METHOD(Property = "OrthoRect", Editor = true, Serialize = true)
@@ -401,13 +401,13 @@ public:
     HYP_METHOD()
     Vec3f GetSideVector() const
     {
-        return m_up.Cross(m_direction);
+        return GetUpVector().Cross(GetDirection());
     }
 
     HYP_METHOD()
     Vec3f GetTarget() const
     {
-        return GetWorldTranslation() + m_direction;
+        return GetWorldTranslation() + GetDirection();
     }
 
     HYP_METHOD()
@@ -523,7 +523,7 @@ protected:
     HYP_FIELD(Property = "CameraControllers")
     Array<Handle<CameraController>> m_cameraControllers;
 
-    Vec3f m_nextTranslation, m_direction, m_up;
+    Vec3f m_nextTranslation;
     Mat4f m_viewMat, m_projMat;
     Frustum m_frustum;
 

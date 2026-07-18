@@ -90,12 +90,12 @@ bool FirstPersonCameraInputHandler::OnMouseMove(const MouseEvent& evt)
 
     const Vec3f dirCrossY = camera->GetSideVector();
 
-    camera->Rotate(camera->GetUpVector(), MathUtil::DegToRad(-mouseDelta.x));
-    camera->Rotate(dirCrossY, MathUtil::DegToRad(-mouseDelta.y));
+    camera->Rotate(Vec3f::UnitY(), MathUtil::DegToRad(mouseDelta.x));
+    camera->Rotate(dirCrossY, MathUtil::DegToRad(mouseDelta.y));
 
     if (camera->GetDirection().y > 0.98f || camera->GetDirection().y < -0.98f)
     {
-        camera->Rotate(dirCrossY, MathUtil::DegToRad(mouseDelta.y));
+        camera->Rotate(dirCrossY, MathUtil::DegToRad(-mouseDelta.y));
     }
 
     return true;
@@ -147,12 +147,12 @@ bool FirstPersonCameraInputHandler::OnTouchMove(const TouchEvent& evt)
 
     const Vec3f dirCrossY = camera->GetSideVector();
 
-    camera->Rotate(camera->GetUpVector(), MathUtil::DegToRad(-touchDelta.x));
-    camera->Rotate(dirCrossY, MathUtil::DegToRad(-touchDelta.y));
+    camera->Rotate(Vec3f::UnitY(), MathUtil::DegToRad(touchDelta.x));
+    camera->Rotate(dirCrossY, MathUtil::DegToRad(touchDelta.y));
 
     if (camera->GetDirection().y > 0.98f || camera->GetDirection().y < -0.98f)
     {
-        camera->Rotate(dirCrossY, MathUtil::DegToRad(touchDelta.y));
+        camera->Rotate(dirCrossY, MathUtil::DegToRad(-touchDelta.y));
     }
 
     return true;
@@ -253,12 +253,12 @@ bool FirstPersonCameraInputHandler::OnControllerAnalogMove(const ControllerAnalo
         Vec2f lookDelta = data.value * ControllerLookSensitivity * deltaTime;
 
         Vec3f dirCrossY = camera->GetSideVector();
-        camera->Rotate(camera->GetUpVector(), MathUtil::DegToRad(-lookDelta.x));
-        camera->Rotate(dirCrossY, MathUtil::DegToRad(-lookDelta.y));
+        camera->Rotate(Vec3f::UnitY(), MathUtil::DegToRad(lookDelta.x));
+        camera->Rotate(dirCrossY, MathUtil::DegToRad(lookDelta.y));
 
         if (camera->GetDirection().y > 0.98f || camera->GetDirection().y < -0.98f)
         {
-            camera->Rotate(dirCrossY, MathUtil::DegToRad(lookDelta.y));
+            camera->Rotate(dirCrossY, MathUtil::DegToRad(-lookDelta.y));
         }
     }
 

@@ -425,7 +425,7 @@ HYP_EXPORT void RunHMFTest()
               text);
 
         text.Clear();
-        EnumFlags<CameraFlags> empty = CameraFlags::NONE;
+        EnumFlags<CameraFlags> empty = CameraFlags::None;
         BoxedToHMF(BoxedValue(empty), text, &ti);
         Check("EnumFlags NONE", text == "NONE", text);
     }

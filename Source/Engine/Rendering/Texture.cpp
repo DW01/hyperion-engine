@@ -123,7 +123,7 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
             static const uint32 s_placeholderMipOffsets[TextureDesc::MaxMips] { 0 };
             mipOffsets = { s_placeholderMipOffsets, TextureDesc::MaxMips };
 
-            imageData = placeholderBuffer.Emplace().ToByteView();
+            placeholderBuffer.Emplace();
             placeholderBuffer->SetSize(image.GetByteSize());
 
             const TextureFormat nonSrgbFormat = TextureUtils::ChangeFormatSRGB(image.GetTextureFormat(), false);
@@ -158,6 +158,12 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
                 case TextureFormat::RGBA8:
                     FillPlaceholderBuffer_Cubemap<TextureFormat::RGBA8>(image.GetExtent().GetXY(), *placeholderBuffer);
                     break;
+                case TextureFormat::RGBA16F:
+                    FillPlaceholderBuffer_Cubemap<TextureFormat::RGBA16F>(image.GetExtent().GetXY(), *placeholderBuffer);
+                    break;
+                case TextureFormat::RGBA32F:
+                    FillPlaceholderBuffer_Cubemap<TextureFormat::RGBA32F>(image.GetExtent().GetXY(), *placeholderBuffer);
+                    break;
                 default:
                     break;
                 }
@@ -165,6 +171,8 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
             default:
                 break;
             }
+
+            imageData = placeholderBuffer->ToByteView();
         }
 
         bool hasMips = textureDesc.HasMipMaps() && !placeholderBuffer.HasValue();

@@ -158,8 +158,7 @@ PSOutput PSMain(PSInput input)
 
     const float NdotV = max(0.0001, dot(N, V));
     const float3 F0 = CalculateF0(albedo.rgb, metalness);
-    const float3 F = CalculateFresnelTerm(F0, perceptualRoughness, NdotV);
-    const float3 dfg = CalculateDFG(F, roughness, NdotV);
+    const float3 dfg = CalculateDFG(perceptualRoughness, NdotV);
     const float3 E = CalculateE(F0, dfg);
 
     float3 diffuseIndirect = diffuse_color.rgb * irradiance.rgb * (1.0 - E) * ao;

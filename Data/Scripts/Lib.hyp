@@ -1062,7 +1062,7 @@ end
 extern class NullCameraController : CameraController
 end
 extern enum CameraFlags : uint32
-    NONE = 0x0,
+    None = 0x0,
     MatchWindowSize = 0x1,
     HasStreamingVolume = 0x2
 end
@@ -2468,6 +2468,8 @@ end
 extern class Material : AssetObject
     GetBaseMaterial() -> Material
     SetBaseMaterial(baseMaterial : Material) -> void
+    GetParameters() -> MaterialParameters
+    SetParameters(parameters : MaterialParameters) -> void
     IsStatic() -> bool
     GetIsDynamic() -> bool
     SetIsDynamic(isDynamic : bool) -> void

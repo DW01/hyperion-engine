@@ -97,7 +97,7 @@ CORE_API extern AAssetManager* g_androidAssetManager;
 #pragma region Memory Pools
 
 #define HYP_ENGINE_MEMORY_IMPLEMENTATION 1
-#include <Framework/EngineMemory.inc>
+#include <Framework/EngineMemory.inl>
 #undef HYP_ENGINE_MEMORY_IMPLEMENTATION
 
 #pragma endregion Memory Pools

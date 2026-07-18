@@ -524,11 +524,11 @@ void Game::SetToEditMode()
 
 #endif
 
-void Game::RegisterInputHandler(InputHandlerBase* inputHandler)
+void Game::RegisterInputHandler(const Handle<InputHandlerBase>& inputHandler)
 {
     AssertOnThread(g_simThread);
 
-    if (!inputHandler)
+    if (!inputHandler.IsValid())
     {
         return;
     }
@@ -552,7 +552,7 @@ void Game::UnregisterInputHandler(InputHandlerBase* inputHandler)
         return;
     }
     
-    auto it = m_inputHandlers.Find(inputHandler);
+    auto it = m_inputHandlers.FindAs(inputHandler);
 
     if (it == m_inputHandlers.End())
     {
