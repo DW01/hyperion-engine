@@ -3032,22 +3032,6 @@ Result ObjectToHMF(
         pOptions = &s_defaultOptions;
     }
 
-    return ObjectToHMFImpl(cls, target, outText, *pOptions, 1);
-}
-
-Result ObjectToHMFDocument(
-    const Class* cls,
-    const BoxedValue& target,
-    String& outText,
-    ToHMFOptions* pOptions)
-{
-    static ToHMFOptions s_defaultOptions;
-
-    if (!pOptions)
-    {
-        pOptions = &s_defaultOptions;
-    }
-
     // Class name
     outText += cls->GetName().LookupString();
 

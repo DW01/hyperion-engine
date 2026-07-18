@@ -24,7 +24,7 @@ static const FilePath s_inMemoryFilePath = FilePath("<memory-buffer>");
 
 namespace {
 
-ParseResult RunParse(const SourceFile& sourceFile, ErrorList* outErrors)
+ParseResult RunParse(const SourceFile& sourceFile, ErrorList* outErrors, BoxedValue* target = nullptr)
 {
     ErrorList errorList;
     SourceStream sourceStream(&sourceFile);
@@ -33,15 +33,26 @@ ParseResult RunParse(const SourceFile& sourceFile, ErrorList* outErrors)
     Lexer lexer(sourceStream, &tokenStream, &errorList);
     lexer.Analyze();
 
-    Parser parser(&tokenStream, &errorList);
+    Parser parser(&tokenStream, &errorList, target);
 
     ParseResult result = HYP_MAKE_ERROR(Error, "Failed due to unknown error");
 
+    if (target != nullptr)
     {
-        BoxedValue value;
-        if (parser.Parse(value))
+        if (parser.Parse())
         {
-            result = std::move(value);
+            // ok
+            result = {};
+        }
+    }
+    else
+    {
+        // grab value from parse result
+        BoxedValue boxedResultValue;
+        
+        if (parser.Parse(boxedResultValue, /* moveResult */ true))
+        {
+            result = std::move(boxedResultValue);
         }
     }
 
@@ -69,22 +80,22 @@ ParseResult RunParse(const SourceFile& sourceFile, ErrorList* outErrors)
 
 } // namespace anonymous
 
-ParseResult Parse(const FilePath& filePath, const String& source, ErrorList* outErrors)
+ParseResult Parse(const FilePath& filePath, const String& source, ErrorList* outErrors, BoxedValue* target = nullptr)
 {
     SourceFile sourceFile(filePath, source.Size());
     sourceFile.ReadIntoBuffer(reinterpret_cast<const ubyte*>(source.Data()), source.Size());
 
-    return RunParse(sourceFile, outErrors);
+    return RunParse(sourceFile, outErrors, target);
 }
 
-ParseResult Parse(const String& source, ErrorList* outErrors)
+ParseResult Parse(const String& source, ErrorList* outErrors, BoxedValue* target = nullptr)
 {
-    return Parse(s_inMemoryFilePath, source, outErrors);
+    return Parse(s_inMemoryFilePath, source, outErrors, target);
 }
 
-ParseResult Parse(const SourceFile& sourceFile)
+ParseResult Parse(const SourceFile& sourceFile, BoxedValue* target = nullptr)
 {
-    return RunParse(sourceFile, nullptr);
+    return RunParse(sourceFile, nullptr, target);
 }
 
 } // namespace Hyperion::DataProcessing::HMF

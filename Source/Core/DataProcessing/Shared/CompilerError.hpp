@@ -73,7 +73,7 @@ enum ErrorMessage : uint8
 
 class CORE_API CompilerError
 {
-    static const Map<ErrorMessage, String> errorMessageStrings;
+    static const Map<ErrorMessage, String> s_errorMessageStrings;
 
 public:
     template <typename... Args>
@@ -82,11 +82,13 @@ public:
           m_msg(msg),
           m_location(location)
     {
-        const String& msgStr = errorMessageStrings.At(m_msg);
+        const String& msgStr = s_errorMessageStrings.At(m_msg);
         MakeMessage(msgStr.Data(), args...);
     }
 
-    CompilerError(const CompilerError& other);
+    CompilerError(const CompilerError& other) = default;
+    CompilerError& operator=(const CompilerError& other) = default;
+
     ~CompilerError() = default;
 
     HYP_NODISCARD HYP_FORCE_INLINE ErrorLevel GetLevel() const { return m_level; }
