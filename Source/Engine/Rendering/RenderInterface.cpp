@@ -148,16 +148,18 @@ CVar<bool> g_cvEnableGpuStats("Rendering.EnableGpuStats", true);
 
 namespace Framework {
 
-static volatile int64 s_frameCounter = 0; // atomic
+/// atomic, incremented at the end of the render thread frame.
+static volatile int64 s_frameCounter = 0;
 
-static std::counting_semaphore<RingBufferDepth> s_dataProduced { 0 };
-static std::counting_semaphore<RingBufferDepth> s_frameSubmitted { RingBufferDepth };
-
-// thread-local frame index for the game and render threads
+/// thread-local ring buffer index for the game and render threads.
 thread_local uint8* t_thisThreadRingIndex;
 static uint8 s_ringIndex[2] = { 0 };
 
 thread_local uint32 t_currentRenderThreadIndex;
+
+/// Semaphores for synchronization the simulation and render threads.
+static std::counting_semaphore<RingBufferDepth> s_dataProduced { 0 };
+static std::counting_semaphore<RingBufferDepth> s_frameSubmitted { RingBufferDepth };
 
 enum
 {
@@ -299,33 +301,33 @@ struct BufferedViewData
     ViewData* viewData = nullptr;
 };
 
-struct BufferedData
+struct RenderingData
 {
     Map<View*, BufferedViewData*> perViewData;
     SharedMutex viewFrameDataMutex;
 
     FatArray<World*, InlineAllocator<2>> activeWorlds;
-    FatArray<World*, InlineAllocator<2>> activeWorldsCached;    // for render thread to read - one frame behind
 
     FatArray<RenderProxyList*, InlineAllocator<16>> ownedLists; // render thread side owned lists
     FatArray<RenderProxyList*, InlineAllocator<16>> sharedLists;
 
     WorldShaderData worldBufferData {};
 
-    /// Render thread only flags
-    bool isRenderThreadReading = false;
-    bool isFrameEnded = false;
+    /// Are producer, consumer threads synced for this frame?
+    /// i.e have they waited on the appropriate semaphore
+    uint8 threadSyncStates[2] = {};
+    bool isFrameEnded = false; // Render thread only.
 };
 
-static BufferedData s_bufferedData[RingBufferDepth];
+static RenderingData s_renderingData[RingBufferDepth];
 
 static BufferedViewData* GetBufferedViewData(View* view, uint8 ringIndex)
 {
     AssertDebug(view != nullptr);
 
-    BufferedData& bufferedData = s_bufferedData[ringIndex];
+    RenderingData& bufferedData = s_renderingData[ringIndex];
 
-    Assert(bufferedData.isRenderThreadReading == IsOnThread(g_renderThread));
+    Assert(bufferedData.threadSyncStates[TT_FrameDataConsumer] == IsOnThread(g_renderThread));
 
     TSharedLock<SharedMutex> sharedLock;
     TUniqueLock<SharedMutex> uniqueLock;
@@ -393,11 +395,6 @@ uint32 GetRingIndex()
 
 uint32 GetFrameCounter()
 {
-    // Only call on render thread if frame has not been ended
-    // Otherwise, the frame counter value will be out of sync from what the expected value is
-    // (Hence, why we pass prevFrameIndex around!)
-    Assert(!IsOnThread(g_renderThread) || !Framework::s_bufferedData[GetRingIndex()].isFrameEnded);
-
     return (uint32)AtomicAdd(&Framework::s_frameCounter, 0);
 }
 
@@ -530,15 +527,15 @@ WorldShaderData* GetWorldBufferData()
 {
     AssertOnThread(g_simThread | g_renderThread);
 
-    return &Framework::s_bufferedData[*Framework::t_thisThreadRingIndex].worldBufferData;
+    return &Framework::s_renderingData[*Framework::t_thisThreadRingIndex].worldBufferData;
 }
 
 void CommitActiveWorlds(Span<World*> activeWorlds)
 {
     AssertOnThread(g_simThread);
 
-    Framework::BufferedData& bufferedData = Framework::s_bufferedData[Framework::s_ringIndex[Framework::TT_FrameDataProducer]];
-    Assert(!bufferedData.isRenderThreadReading);
+    Framework::RenderingData& bufferedData = Framework::s_renderingData[Framework::s_ringIndex[Framework::TT_FrameDataProducer]];
+    Assert(bufferedData.threadSyncStates[Framework::TT_FrameDataProducer]);
 
     bufferedData.activeWorlds.Resize(activeWorlds.Size());
     std::copy(activeWorlds.Begin(), activeWorlds.End(), bufferedData.activeWorlds.Begin());
@@ -548,15 +545,8 @@ Span<World*> GetActiveWorlds()
 {
     AssertOnThread(g_simThread | g_renderThread);
     
-    Framework::BufferedData& bufferedData = Framework::s_bufferedData[*Framework::t_thisThreadRingIndex];
-
-    if (!UseRingBuffer && !bufferedData.isRenderThreadReading && IsOnThread(g_renderThread))
-    {
-        // Use last committed active worlds so we don't trip over it.
-        return bufferedData.activeWorldsCached.ToSpan();
-    }
-
-    Assert(bufferedData.isRenderThreadReading == IsOnThread(g_renderThread));
+    Framework::RenderingData& bufferedData = Framework::s_renderingData[*Framework::t_thisThreadRingIndex];
+    Assert(bufferedData.threadSyncStates[Framework::TT_FrameDataConsumer] == IsOnThread(g_renderThread));
 
     return bufferedData.activeWorlds.ToSpan();
 }
@@ -578,18 +568,8 @@ uint32 CurrentRenderThreadIndex()
     return Framework::t_currentRenderThreadIndex - 1;
 }
 
-void BeginFrameSim(AtomicFlag* pCancelFlag)
+void BeginSimRenderSyncBlock(AtomicFlag* pCancelFlag)
 {
-    // If !UseRingBuffer, we increment the frame counter
-    // from the simulation thread as it builds frame data before handing off to the render thread.
-    // We also check t_thisThreadRingIndex is not nullptr, because that is non-null only on the first frame,
-    // and we only want to inc the frame counter for the prev frame
-    // (start at 0 not at 1)
-    // if (!UseRingBuffer && Framework::t_thisThreadRingIndex != nullptr)
-    // {
-    //     AtomicIncrement(&Framework::s_frameCounter);
-    // }
-
     Framework::t_thisThreadRingIndex = &Framework::s_ringIndex[Framework::TT_FrameDataProducer];
 
     {
@@ -604,14 +584,31 @@ void BeginFrameSim(AtomicFlag* pCancelFlag)
             }
         }
     }
+
+    Framework::RenderingData& bufferedData = Framework::s_renderingData[*Framework::t_thisThreadRingIndex];
+    bufferedData.threadSyncStates[Framework::TT_FrameDataProducer] = 1;
 }
 
-void EndFrameSim()
+void EndSimRenderSyncBlock()
 {
     AssertOnThread(g_simThread);
 
+    Framework::RenderingData& bufferedData = Framework::s_renderingData[*Framework::t_thisThreadRingIndex];
+    bufferedData.threadSyncStates[Framework::TT_FrameDataProducer] = 0;
+
     Framework::s_ringIndex[Framework::TT_FrameDataProducer] = (Framework::s_ringIndex[Framework::TT_FrameDataProducer] + 1) % RingBufferDepth;
     Framework::s_dataProduced.release();
+}
+
+void CheckCurrentThreadSynced()
+{
+    AssertOnThread(g_simThread | g_renderThread);
+    
+    const int threadType = Framework::CurrentThreadType();
+    Assert(threadType >= 0, "AssertCurrentThreadSynced called from an invalid thread!");
+    
+    Framework::RenderingData& bufferedData = Framework::s_renderingData[*Framework::t_thisThreadRingIndex];
+    Assert(bufferedData.threadSyncStates[threadType] == 1);
 }
 
 #pragma region RenderInterface
@@ -805,12 +802,12 @@ void RenderInterface::Shutdown()
 
     for (uint32 i = 0; i < RingBufferDepth; i++)
     {
-        for (auto& it : Framework::s_bufferedData[i].perViewData)
+        for (auto& it : Framework::s_renderingData[i].perViewData)
         {
             delete it.second;
         }
 
-        Framework::s_bufferedData[i].perViewData.Clear();
+        Framework::s_renderingData[i].perViewData.Clear();
     }
 
     for (auto& it : Framework::s_viewData)
@@ -944,21 +941,26 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
 
     if constexpr (UseRingBuffer)
     {
-        WaitForSync(pCancelFlag);
+        if (!WaitForSync(pCancelFlag))
+        {
+            return;
+        }
     }
-
+    
     const uint8 ringIndex = Framework::s_ringIndex[Framework::TT_FrameDataConsumer];
     
-    Framework::BufferedData& bufferedData = Framework::s_bufferedData[ringIndex];
+    Framework::RenderingData& bufferedData = Framework::s_renderingData[ringIndex];
     bufferedData.isFrameEnded = false;
+
+    const uint32 newFrameIndex = GetFrameCounter();
 
     PrepareFrame(GetCurrentFrame());
 
-    cbufferAllocator->OnFrameStart();
-    bufferAllocator->OnFrameStart();
-    scratchImageAllocator->OnFrameStart();
-    descriptorSetCache->OnFrameStart();
-    stagingBufferPool->OnFrameStart();
+    cbufferAllocator->OnFrameStart(newFrameIndex);
+    bufferAllocator->OnFrameStart(newFrameIndex);
+    scratchImageAllocator->OnFrameStart(newFrameIndex);
+    descriptorSetCache->OnFrameStart(newFrameIndex);
+    stagingBufferPool->OnFrameStart(newFrameIndex);
 
     g_engineStats->Prepare();
 
@@ -974,8 +976,7 @@ void RenderInterface::EndFrame()
 
     const uint8 ringIndex = Framework::s_ringIndex[Framework::TT_FrameDataConsumer];
 
-    Framework::BufferedData& bufferedData = Framework::s_bufferedData[ringIndex];
-    bufferedData.isRenderThreadReading = false;
+    Framework::RenderingData& bufferedData = Framework::s_renderingData[ringIndex];
     bufferedData.isFrameEnded = true;
 
     const uint32 prevFrameIndex = AtomicIncrement(&Framework::s_frameCounter) - 1;
@@ -1054,6 +1055,7 @@ void RenderInterface::EndFrame()
     Framework::s_ringIndex[Framework::TT_FrameDataConsumer] = nextFrameIndex;
 
     { // Let simulation thread back in
+        bufferedData.threadSyncStates[Framework::TT_FrameDataConsumer] = 0;
         Framework::s_frameSubmitted.release();
     }
     
@@ -1062,7 +1064,7 @@ void RenderInterface::EndFrame()
     state.Reset();
 }
 
-void RenderInterface::WaitForSync(AtomicFlag* pCancelFlag)
+bool RenderInterface::WaitForSync(AtomicFlag* pCancelFlag)
 {
     ENGINE_STAT_SCOPE(&g_statRenderThreadSync);
     ENGINE_STAT_SCOPE(&g_statTotalStallTime);
@@ -1071,9 +1073,11 @@ void RenderInterface::WaitForSync(AtomicFlag* pCancelFlag)
     {
         if (pCancelFlag != nullptr && pCancelFlag->Load())
         {
-            return;
+            return false;
         }
     }
+
+    return true;
 }
 
 HYP_DISABLE_OPTIMIZATION;
@@ -1082,9 +1086,7 @@ void RenderInterface::UpdateResources(AtomicFlag* pCancelFlag)
 {
     if constexpr (!UseRingBuffer)
     {
-        WaitForSync(pCancelFlag);
-
-        if (pCancelFlag != nullptr && pCancelFlag->Load())
+        if (!WaitForSync(pCancelFlag))
         {
             return;
         }
@@ -1093,8 +1095,8 @@ void RenderInterface::UpdateResources(AtomicFlag* pCancelFlag)
     const uint8 ringIndex = Framework::s_ringIndex[Framework::TT_FrameDataConsumer];
     const uint32 currFrame = GetFrameCounter();
 
-    Framework::BufferedData& bufferedData = Framework::s_bufferedData[ringIndex];
-    bufferedData.isRenderThreadReading = true;
+    Framework::RenderingData& bufferedData = Framework::s_renderingData[ringIndex];
+    bufferedData.threadSyncStates[Framework::TT_FrameDataConsumer] = 1;
 
     Span<View* const> activeViews = g_engineDriver->GetCurrentFrameViews();
 
@@ -1281,15 +1283,6 @@ void RenderInterface::UpdateResources(AtomicFlag* pCancelFlag)
         vd.rplRender.EndRead();
     }
 
-    if constexpr (!UseRingBuffer)
-    {
-        bufferedData.activeWorldsCached.Resize(bufferedData.activeWorlds.Size());
-        std::copy(bufferedData.activeWorlds.Begin(), bufferedData.activeWorlds.End(), bufferedData.activeWorldsCached.Begin());
-
-        // Done with shared data
-        //Framework::s_frameSubmitted.release();
-    }
-
     GetCurrentCommandBuffer()->Begin();
 
     if (m_gpuTimerBackend != nullptr)
@@ -1306,7 +1299,7 @@ void RenderInterface::CleanupUnusedResources(uint32 prevFrameIndex)
 
     const uint8 ringIndex = Framework::s_ringIndex[Framework::TT_FrameDataConsumer];
     
-    Framework::BufferedData& bufferedData = Framework::s_bufferedData[ringIndex];
+    Framework::RenderingData& bufferedData = Framework::s_renderingData[ringIndex];
 
     for (auto it = bufferedData.perViewData.Begin(); it != bufferedData.perViewData.End();)
     {

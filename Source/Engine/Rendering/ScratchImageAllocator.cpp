@@ -37,10 +37,13 @@ struct ScratchImageAllocatorImpl
 
     SharedMutex mutex;
 
+    uint32 frameIndex = 0;
+
     ~ScratchImageAllocatorImpl() = default;
 
-    void OnFrameStart()
+    void OnFrameStart(uint32 newFrameIndex)
     {
+        frameIndex = newFrameIndex;
     }
 
     void OnFrameEnd(uint32 prevFrameIndex)
@@ -49,7 +52,7 @@ struct ScratchImageAllocatorImpl
         {
             CachedScratchImage& cachedImage = *it;
 
-            if (int64(prevFrameIndex) - int64(cachedImage.lastUsedFrame) >= MaxFramesBeforeDiscard)
+            if (static_cast<int64>(prevFrameIndex) - int64(cachedImage.lastUsedFrame) >= MaxFramesBeforeDiscard)
             {
                 it = cachedImages.Erase(it);
 
@@ -88,7 +91,7 @@ struct ScratchImageAllocatorImpl
                 && it->alignedExtent.z >= alignedExtent.z)
             {
                 CachedScratchImage& entry = usedImages.PushBack(std::move(*it));
-                entry.lastUsedFrame = GetFrameCounter();
+                entry.lastUsedFrame = frameIndex;
 
                 cachedImages.Erase(it);
 
@@ -98,7 +101,7 @@ struct ScratchImageAllocatorImpl
 
         CachedScratchImage& newEntry = usedImages.EmplaceBack();
 
-        newEntry.lastUsedFrame = GetFrameCounter();
+        newEntry.lastUsedFrame = frameIndex;
         newEntry.type = type;
         newEntry.format = format;
         newEntry.extent = extent;
@@ -159,9 +162,9 @@ ScratchImageAllocator::~ScratchImageAllocator()
     Shutdown();
 }
 
-void ScratchImageAllocator::OnFrameStart()
+void ScratchImageAllocator::OnFrameStart(uint32 newFrameIndex)
 {
-    m_impl->OnFrameStart();
+    m_impl->OnFrameStart(newFrameIndex);
 }
 
 void ScratchImageAllocator::OnFrameEnd(uint32 prevFrameIndex)

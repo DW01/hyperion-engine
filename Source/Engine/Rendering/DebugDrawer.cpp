@@ -818,7 +818,10 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
     const Viewport& viewport = renderSetup.viewport;
 
     RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(renderSetup.view->GetCamera()));
-    Assert(cameraProxy != nullptr);
+    if (!cameraProxy)
+    {
+        return;
+    }
 
     CommandRecorder& cr = frame->cr;
 

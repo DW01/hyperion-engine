@@ -203,7 +203,7 @@ class PassBase
 public:
     HYP_DEF_POOL_NEW_DELETE(g_renderPool);
 
-    using PassDataMap = SparsePagedArray<PassData*, 16, RenderAllocator>;
+    using PassDataMap = Map<View*, PassData*, RenderAllocator>;
 
     virtual ~PassBase();
 
@@ -225,11 +225,8 @@ protected:
     PassData* TryGetViewPassData(View* view);
     PassData* FetchViewPassData(View* view, PassDataExt* ext = nullptr, bool forceNew = false);
 
-    static void OnFrameEnd(PassDataMap& passData, uint32 prevFrameIndex, typename PassDataMap::Iterator* pIter = nullptr);
-
 private:
     PassDataMap m_viewPassData;
-    typename PassDataMap::Iterator m_viewPassDataCleanupIterator;
 };
 
 } // namespace Hyperion

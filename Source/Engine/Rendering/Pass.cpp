@@ -51,7 +51,6 @@ struct NullPassDataExt final : PassDataExt
 };
 
 PassBase::PassBase()
-    : m_viewPassDataCleanupIterator(m_viewPassData.End())
 {
 }
 
@@ -59,75 +58,34 @@ PassBase::~PassBase()
 {
     for (auto it = m_viewPassData.Begin(); it != m_viewPassData.End(); ++it)
     {
-        PassData* pd = *it;
-
-        if (pd != nullptr)
-        {
-            delete pd;
-        }
+        PassData* pd = it->second;
+        delete pd;
     }
 }
 
 void PassBase::OnFrameEnd(uint32 prevFrameIndex)
 {
-    // default impl, run for views
-    OnFrameEnd(m_viewPassData, prevFrameIndex, &m_viewPassDataCleanupIterator);
-}
-
-void PassBase::OnFrameEnd(PassDataMap& passData, uint32 prevFrameIndex, typename PassDataMap::Iterator* pIter)
-{
-    typename PassDataMap::Iterator tmpIterator;
-
-    if (!pIter)
+    for (auto it = m_viewPassData.Begin(); it != m_viewPassData.End();)
     {
-        pIter = &tmpIterator;
-    }
+        PassData* pd = it->second;
 
-    typename PassDataMap::Iterator& iter = *pIter;
-
-    // Ensures the iterator is valid: the Iterator type for SparsePagedArray will find the next available slot in the constructor
-    // elements may have been added in the middle or removed in the meantime.
-    // elements that were added will be handled after the next time this loops around; elements that were removed will be skipped over to find the next valid entry.
-    iter = typename PassDataMap::Iterator(
-        &passData,
-        iter.page,
-        iter.elem);
-
-    const typename PassDataMap::Iterator startIterator = iter; // the iterator we started at - use it to check that we don't do duplicate checks
-
-    int numCycles = 0;
-    for (; ; ++numCycles)
-    {
-        // Loop around to the beginning of the container when the end is reached.
-        if (iter == passData.End())
+        if (pd == nullptr)
         {
-            iter = passData.Begin();
-
-            if (iter == passData.End())
-            {
-                break;
-            }
+            it = m_viewPassData.Erase(it);
+            continue;
         }
-
-        PassData* pd = *iter;
 
         if (pd->view.Expired())
         {
             HYP_LOG(Rendering, Verbose, "Removing PassData for View {} as it is no longer valid.", pd->view.Id());
 
             delete pd;
-
-            iter = passData.Erase(iter);
+            
+            it = m_viewPassData.Erase(it);
         }
         else
         {
-            ++iter;
-        }
-
-        if (iter == startIterator)
-        {
-            // we checked everything
-            break;
+            ++it;
         }
     }
 }
@@ -139,11 +97,9 @@ PassData* PassBase::TryGetViewPassData(View* view)
         return nullptr;
     }
 
-    AssertDebug(view->InstanceClass() == View::StaticClass(), "View cannot be subclassed"); // indices would get messed up
-
-    if (PassData** ppPassData = m_viewPassData.TryGet(view->Id().ToIndex()))
+    if (KeyValuePair<View*, PassData*>* it = m_viewPassData.TryGet(view))
     {
-        return *ppPassData;
+        return it->second;
     }
 
     return nullptr;
@@ -158,9 +114,9 @@ PassData* PassBase::FetchViewPassData(View* view, PassDataExt* ext, bool forceNe
 
     AssertDebug(view->InstanceClass() == View::StaticClass(), "View cannot be subclassed"); // indices would get messed up
 
-    PassData** ppPassData = m_viewPassData.TryGet(view->Id().ToIndex());
+    KeyValuePair<View*, PassData*>* it = m_viewPassData.TryGet(view);
 
-    if (!ppPassData)
+    if (!it)
     {
         NullPassDataExt nullPassDataExt {};
 
@@ -173,11 +129,11 @@ PassData* PassBase::FetchViewPassData(View* view, PassDataExt* ext, bool forceNe
 
         InitObject(pd);
 
-        ppPassData = &*m_viewPassData.Set(view->Id().ToIndex(), pd);
+        it = &*m_viewPassData.Set(view, pd).first;
     }
-    else if (forceNew || (*ppPassData)->view.GetUnsafe() != view)
+    else if (forceNew || it->second->view.GetUnsafe() != view)
     {
-        PassData* pd = *ppPassData;
+        PassData* pd = it->second;
         delete pd;
 
         NullPassDataExt nullPassDataExt {};
@@ -189,13 +145,13 @@ PassData* PassBase::FetchViewPassData(View* view, PassDataExt* ext, bool forceNe
 
         InitObject(pd);
 
-        ppPassData = &*m_viewPassData.Set(view->Id().ToIndex(), pd);
+        it = &*m_viewPassData.Set(view, pd).first;
     }
 
-    AssertDebug(ppPassData != nullptr && *ppPassData != nullptr);
-    AssertDebug((*ppPassData)->view.GetUnsafe() == view);
+    AssertDebug(it != nullptr && it->second != nullptr);
+    AssertDebug(it->second->view.GetUnsafe() == view);
 
-    return *ppPassData;
+    return it->second;
 }
 
 #pragma region PassBase

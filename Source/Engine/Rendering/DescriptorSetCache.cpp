@@ -20,6 +20,7 @@ namespace Hyperion {
 static constexpr bool ShouldDestroyDescriptorSets = false;
 
 DescriptorSetCache::DescriptorSetCache()
+    : m_frameIndex(0)
 {
 }
 
@@ -39,11 +40,11 @@ DescriptorSetCache::~DescriptorSetCache()
     }
 }
 
-void DescriptorSetCache::OnFrameStart()
+void DescriptorSetCache::OnFrameStart(uint32 newFrameIndex)
 {
     AssertOnThread(g_renderThread);
 
-    const uint32 frameCounter = GetFrameCounter();
+    m_frameIndex = newFrameIndex;
 
     size_t chompIndexStart = SIZE_MAX;
 
@@ -51,9 +52,9 @@ void DescriptorSetCache::OnFrameStart()
     for (auto it = m_descriptorSetsInUse.Begin(); it != m_descriptorSetsInUse.End(); ++it)
     {
         AllocatedDescriptorSet& allocated = *it;
-        AssertDebug(frameCounter >= allocated.frameCounter);
+        AssertDebug(newFrameIndex >= allocated.frameCounter);
 
-        if (frameCounter - allocated.frameCounter < NumFramesInFlight)
+        if (static_cast<int64>(newFrameIndex) - allocated.frameCounter < NumFramesInFlight)
         {
             break;
         }
@@ -139,7 +140,7 @@ DescriptorSet* DescriptorSetCache::GetOrCreate(const DescriptorSetLayout& layout
         AllocatedDescriptorSet& allocated = *it;
 
         AllocatedDescriptorSet& newAllocated = m_descriptorSetsInUse.EmplaceBack(std::move(allocated));
-        newAllocated.frameCounter = GetFrameCounter(); // refresh frame counter
+        newAllocated.frameCounter = m_frameIndex; // refresh frame counter
 
         mapIt->second.Erase(it);
 
@@ -148,7 +149,7 @@ DescriptorSet* DescriptorSetCache::GetOrCreate(const DescriptorSetLayout& layout
 
     // need to allocate new descriptor set
     AllocatedDescriptorSet& allocated = m_descriptorSetsInUse.EmplaceBack();
-    allocated.frameCounter = GetFrameCounter();
+    allocated.frameCounter = m_frameIndex;
     allocated.descriptorSet = RI.MakeDescriptorSet(layout);
 
     return allocated.descriptorSet;

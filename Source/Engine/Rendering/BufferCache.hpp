@@ -16,8 +16,6 @@
 
 namespace Hyperion {
 
-extern uint32 GetFrameCounter();
-
 /*! \brief Utility class for managing a cache of reusable buffers with intelligent size-based matching.
  *  Provides tiered waste tolerance to balance memory reuse vs waste:
  *  - Small buffers (< 1KB): Allow up to 4x size difference for better reuse

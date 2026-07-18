@@ -57,7 +57,7 @@ struct StagingBufferPoolImpl
 
     ~StagingBufferPoolImpl() = default;
 
-    void OnFrameStart()
+    void OnFrameStart(uint32 newFrameIndex)
     {
     }
 
@@ -145,9 +145,9 @@ StagingBufferPool::StagingBufferPool()
 {
 }
 
-void StagingBufferPool::OnFrameStart()
+void StagingBufferPool::OnFrameStart(uint32 newFrameIndex)
 {
-    m_impl->OnFrameStart();
+    m_impl->OnFrameStart(newFrameIndex);
 }
 
 void StagingBufferPool::OnFrameEnd(uint32 prevFrameIndex)

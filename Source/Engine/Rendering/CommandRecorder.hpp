@@ -1286,7 +1286,7 @@ public:
         writeCount = 1;
 
         m_offset = 0;
-        m_writableState.StoreVolatile(true);
+        m_writableState.Store(true);
     }
 
     void Reserve(uint32 numCmdHeaders, uint32 bufferSizeBytes = 0) override

@@ -8,8 +8,6 @@
 
 #include <Framework/EngineDriver.hpp>
 #include <Framework/EngineGlobals.hpp>
-
-#include <Asset/AssetRegistry.hpp>
 #include <Framework/EngineStats.hpp>
 #include <Framework/EngineMemory.hpp>
 #include <Framework/CVarManager.hpp>
@@ -70,8 +68,7 @@
 #include <Core/Core.hpp>
 
 #include <Asset/Assets.hpp>
-
-#include <Streaming/StreamingManager.hpp>
+#include <Asset/AssetRegistry.hpp>
 
 #include <Rendering/Util/MeshBuilder.hpp>
 
@@ -208,7 +205,7 @@ EngineDriver::EngineDriver()
     : m_currentWorld(nullptr),
       m_viewCollectionBatch(nullptr),
       m_isInitialized(false),
-      m_isShuttingDown(0)
+      m_isShuttingDown(false)
 {
 }
 
@@ -431,7 +428,7 @@ void EngineDriver::RequestStop()
     Steam::Shutdown();
 #endif // HYP_STEAM_SDK
 
-    if (int32 shutdownCounter = AtomicIncrement(&m_isShuttingDown); shutdownCounter == 1)
+    if (!m_isShuttingDown.Store(true))
     {
         if (g_renderThreadInstance != nullptr && g_renderThreadInstance->IsRunning())
         {
@@ -448,8 +445,6 @@ void EngineDriver::RequestStop()
 void EngineDriver::Shutdown()
 {
     AssertOnThread(g_mainThread);
-
-    Assert(AtomicAdd(&m_isShuttingDown, 0) >= 1);
 
     HYP_LOG(Engine, Info, "Stopping all engine processes");
 
@@ -486,14 +481,13 @@ void EngineDriver::Shutdown()
         SetGlobalNetRequestThread(nullptr);
     }
 
-    m_isShuttingDown = 0;
+    // Expecting m_isShuttingDown to be in true state
+    Assert(m_isShuttingDown.Store(false));
 }
 
-void EngineDriver::UpdateSim(float delta)
+void EngineDriver::UpdateSim(float delta, Game* gameInstance)
 {
     static const bool s_dedicatedVisThread = CoreApi::GetCommandLineArguments()["DedicatedVisThread"].ToBool();
-
-    g_streamingManager->Update(delta);
 
     const uint32 slot = GetRingIndex();
     const uint32 frameCounter = GetFrameCounter();
@@ -556,11 +550,27 @@ void EngineDriver::UpdateSim(float delta)
         // }
     }
 
-    CommitActiveWorlds(worldsToRender.ToSpan());
-
     // Update Worlds and Systems - execution order/batching defined by component descriptors on systems.
     TaskSystem::GetInstance().EnqueueBatch(&worldUpdateTaskBatch);
     worldUpdateTaskBatch.AwaitCompletion();
+
+    if (gameInstance != nullptr)
+    {
+        // Unlock entity managers so the Game instance can mutate
+        for (Scene* scene : scenes)
+        {
+            scene->GetEntityManager()->Unlock();
+        }
+
+        gameInstance->OnUpdate(delta);
+        gameInstance->m_gameState.gameTime += delta;
+        
+        // Re-lock
+        for (Scene* scene : scenes)
+        {
+            scene->GetEntityManager()->Lock();
+        }
+    }
 
     { // collect shadow views
         const size_t initialNumViews = views.Size();
@@ -733,6 +743,21 @@ void EngineDriver::UpdateSim(float delta)
         scene->GetEntityManager()->Lock();
     }
 
+    // Push rendering data
+    {
+        if constexpr (!UseRingBuffer)
+        {
+            BeginSimRenderSyncBlock(&m_isShuttingDown);
+
+            if (HYP_UNLIKELY(m_isShuttingDown.LoadVolatile()))
+            {
+                return;
+            }
+        }
+
+        CommitActiveWorlds(worldsToRender.ToSpan());
+    }
+
     for (size_t viewIndex = 0; viewIndex < views.Size(); viewIndex++)
     {
         HYP_NAMED_SCOPE("Per-view entity collection");
@@ -763,6 +788,27 @@ void EngineDriver::UpdateSim(float delta)
     m_viewCollectionBatch->ResetState();
 #endif // HYP_PROCESS_VIEWS_ASYNC
 
+    {
+        // write buffered render data
+        WorldShaderData* bufferData = GetWorldBufferData();
+        bufferData->frameCounter = GetFrameCounter();
+
+        if (m_currentWorld)
+        {
+            bufferData->gameTime = m_currentWorld->GetGameState().gameTime;
+        }
+
+        m_viewsPerFrame[slot].Resize(views.Size());
+        std::copy(views.Begin(), views.End(), m_viewsPerFrame[slot].Begin());
+        
+        if constexpr (!UseRingBuffer)
+        {
+            EndSimRenderSyncBlock();
+        }
+    }
+
+    // End push rendering data
+
     for (Scene* scene : scenes)
     {
         scene->GetEntityManager()->Unlock();
@@ -777,19 +823,6 @@ void EngineDriver::UpdateSim(float delta)
             subsystem->Update(delta);
         }
     }
-
-    // write buffered render data
-    WorldShaderData* bufferData = GetWorldBufferData();
-    bufferData->frameCounter = GetFrameCounter();
-
-    if (m_currentWorld)
-    {
-        bufferData->gameTime = m_currentWorld->GetGameState().gameTime;
-    }
-
-    m_viewsPerFrame[slot].Resize(views.Size());
-
-    std::copy(views.Begin(), views.End(), m_viewsPerFrame[slot].Begin());
 }
 
 #pragma endregion EngineDriver

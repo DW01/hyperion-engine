@@ -37,7 +37,7 @@ struct BufferAllocatorImpl
 
     ~BufferAllocatorImpl() = default;
 
-    void OnFrameStart()
+    void OnFrameStart(uint32 newFrameIndex)
     {
     }
 
@@ -131,9 +131,9 @@ BufferAllocator::~BufferAllocator()
     Shutdown();
 }
 
-void BufferAllocator::OnFrameStart()
+void BufferAllocator::OnFrameStart(uint32 newFrameIndex)
 {
-    m_impl->OnFrameStart();
+    m_impl->OnFrameStart(newFrameIndex);
 }
 
 void BufferAllocator::OnFrameEnd(uint32 prevFrameIndex)

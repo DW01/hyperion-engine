@@ -36,6 +36,8 @@
 
 #include <Input/InputManager.hpp>
 
+#include <Streaming/StreamingManager.hpp>
+
 #include <Rendering/RenderInterface.hpp>
 #include <Rendering/DebugDrawer.hpp>
 
@@ -172,7 +174,17 @@ void SimThread::Update()
 
     m_counter.NextTick();
 
-    BeginFrameSim(&m_stopRequested);
+    g_assetManager->Update(m_counter.delta);
+    g_streamingManager->Update(m_counter.delta);
+
+#if HYP_EDITOR
+    g_editorState->Update(m_counter.delta);
+#endif
+
+    if constexpr (UseRingBuffer)
+    {
+        BeginSimRenderSyncBlock(&m_stopRequested);
+    }
 
     if (HYP_UNLIKELY(m_stopRequested.LoadVolatile()))
     {
@@ -191,8 +203,6 @@ void SimThread::Update()
             }
         }
     }
-
-    g_assetManager->Update(m_counter.delta);
 
     if (m_gameInstance != nullptr)
     {
@@ -214,24 +224,16 @@ void SimThread::Update()
         }
     }
 
-#if HYP_EDITOR
-    g_editorState->Update(m_counter.delta);
-#endif
-
-    g_engineDriver->UpdateSim(m_counter.delta);
-
-    if (m_gameInstance != nullptr)
-    {
-        m_gameInstance->OnUpdate(m_counter.delta);
-
-        m_gameInstance->m_gameState.gameTime += m_counter.delta;
-    }
+    g_engineDriver->UpdateSim(m_counter.delta, m_gameInstance);
 
     DebugDrawer::GetInstance().Update();
+
+    if constexpr (UseRingBuffer)
+    {
+        EndSimRenderSyncBlock();
+    }
     
     g_sceneArena->Reset();
-
-    EndFrameSim();
 }
 
 void SimThread::operator()()

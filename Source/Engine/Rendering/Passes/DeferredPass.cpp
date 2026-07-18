@@ -385,7 +385,10 @@ void LightingPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
     HYP_DEFER({ rpl.EndRead(); });
 
     RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(rs.view->GetCamera()));
-    Assert(cameraProxy != nullptr);
+    if (!cameraProxy)
+    {
+        return;
+    }
 
     DeferredPassData* dpd = DynamicCast<DeferredPassData>(rs.passData);
     AssertDebug(dpd != nullptr);
@@ -1746,7 +1749,10 @@ public:
         // Would be nice to make this a compute shader at some point
 
         RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(view->GetCamera()));
-        Assert(cameraProxy != nullptr);
+        if (!cameraProxy)
+        {
+            return;
+        }
 
         const Vec2u extent = cameraProxy->bufferData.dimensions.GetXY();
 
@@ -2803,6 +2809,13 @@ void DeferredPass::RenderFrame(Frame* frame, const RenderSetup& rs)
         if (!(view->GetFlags() & ViewFlags::GBUFFER))
         {
             continue;
+        }
+
+        RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(view->GetCamera()));
+        
+        if (!cameraProxy)
+        {
+            continue; // Not yet ready
         }
 
         DeferredPassData* pd = DynamicCast<DeferredPassData>(FetchViewPassData(view));
