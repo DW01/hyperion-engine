@@ -170,8 +170,6 @@ void SimThread::Update()
 {
     ENGINE_STAT_SCOPE(&g_statSimUpdate);
 
-    static const bool s_isDetached = CoreApi::GetCommandLineArguments()["Detached"].ToBool();
-
     m_counter.NextTick();
 
     BeginFrameSim(&m_stopRequested);
@@ -230,29 +228,10 @@ void SimThread::Update()
     }
 
     DebugDrawer::GetInstance().Update();
+    
+    g_sceneArena->Reset();
 
     EndFrameSim();
-
-    // if (ApplicationWindow* mainWindow = g_appContext->GetMainWindow())
-    // {
-    //     if (!mainWindow->HasFocus())
-    //     {
-    //         static constexpr float unfocusedFrameRate = 30.0f;
-    //         static ClockTimer focusThrottle;
-
-    //         const float elapsed = focusThrottle.Interval(ClockTimer::Now());
-    //         const float targetInterval = 1.0f / unfocusedFrameRate;
-
-    //         if (elapsed < targetInterval)
-    //         {
-    //             ThreadSleep(uint32((targetInterval - elapsed) * 1000.0f));
-    //         }
-
-    //         focusThrottle.NextTick();
-
-    //         m_counter.Reset();
-    //     }
-    // }
 }
 
 void SimThread::operator()()

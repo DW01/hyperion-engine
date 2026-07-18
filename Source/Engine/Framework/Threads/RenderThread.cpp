@@ -297,8 +297,6 @@ void RenderThread::Update()
 
     g_renderArena->Reset();
 
-    // Wait AFTER the frame is rendered to allow sim thread to catch up,
-    // as we want buffered data to keep being written even as we wait.
     if (targetFrameRate > 0.0f)
     {
         g_frameLimiter.SetTargetFPS(static_cast<int>(targetFrameRate));

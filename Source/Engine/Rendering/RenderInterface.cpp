@@ -556,6 +556,16 @@ uint32 CurrentRenderThreadIndex()
 
 void BeginFrameSim(AtomicFlag* pCancelFlag)
 {
+    // If !UseRingBuffer, we increment the frame counter
+    // from the simulation thread as it builds frame data before handing off to the render thread.
+    // We also check t_threadFrameIndex is not nullptr, because that is non-null only on the first frame,
+    // and we only want to inc the frame counter for the prev frame
+    // (start at 0 not at 1)
+    // if (!UseRingBuffer && Framework::t_threadFrameIndex != nullptr)
+    // {
+    //     AtomicIncrement(&Framework::s_frameCounter);
+    // }
+
     Framework::t_threadFrameIndex = &Framework::s_frameIndex[Framework::TT_FrameDataProducer];
 
     {
@@ -576,14 +586,7 @@ void EndFrameSim()
 {
     AssertOnThread(g_simThread);
 
-    const uint32 slot = Framework::s_frameIndex[Framework::TT_FrameDataProducer];
-
-    Framework::BufferedData& bufferedData = Framework::s_bufferedData[slot];
-
-    g_sceneArena->Reset();
-
     Framework::s_frameIndex[Framework::TT_FrameDataProducer] = (Framework::s_frameIndex[Framework::TT_FrameDataProducer] + 1) % RingBufferDepth;
-
     Framework::s_fullSemaphore.release();
 }
 
@@ -915,25 +918,12 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
     HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
+    if constexpr (UseRingBuffer)
     {
-        ENGINE_STAT_SCOPE(&g_statRenderThreadSync);
-        ENGINE_STAT_SCOPE(&g_statTotalStallTime);
-
-        while (!Framework::s_fullSemaphore.try_acquire_for(std::chrono::milliseconds(100)))
-        {
-            if (pCancelFlag != nullptr && pCancelFlag->Load())
-            {
-                return;
-            }
-        }
+        WaitForSync(pCancelFlag);
     }
 
-    const uint32 slot = Framework::s_frameIndex[Framework::TT_FrameDataConsumer];
-    const uint32 currFrame = GetFrameCounter();
-
     PrepareFrame(GetCurrentFrame());
-
-    Framework::BufferedData& bufferedData = Framework::s_bufferedData[slot];
 
     cbufferAllocator->OnFrameStart();
     bufferAllocator->OnFrameStart();
@@ -944,6 +934,212 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
     g_engineStats->Prepare();
 
     RenderCommands::Flush();
+
+    UpdateResources(UseRingBuffer ? nullptr : pCancelFlag);
+}
+
+void RenderInterface::EndFrame()
+{
+    HYP_SCOPE;
+    AssertOnThread(g_renderThread);
+
+    const uint32 slot = Framework::s_frameIndex[Framework::TT_FrameDataConsumer];
+
+    Framework::BufferedData& bufferedData = Framework::s_bufferedData[slot];
+    bufferedData.activeWorlds.Clear();
+
+    stagingBufferPool->Cleanup();
+
+    const uint32 currFrame = GetFrameCounter();
+
+    for (auto it = bufferedData.perViewData.Begin(); it != bufferedData.perViewData.End();)
+    {
+        Framework::BufferedViewData* bufferedViewData = it->second;
+
+        if (bufferedViewData->viewData != nullptr)
+        {
+            Framework::ViewData* viewData = bufferedViewData->viewData;
+
+            View* view = viewData->view;
+            AssertDebug(view != nullptr);
+
+            viewData->renderCollector.RemoveEmptyRenderGroups();
+
+            // Clear out data for views that haven't been written to for a while
+            if (int64(currFrame) - int64(viewData->lastUsedFrame) >= MaxFramesBeforeDiscard)
+            {
+                // Decrement ref count on the ViewData,
+                // if we hit zero there are no more BufferedViewData holding refs to the ViewData so we delete it
+                AssertDebug(viewData->numRefs > 0);
+
+                auto rplRenderIt = bufferedData.ownedLists.Find(&viewData->rplRender);
+                AssertDebug(rplRenderIt != bufferedData.ownedLists.End());
+
+                const size_t rplIndex = std::distance(bufferedData.ownedLists.Begin(), rplRenderIt);
+
+                // Drain all tracked resources from the render-side list before discarding,
+                // so their useCount is properly decremented in ResourceSubtypeData.
+                // Without this, resources that were tracked in rplRender would remain in
+                // ResourceSubtypeData with useCount > 0, leaking into the ResourceBinder indefinitely.
+                {
+                    int resourceTrackerIndex = 0;
+                    StaticForEach<typename RenderProxyList::ResourceTrackerTypes>(
+                        [&viewData, &resourceTrackerIndex]<class ResourceTrackerType>(TypeWrapper<ResourceTrackerType>)
+                        {
+                            ResourceTrackerType& resourceTracker = static_cast<ResourceTrackerType&>(*viewData->rplRender.resourceTrackers[resourceTrackerIndex]);
+                            resourceTracker.Advance();
+
+                            ++resourceTrackerIndex;
+                        });
+
+                    static RenderProxyList s_emptyRpl { /* isShared */ false, /* useRefCounting */ false };
+                    CopyDependencies(*resources, viewData->rplRender, s_emptyRpl);
+                }
+
+                bufferedData.ownedLists.Erase(rplRenderIt);
+
+                AssertDebug(rplIndex < bufferedData.sharedLists.Size());
+                bufferedData.sharedLists.EraseAt(rplIndex);
+
+                if (viewData->Release() == 0)
+                {
+                    HYP_LOG(Rendering, Verbose, "Discarding ViewData {} for view {} at frame {}", (void*)viewData, view->Id(), GetFrameCounter());
+
+                    auto viewDataIt = Framework::s_viewData.Find(view);
+                    AssertDebug(viewDataIt != Framework::s_viewData.End() && viewDataIt->second == viewData);
+
+                    Framework::s_viewData.Erase(viewDataIt);
+
+                    PoolDelete(*g_renderPool, viewData);
+                }
+
+                bufferedViewData->viewData = nullptr;
+
+                delete bufferedViewData;
+
+                it = bufferedData.perViewData.Erase(it);
+
+                continue;
+            }
+        }
+
+        ++it;
+    }
+
+    for (uint8 i = 0; i < NumNamedPasses; i++)
+    {
+        for (size_t j = 0; j < namedPasses[i].Size(); j++)
+        {
+            if (PassBase* pass = namedPasses[i][j])
+            {
+                pass->RunCleanupCycle();
+            }
+        }
+    }
+
+    graphicsPipelineCache->RunCleanupCycle(16);
+    computePipelineCache->RunCleanupCycle(4);
+    rayTracingPipelineCache->RunCleanupCycle(1);
+
+    for (ResourceSubtypeData& subtypeData : resources->dataByType)
+    {
+        for (Bitset::BitIndex i : subtypeData.indicesPendingDelete)
+        {
+            ResourceData& rd = subtypeData.data.Get(i);
+            AssertDebug(rd.resource != nullptr);
+            AssertDebug(rd.useCount == 0, "Use count should be 0 before deletion");
+
+            // if we delete it, we want to make sure it is not in marked for update state (don't want to iterate over
+            // dead items)
+            subtypeData.indicesPendingUpdate.Set(i, false);
+
+            for (ResourceBinderBase** it = subtypeData.resourceBinders; *it; ++it)
+            {
+                ResourceBinderBase* resourceBinder = *it;
+                resourceBinder->Deconsider(rd.resource);
+            }
+
+            subtypeData.data.EraseAt(i);
+
+            if (subtypeData.hasProxyData)
+            {
+                AssertDebug(subtypeData.proxies.HasIndex(i));
+
+                const IRenderProxy* pProxy = reinterpret_cast<const IRenderProxy*>(subtypeData.proxies.GetElementRaw(i));
+                AssertDebug(pProxy != nullptr);
+
+                subtypeData.proxies.DeleteElementRaw(i, subtypeData.proxyDtor);
+            }
+        }
+
+        subtypeData.indicesPendingDelete.Clear();
+    }
+
+    blasCache->RunCleanupCycle(32);
+
+    // shadowViewCache->RunCleanupCycle(8);
+
+    DeletionQueue::GetInstance().UpdateEntryListQueue();
+    DeletionQueue::GetInstance().Iterate();
+
+    g_engineStats->Advance();
+
+    CVarManager::GetInstance().Advance();
+
+    ReleaseTransientMemory();
+    NewFrameIndex();
+
+    state.Reset();
+
+    cbufferAllocator->OnFrameEnd();
+    bufferAllocator->OnFrameEnd();
+    scratchImageAllocator->OnFrameEnd();
+    descriptorSetCache->OnFrameEnd();
+    stagingBufferPool->OnFrameEnd();
+
+    textureViewCache->CleanupUnusedTextures();
+
+    const uint32 nextFrameIndex = (Framework::s_frameIndex[Framework::TT_FrameDataConsumer] + 1) % RingBufferDepth;
+    Framework::s_frameIndex[Framework::TT_FrameDataConsumer] = nextFrameIndex;
+
+    AtomicIncrement(&Framework::s_frameCounter);
+
+    // if constexpr (UseRingBuffer)
+    // {
+        Framework::s_freeSemaphore.release();
+    // }
+}
+
+void RenderInterface::WaitForSync(AtomicFlag* pCancelFlag)
+{
+    ENGINE_STAT_SCOPE(&g_statRenderThreadSync);
+    ENGINE_STAT_SCOPE(&g_statTotalStallTime);
+
+    while (!Framework::s_fullSemaphore.try_acquire_for(std::chrono::milliseconds(100)))
+    {
+        if (pCancelFlag != nullptr && pCancelFlag->Load())
+        {
+            return;
+        }
+    }
+}
+
+void RenderInterface::UpdateResources(AtomicFlag* pCancelFlag)
+{
+    if constexpr (!UseRingBuffer)
+    {
+        WaitForSync(pCancelFlag);
+
+        if (pCancelFlag != nullptr && pCancelFlag->Load())
+        {
+            return;
+        }
+    }
+
+    const uint32 slot = Framework::s_frameIndex[Framework::TT_FrameDataConsumer];
+    const uint32 currFrame = GetFrameCounter();
+
+    Framework::BufferedData& bufferedData = Framework::s_bufferedData[slot];
 
     Span<View* const> activeViews = g_engineDriver->GetCurrentFrameViews();
 
@@ -981,13 +1177,14 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
 
         // Advance render side owned lists ResourceTrackers before we copy dependencies over
         int resourceTrackerIndex = 0;
-        StaticForEach<typename RenderProxyList::ResourceTrackerTypes>([rplRender, &resourceTrackerIndex]<class ResourceTrackerType>(TypeWrapper<ResourceTrackerType>)
-                                                                      {
-                                                                          ResourceTrackerType& resourceTracker = static_cast<ResourceTrackerType&>(*rplRender->resourceTrackers[resourceTrackerIndex]);
-                                                                          resourceTracker.Advance();
+        StaticForEach<typename RenderProxyList::ResourceTrackerTypes>(
+            [rplRender, &resourceTrackerIndex]<class ResourceTrackerType>(TypeWrapper<ResourceTrackerType>)
+            {
+                ResourceTrackerType& resourceTracker = static_cast<ResourceTrackerType&>(*rplRender->resourceTrackers[resourceTrackerIndex]);
+                resourceTracker.Advance();
 
-                                                                          ++resourceTrackerIndex;
-                                                                      });
+                ++resourceTrackerIndex;
+            });
 
         if (!rplShared)
         {
@@ -1129,6 +1326,12 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
         vd.rplRender.EndRead();
     }
 
+    // if constexpr (!UseRingBuffer)
+    // {
+        // Done with shared data
+        // Framework::s_freeSemaphore.release();
+    //}
+
     GetCurrentCommandBuffer()->Begin();
 
     if (m_gpuTimerBackend != nullptr)
@@ -1136,175 +1339,6 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
         m_gpuTimerBackend->OnFrameStart();
         m_gpuTimerBackend->WriteStartTimestamp(GetCurrentCommandBuffer(), &g_statGpuFrameTime);
     }
-}
-
-void RenderInterface::EndFrame()
-{
-    HYP_SCOPE;
-    AssertOnThread(g_renderThread);
-
-    const uint32 slot = Framework::s_frameIndex[Framework::TT_FrameDataConsumer];
-
-    Framework::BufferedData& bufferedData = Framework::s_bufferedData[slot];
-    bufferedData.activeWorlds.Clear();
-
-    stagingBufferPool->Cleanup();
-
-    const uint32 currFrame = GetFrameCounter();
-
-    for (auto it = bufferedData.perViewData.Begin(); it != bufferedData.perViewData.End();)
-    {
-        Framework::BufferedViewData* bufferedViewData = it->second;
-
-        if (bufferedViewData->viewData != nullptr)
-        {
-            Framework::ViewData* viewData = bufferedViewData->viewData;
-
-            View* view = viewData->view;
-            AssertDebug(view != nullptr);
-
-            viewData->renderCollector.RemoveEmptyRenderGroups();
-
-            // Clear out data for views that haven't been written to for a while
-            if (int64(currFrame) - int64(viewData->lastUsedFrame) >= MaxFramesBeforeDiscard)
-            {
-                // Decrement ref count on the ViewData,
-                // if we hit zero there are no more BufferedViewData holding refs to the ViewData so we delete it
-                AssertDebug(viewData->numRefs > 0);
-
-                auto rplRenderIt = bufferedData.ownedLists.Find(&viewData->rplRender);
-                AssertDebug(rplRenderIt != bufferedData.ownedLists.End());
-
-                const size_t rplIndex = std::distance(bufferedData.ownedLists.Begin(), rplRenderIt);
-
-                // Drain all tracked resources from the render-side list before discarding,
-                // so their useCount is properly decremented in ResourceSubtypeData.
-                // Without this, resources that were tracked in rplRender would remain in
-                // ResourceSubtypeData with useCount > 0, leaking into the ResourceBinder indefinitely.
-                {
-                    int resourceTrackerIndex = 0;
-                    StaticForEach<typename RenderProxyList::ResourceTrackerTypes>([&viewData, &resourceTrackerIndex]<class ResourceTrackerType>(TypeWrapper<ResourceTrackerType>)
-                                                                                  {
-                                                                                      ResourceTrackerType& resourceTracker = static_cast<ResourceTrackerType&>(*viewData->rplRender.resourceTrackers[resourceTrackerIndex]);
-                                                                                      resourceTracker.Advance();
-
-                                                                                      ++resourceTrackerIndex;
-                                                                                  });
-
-                    static RenderProxyList s_emptyRpl { /* isShared */ false, /* useRefCounting */ false };
-                    CopyDependencies(*resources, viewData->rplRender, s_emptyRpl);
-                }
-
-                bufferedData.ownedLists.Erase(rplRenderIt);
-
-                AssertDebug(rplIndex < bufferedData.sharedLists.Size());
-                bufferedData.sharedLists.EraseAt(rplIndex);
-
-                if (viewData->Release() == 0)
-                {
-                    HYP_LOG(Rendering, Verbose, "Discarding ViewData {} for view {} at frame {}", (void*)viewData, view->Id(), GetFrameCounter());
-
-                    auto viewDataIt = Framework::s_viewData.Find(view);
-                    AssertDebug(viewDataIt != Framework::s_viewData.End() && viewDataIt->second == viewData);
-
-                    Framework::s_viewData.Erase(viewDataIt);
-
-                    PoolDelete(*g_renderPool, viewData);
-                }
-
-                bufferedViewData->viewData = nullptr;
-
-                delete bufferedViewData;
-
-                it = bufferedData.perViewData.Erase(it);
-
-                continue;
-            }
-        }
-
-        ++it;
-    }
-
-    for (uint8 i = 0; i < NumNamedPasses; i++)
-    {
-        for (size_t j = 0; j < namedPasses[i].Size(); j++)
-        {
-            if (PassBase* pass = namedPasses[i][j])
-            {
-                pass->RunCleanupCycle();
-            }
-        }
-    }
-
-    graphicsPipelineCache->RunCleanupCycle(16);
-    computePipelineCache->RunCleanupCycle(4);
-    rayTracingPipelineCache->RunCleanupCycle(1);
-
-    for (ResourceSubtypeData& subtypeData : resources->dataByType)
-    {
-        for (Bitset::BitIndex i : subtypeData.indicesPendingDelete)
-        {
-            ResourceData& rd = subtypeData.data.Get(i);
-            AssertDebug(rd.resource != nullptr);
-            AssertDebug(rd.useCount == 0, "Use count should be 0 before deletion");
-
-            // if we delete it, we want to make sure it is not in marked for update state (don't want to iterate over
-            // dead items)
-            subtypeData.indicesPendingUpdate.Set(i, false);
-
-            for (ResourceBinderBase** it = subtypeData.resourceBinders; *it; ++it)
-            {
-                ResourceBinderBase* resourceBinder = *it;
-                resourceBinder->Deconsider(rd.resource);
-            }
-
-            subtypeData.data.EraseAt(i);
-
-            if (subtypeData.hasProxyData)
-            {
-                AssertDebug(subtypeData.proxies.HasIndex(i));
-
-                const IRenderProxy* pProxy = reinterpret_cast<const IRenderProxy*>(subtypeData.proxies.GetElementRaw(i));
-                AssertDebug(pProxy != nullptr);
-
-                subtypeData.proxies.DeleteElementRaw(i, subtypeData.proxyDtor);
-            }
-        }
-
-        subtypeData.indicesPendingDelete.Clear();
-    }
-
-    blasCache->RunCleanupCycle(32);
-
-    // shadowViewCache->RunCleanupCycle(8);
-
-    DeletionQueue::GetInstance().UpdateEntryListQueue();
-    DeletionQueue::GetInstance().Iterate();
-
-    g_engineStats->Advance();
-
-    CVarManager::GetInstance().Advance();
-
-    ReleaseTransientMemory();
-    NewFrameIndex();
-
-    state.Reset();
-
-    cbufferAllocator->OnFrameEnd();
-    bufferAllocator->OnFrameEnd();
-    scratchImageAllocator->OnFrameEnd();
-    descriptorSetCache->OnFrameEnd();
-    stagingBufferPool->OnFrameEnd();
-
-    textureViewCache->CleanupUnusedTextures();
-
-    const uint32 nextFrameIndex = (Framework::s_frameIndex[Framework::TT_FrameDataConsumer] + 1) % RingBufferDepth;
-
-    Framework::s_frameIndex[Framework::TT_FrameDataConsumer] = nextFrameIndex;
-
-    AtomicIncrement(&Framework::s_frameCounter);
-
-    Framework::s_freeSemaphore.release();
 }
 
 void RenderInterface::WriteCommandBuffer()

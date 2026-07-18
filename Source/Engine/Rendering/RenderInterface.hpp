@@ -481,6 +481,9 @@ protected:
 
 private:
     virtual void InitDeviceDetails(DeviceDetails& deviceDetails) = 0;
+
+    void WaitForSync(AtomicFlag* pCancelFlag);
+    void UpdateResources(AtomicFlag* pCancelFlag);
 };
 
 } // namespace Hyperion
