@@ -367,10 +367,10 @@ public:
     float QueryStatValue(UTF8StringView path, float valueIfNotFound = 0.0) const;
 
     void Prepare();
-    void Advance();
+    void OnFrameEnd(uint32 prevFrameIndex);
 
     /*! \brief Record a value set to be integrated into samples.
-     *  Call this to add values that will be included in the next Advance() calculation.
+     *  Call this to add values that will be included in the next OnFrameEnd() calculation.
      * Call only from Render thread! */
     void RecordValueSet(const struct EngineStatsValueSet& valueSet);
 

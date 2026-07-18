@@ -68,13 +68,13 @@ PassBase::~PassBase()
     }
 }
 
-int PassBase::RunCleanupCycle(int maxIter)
+void PassBase::OnFrameEnd(uint32 prevFrameIndex)
 {
     // default impl, run for views
-    return RunCleanupCycle(m_viewPassData, maxIter, &m_viewPassDataCleanupIterator);
+    OnFrameEnd(m_viewPassData, prevFrameIndex, &m_viewPassDataCleanupIterator);
 }
 
-int PassBase::RunCleanupCycle(PassDataMap& passData, int maxIter, typename PassDataMap::Iterator* pIter)
+void PassBase::OnFrameEnd(PassDataMap& passData, uint32 prevFrameIndex, typename PassDataMap::Iterator* pIter)
 {
     typename PassDataMap::Iterator tmpIterator;
 
@@ -96,7 +96,7 @@ int PassBase::RunCleanupCycle(PassDataMap& passData, int maxIter, typename PassD
     const typename PassDataMap::Iterator startIterator = iter; // the iterator we started at - use it to check that we don't do duplicate checks
 
     int numCycles = 0;
-    for (; numCycles < maxIter; ++numCycles)
+    for (; ; ++numCycles)
     {
         // Loop around to the beginning of the container when the end is reached.
         if (iter == passData.End())
@@ -130,8 +130,6 @@ int PassBase::RunCleanupCycle(PassDataMap& passData, int maxIter, typename PassD
             break;
         }
     }
-
-    return numCycles;
 }
 
 PassData* PassBase::TryGetViewPassData(View* view)

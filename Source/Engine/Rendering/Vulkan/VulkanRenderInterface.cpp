@@ -1080,6 +1080,9 @@ void VulkanRenderInterface::PresentToSwapchain(VulkanSwapchain* swapchain)
     {
         swapchain->PresentFrame(frame, presentQueue);
     }
+    
+    // Next frame in flight
+    m_currentFrameIndex = (m_currentFrameIndex + 1) % NumFramesInFlight;
 }
 
 VulkanCommandBuffer* VulkanRenderInterface::GetCurrentCommandBuffer() const

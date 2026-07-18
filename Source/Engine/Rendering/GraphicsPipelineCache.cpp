@@ -563,13 +563,8 @@ void GraphicsPipelineCache::ExpirePipelinesForShader(const Shader* shader)
     }
 }
 
-int GraphicsPipelineCache::RunCleanupCycle(int maxIter)
+void GraphicsPipelineCache::OnFrameEnd(uint32 prevFrameIndex)
 {
-    HYP_SCOPE;
-    AssertOnThread(g_renderThread);
-
-    const uint32 currFrame = GetFrameCounter();
-
     TUniqueLock guard(m_mutex);
 
     m_cachedPipelines->cleanupIterator = typename CachedPipelinesMap::Iterator(
@@ -581,7 +576,7 @@ int GraphicsPipelineCache::RunCleanupCycle(int maxIter)
 
     int numCycles = 0;
 
-    for (; numCycles < maxIter; ++numCycles)
+    for (; ; ++numCycles)
     {
         // Loop around to the beginning of the container when the end is reached.
         if (m_cachedPipelines->cleanupIterator == m_cachedPipelines->End())
@@ -611,7 +606,7 @@ int GraphicsPipelineCache::RunCleanupCycle(int maxIter)
         }
 
         // signed as graphics pipelines that haven't been used yet have -1 as their lastFrame value
-        const int64 frameDiff = int64(currFrame) - int64(graphicsPipeline->lastFrame);
+        const int64 frameDiff = int64(prevFrameIndex) - int64(graphicsPipeline->lastFrame);
 
         if (frameDiff >= GraphicsPipelineDiscardFrames)
         {
@@ -636,8 +631,6 @@ int GraphicsPipelineCache::RunCleanupCycle(int maxIter)
             break;
         }
     }
-
-    return numCycles;
 }
 
 #pragma endregion GraphicsPipelineCache

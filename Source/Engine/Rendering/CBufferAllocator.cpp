@@ -102,7 +102,7 @@ void CBufferAllocator::OnFrameStart()
 }
 
 // only ever called after all workers are done.
-void CBufferAllocator::OnFrameEnd()
+void CBufferAllocator::OnFrameEnd(uint32 prevFrameIndex)
 {
     AssertOnThread(g_renderThread);
 

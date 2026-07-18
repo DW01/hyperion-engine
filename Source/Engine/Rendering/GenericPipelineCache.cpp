@@ -185,14 +185,11 @@ void GenericPipelineCache<PipelineType>::ExpirePipelinesForShader(const Shader* 
 }
 
 template <class PipelineType>
-int GenericPipelineCache<PipelineType>::RunCleanupCycle(int maxIter)
+void GenericPipelineCache<PipelineType>::OnFrameEnd(uint32 prevFrameIndex)
 {
-    HYP_SCOPE;
-
     TUniqueLock guard(m_mutex);
 
     int numIterations = 0;
-    const uint32 frameCounter = GetFrameCounter();
 
     m_cleanupIterator = typename PipelineStorage::Iterator(
         &m_pipelines,
@@ -204,7 +201,7 @@ int GenericPipelineCache<PipelineType>::RunCleanupCycle(int maxIter)
         m_cleanupIterator = m_pipelines.Begin();
     }
 
-    while (numIterations < maxIter && m_cleanupIterator != m_pipelines.End())
+    while (m_cleanupIterator != m_pipelines.End())
     {
         CachedPipeline& cached = *m_cleanupIterator;
 
@@ -215,7 +212,7 @@ int GenericPipelineCache<PipelineType>::RunCleanupCycle(int maxIter)
             continue;
         }
 
-        if (frameCounter - cached.pipeline->lastFrame > m_discardFrames)
+        if (static_cast<int64>(prevFrameIndex) - cached.pipeline->lastFrame > m_discardFrames)
         {
             auto keyToIndexIt = m_keyToIndex.Find(cached.key);
             Assert(keyToIndexIt != m_keyToIndex.End());
@@ -233,8 +230,6 @@ int GenericPipelineCache<PipelineType>::RunCleanupCycle(int maxIter)
 
         ++m_cleanupIterator;
     }
-
-    return numIterations;
 }
 
 template <class PipelineType>

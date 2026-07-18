@@ -212,9 +212,7 @@ public:
 
     virtual void RenderFrame(Frame* frame, const RenderSetup& renderSetup) = 0;
 
-    /*! \brief Cleans up data no longer used for rendering, amortised.
-     *  Returns number of cleanup iterations used by this execution */
-    virtual int RunCleanupCycle(int maxIter = 10);
+    virtual void OnFrameEnd(uint32 prevFrameIndex);
 
 protected:
     PassBase();
@@ -227,7 +225,7 @@ protected:
     PassData* TryGetViewPassData(View* view);
     PassData* FetchViewPassData(View* view, PassDataExt* ext = nullptr, bool forceNew = false);
 
-    static int RunCleanupCycle(PassDataMap& passData, int maxIter, typename PassDataMap::Iterator* pIter = nullptr);
+    static void OnFrameEnd(PassDataMap& passData, uint32 prevFrameIndex, typename PassDataMap::Iterator* pIter = nullptr);
 
 private:
     PassDataMap m_viewPassData;

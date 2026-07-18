@@ -80,7 +80,7 @@ void DescriptorSetCache::OnFrameStart()
     }
 }
 
-void DescriptorSetCache::OnFrameEnd()
+void DescriptorSetCache::OnFrameEnd(uint32 prevFrameIndex)
 {
     AssertOnThread(g_renderThread);
 
@@ -88,8 +88,6 @@ void DescriptorSetCache::OnFrameEnd()
     {
         // Remove unused allocs after being unused in a while.
         static constexpr uint32 NumFramesBeforeDiscard = 2000;
-
-        const uint32 frameCounter = GetFrameCounter();
 
         // Note, we don't destroy empty layout slots, as we may need them again for recycling
         // used descriptor sets
@@ -100,9 +98,9 @@ void DescriptorSetCache::OnFrameEnd()
             for (auto jt = list.Begin(); jt != list.End();)
             {
                 AllocatedDescriptorSet& allocated = *jt;
-                AssertDebug(frameCounter >= allocated.frameCounter);
+                AssertDebug(prevFrameIndex >= allocated.frameCounter);
 
-                if (frameCounter - allocated.frameCounter >= NumFramesBeforeDiscard)
+                if (static_cast<int64>(prevFrameIndex) - allocated.frameCounter >= NumFramesBeforeDiscard)
                 {
                     // we don't need to enqueue deletion, it isn't used by the gpu.
                     // We can just delete it by means of Erase(), as NumFramesBeforeDiscard is AT LEAST NumFramesInFlight

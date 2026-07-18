@@ -237,9 +237,9 @@ public:
         return m_overrideAttributes;
     }
 
-    HYP_FORCE_INLINE RenderProxyList* GetRenderProxyList(uint32 index) const
+    HYP_FORCE_INLINE RenderProxyList* GetRenderProxyList(uint8 ringIndex) const
     {
-        return m_renderProxyLists[index];
+        return m_renderProxyLists[ringIndex];
     }
 
     HYP_FORCE_INLINE const WeakHandle<View>& GetRayTracingView() const

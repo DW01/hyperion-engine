@@ -21,6 +21,8 @@
 
 namespace Hyperion {
 
+extern uint32 GetFrameCounter();
+
 template <size_t N>
 static HYP_FORCE_INLINE uint64 MakeBLASKey(const ObjIdBase (&ids)[N])
 {
@@ -285,18 +287,16 @@ bool BLASCache::ReleaseStorageIdForBLASKey(uint64 key, uint32& outStorageId, uin
     return true;
 }
 
-void BLASCache::RunCleanupCycle(int)
+void BLASCache::OnFrameEnd(uint32 prevFrameIndex)
 {
     HYP_SCOPE;
-
-    const uint32 frameCounter = GetFrameCounter();
 
     for (auto it = m_impl->entityToKey.Begin(); it != m_impl->entityToKey.End();)
     {
         uint64 key = it->second;
         Entry& entry = m_impl->entryMap[key];
 
-        if (frameCounter - entry.lastUsedFrame > 100)
+        if (static_cast<int64>(prevFrameIndex) - entry.lastUsedFrame > 100)
         {
             EnqueueDeletion(entry.blas);
 

@@ -44,7 +44,7 @@ public:
     void Initialize(size_t minAllocationAlignment);
 
     void OnFrameStart();
-    void OnFrameEnd();
+    void OnFrameEnd(uint32 prevFrameIndex);
 
     HYP_NODISCARD void* Allocate(size_t count, size_t alignment);
     HYP_NODISCARD void* Allocate(size_t count, size_t alignment, GpuBuffer*& outBuffer, size_t& outStartOffset);

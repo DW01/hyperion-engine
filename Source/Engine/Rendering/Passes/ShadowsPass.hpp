@@ -62,7 +62,7 @@ public:
 protected:
     ShadowsPassBase();
 
-    virtual int RunCleanupCycle(int maxIter) override;
+    virtual void OnFrameEnd(uint32 prevFrameIndex) override;
 
     virtual PassData* CreateViewPassData(View* view, PassDataExt&) override;
 

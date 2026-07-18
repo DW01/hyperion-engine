@@ -464,9 +464,6 @@ public:
     Resources::ResourceContainer* resources;
 
 protected:
-    virtual void NewFrameIndex()
-    {
-    }
     virtual void PrepareFrame(Frame* frame) = 0;
 
     virtual void ReleaseTransientMemory() = 0;
@@ -484,6 +481,7 @@ private:
 
     void WaitForSync(AtomicFlag* pCancelFlag);
     void UpdateResources(AtomicFlag* pCancelFlag);
+    void CleanupUnusedResources(uint32 prevFrameIndex);
 };
 
 } // namespace Hyperion

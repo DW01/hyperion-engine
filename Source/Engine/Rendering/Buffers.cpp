@@ -61,13 +61,11 @@ struct StagingBufferPoolImpl
     {
     }
 
-    void OnFrameEnd()
+    void OnFrameEnd(uint32 prevFrameIndex)
     {
         TUniqueLock lock(mutex);
 
-        const uint32 frameCounter = GetFrameCounter();
-
-        if (HYP_UNLIKELY(frameCounter < NumFramesInFlight))
+        if (HYP_UNLIKELY(prevFrameIndex < NumFramesInFlight))
         {
             return;
         }
@@ -75,18 +73,11 @@ struct StagingBufferPoolImpl
         TBufferCache<CachedStagingBuffer, GpuBufferRef>::RecycleUsedBuffers(
             usedBuffers,
             cachedBuffers,
-            frameCounter - NumFramesInFlight);
-    }
-
-    void Cleanup()
-    {
-        TUniqueLock lock(mutex);
-
-        const uint32 currFrame = GetFrameCounter();
+            prevFrameIndex - NumFramesInFlight);
 
         for (auto it = cachedBuffers.Begin(); it != cachedBuffers.End();)
         {
-            const int64 frameDiff = int64(currFrame) - int64(it->lastUsedFrame);
+            const int64 frameDiff = int64(prevFrameIndex) - int64(it->lastUsedFrame);
 
             if (frameDiff >= MaxFramesBeforeDiscard)
             {
@@ -159,14 +150,9 @@ void StagingBufferPool::OnFrameStart()
     m_impl->OnFrameStart();
 }
 
-void StagingBufferPool::OnFrameEnd()
+void StagingBufferPool::OnFrameEnd(uint32 prevFrameIndex)
 {
-    m_impl->OnFrameEnd();
-}
-
-void StagingBufferPool::Cleanup()
-{
-    m_impl->Cleanup();
+    m_impl->OnFrameEnd(prevFrameIndex);
 }
 
 GpuBuffer* StagingBufferPool::AcquireStagingBuffer(size_t bufferSize)

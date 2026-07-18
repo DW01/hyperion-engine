@@ -38,7 +38,7 @@ public:
         m_timers.Clear();
     }
 
-    void OnFrameEnd()
+    void OnFrameEnd(uint32 prevFrameIndex)
     {
     }
 

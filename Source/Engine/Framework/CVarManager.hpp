@@ -374,7 +374,7 @@ public:
 
     /*! \brief Publishes the cvar states so they're visible to other threads.
      *  Call once per frame at end of frame. */
-    void Advance();
+    void OnFrameEnd(uint32 prevFrameIndex);
 
     const CVarSnapshot& GetCurrentSnapshot() const;
 

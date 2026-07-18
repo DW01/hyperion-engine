@@ -28,7 +28,7 @@ public:
     ~DescriptorSetCache();
 
     void OnFrameStart();
-    void OnFrameEnd();
+    void OnFrameEnd(uint32 prevFrameIndex);
 
     DescriptorSet* GetOrCreate(const DescriptorSetLayout& layout);
 

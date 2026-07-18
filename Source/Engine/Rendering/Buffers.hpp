@@ -104,9 +104,7 @@ public:
     StagingBufferPool();
 
     void OnFrameStart();
-    void OnFrameEnd();
-
-    void Cleanup();
+    void OnFrameEnd(uint32 prevFrameIndex);
 
     GpuBuffer* AcquireStagingBuffer(size_t bufferSize);
 

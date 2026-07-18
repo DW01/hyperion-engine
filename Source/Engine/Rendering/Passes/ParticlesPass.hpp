@@ -29,7 +29,7 @@ public:
 
     void RenderFrame(Frame* frame, const RenderSetup& renderSetup) override;
 
-    int RunCleanupCycle(int maxIter = 10) override;
+    void OnFrameEnd(uint32 prevFrameIndex) override;
 
 protected:
     PassData* CreateViewPassData(View* view, PassDataExt& ext) override;

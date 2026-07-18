@@ -43,15 +43,13 @@ struct ScratchImageAllocatorImpl
     {
     }
 
-    void OnFrameEnd()
+    void OnFrameEnd(uint32 prevFrameIndex)
     {
-        const uint32 frameCounter = GetFrameCounter();
-
         for (auto it = cachedImages.Begin(); it != cachedImages.End();)
         {
             CachedScratchImage& cachedImage = *it;
 
-            if (int64(frameCounter) - int64(cachedImage.lastUsedFrame) >= MaxFramesBeforeDiscard)
+            if (int64(prevFrameIndex) - int64(cachedImage.lastUsedFrame) >= MaxFramesBeforeDiscard)
             {
                 it = cachedImages.Erase(it);
 
@@ -166,9 +164,9 @@ void ScratchImageAllocator::OnFrameStart()
     m_impl->OnFrameStart();
 }
 
-void ScratchImageAllocator::OnFrameEnd()
+void ScratchImageAllocator::OnFrameEnd(uint32 prevFrameIndex)
 {
-    m_impl->OnFrameEnd();
+    m_impl->OnFrameEnd(prevFrameIndex);
 }
 
 Handle<Texture> ScratchImageAllocator::AcquireScratchImage(TextureType type, TextureFormat format, Vec3u extent)

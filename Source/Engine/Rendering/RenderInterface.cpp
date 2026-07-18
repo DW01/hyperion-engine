@@ -150,12 +150,12 @@ namespace Framework {
 
 static volatile int64 s_frameCounter = 0; // atomic
 
-static std::counting_semaphore<RingBufferDepth> s_fullSemaphore { 0 };
-static std::counting_semaphore<RingBufferDepth> s_freeSemaphore { RingBufferDepth };
+static std::counting_semaphore<RingBufferDepth> s_dataProduced { 0 };
+static std::counting_semaphore<RingBufferDepth> s_frameSubmitted { RingBufferDepth };
 
 // thread-local frame index for the game and render threads
-thread_local uint32* t_threadFrameIndex;
-static uint32 s_frameIndex[2] = { 0 };
+thread_local uint8* t_thisThreadRingIndex;
+static uint8 s_ringIndex[2] = { 0 };
 
 thread_local uint32 t_currentRenderThreadIndex;
 
@@ -304,27 +304,36 @@ struct BufferedData
     Map<View*, BufferedViewData*> perViewData;
     SharedMutex viewFrameDataMutex;
 
-    Array<World*> activeWorlds;
+    FatArray<World*, InlineAllocator<2>> activeWorlds;
+    FatArray<World*, InlineAllocator<2>> activeWorldsCached;    // for render thread to read - one frame behind
 
-    Array<RenderProxyList*> ownedLists; // render thread side owned lists
-    Array<RenderProxyList*> sharedLists;
+    FatArray<RenderProxyList*, InlineAllocator<16>> ownedLists; // render thread side owned lists
+    FatArray<RenderProxyList*, InlineAllocator<16>> sharedLists;
 
     WorldShaderData worldBufferData {};
+
+    /// Render thread only flags
+    bool isRenderThreadReading = false;
+    bool isFrameEnded = false;
 };
 
 static BufferedData s_bufferedData[RingBufferDepth];
 
-static BufferedViewData* GetBufferedViewData(View* view, uint32 slot)
+static BufferedViewData* GetBufferedViewData(View* view, uint8 ringIndex)
 {
     AssertDebug(view != nullptr);
 
-    BufferedData& bufferedData = s_bufferedData[slot];
+    BufferedData& bufferedData = s_bufferedData[ringIndex];
+
+    Assert(bufferedData.isRenderThreadReading == IsOnThread(g_renderThread));
 
     TSharedLock<SharedMutex> sharedLock;
     TUniqueLock<SharedMutex> uniqueLock;
 
     // need to lock IFF on task thread
-    if (Framework::t_threadFrameIndex == nullptr)
+    // Sim/Render threads won't need this lock as they
+    // do not operate on it at the same time as task threads do.
+    if (Framework::t_thisThreadRingIndex == nullptr)
     {
         sharedLock.Reset(bufferedData.viewFrameDataMutex);
     }
@@ -351,7 +360,7 @@ static BufferedViewData* GetBufferedViewData(View* view, uint32 slot)
     BufferedViewData* bufferedViewData = new BufferedViewData;
     bufferedViewData->view = view;
 
-    bufferedViewData->rplShared = view->GetRenderProxyList(slot);
+    bufferedViewData->rplShared = view->GetRenderProxyList(ringIndex);
     AssertDebug(bufferedViewData->rplShared != nullptr);
     AssertDebug(bufferedViewData->rplShared->isShared, "Expected isShared to be true to ensure multiple threads don't access the list concurrently");
 
@@ -371,19 +380,24 @@ static BufferedViewData* GetBufferedViewData(View* view, uint32 slot)
 
 uint32 GetRingIndex()
 {
-    if (HYP_UNLIKELY(!Framework::t_threadFrameIndex))
+    if (HYP_UNLIKELY(!Framework::t_thisThreadRingIndex))
     {
         const int threadType = Framework::CurrentThreadType();
         Assert(threadType >= 0, "GetRingIndex called from an invalid thread!");
 
-        Framework::t_threadFrameIndex = &Framework::s_frameIndex[threadType];
+        Framework::t_thisThreadRingIndex = &Framework::s_ringIndex[threadType];
     }
 
-    return *Framework::t_threadFrameIndex;
+    return *Framework::t_thisThreadRingIndex;
 }
 
 uint32 GetFrameCounter()
 {
+    // Only call on render thread if frame has not been ended
+    // Otherwise, the frame counter value will be out of sync from what the expected value is
+    // (Hence, why we pass prevFrameIndex around!)
+    Assert(!IsOnThread(g_renderThread) || !Framework::s_bufferedData[GetRingIndex()].isFrameEnded);
+
     return (uint32)AtomicAdd(&Framework::s_frameCounter, 0);
 }
 
@@ -392,10 +406,7 @@ RenderProxyList& GetProducerProxyList(View* view)
     // can be called on sim thread or on task thread for tasks enqueued and awaited by sim thread, **exclusively**
     AssertOnThread(g_simThread | ThreadCategory::THREAD_CATEGORY_TASK);
 
-    Framework::BufferedViewData* vd = Framework::GetBufferedViewData(
-        view,
-        Framework::s_frameIndex[Framework::TT_FrameDataProducer]);
-
+    Framework::BufferedViewData* vd = Framework::GetBufferedViewData(view, Framework::s_ringIndex[Framework::TT_FrameDataProducer]);
     Assert(vd != nullptr);
 
     return *vd->rplShared;
@@ -519,29 +530,42 @@ WorldShaderData* GetWorldBufferData()
 {
     AssertOnThread(g_simThread | g_renderThread);
 
-    return &Framework::s_bufferedData[*Framework::t_threadFrameIndex].worldBufferData;
+    return &Framework::s_bufferedData[*Framework::t_thisThreadRingIndex].worldBufferData;
 }
 
 void CommitActiveWorlds(Span<World*> activeWorlds)
 {
     AssertOnThread(g_simThread);
 
-    Framework::BufferedData& bufferedData = Framework::s_bufferedData[Framework::s_frameIndex[Framework::TT_FrameDataProducer]];
-    bufferedData.activeWorlds = Array<World*>(activeWorlds);
+    Framework::BufferedData& bufferedData = Framework::s_bufferedData[Framework::s_ringIndex[Framework::TT_FrameDataProducer]];
+    Assert(!bufferedData.isRenderThreadReading);
+
+    bufferedData.activeWorlds.Resize(activeWorlds.Size());
+    std::copy(activeWorlds.Begin(), activeWorlds.End(), bufferedData.activeWorlds.Begin());
 }
 
 Span<World*> GetActiveWorlds()
 {
     AssertOnThread(g_simThread | g_renderThread);
+    
+    Framework::BufferedData& bufferedData = Framework::s_bufferedData[*Framework::t_thisThreadRingIndex];
 
-    return Framework::s_bufferedData[*Framework::t_threadFrameIndex].activeWorlds.ToSpan();
+    if (!UseRingBuffer && !bufferedData.isRenderThreadReading && IsOnThread(g_renderThread))
+    {
+        // Use last committed active worlds so we don't trip over it.
+        return bufferedData.activeWorldsCached.ToSpan();
+    }
+
+    Assert(bufferedData.isRenderThreadReading == IsOnThread(g_renderThread));
+
+    return bufferedData.activeWorlds.ToSpan();
 }
 
 Viewport& GetViewport(View* view)
 {
     AssertOnThread(g_simThread | g_renderThread);
 
-    return Framework::GetBufferedViewData(view, *Framework::t_threadFrameIndex)->viewport;
+    return Framework::GetBufferedViewData(view, *Framework::t_thisThreadRingIndex)->viewport;
 }
 
 uint32 CurrentRenderThreadIndex()
@@ -558,21 +582,21 @@ void BeginFrameSim(AtomicFlag* pCancelFlag)
 {
     // If !UseRingBuffer, we increment the frame counter
     // from the simulation thread as it builds frame data before handing off to the render thread.
-    // We also check t_threadFrameIndex is not nullptr, because that is non-null only on the first frame,
+    // We also check t_thisThreadRingIndex is not nullptr, because that is non-null only on the first frame,
     // and we only want to inc the frame counter for the prev frame
     // (start at 0 not at 1)
-    // if (!UseRingBuffer && Framework::t_threadFrameIndex != nullptr)
+    // if (!UseRingBuffer && Framework::t_thisThreadRingIndex != nullptr)
     // {
     //     AtomicIncrement(&Framework::s_frameCounter);
     // }
 
-    Framework::t_threadFrameIndex = &Framework::s_frameIndex[Framework::TT_FrameDataProducer];
+    Framework::t_thisThreadRingIndex = &Framework::s_ringIndex[Framework::TT_FrameDataProducer];
 
     {
         ENGINE_STAT_SCOPE(&g_statSimThreadSync);
         ENGINE_STAT_SCOPE(&g_statTotalStallTime);
 
-        while (!Framework::s_freeSemaphore.try_acquire_for(std::chrono::milliseconds(100)))
+        while (!Framework::s_frameSubmitted.try_acquire_for(std::chrono::milliseconds(100)))
         {
             if (pCancelFlag != nullptr && pCancelFlag->Load())
             {
@@ -586,8 +610,8 @@ void EndFrameSim()
 {
     AssertOnThread(g_simThread);
 
-    Framework::s_frameIndex[Framework::TT_FrameDataProducer] = (Framework::s_frameIndex[Framework::TT_FrameDataProducer] + 1) % RingBufferDepth;
-    Framework::s_fullSemaphore.release();
+    Framework::s_ringIndex[Framework::TT_FrameDataProducer] = (Framework::s_ringIndex[Framework::TT_FrameDataProducer] + 1) % RingBufferDepth;
+    Framework::s_dataProduced.release();
 }
 
 #pragma region RenderInterface
@@ -637,7 +661,7 @@ RendererResult RenderInterface::Initialize()
 {
     HYP_LOG(Rendering, Verbose, "Initializing base render interface");
 
-    Framework::t_threadFrameIndex = &Framework::s_frameIndex[Framework::TT_FrameDataConsumer];
+    Framework::t_thisThreadRingIndex = &Framework::s_ringIndex[Framework::TT_FrameDataConsumer];
 
     gpuBufferHolders = PoolNew<GpuBufferHolderMap>(*g_renderPool);
     cbufferAllocator = PoolNew<CBufferAllocator>(*g_renderPool);
@@ -923,6 +947,11 @@ void RenderInterface::BeginFrame(AtomicFlag* pCancelFlag)
         WaitForSync(pCancelFlag);
     }
 
+    const uint8 ringIndex = Framework::s_ringIndex[Framework::TT_FrameDataConsumer];
+    
+    Framework::BufferedData& bufferedData = Framework::s_bufferedData[ringIndex];
+    bufferedData.isFrameEnded = false;
+
     PrepareFrame(GetCurrentFrame());
 
     cbufferAllocator->OnFrameStart();
@@ -943,88 +972,15 @@ void RenderInterface::EndFrame()
     HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
-    const uint32 slot = Framework::s_frameIndex[Framework::TT_FrameDataConsumer];
+    const uint8 ringIndex = Framework::s_ringIndex[Framework::TT_FrameDataConsumer];
 
-    Framework::BufferedData& bufferedData = Framework::s_bufferedData[slot];
-    bufferedData.activeWorlds.Clear();
+    Framework::BufferedData& bufferedData = Framework::s_bufferedData[ringIndex];
+    bufferedData.isRenderThreadReading = false;
+    bufferedData.isFrameEnded = true;
 
-    stagingBufferPool->Cleanup();
+    const uint32 prevFrameIndex = AtomicIncrement(&Framework::s_frameCounter) - 1;
 
-    const uint32 currFrame = GetFrameCounter();
-
-    for (auto it = bufferedData.perViewData.Begin(); it != bufferedData.perViewData.End();)
-    {
-        Framework::BufferedViewData* bufferedViewData = it->second;
-
-        if (bufferedViewData->viewData != nullptr)
-        {
-            Framework::ViewData* viewData = bufferedViewData->viewData;
-
-            View* view = viewData->view;
-            AssertDebug(view != nullptr);
-
-            viewData->renderCollector.RemoveEmptyRenderGroups();
-
-            // Clear out data for views that haven't been written to for a while
-            if (int64(currFrame) - int64(viewData->lastUsedFrame) >= MaxFramesBeforeDiscard)
-            {
-                // Decrement ref count on the ViewData,
-                // if we hit zero there are no more BufferedViewData holding refs to the ViewData so we delete it
-                AssertDebug(viewData->numRefs > 0);
-
-                auto rplRenderIt = bufferedData.ownedLists.Find(&viewData->rplRender);
-                AssertDebug(rplRenderIt != bufferedData.ownedLists.End());
-
-                const size_t rplIndex = std::distance(bufferedData.ownedLists.Begin(), rplRenderIt);
-
-                // Drain all tracked resources from the render-side list before discarding,
-                // so their useCount is properly decremented in ResourceSubtypeData.
-                // Without this, resources that were tracked in rplRender would remain in
-                // ResourceSubtypeData with useCount > 0, leaking into the ResourceBinder indefinitely.
-                {
-                    int resourceTrackerIndex = 0;
-                    StaticForEach<typename RenderProxyList::ResourceTrackerTypes>(
-                        [&viewData, &resourceTrackerIndex]<class ResourceTrackerType>(TypeWrapper<ResourceTrackerType>)
-                        {
-                            ResourceTrackerType& resourceTracker = static_cast<ResourceTrackerType&>(*viewData->rplRender.resourceTrackers[resourceTrackerIndex]);
-                            resourceTracker.Advance();
-
-                            ++resourceTrackerIndex;
-                        });
-
-                    static RenderProxyList s_emptyRpl { /* isShared */ false, /* useRefCounting */ false };
-                    CopyDependencies(*resources, viewData->rplRender, s_emptyRpl);
-                }
-
-                bufferedData.ownedLists.Erase(rplRenderIt);
-
-                AssertDebug(rplIndex < bufferedData.sharedLists.Size());
-                bufferedData.sharedLists.EraseAt(rplIndex);
-
-                if (viewData->Release() == 0)
-                {
-                    HYP_LOG(Rendering, Verbose, "Discarding ViewData {} for view {} at frame {}", (void*)viewData, view->Id(), GetFrameCounter());
-
-                    auto viewDataIt = Framework::s_viewData.Find(view);
-                    AssertDebug(viewDataIt != Framework::s_viewData.End() && viewDataIt->second == viewData);
-
-                    Framework::s_viewData.Erase(viewDataIt);
-
-                    PoolDelete(*g_renderPool, viewData);
-                }
-
-                bufferedViewData->viewData = nullptr;
-
-                delete bufferedViewData;
-
-                it = bufferedData.perViewData.Erase(it);
-
-                continue;
-            }
-        }
-
-        ++it;
-    }
+    stagingBufferPool->OnFrameEnd(prevFrameIndex);
 
     for (uint8 i = 0; i < NumNamedPasses; i++)
     {
@@ -1032,14 +988,14 @@ void RenderInterface::EndFrame()
         {
             if (PassBase* pass = namedPasses[i][j])
             {
-                pass->RunCleanupCycle();
+                pass->OnFrameEnd(prevFrameIndex);
             }
         }
     }
 
-    graphicsPipelineCache->RunCleanupCycle(16);
-    computePipelineCache->RunCleanupCycle(4);
-    rayTracingPipelineCache->RunCleanupCycle(1);
+    graphicsPipelineCache->OnFrameEnd(prevFrameIndex);
+    computePipelineCache->OnFrameEnd(prevFrameIndex);
+    rayTracingPipelineCache->OnFrameEnd(prevFrameIndex);
 
     for (ResourceSubtypeData& subtypeData : resources->dataByType)
     {
@@ -1075,39 +1031,35 @@ void RenderInterface::EndFrame()
         subtypeData.indicesPendingDelete.Clear();
     }
 
-    blasCache->RunCleanupCycle(32);
-
-    // shadowViewCache->RunCleanupCycle(8);
+    blasCache->OnFrameEnd(prevFrameIndex);
 
     DeletionQueue::GetInstance().UpdateEntryListQueue();
-    DeletionQueue::GetInstance().Iterate();
+    DeletionQueue::GetInstance().OnFrameEnd(prevFrameIndex);
 
-    g_engineStats->Advance();
+    g_engineStats->OnFrameEnd(prevFrameIndex);
 
-    CVarManager::GetInstance().Advance();
+    CVarManager::GetInstance().OnFrameEnd(prevFrameIndex);
 
+    cbufferAllocator->OnFrameEnd(prevFrameIndex);
+    bufferAllocator->OnFrameEnd(prevFrameIndex);
+    scratchImageAllocator->OnFrameEnd(prevFrameIndex);
+    descriptorSetCache->OnFrameEnd(prevFrameIndex);
+    stagingBufferPool->OnFrameEnd(prevFrameIndex);
+
+    textureViewCache->OnFrameEnd(prevFrameIndex);
+
+    CleanupUnusedResources(prevFrameIndex);
+
+    const uint32 nextFrameIndex = (Framework::s_ringIndex[Framework::TT_FrameDataConsumer] + 1) % RingBufferDepth;
+    Framework::s_ringIndex[Framework::TT_FrameDataConsumer] = nextFrameIndex;
+
+    { // Let simulation thread back in
+        Framework::s_frameSubmitted.release();
+    }
+    
     ReleaseTransientMemory();
-    NewFrameIndex();
 
     state.Reset();
-
-    cbufferAllocator->OnFrameEnd();
-    bufferAllocator->OnFrameEnd();
-    scratchImageAllocator->OnFrameEnd();
-    descriptorSetCache->OnFrameEnd();
-    stagingBufferPool->OnFrameEnd();
-
-    textureViewCache->CleanupUnusedTextures();
-
-    const uint32 nextFrameIndex = (Framework::s_frameIndex[Framework::TT_FrameDataConsumer] + 1) % RingBufferDepth;
-    Framework::s_frameIndex[Framework::TT_FrameDataConsumer] = nextFrameIndex;
-
-    AtomicIncrement(&Framework::s_frameCounter);
-
-    // if constexpr (UseRingBuffer)
-    // {
-        Framework::s_freeSemaphore.release();
-    // }
 }
 
 void RenderInterface::WaitForSync(AtomicFlag* pCancelFlag)
@@ -1115,7 +1067,7 @@ void RenderInterface::WaitForSync(AtomicFlag* pCancelFlag)
     ENGINE_STAT_SCOPE(&g_statRenderThreadSync);
     ENGINE_STAT_SCOPE(&g_statTotalStallTime);
 
-    while (!Framework::s_fullSemaphore.try_acquire_for(std::chrono::milliseconds(100)))
+    while (!Framework::s_dataProduced.try_acquire_for(std::chrono::milliseconds(100)))
     {
         if (pCancelFlag != nullptr && pCancelFlag->Load())
         {
@@ -1123,6 +1075,8 @@ void RenderInterface::WaitForSync(AtomicFlag* pCancelFlag)
         }
     }
 }
+
+HYP_DISABLE_OPTIMIZATION;
 
 void RenderInterface::UpdateResources(AtomicFlag* pCancelFlag)
 {
@@ -1136,17 +1090,18 @@ void RenderInterface::UpdateResources(AtomicFlag* pCancelFlag)
         }
     }
 
-    const uint32 slot = Framework::s_frameIndex[Framework::TT_FrameDataConsumer];
+    const uint8 ringIndex = Framework::s_ringIndex[Framework::TT_FrameDataConsumer];
     const uint32 currFrame = GetFrameCounter();
 
-    Framework::BufferedData& bufferedData = Framework::s_bufferedData[slot];
+    Framework::BufferedData& bufferedData = Framework::s_bufferedData[ringIndex];
+    bufferedData.isRenderThreadReading = true;
 
     Span<View* const> activeViews = g_engineDriver->GetCurrentFrameViews();
 
     for (View* view : activeViews)
     {
         // ensure BufferedViewData exists
-        Framework::BufferedViewData& bufferedViewData = *Framework::GetBufferedViewData(view, slot);
+        Framework::BufferedViewData& bufferedViewData = *Framework::GetBufferedViewData(view, ringIndex);
         AssertDebug(bufferedViewData.rplShared != nullptr);
 
         if (!bufferedViewData.viewData)
@@ -1307,7 +1262,7 @@ void RenderInterface::UpdateResources(AtomicFlag* pCancelFlag)
     // Build draw call lists
     for (View* view : activeViews)
     {
-        Framework::BufferedViewData& bufferedViewData = *Framework::GetBufferedViewData(view, slot);
+        Framework::BufferedViewData& bufferedViewData = *Framework::GetBufferedViewData(view, ringIndex);
         AssertDebug(bufferedViewData.rplShared != nullptr);
         AssertDebug(bufferedViewData.viewData != nullptr);
 
@@ -1326,11 +1281,14 @@ void RenderInterface::UpdateResources(AtomicFlag* pCancelFlag)
         vd.rplRender.EndRead();
     }
 
-    // if constexpr (!UseRingBuffer)
-    // {
+    if constexpr (!UseRingBuffer)
+    {
+        bufferedData.activeWorldsCached.Resize(bufferedData.activeWorlds.Size());
+        std::copy(bufferedData.activeWorlds.Begin(), bufferedData.activeWorlds.End(), bufferedData.activeWorldsCached.Begin());
+
         // Done with shared data
-        // Framework::s_freeSemaphore.release();
-    //}
+        //Framework::s_frameSubmitted.release();
+    }
 
     GetCurrentCommandBuffer()->Begin();
 
@@ -1338,6 +1296,90 @@ void RenderInterface::UpdateResources(AtomicFlag* pCancelFlag)
     {
         m_gpuTimerBackend->OnFrameStart();
         m_gpuTimerBackend->WriteStartTimestamp(GetCurrentCommandBuffer(), &g_statGpuFrameTime);
+    }
+}
+HYP_ENABLE_OPTIMIZATION;
+
+void RenderInterface::CleanupUnusedResources(uint32 prevFrameIndex)
+{
+    AssertOnThread(g_renderThread);
+
+    const uint8 ringIndex = Framework::s_ringIndex[Framework::TT_FrameDataConsumer];
+    
+    Framework::BufferedData& bufferedData = Framework::s_bufferedData[ringIndex];
+
+    for (auto it = bufferedData.perViewData.Begin(); it != bufferedData.perViewData.End();)
+    {
+        Framework::BufferedViewData* bufferedViewData = it->second;
+
+        if (bufferedViewData->viewData != nullptr)
+        {
+            Framework::ViewData* viewData = bufferedViewData->viewData;
+
+            View* view = viewData->view;
+            AssertDebug(view != nullptr);
+
+            viewData->renderCollector.RemoveEmptyRenderGroups();
+
+            // Clear out data for views that haven't been written to for a while
+            if (static_cast<int64>(prevFrameIndex) - int64(viewData->lastUsedFrame) >= MaxFramesBeforeDiscard)
+            {
+                // Decrement ref count on the ViewData,
+                // if we hit zero there are no more BufferedViewData holding refs to the ViewData so we delete it
+                AssertDebug(viewData->numRefs > 0);
+
+                auto rplRenderIt = bufferedData.ownedLists.Find(&viewData->rplRender);
+                AssertDebug(rplRenderIt != bufferedData.ownedLists.End());
+
+                const size_t rplIndex = std::distance(bufferedData.ownedLists.Begin(), rplRenderIt);
+
+                // Drain all tracked resources from the render-side list before discarding,
+                // so their useCount is properly decremented in ResourceSubtypeData.
+                // Without this, resources that were tracked in rplRender would remain in
+                // ResourceSubtypeData with useCount > 0, leaking into the ResourceBinder indefinitely.
+                {
+                    int resourceTrackerIndex = 0;
+                    StaticForEach<typename RenderProxyList::ResourceTrackerTypes>(
+                        [&viewData, &resourceTrackerIndex]<class ResourceTrackerType>(TypeWrapper<ResourceTrackerType>)
+                        {
+                            ResourceTrackerType& resourceTracker = static_cast<ResourceTrackerType&>(*viewData->rplRender.resourceTrackers[resourceTrackerIndex]);
+                            resourceTracker.Advance();
+
+                            ++resourceTrackerIndex;
+                        });
+
+                    static RenderProxyList s_emptyRpl { /* isShared */ false, /* useRefCounting */ false };
+                    CopyDependencies(*resources, viewData->rplRender, s_emptyRpl);
+                }
+
+                bufferedData.ownedLists.Erase(rplRenderIt);
+
+                AssertDebug(rplIndex < bufferedData.sharedLists.Size());
+                bufferedData.sharedLists.EraseAt(rplIndex);
+
+                if (viewData->Release() == 0)
+                {
+                    HYP_LOG(Rendering, Verbose, "Discarding ViewData {} for view {} at frame {}", (void*)viewData, view->Id(), GetFrameCounter());
+
+                    auto viewDataIt = Framework::s_viewData.Find(view);
+                    AssertDebug(viewDataIt != Framework::s_viewData.End() && viewDataIt->second == viewData);
+
+                    Framework::s_viewData.Erase(viewDataIt);
+
+                    PoolDelete(*g_renderPool, viewData);
+                }
+
+                bufferedViewData->viewData = nullptr;
+
+                delete bufferedViewData;
+
+                it = bufferedData.perViewData.Erase(it);
+
+                continue;
+            }
+        }
+
+        ++it;
     }
 }
 
@@ -1352,7 +1394,7 @@ void RenderInterface::WriteCommandBuffer()
     if (m_gpuTimerBackend != nullptr)
     {
         m_gpuTimerBackend->WriteStopTimestamp(commandBuffer, &g_statGpuFrameTime);
-        m_gpuTimerBackend->OnFrameEnd();
+        m_gpuTimerBackend->OnFrameEnd(GetFrameCounter());
     }
 
     commandBuffer->End();

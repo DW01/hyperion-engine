@@ -33,7 +33,7 @@ public:
     BufferAllocator& operator=(const BufferAllocator&) = delete;
 
     void OnFrameStart();
-    void OnFrameEnd();
+    void OnFrameEnd(uint32 prevFrameIndex);
 
     StructuredBuffer& AcquireStructuredBuffer(size_t numElements, size_t elementSize);
     RWStructuredBuffer& AcquireRWStructuredBuffer(size_t numElements, size_t elementSize);

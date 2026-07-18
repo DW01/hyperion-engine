@@ -342,20 +342,15 @@ void ParticlesPass::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
     }
 }
 
-int ParticlesPass::RunCleanupCycle(int maxIter)
+void ParticlesPass::OnFrameEnd(uint32 prevFrameIndex)
 {
-    HYP_SCOPE;
-    AssertOnThread(g_renderThread);
-
-    const uint32 currFrame = GetFrameCounter();
-
     int numCycles = 0;
 
-    for (auto it = m_volumeStates.Begin(); it != m_volumeStates.End() && numCycles < maxIter;)
+    for (auto it = m_volumeStates.Begin(); it != m_volumeStates.End();)
     {
         VolumeState& state = it->second;
 
-        const int64 frameDiff = int64(currFrame) - int64(state.fc);
+        const int64 frameDiff = int64(prevFrameIndex) - int64(state.fc);
 
         if (frameDiff >= DiscardFrames)
         {
@@ -368,8 +363,6 @@ int ParticlesPass::RunCleanupCycle(int maxIter)
 
         ++it;
     }
-
-    return numCycles;
 }
 
 } // namespace Hyperion
