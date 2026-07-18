@@ -1,10 +1,28 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Windows.Input;
+using Hyperion;
+using Hyperion.Editor.Commands;
+using Hyperion.Editor.Services;
 
 namespace Hyperion.Editor.ViewModels
 {
-    public class AddNewSceneDialogViewModel : ViewModelBase
+    public sealed class NewSceneResult
     {
+        public string Name { get; }
+        public SceneFlags Flags { get; }
+
+        public NewSceneResult(string name, SceneFlags flags)
+        {
+            Name = name;
+            Flags = flags;
+        }
+    }
+
+    public class AddNewScenePanelViewModel : EditorPanelViewModel
+    {
+        private readonly Action<NewSceneResult?> _onCompleted;
+
         private string _sceneName = "NewScene";
 
         public string SceneName
@@ -15,27 +33,45 @@ namespace Hyperion.Editor.ViewModels
 
         public ObservableCollection<FlagsPropertyViewModel.EnumFlagEntry> FlagEntries { get; } = new();
 
-        public SceneFlags SceneFlags
+        public ICommand ConfirmCommand { get; }
+        public ICommand CancelCommand { get; }
+
+        public AddNewScenePanelViewModel(Action<NewSceneResult?> onCompleted)
+            : base("Add New Scene")
         {
-            get
-            {
-                ulong combined = 0;
+            _onCompleted = onCompleted ?? throw new ArgumentNullException(nameof(onCompleted));
 
-                foreach (var entry in FlagEntries)
-                {
-                    if (entry.IsSelected && entry.Value != null)
-                    {
-                        combined |= Convert.ToUInt64(entry.Value);
-                    }
-                }
+            ConfirmCommand = new RelayCommand(OnConfirm);
+            CancelCommand = new RelayCommand(OnCancel);
 
-                return (SceneFlags)combined;
-            }
+            BuildFlagEntries();
         }
 
-        public AddNewSceneDialogViewModel()
+        private SceneFlags BuildSceneFlags()
         {
-            BuildFlagEntries();
+            ulong combined = 0;
+
+            foreach (var entry in FlagEntries)
+            {
+                if (entry.IsSelected && entry.Value != null)
+                {
+                    combined |= Convert.ToUInt64(entry.Value);
+                }
+            }
+
+            return (SceneFlags)combined;
+        }
+
+        private void OnConfirm()
+        {
+            _onCompleted(new NewSceneResult(SceneName, BuildSceneFlags()));
+            PanelService.Instance.ClosePanel();
+        }
+
+        private void OnCancel()
+        {
+            _onCompleted(null);
+            PanelService.Instance.ClosePanel();
         }
 
         private void BuildFlagEntries()

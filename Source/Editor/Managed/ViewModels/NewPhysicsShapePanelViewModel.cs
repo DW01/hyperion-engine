@@ -1,6 +1,10 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Windows.Input;
 using Hyperion;
+using Hyperion.Editor.Commands;
+using Hyperion.Editor.Services;
 
 namespace Hyperion.Editor.ViewModels
 {
@@ -29,8 +33,10 @@ namespace Hyperion.Editor.ViewModels
         }
     }
 
-    public class NewPhysicsShapeDialogViewModel : ViewModelBase
+    public class NewPhysicsShapePanelViewModel : EditorPanelViewModel
     {
+        private readonly Action<PhysicsShape?> _onCompleted;
+
         private ShapeTypeEntry? _selectedShapeType;
         private ComponentSubObjectViewModel? _shapeSubObject;
 
@@ -56,8 +62,17 @@ namespace Hyperion.Editor.ViewModels
 
         public PhysicsShape? CreatedShape { get; private set; }
 
-        public NewPhysicsShapeDialogViewModel()
+        public ICommand ConfirmCommand { get; }
+        public ICommand CancelCommand { get; }
+
+        public NewPhysicsShapePanelViewModel(Action<PhysicsShape?> onCompleted)
+            : base("New Physics Shape")
         {
+            _onCompleted = onCompleted ?? throw new ArgumentNullException(nameof(onCompleted));
+
+            ConfirmCommand = new RelayCommand(OnConfirm);
+            CancelCommand = new RelayCommand(OnCancel);
+
             ShapeTypes.Add(new ShapeTypeEntry("Box", PhysicsShapeType.Box));
             ShapeTypes.Add(new ShapeTypeEntry("Sphere", PhysicsShapeType.Sphere));
             ShapeTypes.Add(new ShapeTypeEntry("Capsule", PhysicsShapeType.Capsule));
@@ -72,6 +87,18 @@ namespace Hyperion.Editor.ViewModels
             CreatedShape = entry.CreateInstance();
 
             ShapeSubObject = new ComponentSubObjectViewModel(entry.DisplayName, CreatedShape);
+        }
+
+        private void OnConfirm()
+        {
+            _onCompleted(CreatedShape);
+            PanelService.Instance.ClosePanel();
+        }
+
+        private void OnCancel()
+        {
+            _onCompleted(null);
+            PanelService.Instance.ClosePanel();
         }
     }
 }

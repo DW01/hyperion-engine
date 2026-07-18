@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Hyperion;
 using Hyperion.Editor.Commands;
+using Hyperion.Editor.Services;
 using Hyperion.Editor.Views;
 using System;
 using System.Collections.Generic;
@@ -25,6 +26,10 @@ namespace Hyperion.Editor.ViewModels
         public SceneHierarchyViewModel SceneHierarchy { get; private set; }
         public InspectorViewModel Inspector { get; private set; }
         public ContentBrowserViewModel ContentBrowser { get; private set; }
+
+        public EditorPanelViewModel? ActivePanel => PanelService.Instance.ActivePanel;
+
+        public ICommand ClosePanelCommand => PanelService.Instance.CloseCommand;
 
         public EditorCommand NewProject => new EditorCommand("NewProject");
         public EditorCommand OpenProject => new EditorCommand("OpenProject");
@@ -259,6 +264,8 @@ namespace Hyperion.Editor.ViewModels
 
         public MainWindowViewModel()
         {
+            PanelService.Instance.ActivePanelChanged += OnActivePanelChanged;
+
             SceneHierarchy = new SceneHierarchyViewModel();
             Inspector = new InspectorViewModel();
             ForegroundTask = new ForegroundTaskViewModel();
@@ -288,44 +295,41 @@ namespace Hyperion.Editor.ViewModels
                 });
             });
 
-            AddNewSceneCommand = new AsyncRelayCommand(async _ =>
+            AddNewSceneCommand = new RelayCommand(() =>
             {
-                var lifetime = Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
-
-                if (lifetime?.MainWindow == null)
-                    return;
-
-                var dialog = new AddNewSceneDialog();
-                await dialog.ShowDialog(lifetime.MainWindow);
-
-                if (!dialog.Result)
-                    return;
-
-                string sceneName = dialog.ViewModel.SceneName;
-                SceneFlags sceneFlags = dialog.ViewModel.SceneFlags;
-
-                _ = EngineManager.PostToSimThread(() =>
+                var panel = new AddNewScenePanelViewModel(result =>
                 {
-                    try
-                    {
-                        Scene newScene = new Scene();
-                        newScene.SetName(new Name(sceneName));
-                        newScene.SetSceneFlags(sceneFlags);
+                    if (result == null)
+                        return;
 
-                        EditorProject? project = EngineManager.CurrentProject;
-                        if (project == null)
+                    string sceneName = result.Name;
+                    SceneFlags sceneFlags = result.Flags;
+
+                    _ = EngineManager.PostToSimThread(() =>
+                    {
+                        try
                         {
-                            throw new Exception("Current project is null");
-                        }
-                        project.AddScene(newScene);
+                            Scene newScene = new Scene();
+                            newScene.SetName(new Name(sceneName));
+                            newScene.SetSceneFlags(sceneFlags);
 
-                        _editorSubsystem.SetActiveScene(newScene);
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Log(LogLevel.Warning, $"Failed to add new scene: {ex.Message}");
-                    }
+                            EditorProject? project = EngineManager.CurrentProject;
+                            if (project == null)
+                            {
+                                throw new Exception("Current project is null");
+                            }
+                            project.AddScene(newScene);
+
+                            _editorSubsystem.SetActiveScene(newScene);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Log(LogLevel.Warning, $"Failed to add new scene: {ex.Message}");
+                        }
+                    });
                 });
+
+                PanelService.Instance.OpenPanel(panel);
             });
 
             HyperionEditorGame? editorGame = EngineManager.EditorGame;
@@ -423,6 +427,8 @@ namespace Hyperion.Editor.ViewModels
 
         public void Dispose(bool isDisposing)
         {
+            PanelService.Instance.ActivePanelChanged -= OnActivePanelChanged;
+
             _gameModeChangedHandler?.Remove();
             _focusedNodeChangedHandler?.Remove();
             _selectionChangedHandler?.Remove();
@@ -1247,6 +1253,11 @@ namespace Hyperion.Editor.ViewModels
         private void OnSceneMenuItemClick(object? sender, EventArgs e)
         {
             // @TODO Hide dropdown
+        }
+
+        private void OnActivePanelChanged(object? sender, EventArgs e)
+        {
+            OnPropertyChanged(nameof(ActivePanel));
         }
     }
 }

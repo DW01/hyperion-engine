@@ -7,7 +7,6 @@
     xmlns:inspector="clr-namespace:Hyperion.Editor.Views.Inspector;assembly=Hyperion.Editor"
     xmlns:local="clr-namespace:Hyperion.Editor"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:ribbon="clr-namespace:Ribbon.Avalonia;assembly=Ribbon.Avalonia"
     xmlns:views="clr-namespace:Hyperion.Editor.Views;assembly=Hyperion.Editor"
     xmlns:vm="clr-namespace:Hyperion.Editor.ViewModels;assembly=Hyperion.Editor"
     x:Name="Root"
@@ -204,7 +203,7 @@
 
             <Grid RowDefinitions="Auto, Auto, *, Auto">
                 <!--  Main Content Area  -->
-                <Grid Grid.Row="2" ColumnDefinitions="280, 2, *">
+                <Grid x:Name="MainContentGrid" Grid.Row="2" ColumnDefinitions="280, 2, *, 2, 320">
 
                     <!--  Left Panel: Scene Hierarchy + Actions (cond) + Inspector  -->
                     <Grid Grid.Column="0" RowDefinitions="*, Auto, *">
@@ -812,6 +811,59 @@
                                     </Border>
                                 </Grid>
                             </Grid>
+                    </Grid>
+
+                    <!--  Right panel host (dynamic editor panels)  -->
+                    <GridSplitter x:Name="RightPanelSplitter" Grid.Column="3" ResizeDirection="Columns" />
+
+                    <Grid Grid.Column="4">
+                        <DockPanel x:Name="RightPanelHost">
+                            <Border Classes="panel-header" DockPanel.Dock="Top" Height="36">
+                                <Grid VerticalAlignment="Center" ColumnDefinitions="*, Auto, Auto">
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        Margin="6,0"
+                                        VerticalAlignment="Center"
+                                        Classes="header"
+                                        FontSize="12"
+                                        Text="{Binding ActivePanel.Title}" />
+                                    <Button
+                                        x:Name="CollapseRightPanel"
+                                        Grid.Column="1"
+                                        Width="26" Height="26" Padding="0"
+                                        VerticalAlignment="Center"
+                                        ToolTip.Tip="Collapse">
+                                        <LucideIcon Kind="ChevronsRight" Size="14" />
+                                    </Button>
+                                    <Button
+                                        Grid.Column="2"
+                                        Width="26" Height="26" Padding="0"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding ClosePanelCommand}"
+                                        ToolTip.Tip="Close">
+                                        <LucideIcon Kind="X" Size="14" />
+                                    </Button>
+                                </Grid>
+                            </Border>
+                            <ContentControl Content="{Binding ActivePanel}" />
+                        </DockPanel>
+
+                        <Border
+                            x:Name="RightPanelCollapsedStrip"
+                            IsVisible="False"
+                            Background="{DynamicResource Brush.PanelAlt}"
+                            BorderBrush="{DynamicResource Brush.Border}"
+                            BorderThickness="1,0,0,0">
+                            <Button
+                                x:Name="ExpandRightPanel"
+                                Width="26" Height="26" Padding="0"
+                                Margin="0,4"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Top"
+                                ToolTip.Tip="Expand">
+                                <LucideIcon Kind="ChevronsLeft" Size="14" />
+                            </Button>
+                        </Border>
                     </Grid>
 
                 </Grid>
