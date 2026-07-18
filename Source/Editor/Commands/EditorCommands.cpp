@@ -2329,7 +2329,7 @@ public:
                             {
                                 GetCurrentAssetRegistry()->PutAsset(cubeMesh);
 
-                                // Make an entity , assign MeshComponent w/ Mesh and a base Material
+                                // Make an entity, assign MeshComponent w/ Mesh and a base Material
 
                                 Handle<Scene> activeScene = subsystem->GetActiveScene();
 
@@ -2352,8 +2352,6 @@ public:
                         .revert = Proc<void(EditorSubsystem*, EditorProject*)>(
                             [&](EditorSubsystem*, EditorProject* project)
                             {
-                                // revert: remove cube mesh, material from registry and the entity from the scene.
-
                                 GetCurrentAssetRegistry()->RemoveAsset(cubeMesh);
                                 GetCurrentAssetRegistry()->RemoveAsset(material);
 
