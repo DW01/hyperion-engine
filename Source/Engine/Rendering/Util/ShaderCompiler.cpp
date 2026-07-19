@@ -49,18 +49,18 @@
 #include <Framework/EngineGlobals.hpp>
 #include <Framework/CVarManager.hpp>
 
-#if HYP_DXC
-#if HYP_WINDOWS
+#ifdef HYP_DXC
+#ifdef HYP_WINDOWS
 #include <Unknwn.h>
 #include <d3d12shader.h>
-#endif
+#endif // HYP_WINDOWS
 
 #include <dxcapi.h>
-#endif
+#endif // HYP_DXC
 
-#if HYP_VULKAN
+#ifdef HYP_VULKAN
 #include <Vulkan/vulkan.h>
-#endif
+#endif // HYP_VULKAN
 
 #include <HyperionEngine.hpp>
 
@@ -79,7 +79,7 @@ CVar<bool> g_cvCompileOnTheFly { "ShaderCompiler.CompileOnTheFly", true };
 /// Enabling this will cause shader compilation to happen during gameplay / editor.
 CVar<bool> g_cvShouldCompileMissingVariants { "ShaderCompiler.CompileMissingVariants", false };
 
-#if HYP_DXC
+#ifdef HYP_DXC
 static IDxcUtils* s_dxcUtils = nullptr;
 static IDxcCompiler3* s_dxcCompiler = nullptr;
 #endif // HYP_DXC
@@ -115,7 +115,7 @@ static const FilePath& GetShaderSourceDirectory()
     return s_directory.path;
 }
 
-#if HYP_DXC
+#ifdef HYP_DXC
 static LPCWSTR GetDXCTargetProfile(ShaderModuleType type)
 {
     switch (type)
@@ -585,7 +585,7 @@ static void GetSPIRVEnvironmentInfo(
     }
 }
 
-#if HYP_DXC
+#ifdef HYP_DXC
 
 static bool PreprocessHLSL(
     ShaderModuleType type,
@@ -720,14 +720,13 @@ static ByteBuffer CompileHLSL(
 
     args.PushBack(L"-HV 2021");
 
-    // enable debug info in HYP_DEBUG_MODE.
-#if defined(HYP_DEBUG_MODE) && defined(HYP_ENABLE_SHADER_DEBUGGING)
+#ifdef HYP_ENABLE_SHADER_DEBUGGING
     args.PushBack(L"-Zi");
     args.PushBack(L"-Od");
 #ifdef HYP_DX12
     args.PushBack(L"-Qembed_debug");
 #endif // HYP_DX12
-#else  // !HYP_DEBUG_MODE
+#else
     // Optimize that code.
     args.PushBack(L"-O3");
 #endif
@@ -1480,7 +1479,7 @@ ShaderCompiler::ShaderCompiler()
     : m_definitions(nullptr),
       m_isPrecompilingShaders(false)
 {
-#if HYP_DXC
+#ifdef HYP_DXC
     if (!s_dxcUtils)
         DxcCreateInstance(CLSID_DxcUtils, __uuidof(IDxcUtils), (void**)&s_dxcUtils);
 
@@ -1491,7 +1490,7 @@ ShaderCompiler::ShaderCompiler()
 
 ShaderCompiler::~ShaderCompiler()
 {
-#if HYP_DXC
+#ifdef HYP_DXC
     if (s_dxcUtils)
     {
         s_dxcUtils->Release();
@@ -1928,7 +1927,7 @@ bool ShaderCompiler::CanCompileShaders(const ShaderCompileParams& params) const
     const bool needsVulkan = params.ShouldCompileVulkan();
     const bool needsDX12 = params.ShouldCompileDX12();
 
-#if HYP_DXC
+#ifdef HYP_DXC
     // DXC can compile HLSL for both Vulkan (SPIR-V) and DX12 (DXIL)
     if (needsVulkan || needsDX12)
     {
@@ -2102,7 +2101,7 @@ ShaderCompiler::ProcessResult ShaderCompiler::ProcessShaderSource(
 
         const String preamble = BuildAttributesDefines(perm);
 
-#if HYP_DXC
+#ifdef HYP_DXC
         preprocessResult = PreprocessHLSL(
             type,
             preamble,
@@ -3224,7 +3223,7 @@ bool ShaderCompiler::CompileBundle(
 
             ByteBuffer byteBuffer;
 
-#if HYP_DXC
+#ifdef HYP_DXC
             HLSLOutputType outputType;
             ShaderCompileTargetBackend hlslTargetBackend;
 

@@ -32,6 +32,7 @@
 #include <Rendering/Swapchain.hpp>
 #include <Rendering/RenderConfig.hpp>
 #include <Rendering/Texture.hpp>
+#include <Rendering/DebugDrawer.hpp>
 
 #include <Rendering/Shadows/ShadowMapCache.hpp>
 
@@ -800,6 +801,9 @@ void EngineDriver::UpdateSim(float delta, Game* gameInstance)
 
         m_viewsPerFrame[slot].Resize(views.Size());
         std::copy(views.Begin(), views.End(), m_viewsPerFrame[slot].Begin());
+        
+        // Publish debug drawer updates during the sync point
+        DebugDrawer::GetInstance().Update();
         
         if constexpr (!UseRingBuffer)
         {

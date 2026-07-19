@@ -1460,6 +1460,8 @@ void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* comman
                 state.stencilCompareMask,
                 cacheHandle);
 
+            // @TODO We need to be able to skip drawing something if the shader is compiling async.
+
             AssertDebug(cacheHandle.IsAlive());
 
             pipeline = *cacheHandle;

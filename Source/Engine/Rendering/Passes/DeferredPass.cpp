@@ -1744,16 +1744,13 @@ public:
         outGridBuffer = nullptr;
         outIndexBuffer = nullptr;
 
-        // @TODO VP offset
-
-        // Would be nice to make this a compute shader at some point
-
         RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(view->GetCamera()));
         if (!cameraProxy)
         {
             return;
         }
 
+        // @TODO VP offset
         const Vec2u extent = cameraProxy->bufferData.dimensions.GetXY();
 
         const uint32 numTilesX = (extent.x + TileSize - 1) / TileSize;

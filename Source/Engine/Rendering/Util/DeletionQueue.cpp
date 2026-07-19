@@ -244,7 +244,6 @@ void DeletionQueue::OnFrameEnd(uint32 prevFrameIndex)
 
     AtomicExchange(&m_counterValue, static_cast<int64>(prevFrameIndex));
 
-    // @FIXME Make thread-safe for !UseRingBuffer
     uint32 bufferIndex = GetRingIndex();
     AssertDebug(bufferIndex < m_entryLists.Size());
 
@@ -471,7 +470,7 @@ DeletionQueue::EntryListBase& DeletionQueue::GetCurrentEntryList(Mutex::Guard** 
     AssertDebug(ppGuard != nullptr);
     *ppGuard = nullptr;
 
-    if (IsOnThread(g_simThread | g_renderThread))
+    if (IsOnThread(g_renderThread) || (UseRingBuffer && IsOnThread(g_simThread)))
     {
         uint32 bufferIndex = GetRingIndex();
         AssertDebug(bufferIndex < m_entryLists.Size());

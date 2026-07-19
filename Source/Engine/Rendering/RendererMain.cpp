@@ -447,7 +447,7 @@ static inline bool ShouldIncludeInPrepass(
     const float screenSpaceWidth = ndcHalfExtent.x * float(viewport.extent.x);
     const float screenSpaceHeight = ndcHalfExtent.y * float(viewport.extent.y);
 
-    constexpr float PrepassPixelCutoff = 32.0f;
+    constexpr float PrepassPixelCutoff = 8.0f;
 
     return (screenSpaceWidth >= PrepassPixelCutoff
             && screenSpaceHeight >= PrepassPixelCutoff);

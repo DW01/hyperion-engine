@@ -168,7 +168,16 @@ void CrashHandler::Initialize()
         [](const void* info, const uint32 size, void*)
         {
             GFSDK_Aftermath_ShaderDebugInfoIdentifier identifier = {};
-            Assert(GFSDK_Aftermath_GetShaderDebugInfoIdentifier(GFSDK_Aftermath_Version_API, info, size, &identifier) == GFSDK_Aftermath_Result_Success);
+            const GFSDK_Aftermath_Result identifierResult = GFSDK_Aftermath_GetShaderDebugInfoIdentifier(GFSDK_Aftermath_Version_API, info, size, &identifier);
+
+            if (!GFSDK_Aftermath_SUCCEED(identifierResult))
+            {
+                HYP_LOG(Rendering, Warning,
+                        "Aftermath: GetShaderDebugInfoIdentifier failed (res = {}). Shader debug info blob will be skipped.",
+                        identifierResult);
+
+                return;
+            }
 
             std::stringstream ss;
             ss << std::hex << std::setfill('0') << std::setw(2 * sizeof(uint64)) << identifier.id[0];

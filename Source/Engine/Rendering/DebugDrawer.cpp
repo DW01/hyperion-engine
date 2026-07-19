@@ -683,29 +683,30 @@ void DebugDrawer::Shutdown()
         HYP_DEFER({ if (pGuard) delete pGuard; });
 
         // safely destroy the buffer data on the correct frame
-        DebugDrawBufferDeleter* deleter = DeletionQueue::GetInstance().AllocCustom<DebugDrawBufferDeleter>([](void* ptr)
-                                                                                                           {
-                                                                                                               AssertOnThread(g_renderThread);
+        DebugDrawBufferDeleter* deleter = DeletionQueue::GetInstance().AllocCustom<DebugDrawBufferDeleter>(
+            [](void* ptr)
+            {
+                AssertOnThread(g_renderThread);
 
-                                                                                                               DebugDrawBufferDeleter* del = reinterpret_cast<DebugDrawBufferDeleter*>(ptr);
-                                                                                                               AssertDebug(del->idx == GetRingIndex());
+                DebugDrawBufferDeleter* del = reinterpret_cast<DebugDrawBufferDeleter*>(ptr);
+                AssertDebug(del->idx == GetRingIndex());
 
-                                                                                                               DebugDrawBufferDeleterPayload* payload = del->payload;
-                                                                                                               AssertDebug(payload != nullptr);
+                DebugDrawBufferDeleterPayload* payload = del->payload;
+                AssertDebug(payload != nullptr);
 
-                                                                                                               // invoke destructors
-                                                                                                               for (DebugDrawCommandHeader& header : payload->headers)
-                                                                                                               {
-                                                                                                                   if (header.destructFn)
-                                                                                                                   {
-                                                                                                                       header.destructFn(reinterpret_cast<void*>(payload->buffer.Data() + header.offset));
-                                                                                                                   }
-                                                                                                               }
+                // invoke destructors
+                for (DebugDrawCommandHeader& header : payload->headers)
+                {
+                    if (header.destructFn)
+                    {
+                        header.destructFn(reinterpret_cast<void*>(payload->buffer.Data() + header.offset));
+                    }
+                }
 
-                                                                                                               delete del->payload;
-                                                                                                           },
-                                                                                                           &pGuard,
-                                                                                                           /* desiredIdx */ i);
+                delete del->payload;
+            },
+            &pGuard,
+            /* desiredIdx */ i);
 
         deleter->idx = i;
         deleter->payload = new DebugDrawBufferDeleterPayload {

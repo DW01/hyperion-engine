@@ -39,7 +39,6 @@
 #include <Streaming/StreamingManager.hpp>
 
 #include <Rendering/RenderInterface.hpp>
-#include <Rendering/DebugDrawer.hpp>
 
 #if HYP_EDITOR
 #include <Editor/EditorState.hpp>
@@ -225,8 +224,6 @@ void SimThread::Update()
     }
 
     g_engineDriver->UpdateSim(m_counter.delta, m_gameInstance);
-
-    DebugDrawer::GetInstance().Update();
 
     if constexpr (UseRingBuffer)
     {
