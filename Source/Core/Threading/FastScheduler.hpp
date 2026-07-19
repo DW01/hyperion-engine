@@ -129,6 +129,7 @@ public:
                 {
                     outTask = std::move(slot.task);
                     slot.seq.Set(pos + RingBufferSize, MemoryOrder::RELEASE);
+
                     m_numEnqueued.Decrement(1, MemoryOrder::RELEASE);
 
                     return true;
@@ -145,13 +146,10 @@ public:
         }
     }
 
-    /*! \brief Wake the owner thread. Overrides SchedulerBase's condition-variable-based
-     *  default with a futex-style notify directly on m_numEnqueued - no mutex is involved,
-     *  which matters here since Enqueue_Internal()/Flush()/AcceptAll() all call this on
-     *  every single task submission from the (otherwise fully lock-free) producer side. */
     virtual void WakeUpOwnerThread() override
     {
-        m_numEnqueued.NotifyAll();
+        m_wakeEpoch.Increment(1, MemoryOrder::RELEASE);
+        m_wakeEpoch.NotifyAll();
     }
 
     void WaitForTasks(bool* outStopRequested)
@@ -175,9 +173,13 @@ public:
             HYP_WAIT_IDLE();
         }
 
+        uint32 lastEpoch = m_wakeEpoch.Get(MemoryOrder::ACQUIRE);
+
         while (NumEnqueued() == 0 && !m_stopRequested.Load())
         {
-            m_numEnqueued.Wait(0, MemoryOrder::ACQUIRE);
+            m_wakeEpoch.Wait(lastEpoch, MemoryOrder::ACQUIRE);
+
+            lastEpoch = m_wakeEpoch.Get(MemoryOrder::ACQUIRE);
         }
 
         if (outStopRequested)
@@ -285,6 +287,7 @@ private:
     alignas(64) AtomicVar<uint64> m_head { 0 }; // dequeue position (consumer / owner thread)
     alignas(64) AtomicVar<uint64> m_tail { 0 }; // enqueue position (producers)
     alignas(64) AtomicVar<uint32> m_fastIdCounter { 0 };
+    alignas(64) AtomicVar<uint32> m_wakeEpoch { 0 };
 };
 
 } // namespace threading

@@ -55,25 +55,25 @@ struct DrawCallRange
     size_t count;
 };
 
-struct ParallelRenderingState_Shared;
-
 struct ParallelRenderingState
 {
     HYP_DEF_POOL_NEW_DELETE(g_renderPool);
+
+    struct StateData;
 
     TaskBatch* taskBatch = nullptr;
 
     uint32 numBatches = 0;
 
-    ParallelRenderingState_Shared* sharedData = nullptr;
-    bool ownsSharedData = false;
+    StateData* data = nullptr;
+    bool ownsData = false;
 
     // Non-async rendering command list - used for binding state at the start of the pass before async stuff (can only be written to from render thread)
     CommandRecorder renderThreadRecorder;
 
     ParallelRenderingState* next = nullptr;
 
-    ParallelRenderingState(ParallelRenderingState_Shared* sharedData, bool ownsSharedData);
+    ParallelRenderingState(StateData* data, bool ownsData);
 
     ParallelRenderingState(const ParallelRenderingState&) = delete;
     ParallelRenderingState& operator=(const ParallelRenderingState&) = delete;

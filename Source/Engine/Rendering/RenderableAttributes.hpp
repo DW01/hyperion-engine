@@ -35,6 +35,8 @@ enum MaterialAttributeFlags : uint8
 
 HYP_MAKE_ENUM_FLAGS(MaterialAttributeFlags);
 
+#pragma pack(push, 8)
+
 HYP_STRUCT()
 struct MaterialAttributes final
 {
@@ -70,26 +72,18 @@ struct MaterialAttributes final
     HYP_FIELD()
     uint8 stencilReference = 0;
 
+    uint16 padding = 0;
+
     HYP_FIELD()
     int32 depthBias = 0;
 
     HYP_FIELD()
     float depthBiasSlope = 0.0f;
 
+
     HYP_FORCE_INLINE bool operator==(const MaterialAttributes& other) const
     {
-        return shaderName == other.shaderName
-            && shaderProperties == other.shaderProperties
-            && bucket == other.bucket
-            && fillMode == other.fillMode
-            && blendFunction == other.blendFunction
-            && cullFaces == other.cullFaces
-            && flags == other.flags
-            && stencilFunction == other.stencilFunction
-            && depthCompareOp == other.depthCompareOp
-            && stencilReference == other.stencilReference
-            && depthBias == other.depthBias
-            && MathUtil::ApproxEqual(depthBiasSlope, other.depthBiasSlope);
+        return memcmp(this, &other, sizeof(MaterialAttributes)) == 0;
     }
 
     HYP_FORCE_INLINE bool operator!=(const MaterialAttributes& other) const
@@ -131,11 +125,16 @@ struct MeshAttributes final
     HYP_FIELD(Property = "IndexBufferElemType")
     GpuElemType indexBufferElemType = GET_UNSIGNED_INT;
 
+    uint8 padding = 0;
+
     HYP_FORCE_INLINE bool operator==(const MeshAttributes& other) const
     {
-        return inputLayout == other.inputLayout
-            && topology == other.topology
-            && indexBufferElemType == other.indexBufferElemType;
+        return memcmp(this, &other, sizeof(MeshAttributes)) == 0;
+    }
+
+    HYP_FORCE_INLINE bool operator!=(const MeshAttributes& other) const
+    {
+        return memcmp(this, &other, sizeof(MeshAttributes)) != 0;
     }
 
     HYP_FORCE_INLINE constexpr HashCode GetHashCode() const
@@ -145,6 +144,8 @@ struct MeshAttributes final
             .Combine(indexBufferElemType);
     }
 };
+
+#pragma pack(pop)
 
 /*! \brief Compact 32-bit handle into the RenderGroupCache.
  *  Bits 29-31 embed the RenderBucket (3 bits, 8 possible values >= NumRenderBuckets=5).
@@ -249,12 +250,12 @@ public:
 
     HYP_FORCE_INLINE void SetShaderName(Name shaderName)
     {
-        if (m_materialAttributes.shaderName == shaderName)
-        {
-            return;
-        }
-
         m_materialAttributes.shaderName = shaderName;
+    }
+
+    HYP_FORCE_INLINE ShaderPropertySet& GetShaderProperties()
+    {
+        return m_materialAttributes.shaderProperties;
     }
 
     HYP_FORCE_INLINE const ShaderPropertySet& GetShaderProperties() const
@@ -264,11 +265,6 @@ public:
 
     HYP_FORCE_INLINE void SetShaderProperties(const ShaderPropertySet& shaderProperties)
     {
-        if (m_materialAttributes.shaderProperties == shaderProperties)
-        {
-            return;
-        }
-
         m_materialAttributes.shaderProperties = shaderProperties;
     }
 
@@ -299,11 +295,6 @@ public:
 
     HYP_FORCE_INLINE void SetMaterialAttributes(const MaterialAttributes& materialAttributes)
     {
-        if (m_materialAttributes == materialAttributes)
-        {
-            return;
-        }
-
         m_materialAttributes = materialAttributes;
     }
 
@@ -314,11 +305,6 @@ public:
 
     HYP_FORCE_INLINE void SetLayerIndex(uint32 layerIndex)
     {
-        if (m_layerIndex == layerIndex)
-        {
-            return;
-        }
-
         m_layerIndex = layerIndex;
     }
 

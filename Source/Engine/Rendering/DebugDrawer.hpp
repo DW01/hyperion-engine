@@ -224,7 +224,6 @@ private:
     Array<DebugDrawCommandHeader> m_headers;
     ByteBuffer m_buffer;
     uint32 m_bufferOffset;
-    TSharedLock<SharedMutex> m_lock;
 };
 
 class DebugDrawer
@@ -232,6 +231,8 @@ class DebugDrawer
     friend class DebugDrawCommandList;
 
 public:
+    static constexpr uint32 BufferCount = 2;
+
     static DebugDrawer& GetInstance();
 
     DebugDrawer();
@@ -245,7 +246,7 @@ public:
 
     HYP_FORCE_INLINE uint32 NumEnqueuedDrawCommands() const
     {
-        return uint32(m_headers[GetRingIndex()].Size());
+        return uint32(m_headers[m_readyIndex].Size());
     }
 
     void Initialize();
@@ -258,22 +259,28 @@ public:
 
 private:
     GraphicsPipelineRef FetchGraphicsPipeline(RenderableAttributeSet attributes, uint32 layerIndex, PassData* passData);
-    void ClearCommands(uint32 idx);
+    void ClearCommands();
 
-    FixedArray<Array<DebugDrawCommandHeader>, RingBufferDepth> m_headers;
-    FixedArray<ByteBuffer, RingBufferDepth> m_buffers;
-    FixedArray<uint32, RingBufferDepth> m_bufferOffsets;
+    FixedArray<Array<DebugDrawCommandHeader>, BufferCount> m_headers;
+    FixedArray<ByteBuffer, BufferCount> m_buffers;
+    FixedArray<uint32, BufferCount> m_bufferOffsets;
+
+    uint32 m_pendingIndex = 0;
+    uint32 m_readyIndex = 1;
 
     // buffer sizes over the last X frames. we max() this to determine if we should compact the buffer
     FixedArray<size_t, 10> m_bufferSizeHistory;
 
-    FixedArray<List<DebugDrawCommandList>, RingBufferDepth> m_commandLists;
+    // Double-buffered: the slot at m_pendingIndex accumulates per-caller command list objects
+    // (CreateCommandList appends here, sim thread). The slot at m_readyIndex is kept alive
+    // until ClearCommands() destroys it (render thread, after rendering), because the merged
+    // DebugDrawCommand data in m_headers/m_buffers contains raw `shape` pointers that point
+    // into the shape MEMBERS (sphere, box, etc.) of these list objects.
+    FixedArray<List<DebugDrawCommandList>, BufferCount> m_commandLists;
 
     typedef Array<ImmediateDrawShaderData, RenderAllocator> CachedPartitionedShaderData[MaxDebugDrawShapeTypes];
 
     CachedPartitionedShaderData m_cachedPartitionedShaderData;
-
-    SharedMutex m_sharedMutex;
 };
 
 } // namespace Hyperion

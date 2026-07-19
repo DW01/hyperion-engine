@@ -16,11 +16,11 @@
     "RayTracingEnabled": true,
     "IndirectRendering": true,
     "DepthPrepass": true,
-    "ParallelRendering": false,
+    "ParallelRendering": true,
     "TargetFrameRate": 60,
     "LimitFrameRateOnBatteryPower": true,
     "LimitFrameRateWhenIdle": true,
-    "EnableDebugDraw": false,
+    "EnableDebugDrawer": false,
     "SSR": {
       "Enabled": true,
       "Quality": 2,

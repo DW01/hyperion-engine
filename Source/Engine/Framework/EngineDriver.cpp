@@ -428,14 +428,14 @@ void EngineDriver::RequestStop()
 
     if (!m_isShuttingDown.Store(true))
     {
-        if (g_renderThreadInstance != nullptr && g_renderThreadInstance->IsRunning())
-        {
-            g_renderThreadInstance->Stop();
-        }
-
         if (g_renderWorkerThreadPool != nullptr && g_renderWorkerThreadPool->IsRunning())
         {
             g_renderWorkerThreadPool->Stop();
+        }
+
+        if (g_renderThreadInstance != nullptr && g_renderThreadInstance->IsRunning())
+        {
+            g_renderThreadInstance->Stop();
         }
 
         if (g_simThreadInstance != nullptr && g_simThreadInstance->IsRunning())
@@ -803,10 +803,13 @@ void EngineDriver::UpdateSim(float delta, Game* gameInstance)
 
         m_viewsPerFrame[slot].Resize(views.Size());
         std::copy(views.Begin(), views.End(), m_viewsPerFrame[slot].Begin());
-        
-        // Publish debug drawer updates during the sync point
+
+        // Publish debug drawer updates during the sync point: DebugDrawer::Update() merges
+        // pending command lists and flips its internal pending/ready buffers. The flip itself
+        // is cheap (index swap); doing it inside the sync block is what makes the swap safe,
+        // since the render thread is parked until EndSimRenderSyncBlock().
         DebugDrawer::GetInstance().Update();
-        
+
         if constexpr (!UseRingBuffer)
         {
             EndSimRenderSyncBlock();
@@ -821,6 +824,10 @@ void EngineDriver::UpdateSim(float delta, Game* gameInstance)
         scene->GetEntityManager()->AddPendingEntitySets();
     }
 
+    // AfterVis subsystems run after the render thread has been released. Any DebugDrawCommandLists
+    // created here (e.g. EditorSubsystem's probe gizmos) accumulate in DebugDrawer's pending buffer
+    // and are published to the render thread next frame via Update(). This keeps the sync block
+    // (and thus the render-thread stall) as short as possible.
     for (Subsystem* subsystem : subsystems)
     {
         if (subsystem->GetUpdatePhase() == SubsystemUpdatePhase::AfterVis)
