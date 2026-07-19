@@ -1143,10 +1143,10 @@ protected:
           m_headersPtr(nullptr)
     {
     }
+    
+    ~CommandRecorderBase() = default;
 
 public:
-    virtual ~CommandRecorderBase() = default;
-
     HYP_FORCE_INLINE bool IsEmpty() const
     {
         return m_offset == 0;
@@ -1174,7 +1174,7 @@ public:
 
         if (m_bufferSize < alignedOffset + CmdSize)
         {
-            ResizeBuffer(MathUtil::Ceil<size_t>(1.5 * (alignedOffset + CmdSize)));
+            m_vfTable.ResizeBuffer(this, MathUtil::Ceil<size_t>(1.5 * (alignedOffset + CmdSize)));
         }
 
         ubyte* startPtr = m_startPtr + alignedOffset;
@@ -1183,7 +1183,7 @@ public:
         if (m_headerCount >= m_headerCapacity)
         {
             uint32 newCapacity = MathUtil::Max(16u, static_cast<uint32>(m_headerCapacity * 1.5f));
-            ResizeHeaders(newCapacity);
+            m_vfTable.ResizeHeaders(this, newCapacity);
         }
 
         CmdHeader& header = m_headersPtr[m_headerCount++];
@@ -1213,9 +1213,6 @@ public:
         return *this;
     }
 
-    virtual void Reset(bool freeMemory) = 0;
-    virtual void Reserve(uint32 numCmdHeaders, uint32 bufferSizeBytes = 0) = 0;
-
     void Done()
     {
         if (!--writeCount)
@@ -1227,8 +1224,11 @@ public:
     uint32 writeCount;
 
 protected:
-    virtual void ResizeBuffer(size_t newSize) = 0;
-    virtual void ResizeHeaders(uint32 newCapacity) = 0;
+    struct VFTable
+    {
+        void (*ResizeBuffer)(CommandRecorderBase* pThis, size_t newSize);
+        void (*ResizeHeaders)(CommandRecorderBase* pThis, uint32 newCapacity);
+    } m_vfTable;
 
     AtomicFlag m_writableState;
 
@@ -1254,7 +1254,18 @@ public:
     using Base::InvokeCmdFnPtr;
     using Base::MoveCmdFnPtr;
 
-    TCommandRecorder() = default;
+    TCommandRecorder()
+    {
+        m_vfTable.ResizeBuffer = [](CommandRecorderBase* pThis, size_t newSize)
+        {
+            static_cast<TCommandRecorder*>(pThis)->ResizeBuffer(newSize);
+        };
+
+        m_vfTable.ResizeHeaders = [](CommandRecorderBase* pThis, uint32 newCapacity)
+        {
+            static_cast<TCommandRecorder*>(pThis)->ResizeHeaders(newCapacity);
+        };
+    }
 
     TCommandRecorder(const TCommandRecorder& other) = delete;
     TCommandRecorder& operator=(const TCommandRecorder& other) = delete;
@@ -1262,9 +1273,9 @@ public:
     TCommandRecorder(TCommandRecorder&& other) noexcept = delete;
     TCommandRecorder& operator=(TCommandRecorder&& other) noexcept = delete;
 
-    ~TCommandRecorder() override;
+    ~TCommandRecorder();
 
-    void Reset(bool freeMemory) override
+    void Reset(bool freeMemory)
     {
         if (freeMemory)
         {
@@ -1289,7 +1300,7 @@ public:
         m_writableState.Store(true);
     }
 
-    void Reserve(uint32 numCmdHeaders, uint32 bufferSizeBytes = 0) override
+    void Reserve(uint32 numCmdHeaders, uint32 bufferSizeBytes = 0)
     {
         if (numCmdHeaders > m_headerCapacity)
         {
@@ -1344,19 +1355,77 @@ public:
         // @NOTE: Keep it in write state
     }
 
+    // Non-virtualized Add()
+    
+    template <class CmdType>
+    void Add(CmdType&& cmd)
+    {
+        using TCmd = NormalizedType<CmdType>;
+        static_assert(alignof(TCmd) <= 16, "CmdType should have alignment <= 16!");
+
+        AssertDebug(m_writableState.LoadVolatile());
+
+        // static_assert(std::is_trivially_copyable_v<TCmd> && std::is_trivially_destructible_v<TCmd>,
+        //    "CmdType should be trivially copyable and destructible!");
+
+        constexpr size_t CmdSize = sizeof(TCmd);
+
+        const uint32 alignedOffset = ByteUtil::AlignAs(m_offset, 16);
+
+        if (m_bufferSize < alignedOffset + CmdSize)
+        {
+            ResizeBuffer(MathUtil::Ceil<size_t>(1.5 * (alignedOffset + CmdSize)));
+        }
+
+        ubyte* startPtr = m_startPtr + alignedOffset;
+        new (startPtr) TCmd(std::forward<CmdType>(cmd));
+
+        if (m_headerCount >= m_headerCapacity)
+        {
+            uint32 newCapacity = MathUtil::Max(16u, static_cast<uint32>(m_headerCapacity * 1.5f));
+            ResizeHeaders(newCapacity);
+        }
+
+        CmdHeader& header = m_headersPtr[m_headerCount++];
+        header.offset = alignedOffset;
+
+        if constexpr (HasCommandTypeV<TCmd>)
+        {
+            header.size = CmdSize;
+            header.cmd = static_cast<uint8>(TCmd::ThisCommandType);
+        }
+        else
+        {
+            // Store raw
+            InvokeCmdFnPtr fnPtr = &TCmd::InvokeStatic;
+            header.raw = reinterpret_cast<uintptr_t>(fnPtr);
+            header.cmd = static_cast<uint8>(CommandType::Custom);
+        }
+
+        m_offset = alignedOffset + CmdSize;
+    }
+
+    template <class CmdType>
+    TCommandRecorder& operator<<(CmdType&& cmd)
+    {
+        Add(std::forward<CmdType>(cmd));
+
+        return *this;
+    }
+
     void Execute(CommandBuffer* commandBuffer);
 
     void Submit();
 
 private:
-    void ResizeBuffer(size_t newSize) override
+    void ResizeBuffer(size_t newSize)
     {
         m_buffer.SetSize(ByteUtil::AlignAs(newSize, 16));
         m_bufferSize = m_buffer.Size();
         m_startPtr = m_buffer.Data();
     }
 
-    void ResizeHeaders(uint32 newCapacity) override
+    void ResizeHeaders(uint32 newCapacity)
     {
         auto* allocator = GetDefaultAllocatorInstance<AllocatorType>();
 
