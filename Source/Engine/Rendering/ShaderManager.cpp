@@ -849,7 +849,8 @@ public:
             }
             else
             {
-                GetThreadById(g_renderThread)->GetScheduler().Enqueue(expireOnRenderThread, TaskEnqueueFlags::FIRE_AND_FORGET);
+                GetThreadById(g_renderThread)->GetScheduler()
+                    .Enqueue(expireOnRenderThread, TaskEnqueueFlags::FIRE_AND_FORGET);
             }
         }
 

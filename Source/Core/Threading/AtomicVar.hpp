@@ -129,6 +129,21 @@ public:
     {
         return m_value.fetch_xor(value, ToCxxMemoryOrder(order));
     }
+
+    HYP_FORCE_INLINE void Wait(T oldValue, MemoryOrder order) const
+    {
+        m_value.wait(oldValue, ToCxxMemoryOrder(order));
+    }
+
+    HYP_FORCE_INLINE void NotifyOne()
+    {
+        m_value.notify_one();
+    }
+
+    HYP_FORCE_INLINE void NotifyAll()
+    {
+        m_value.notify_all();
+    }
 };
 
 template <class T>

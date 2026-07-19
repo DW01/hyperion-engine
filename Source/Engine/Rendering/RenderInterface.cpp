@@ -1080,8 +1080,6 @@ bool RenderInterface::WaitForSync(AtomicFlag* pCancelFlag)
     return true;
 }
 
-HYP_DISABLE_OPTIMIZATION;
-
 void RenderInterface::UpdateResources(AtomicFlag* pCancelFlag)
 {
     if constexpr (!UseRingBuffer)
@@ -1247,7 +1245,7 @@ void RenderInterface::UpdateResources(AtomicFlag* pCancelFlag)
                 const uint32 bindingIndex = GetBinding(resource);
                 AssertDebug(bindingIndex != ~0u,
                             "Failed to retrieve binding for resource: {} in frame {}, but it is marked as bound (index: {})",
-                            i, slot, i);
+                            i, ringIndex, i);
 
                 const IRenderProxy* pProxy = reinterpret_cast<const IRenderProxy*>(subtypeData.proxies.GetElementRaw(i));
                 AssertDebug(pProxy != nullptr);
@@ -1291,7 +1289,6 @@ void RenderInterface::UpdateResources(AtomicFlag* pCancelFlag)
         m_gpuTimerBackend->WriteStartTimestamp(GetCurrentCommandBuffer(), &g_statGpuFrameTime);
     }
 }
-HYP_ENABLE_OPTIMIZATION;
 
 void RenderInterface::CleanupUnusedResources(uint32 prevFrameIndex)
 {

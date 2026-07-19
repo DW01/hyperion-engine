@@ -7,6 +7,7 @@
 #include <HyperionPch.hpp>
 
 #include <Framework/Threads/RenderThread.hpp>
+#include <Framework/Threads/RenderWorkerThread.hpp>
 
 #include <Framework/EngineGlobals.hpp>
 #include <Framework/EngineDriver.hpp>
@@ -304,6 +305,23 @@ void RenderThread::Update()
     }
 }
 
+static void ResetWorkerThreadAllocators()
+{
+    if (!g_renderWorkerThreadPool)
+    {
+        return;
+    }
+
+    auto& poolThreads = g_renderWorkerThreadPool->GetThreads();
+
+    for (const UniquePtr<ThreadBase>& taskThread : g_renderWorkerThreadPool->GetThreads())
+    {
+        Assert(taskThread != nullptr);
+        
+        static_cast<RenderWorkerThread&>(*taskThread).ResetThreadLinearAllocator();
+    }
+}
+
 void RenderThread::operator()()
 {
     const bool isRenderOnMainThread = (m_id == g_mainThread);
@@ -330,6 +348,8 @@ void RenderThread::operator()()
             Update();
 
             m_threadAllocator->Reset();
+            
+            ResetWorkerThreadAllocators();
         }
 
         RI.Shutdown();

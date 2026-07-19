@@ -16,6 +16,7 @@
 #include <Framework/Threads/SimThread.hpp>
 #include <Framework/Threads/MainThread.hpp>
 #include <Framework/Threads/RenderThread.hpp>
+#include <Framework/Threads/RenderWorkerThread.hpp>
 #include <Framework/Threads/VisThread.hpp>
 
 #include <Rendering/PostFX.hpp>
@@ -118,31 +119,12 @@ public:
 
 #pragma endregion ForegroundWorkerPool
 
-#pragma region RenderWorkerPool
-
-class RenderWorkerPool final : public TaskThreadPool
-{
-public:
-    RenderWorkerPool(uint32 numTaskThreads, ThreadPriorityValue priority)
-        : TaskThreadPool(TypeWrapper<TaskThread>(), "RenderWorker", numTaskThreads)
-    {
-    }
-
-    virtual ~RenderWorkerPool() override = default;
-};
-
-#pragma endregion RenderWorkerPool
-
 #pragma region Thread Pool Factories
 
 static const Map<TaskThreadPoolName, UniquePtr<TaskThreadPool> (*)(void)> s_threadPoolFactories {
     { TaskThreadPoolName::THREAD_POOL_GENERIC, []() -> UniquePtr<TaskThreadPool>
       {
           return MakeUnique<ForegroundWorkerPool>(cvNumForegroundWorkerThreads.Get(), ThreadPriorityValue::HIGHEST);
-      } },
-    { TaskThreadPoolName::THREAD_POOL_RENDER, []() -> UniquePtr<TaskThreadPool>
-      {
-          return MakeUnique<RenderWorkerPool>(NumRendererWorkerThreads, ThreadPriorityValue::HIGHEST);
       } },
     { TaskThreadPoolName::THREAD_POOL_BACKGROUND, []() -> UniquePtr<TaskThreadPool>
       {
@@ -398,24 +380,39 @@ bool EngineDriver::StartThreads()
 
     success &= g_renderThreadInstance->Start();
     if (!success)
+    {
         return false;
+    }
+
+    if (g_renderWorkerThreadPool != nullptr)
+    {
+        g_renderWorkerThreadPool->Start();
+    }
 
 #if !HYP_APPLE
     if (g_mainThread != g_renderThread)
+    {
         g_renderInitSignal.Wait();
+    }
 #endif
 
     success &= g_simThreadInstance->Start();
     if (!success)
+    {
         return false;
+    }
 
     success &= g_visThreadInstance->Start();
     if (!success)
+    {
         return false;
+    }
 
     success &= g_mainThreadInstance->Start();
     if (!success)
+    {
         return false;
+    }
 
     return success;
 }
@@ -434,6 +431,11 @@ void EngineDriver::RequestStop()
         if (g_renderThreadInstance != nullptr && g_renderThreadInstance->IsRunning())
         {
             g_renderThreadInstance->Stop();
+        }
+
+        if (g_renderWorkerThreadPool != nullptr && g_renderWorkerThreadPool->IsRunning())
+        {
+            g_renderWorkerThreadPool->Stop();
         }
 
         if (g_simThreadInstance != nullptr && g_simThreadInstance->IsRunning())

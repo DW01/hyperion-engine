@@ -61,6 +61,8 @@
 #include <Framework/EngineStats.hpp>
 #include <Framework/CVarManager.hpp>
 
+#include <Framework/Threads/RenderWorkerThread.hpp>
+
 #include <Framework/Resources/ResourceTracker.hpp>
 
 #include <Framework/Config/EngineConfig.hpp>
@@ -107,8 +109,7 @@ static HYP_FORCE_INLINE bool IsGeometryPassShader(StringHash shaderNameHash)
 #pragma region ParallelRenderingState
 
 // per-thread CommandRecorder
-// using ThreadedCommandRecorder = TCommandRecorder<ThreadAllocator>;
-using ThreadedCommandRecorder = TCommandRecorder<DynamicAllocator>;
+using ThreadedCommandRecorder = TCommandRecorder<ThreadAllocator>;
 
 // Holds shared data for ParallelRenderingState instances to reduce memory usage
 struct ParallelRenderingState_Shared
@@ -129,35 +130,11 @@ struct ParallelRenderingState_Shared
 
     ~ParallelRenderingState_Shared()
     {
-        // we have to free up the memory for each local queue on individual threads,
-        // due to the use of ThreadAllocator.
-        auto destructCommandRecorders = [data = threadedCommandRecorders.Data()](uint32 renderThreadIndex) mutable -> void
-        {
-            Assert(renderThreadIndex < MaxBatches);
-
-            ThreadedCommandRecorder& commandRecorder = data[renderThreadIndex];
-            commandRecorder.Reset(/* freeMemory */ true);
-        };
-
         AssertOnThread(g_renderThread);
 
         Array<Task<void>> tasks;
         tasks.Reserve(MaxBatches);
 
-        auto& poolThreads = TaskSystem::GetInstance().GetPool(TaskThreadPoolName::THREAD_POOL_RENDER).GetThreads();
-
-        const uint32 numWorkerBatches = MathUtil::Min(uint32(poolThreads.Size()), MaxBatches);
-
-        for (uint32 threadIndex = 0; threadIndex < numWorkerBatches; threadIndex++)
-        {
-            AssertDebug(poolThreads[threadIndex] != nullptr);
-
-            tasks.EmplaceBack(poolThreads[threadIndex]->GetScheduler().Enqueue(
-                [&destructCommandRecorders, threadIndex]
-                {
-                    destructCommandRecorders(threadIndex);
-                }));
-        }
 
         AwaitAll(tasks.ToSpan());
     }
@@ -166,7 +143,6 @@ struct ParallelRenderingState_Shared
     {
         for (uint32 i = 0; i < ParallelRenderingState_Shared::MaxBatches; i++)
         {
-            // don't free memory; each queue uses thread-local memory allocators
             threadedCommandRecorders[i].Reset(/* freeMemory */ false);
         }
     }
@@ -1576,10 +1552,8 @@ HYP_NODISCARD ParallelRenderingState* RenderCollector::AcquireNextParallelRender
 
             parallelRenderingStateHead = new ParallelRenderingState(sharedData, true);
 
-            TaskThreadPool& pool = TaskSystem::GetInstance().GetPool(TaskThreadPoolName::THREAD_POOL_RENDER);
-
             TaskBatch* taskBatch = new TaskBatch;
-            taskBatch->pool = &pool;
+            taskBatch->pool = g_renderWorkerThreadPool;
 
             parallelRenderingStateHead->taskBatch = taskBatch;
         }
@@ -1596,10 +1570,8 @@ HYP_NODISCARD ParallelRenderingState* RenderCollector::AcquireNextParallelRender
 
             ParallelRenderingState* newParallelRenderingState = new ParallelRenderingState(sharedData, true);
 
-            TaskThreadPool& pool = TaskSystem::GetInstance().GetPool(TaskThreadPoolName::THREAD_POOL_RENDER);
-
             TaskBatch* taskBatch = new TaskBatch;
-            taskBatch->pool = &pool;
+            taskBatch->pool = g_renderWorkerThreadPool;
 
             newParallelRenderingState->taskBatch = taskBatch;
 

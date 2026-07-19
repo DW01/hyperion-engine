@@ -90,11 +90,6 @@ void ThreadPoolBase::Stop()
     {
         it->Stop();
     }
-
-    for (auto& it : m_threads)
-    {
-        it->Join();
-    }
 }
 
 ThreadBase* ThreadPoolBase::GetNextThread()

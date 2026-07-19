@@ -83,7 +83,7 @@ public:
     }
 
     /*! \brief Get the scheduler that this thread is associated with. */
-    virtual Scheduler& GetScheduler() = 0;
+    virtual SchedulerBase& GetScheduler() = 0;
 
     /*! \brief Check if the thread is currently running. */
     virtual bool IsRunning() const = 0;

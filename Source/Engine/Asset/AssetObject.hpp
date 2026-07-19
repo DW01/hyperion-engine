@@ -41,6 +41,8 @@ class BlobStorage;
 class BufferedReader;
 using BufferedByteReader = BufferedReader;
 
+struct BoxedValue;
+
 namespace functional {
 
 template <class FunctionSignature>

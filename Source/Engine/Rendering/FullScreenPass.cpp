@@ -203,7 +203,8 @@ void FullScreenPass::Resize(Vec2u newSize)
 
     m_threadSignal.WaitAndReset();
 
-    GetThreadById(g_renderThread)->GetScheduler().Enqueue([this, newSize]()
+    GetThreadById(g_renderThread)->GetScheduler().Enqueue(
+        [this, newSize]()
         {
             if (m_isInitialized)
             {
