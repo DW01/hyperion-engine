@@ -1108,22 +1108,20 @@ protected:
     {
         union
         {
-            uint64 size;
-            uint64 raw;
-        };
+            struct
+            {
 
-        uint64 offset : 24;
-        uint64 cmd : 8;
+                uint64 offset : 48;
+                uint64 cmd : 8;
+            };
+
+            // Function pointers for custom are held in two headers, second one holds the function pointer directly in memory
+            uintptr_t address;
+        };
 
         HYP_FORCE_INLINE bool IsCustom() const
         {
             return cmd == static_cast<uint8>(CommandType::Custom);
-        }
-
-        template <class T>
-        HYP_FORCE_INLINE T GetCustom() const
-        {
-            return reinterpret_cast<T>(raw);
         }
 
         HYP_FORCE_INLINE CommandType GetCommandType() const
@@ -1179,10 +1177,12 @@ public:
 
         ubyte* startPtr = m_startPtr + alignedOffset;
         new (startPtr) TCmd(std::forward<CmdType>(cmd));
-
-        if (m_headerCount >= m_headerCapacity)
+        
+        // add +1 in case it needs a payload
+        if (m_headerCount + 2 > m_headerCapacity)
         {
-            uint32 newCapacity = MathUtil::Max(16u, static_cast<uint32>(m_headerCapacity * 1.5f));
+            uint32 newCapacity = MathUtil::Max(16u, MathUtil::NextPowerOf2(m_headerCount + 2));
+
             m_vfTable.ResizeHeaders(this, newCapacity);
         }
 
@@ -1191,15 +1191,17 @@ public:
 
         if constexpr (HasCommandTypeV<TCmd>)
         {
-            header.size = CmdSize;
             header.cmd = static_cast<uint8>(TCmd::ThisCommandType);
         }
         else
         {
-            // Store raw
-            InvokeCmdFnPtr fnPtr = &TCmd::InvokeStatic;
-            header.raw = reinterpret_cast<uintptr_t>(fnPtr);
             header.cmd = static_cast<uint8>(CommandType::Custom);
+
+            // Store address in the next header 
+            CmdHeader& payloadHeader = m_headersPtr[m_headerCount++];
+
+            InvokeCmdFnPtr fnPtr = &TCmd::InvokeStatic;
+            payloadHeader.address = reinterpret_cast<uintptr_t>(fnPtr);
         }
 
         m_offset = alignedOffset + CmdSize;
@@ -1339,13 +1341,28 @@ public:
         // Reconstruct the commands into our memory
         Memory::Copy(m_buffer.Data() + newStartOffset, other.m_buffer.Data(), other.m_offset);
 
-        // Add headers and update offsets
+        bool isPayloadHeader = false;
+
         for (uint32 i = 0; i < other.m_headerCount; ++i)
         {
             const CmdHeader& cmdHeader = other.m_headersPtr[i];
             CmdHeader& newCmdHeader = m_headersPtr[m_headerCount++];
             newCmdHeader = cmdHeader;
-            newCmdHeader.offset += newStartOffset;
+
+            if (isPayloadHeader)
+            {
+                isPayloadHeader = false;
+            }
+            else
+            {
+                newCmdHeader.offset += newStartOffset;
+
+                if (cmdHeader.IsCustom())
+                {
+                    // The next header is the payload holding the function pointer
+                    isPayloadHeader = true;
+                }
+            }
         }
 
         m_offset = newStartOffset + other.m_offset;
@@ -1380,9 +1397,10 @@ public:
         ubyte* startPtr = m_startPtr + alignedOffset;
         new (startPtr) TCmd(std::forward<CmdType>(cmd));
 
-        if (m_headerCount >= m_headerCapacity)
+        // add +1 in case it needs a payload
+        if (m_headerCount + 2 > m_headerCapacity)
         {
-            uint32 newCapacity = MathUtil::Max(16u, static_cast<uint32>(m_headerCapacity * 1.5f));
+            uint32 newCapacity = MathUtil::Max(16u, MathUtil::NextPowerOf2(m_headerCount + 2));
             ResizeHeaders(newCapacity);
         }
 
@@ -1391,15 +1409,17 @@ public:
 
         if constexpr (HasCommandTypeV<TCmd>)
         {
-            header.size = CmdSize;
             header.cmd = static_cast<uint8>(TCmd::ThisCommandType);
         }
         else
         {
-            // Store raw
-            InvokeCmdFnPtr fnPtr = &TCmd::InvokeStatic;
-            header.raw = reinterpret_cast<uintptr_t>(fnPtr);
             header.cmd = static_cast<uint8>(CommandType::Custom);
+
+            // Store address in the next header 
+            CmdHeader& payloadHeader = m_headersPtr[m_headerCount++];
+
+            InvokeCmdFnPtr fnPtr = &TCmd::InvokeStatic;
+            payloadHeader.address = reinterpret_cast<uintptr_t>(fnPtr);
         }
 
         m_offset = alignedOffset + CmdSize;
