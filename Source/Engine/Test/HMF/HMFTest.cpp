@@ -425,7 +425,7 @@ HYP_EXPORT void RunHMFTest()
               text);
 
         text.Clear();
-        EnumFlags<CameraFlags> empty = CameraFlags::NONE;
+        EnumFlags<CameraFlags> empty = CameraFlags::None;
         BoxedToHMF(BoxedValue(empty), text, &ti);
         Check("EnumFlags NONE", text == "NONE", text);
     }
@@ -455,7 +455,7 @@ HYP_EXPORT void RunHMFTest()
             SetFieldValue(obj, cls, "Top", BoxedValue(4.5f));
 
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
 
             // Assert exact expected output
             Check("CameraOrthoRect: has class header", text.Contains("CameraOrthoRect"), text);
@@ -475,7 +475,7 @@ HYP_EXPORT void RunHMFTest()
             cls->CreateInstance(obj);
 
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
             HYP_LOG(Engine, Info, "TextureDesc HMF:\n{}", text);
 
             Check("TextureDesc: class header", text.Contains("TextureDesc"), text);
@@ -500,7 +500,7 @@ HYP_EXPORT void RunHMFTest()
             SetFieldValue(obj, cls, "NumIndices", BoxedValue(uint32(33333)));
 
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
 
             Check("MeshLodDesc: NumVertices = 9999", text.Contains("NumVertices = 9999"), text);
             Check("MeshLodDesc: NumIndices = 33333", text.Contains("NumIndices = 33333"), text);
@@ -515,7 +515,7 @@ HYP_EXPORT void RunHMFTest()
             cls->CreateInstance(obj);
 
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
 
             Check("StencilFunction: PassOp = SO_REPLACE", text.Contains("PassOp = SO_REPLACE"), text);
             Check("StencilFunction: FailOp = SO_KEEP", text.Contains("FailOp = SO_KEEP"), text);
@@ -677,7 +677,7 @@ CameraOrthoRect {
             SetFieldValue(obj, cls, "Top", BoxedValue(44.0f));
 
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
 
             HMF::ParseResult result = HMF::Parse(text);
             Check("Round-trip parse succeeds", Success(result), result.GetError().GetMessage());
@@ -710,7 +710,7 @@ CameraOrthoRect {
             cls->CreateInstance(obj);
 
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
             Check("TextureDesc serialize non-empty", !text.Empty());
 
             HMF::ParseResult result = HMF::Parse(text);
@@ -748,7 +748,7 @@ CameraOrthoRect {
             SetFieldValue(obj, cls, "NumIndices", BoxedValue(uint32(5678)));
 
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
 
             HMF::ParseResult result = HMF::Parse(text);
             Check("MeshLodDesc round-trip succeeds", Success(result), result.GetError().GetMessage());
@@ -779,7 +779,7 @@ CameraOrthoRect {
             cls->CreateInstance(obj);
 
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
 
             HMF::ParseResult result = HMF::Parse(text);
             Check("StencilFunction round-trip succeeds", Success(result), result.GetError().GetMessage());
@@ -878,7 +878,7 @@ CameraOrthoRect {
             cls->CreateInstance(obj);
 
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
 
             Check("Transient 'raw' excluded", !text.Contains("Raw"), text);
             Check("Transient 'readOnly' excluded", !text.Contains("ReadOnly"), text);
@@ -907,7 +907,7 @@ CameraOrthoRect {
             SetFieldValue(obj, cls, "Unlit", BoxedValue(true));
 
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
             HYP_LOG(Engine, Info, "MaterialParameters HMF:\n{}", text);
 
             Check("MP: Metalness = 0.75", text.Contains("Metalness = 0.75"), text);
@@ -953,7 +953,7 @@ CameraOrthoRect {
             SetFieldValue(obj, cls, "StencilReference", BoxedValue(uint8(7)));
 
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
             HYP_LOG(Engine, Info, "MaterialAttributes HMF:\n{}", text);
 
             Check("MA: has ShaderName", text.Contains("ShaderName"), text);
@@ -993,7 +993,7 @@ CameraOrthoRect {
             SetFieldValue(obj, cls, "NumLayers", BoxedValue(uint16(7)));
 
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
 
             HMF::ParseResult result = HMF::Parse(text);
             Check("TD: round-trip succeeds", Success(result), result.GetError().GetMessage());
@@ -1058,7 +1058,7 @@ CameraOrthoRect {
             SetFieldValue(obj, cls, "Top", BoxedValue(999.0f));
 
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
 
             Check("Exact: Left = -100.5", text.Contains("Left = -100.5"), text);
             Check("Exact: Right = 200.25", text.Contains("Right = 200.25"), text);
@@ -1117,7 +1117,7 @@ CameraOrthoRect {
 
             // Write it
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
             HYP_LOG(Engine, Info, "NodeTag HMF:\n{}", text);
 
             Check("NodeTag: has no name", !text.Contains("Name"), text);
@@ -1360,7 +1360,7 @@ CameraOrthoRect {
             if (cls)
             {
                 String text;
-                ObjectToHMFDocument(cls, result.GetValue(), text);
+                ObjectToHMF(cls, result.GetValue(), text);
                 HYP_LOG(Engine, Info, "Variant RT HMF:\n{}", text);
 
                 Check("Variant RT: has ContainerName", text.Contains("ContainerName"), text);
@@ -1422,7 +1422,7 @@ CameraOrthoRect {
             if (cls)
             {
                 String text;
-                ObjectToHMFDocument(cls, result.GetValue(), text);
+                ObjectToHMF(cls, result.GetValue(), text);
                 HYP_LOG(Engine, Info, "Variant RT (Base) HMF:\n{}", text);
 
                 Check("Variant RT Base: has Base prefix", text.Contains("HMFVariantBase"), text);
@@ -1745,7 +1745,7 @@ CameraOrthoRect {
             const Class* cls = GetClass(result.GetValue().GetTypeId());
             if (cls)
             {
-                ObjectToHMFDocument(cls, result.GetValue(), rt);
+                ObjectToHMF(cls, result.GetValue(), rt);
                 HYP_LOG(Engine, Info, "NodeTag round-trip HMF:\n{}", rt);
 
                 Check("NodeTag RT: has no Name field", !rt.Contains("Name ="), rt);
@@ -1910,7 +1910,7 @@ CameraOrthoRect {
             SetFieldValue(obj, cls, "Id", BoxedValue(int32(777)));
 
             String text;
-            ObjectToHMFDocument(cls, obj, text);
+            ObjectToHMF(cls, obj, text);
             HYP_LOG(Engine, Info, "NestedStruct round-trip HMF:\n{}", text);
 
             Check("NestedStruct RT: has Label", text.Contains("Label"), text);
@@ -2064,7 +2064,7 @@ CameraOrthoRect {
             {
                 // Write back to HMF
                 String text;
-                ObjectToHMFDocument(cls, result.GetValue(), text);
+                ObjectToHMF(cls, result.GetValue(), text);
                 HYP_LOG(Engine, Info, "PolyArray RT HMF:\n{}", text);
 
                 Check("PolyArray RT: first element uses Base prefix",

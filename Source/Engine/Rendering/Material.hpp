@@ -80,11 +80,13 @@ public:
         return GetAttributes().bucket;
     }
 
+    HYP_METHOD(Property = "Parameters", Serialize, Editor)
     HYP_FORCE_INLINE const MaterialParameters& GetParameters() const
     {
         return m_parameters;
     }
 
+    HYP_METHOD(Property = "Parameters", Serialize, Editor)
     void SetParameters(const MaterialParameters& parameters);
 
     void ResetParameters();

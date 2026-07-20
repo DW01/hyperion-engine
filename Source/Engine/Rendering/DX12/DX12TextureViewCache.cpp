@@ -171,7 +171,7 @@ void DX12TextureViewCache::RemoveTexture(const Texture* texture)
     }
 }
 
-void DX12TextureViewCache::CleanupUnusedTextures()
+void DX12TextureViewCache::OnFrameEnd(uint32 prevFrameIndex)
 {
     AssertOnThread(g_renderThread);
 

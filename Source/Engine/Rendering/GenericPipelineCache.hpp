@@ -51,11 +51,7 @@ public:
 
     void ExpirePipelinesForShader(const Shader* shader);
 
-    /*! \brief Runs cleanup cycle to remove unused pipelines.
-     *  \param maxIter Maximum number of pipelines to check this cycle
-     *  \return Number of iterations performed
-     */
-    int RunCleanupCycle(int maxIter = 10);
+    void OnFrameEnd(uint32 prevFrameIndex);
 
     /*! \brief Clears all cached pipelines. */
     void Clear();

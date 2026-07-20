@@ -37,11 +37,16 @@ bool SystemExecutionGroup::IsValidForSystem(const SystemBase* systemPtr) const
         return !systemPtr->AllowUpdate();
     }
 
-    // If the system requires to execute on sim thread and the SystemExecutionGroup does not, it is not valid
-    // and if the system does not require to execute on sim thread and the SystemExecutionGroup does, it is not valid (it could be better parallelized)
-    if (RequiresSimThread())
+    const bool requiresSimThread = RequiresSimThread();
+
+    if (requiresSimThread != systemPtr->RequiresSimThread())
     {
-        return systemPtr->RequiresSimThread();
+        return false;
+    }
+
+    if (requiresSimThread)
+    {
+        return true;
     }
 
     Span<const TypeId> componentTypeIds = systemPtr->GetComponentTypeIds();

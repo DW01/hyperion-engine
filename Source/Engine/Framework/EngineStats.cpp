@@ -405,7 +405,7 @@ void EngineStats::RecordValueSet(const EngineStatsValueSet& valueSet)
     }
 }
 
-void EngineStats::Advance()
+void EngineStats::OnFrameEnd(uint32 prevFrameIndex)
 {
     HYP_SCOPE;
     AssertOnThread(g_renderThread);

@@ -45,7 +45,7 @@ public:
     HYP_NODISCARD uint32 AllocateStorageId(uint64 key);
     bool ReleaseStorageIdForBLASKey(uint64 key, uint32& outStorageId, uint32& outNewRefCount);
 
-    void RunCleanupCycle(int maxIter);
+    void OnFrameEnd(uint32 prevFrameIndex);
 
 private:
     Pimpl<class BLASCacheImpl> m_impl;

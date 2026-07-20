@@ -61,6 +61,8 @@
 #include <Framework/EngineStats.hpp>
 #include <Framework/CVarManager.hpp>
 
+#include <Framework/Threads/RenderWorkerThread.hpp>
+
 #include <Framework/Resources/ResourceTracker.hpp>
 
 #include <Framework/Config/EngineConfig.hpp>
@@ -107,11 +109,10 @@ static HYP_FORCE_INLINE bool IsGeometryPassShader(StringHash shaderNameHash)
 #pragma region ParallelRenderingState
 
 // per-thread CommandRecorder
-// using ThreadedCommandRecorder = TCommandRecorder<ThreadAllocator>;
-using ThreadedCommandRecorder = TCommandRecorder<DynamicAllocator>;
+using ThreadedCommandRecorder = TCommandRecorder<ThreadAllocator>;
 
 // Holds shared data for ParallelRenderingState instances to reduce memory usage
-struct ParallelRenderingState_Shared
+struct ParallelRenderingState::StateData
 {
     HYP_DEF_POOL_NEW_DELETE(g_renderPool);
 
@@ -119,72 +120,47 @@ struct ParallelRenderingState_Shared
 
     FixedArray<ThreadedCommandRecorder, MaxBatches> threadedCommandRecorders;
 
-    ParallelRenderingState_Shared()
+    StateData()
         : threadedCommandRecorders {}
     {
     }
 
-    ParallelRenderingState_Shared(const ParallelRenderingState_Shared& other) = delete;
-    ParallelRenderingState_Shared& operator=(const ParallelRenderingState_Shared& other) = delete;
+    StateData(const StateData& other) = delete;
+    StateData& operator=(const StateData& other) = delete;
 
-    ~ParallelRenderingState_Shared()
+    ~StateData()
     {
-        // we have to free up the memory for each local queue on individual threads,
-        // due to the use of ThreadAllocator.
-        auto destructCommandRecorders = [data = threadedCommandRecorders.Data()](uint32 renderThreadIndex) mutable -> void
-        {
-            Assert(renderThreadIndex < MaxBatches);
-
-            ThreadedCommandRecorder& commandRecorder = data[renderThreadIndex];
-            commandRecorder.Reset(/* freeMemory */ true);
-        };
-
         AssertOnThread(g_renderThread);
 
         Array<Task<void>> tasks;
         tasks.Reserve(MaxBatches);
 
-        auto& poolThreads = TaskSystem::GetInstance().GetPool(TaskThreadPoolName::THREAD_POOL_RENDER).GetThreads();
-
-        const uint32 numWorkerBatches = MathUtil::Min(uint32(poolThreads.Size()), MaxBatches);
-
-        for (uint32 threadIndex = 0; threadIndex < numWorkerBatches; threadIndex++)
-        {
-            AssertDebug(poolThreads[threadIndex] != nullptr);
-
-            tasks.EmplaceBack(poolThreads[threadIndex]->GetScheduler().Enqueue(
-                [&destructCommandRecorders, threadIndex]
-                {
-                    destructCommandRecorders(threadIndex);
-                }));
-        }
 
         AwaitAll(tasks.ToSpan());
     }
 
     void Reset()
     {
-        for (uint32 i = 0; i < ParallelRenderingState_Shared::MaxBatches; i++)
+        for (uint32 i = 0; i < MaxBatches; i++)
         {
-            // don't free memory; each queue uses thread-local memory allocators
-            threadedCommandRecorders[i].Reset(/* freeMemory */ false);
+            threadedCommandRecorders[i].Reset(/* freeMemory */ true);
         }
     }
 };
 
-ParallelRenderingState::ParallelRenderingState(ParallelRenderingState_Shared* sharedData, bool ownsSharedData)
-    : sharedData(sharedData),
-      ownsSharedData(ownsSharedData)
+ParallelRenderingState::ParallelRenderingState(StateData* data, bool ownsData)
+    : data(data),
+      ownsData(ownsData)
 {
-    Assert(sharedData != nullptr);
+    Assert(data != nullptr);
 }
 
 ParallelRenderingState::~ParallelRenderingState()
 {
-    if (ownsSharedData)
+    if (ownsData)
     {
-        delete sharedData;
-        sharedData = nullptr;
+        delete data;
+        data = nullptr;
     }
 }
 
@@ -213,8 +189,6 @@ static const Name s_nameHasNormalMap = NAME("HAS_NORMAL_MAP");
 static const Name s_nameHasParallaxMap = NAME("HAS_PARALLAX_MAP");
 static const Name s_nameHasMetalnessMap = NAME("HAS_METALNESS_MAP");
 static const Name s_nameHasRoughnessMap = NAME("HAS_ROUGHNESS_MAP");
-
-static const Name s_nameMultiView = NAME("MULTI_VIEW");
 
 /// Property interning
 
@@ -283,9 +257,11 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
         attributes.SetMaterialAttributes(newMaterialAttributes);
     }
 
-    const StringHash shaderNameHash = attributes.GetMaterialAttributes().shaderName;
+    MaterialAttributes& mas = attributes.GetMaterialAttributes();
 
-    const RenderBucket bucket = attributes.GetMaterialAttributes().bucket;
+    const StringHash shaderNameHash = mas.shaderName;
+
+    const RenderBucket bucket = mas.bucket;
 
     const bool hasForwardLighting = (bucket == RenderBucket::Translucent || bucket == RenderBucket::Sky || bucket == RenderBucket::Debug);
     const bool hasLightmaps = (bucket == RenderBucket::Lightmapped);
@@ -295,7 +271,7 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
     const bool hasDeferredLighting = !hasForwardLighting && !hasLightmaps;
 
     const bool hasInstancing = proxy.enableAutoInstancing || proxy.numInstances;
-    const bool hasAlphaDiscard = bool(attributes.GetMaterialAttributes().flags & MAF_ALPHA_DISCARD);
+    const bool hasAlphaDiscard = bool(mas.flags & MAF_ALPHA_DISCARD);
     const bool hasSkinning = proxy.skeleton != nullptr && proxy.skeleton->GetRootBone() != nullptr;
 
     const bool isPathTracer = g_cvPathTracing.Get();
@@ -307,16 +283,6 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
 
     uint8 stencilReferenceValue = 0;
 
-    // if lightmap volume is set we need stencil testing
-    if (hasLightmaps && !isPathTracer)
-    {
-        stencilReferenceValue = GetLightmapStencilValue(proxy.lightmapElementId) & LightmapStencilMask;
-    }
-    else if (attributes.GetMaterialAttributes().stencilReference & LightmapStencilMask)
-    {
-        stencilReferenceValue = (attributes.GetMaterialAttributes().stencilReference & ~LightmapStencilMask);
-    }
-
     if (isSky)
     {
         stencilReferenceValue = SkyStencilMask;
@@ -325,62 +291,30 @@ static void BuildAttributes(const RenderProxyMesh& proxy, RenderableAttributeSet
     {
         // stencilReferenceValue = DebugStencilMask;
     }
-
-    if (stencilReferenceValue != attributes.GetMaterialAttributes().stencilReference)
+    else if (hasLightmaps && !isPathTracer)
     {
-        if (stencilReferenceValue != 0)
-        {
-            attributes.GetMaterialAttributes().flags |= MAF_STENCIL_TEST;
-            attributes.GetMaterialAttributes().stencilReference = stencilReferenceValue;
-        }
-        else
-        {
-            attributes.GetMaterialAttributes().flags &= ~MAF_STENCIL_TEST;
-            attributes.GetMaterialAttributes().stencilReference = 0;
-        }
+        // if lightmap volume is set we need stencil testing
+        stencilReferenceValue = GetLightmapStencilValue(proxy.lightmapElementId) & LightmapStencilMask;
+    }
+    else if (mas.stencilReference & LightmapStencilMask)
+    {
+        stencilReferenceValue = (mas.stencilReference & ~LightmapStencilMask);
     }
 
-    const ShaderPropertySet& currentShaderProperties = attributes.GetShaderProperties();
+    mas.flags = (stencilReferenceValue != 0) ? (mas.flags | MAF_STENCIL_TEST) : (mas.flags & ~MAF_STENCIL_TEST);
+    mas.stencilReference = stencilReferenceValue;
 
-    ShaderPropertySet newShaderProperties = currentShaderProperties;
-
-    if (hasInstancing != currentShaderProperties.Test(Props::s_propInstancing))
-    {
-        newShaderProperties.Set(Props::s_propInstancing, hasInstancing);
-    }
+    ShaderPropertySet& shaderProperties = mas.shaderProperties;
+    
+    shaderProperties.Set(Props::s_propInstancing, hasInstancing);
+    shaderProperties.Set(Props::s_propAlphaDiscard, hasAlphaDiscard);
+    shaderProperties.Set(Props::s_propSkinning, hasSkinning);
 
     if (isGeometryPass)
     {
-        if (hasDeferredLighting != currentShaderProperties.Test(Props::s_propShadingTypeDeferred))
-        {
-            newShaderProperties.Set(Props::s_propShadingTypeDeferred, hasDeferredLighting);
-        }
-
-        if (hasForwardLighting != currentShaderProperties.Test(Props::s_propShadingTypeForward))
-        {
-            newShaderProperties.Set(Props::s_propShadingTypeForward, hasForwardLighting);
-        }
-
-        if (hasLightmaps != currentShaderProperties.Test(Props::s_propShadingTypeLightmapped))
-        {
-            newShaderProperties.Set(Props::s_propShadingTypeLightmapped, hasLightmaps);
-        }
-    }
-
-    if (hasAlphaDiscard != currentShaderProperties.Test(Props::s_propAlphaDiscard))
-    {
-        newShaderProperties.Set(Props::s_propAlphaDiscard, hasAlphaDiscard);
-    }
-
-    if (hasSkinning != currentShaderProperties.Test(Props::s_propSkinning))
-    {
-        newShaderProperties.Set(Props::s_propSkinning, hasSkinning);
-    }
-
-    if (newShaderProperties != currentShaderProperties)
-    {
-        // Update the shader definition in the attributes
-        attributes.SetShaderProperties(newShaderProperties);
+        shaderProperties.Set(Props::s_propShadingTypeDeferred, hasDeferredLighting);
+        shaderProperties.Set(Props::s_propShadingTypeForward, hasForwardLighting);
+        shaderProperties.Set(Props::s_propShadingTypeLightmapped, hasLightmaps);
     }
 }
 
@@ -447,7 +381,7 @@ static inline bool ShouldIncludeInPrepass(
     const float screenSpaceWidth = ndcHalfExtent.x * float(viewport.extent.x);
     const float screenSpaceHeight = ndcHalfExtent.y * float(viewport.extent.y);
 
-    constexpr float PrepassPixelCutoff = 32.0f;
+    constexpr float PrepassPixelCutoff = 8.0f;
 
     return (screenSpaceWidth >= PrepassPixelCutoff
             && screenSpaceHeight >= PrepassPixelCutoff);
@@ -1321,13 +1255,13 @@ static void PerformRenderingImpl(Frame* frame, const TPerformRenderingPayload<TC
 
     static const bool s_indirectRenderingEnabled = RI.GetRenderConfig().indirectRendering;
 
+    DeferredPassData* dpd = DynamicCast<DeferredPassData>(renderSetup.passData);
+    
     const bool useIndirectRendering = indirectRenderer != nullptr
         && prepassStage != DepthPrepass::DPP_InPrepass
         && s_indirectRenderingEnabled
         && drawCallCollection.flags[RenderGroupFlags::INDIRECT_RENDERING]
-        && (renderSetup.passData && renderSetup.passData->cullData.depthPyramidImageView);
-
-    DeferredPassData* dpd = DynamicCast<DeferredPassData>(renderSetup.passData);
+        && dpd != nullptr;
 
     // Not env probes, prepass, etc. Just main drawing pass.
     const bool isNormalDrawingPass = dpd != nullptr
@@ -1478,15 +1412,15 @@ RenderCollector::~RenderCollector()
                         state = nextState;
                     }
 
-                    Set<ParallelRenderingState_Shared*> deletedSharedData;
+                    Set<ParallelRenderingState::StateData*> deletedSharedData;
 
                     for (size_t i = toDelete.Size(); i > 0; i--)
                     {
-                        if (toDelete[i - 1]->ownsSharedData)
+                        if (toDelete[i - 1]->ownsData)
                         {
-                            AssertDebug(!deletedSharedData.Contains(toDelete[i - 1]->sharedData));
+                            AssertDebug(!deletedSharedData.Contains(toDelete[i - 1]->data));
 
-                            deletedSharedData.Add(toDelete[i - 1]->sharedData);
+                            deletedSharedData.Add(toDelete[i - 1]->data);
                         }
 
                         delete toDelete[i - 1];
@@ -1572,14 +1506,10 @@ HYP_NODISCARD ParallelRenderingState* RenderCollector::AcquireNextParallelRender
     {
         if (!parallelRenderingStateHead)
         {
-            ParallelRenderingState_Shared* sharedData = new ParallelRenderingState_Shared;
-
-            parallelRenderingStateHead = new ParallelRenderingState(sharedData, true);
-
-            TaskThreadPool& pool = TaskSystem::GetInstance().GetPool(TaskThreadPoolName::THREAD_POOL_RENDER);
+            parallelRenderingStateHead = new ParallelRenderingState(new ParallelRenderingState::StateData, true);
 
             TaskBatch* taskBatch = new TaskBatch;
-            taskBatch->pool = &pool;
+            taskBatch->pool = g_renderWorkerThreadPool;
 
             parallelRenderingStateHead->taskBatch = taskBatch;
         }
@@ -1592,14 +1522,10 @@ HYP_NODISCARD ParallelRenderingState* RenderCollector::AcquireNextParallelRender
 
         if (!next)
         {
-            ParallelRenderingState_Shared* sharedData = new ParallelRenderingState_Shared;
-
-            ParallelRenderingState* newParallelRenderingState = new ParallelRenderingState(sharedData, true);
-
-            TaskThreadPool& pool = TaskSystem::GetInstance().GetPool(TaskThreadPoolName::THREAD_POOL_RENDER);
+            ParallelRenderingState* newParallelRenderingState = new ParallelRenderingState(new ParallelRenderingState::StateData, true);
 
             TaskBatch* taskBatch = new TaskBatch;
-            taskBatch->pool = &pool;
+            taskBatch->pool = g_renderWorkerThreadPool;
 
             newParallelRenderingState->taskBatch = taskBatch;
 
@@ -1656,12 +1582,10 @@ void RenderCollector::Commit(CommandRecorder& cr, uint8 index)
         AssertDebug(state->taskBatch != nullptr);
         state->taskBatch->AwaitCompletion();
 
-        for (uint32 i = 0; i < ParallelRenderingState_Shared::MaxBatches; i++)
+        for (uint32 i = 0; i < ParallelRenderingState::StateData::MaxBatches; i++)
         {
-            state->sharedData->threadedCommandRecorders[i].Done();
-            cr.Concat(state->sharedData->threadedCommandRecorders[i]);
-
-            state->sharedData->threadedCommandRecorders[i].Reset(/* freeMemory */ false);
+            state->data->threadedCommandRecorders[i].Done();
+            cr.Concat(state->data->threadedCommandRecorders[i]);
         }
 
         // end threaded commands -- reset draw states
@@ -1678,7 +1602,7 @@ void RenderCollector::Commit(CommandRecorder& cr, uint8 index)
         cr << SetDepthClamp(false);
         cr << SetStencilTest(false);
 
-        state->sharedData->Reset();
+        state->data->Reset();
         state->taskBatch->ResetState();
 
         state = state->next;
@@ -1696,7 +1620,7 @@ void RenderCollector::PerformOcclusionCulling(Frame* frame, const RenderSetup& r
     AssertDebug(renderSetup.passData != nullptr, "RenderSetup must have valid PassData to perform occlusion culling");
 
     static const bool s_isIndirectRenderingEnabled = RI.GetRenderConfig().indirectRendering;
-    const bool performOcclusionCulling = s_isIndirectRenderingEnabled && renderSetup.passData->cullData.depthPyramidImageView != nullptr;
+    const bool performOcclusionCulling = s_isIndirectRenderingEnabled;
 
     if (performOcclusionCulling)
     {
@@ -2359,7 +2283,7 @@ void RenderCollector::PerformRendering(Frame* frame, PerformRenderingPayloadBase
     {
         AssertDebug(drawCallCollection.flags & RenderGroupFlags::PARALLEL_COLLECTION);
 
-        auto& cr = drawCallCollection.parallelRenderingState->sharedData->threadedCommandRecorders[renderThreadIndex - 1];
+        auto& cr = drawCallCollection.parallelRenderingState->data->threadedCommandRecorders[renderThreadIndex - 1];
 
         TPerformRenderingPayload payloadNext { &cr, &payload };
 

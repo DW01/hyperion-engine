@@ -37,19 +37,17 @@ struct BufferAllocatorImpl
 
     ~BufferAllocatorImpl() = default;
 
-    void OnFrameStart()
+    void OnFrameStart(uint32 newFrameIndex)
     {
     }
 
-    void OnFrameEnd()
+    void OnFrameEnd(uint32 prevFrameIndex)
     {
-        const uint32 frameCounter = GetFrameCounter();
-
         for (auto it = cachedBuffers.Begin(); it != cachedBuffers.End();)
         {
             CachedStructuredBuffer& cachedBuffer = *it;
 
-            if (int64(frameCounter) - int64(cachedBuffer.lastUsedFrame) >= MaxFramesBeforeDiscard)
+            if (int64(prevFrameIndex) - int64(cachedBuffer.lastUsedFrame) >= MaxFramesBeforeDiscard)
             {
                 it = cachedBuffers.Erase(it);
 
@@ -133,14 +131,14 @@ BufferAllocator::~BufferAllocator()
     Shutdown();
 }
 
-void BufferAllocator::OnFrameStart()
+void BufferAllocator::OnFrameStart(uint32 newFrameIndex)
 {
-    m_impl->OnFrameStart();
+    m_impl->OnFrameStart(newFrameIndex);
 }
 
-void BufferAllocator::OnFrameEnd()
+void BufferAllocator::OnFrameEnd(uint32 prevFrameIndex)
 {
-    m_impl->OnFrameEnd();
+    m_impl->OnFrameEnd(prevFrameIndex);
 }
 
 StructuredBuffer& BufferAllocator::AcquireStructuredBuffer(size_t numElements, size_t elementSize)

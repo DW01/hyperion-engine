@@ -43,8 +43,8 @@ public:
 
     void Initialize(size_t minAllocationAlignment);
 
-    void OnFrameStart();
-    void OnFrameEnd();
+    void OnFrameStart(uint32 newFrameIndex);
+    void OnFrameEnd(uint32 prevFrameIndex);
 
     HYP_NODISCARD void* Allocate(size_t count, size_t alignment);
     HYP_NODISCARD void* Allocate(size_t count, size_t alignment, GpuBuffer*& outBuffer, size_t& outStartOffset);
@@ -99,6 +99,8 @@ private:
 
     memory::ByteBuffer<RenderAllocator> m_scratch[NumRendererWorkerThreads + 1];
     size_t m_scratchAlignment[NumRendererWorkerThreads + 1];
+
+    uint32 m_frameIndex;
 
     SharedMutex m_mutex;
 };

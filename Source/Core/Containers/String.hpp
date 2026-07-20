@@ -65,14 +65,14 @@ static inline constexpr CharType* ConvertChars(const char* src, CharType (&dst)[
 
 /*! \brief Dynamic string class that natively supports UTF-8, as well as UTF-16, UTF-32, wide chars and ANSI. */
 template <int TStringType, class TAllocator>
-class String : Array<typename StringTypeImpl<TStringType>::CharType, TAllocator>
+class String : FatArray<typename StringTypeImpl<TStringType>::CharType, TAllocator>
 {
 public:
     using CharType = typename StringTypeImpl<TStringType>::CharType;
     using WidestCharType = typename StringTypeImpl<TStringType>::WidestCharType;
 
 protected:
-    using Base = Array<CharType, TAllocator>;
+    using Base = FatArray<CharType, TAllocator>;
 
 public:
     using ValueType = typename Base::ValueType;
@@ -99,7 +99,7 @@ public:
 
     static constexpr int stringType = TStringType;
 
-    static constexpr size_t NotFound = size_t(-1);
+    static constexpr size_t NotFound = SIZE_MAX;
 
     String();
     String(const String& other);
@@ -152,6 +152,24 @@ public:
 
     String& operator=(const String& other);
     String& operator=(String&& other) noexcept;
+
+    template <class TOtherAllocator, class = std::enable_if_t<!std::is_same_v<TOtherAllocator, TAllocator>>>
+    HYP_FORCE_INLINE String& operator=(const String<TStringType, TOtherAllocator>& other)
+    {
+        Clear(false);
+        Append(other.Data(), other.Data() + other.Size());
+
+        return *this;
+    }
+
+    template <class TOtherAllocator, class = std::enable_if_t<!std::is_same_v<TOtherAllocator, TAllocator>>>
+    HYP_FORCE_INLINE String& operator=(String<TStringType, TOtherAllocator>&& other)
+    {
+        Clear(false);
+        Append(other.Data(), other.Data() + other.Size());
+
+        return *this;
+    }
 
     template <int TOtherStringType, class = std::enable_if_t<TOtherStringType != TStringType>>
     HYP_FORCE_INLINE String& operator=(const utilities::StringView<TOtherStringType>& stringView)
@@ -206,8 +224,25 @@ public:
         return result;
     }
 
+    template <class TOtherAllocator, class = std::enable_if_t<!std::is_same_v<TOtherAllocator, TAllocator>>>
+    HYP_NODISCARD HYP_FORCE_INLINE String operator+(const String<TStringType, TOtherAllocator>& other) const
+    {
+        String result(*this);
+        result.Append(other.Data(), other.Data() + other.Size());
+
+        return result;
+    }
+
     template <int TOtherStringType, class TOtherAllocator, class = std::enable_if_t<TOtherStringType != TStringType>>
     HYP_FORCE_INLINE String& operator+=(const String<TOtherStringType, TOtherAllocator>& other)
+    {
+        Append(other.Data(), other.Data() + other.Size());
+
+        return *this;
+    }
+
+    template <class TOtherAllocator, class = std::enable_if_t<!std::is_same_v<TOtherAllocator, TAllocator>>>
+    HYP_FORCE_INLINE String& operator+=(const String<TStringType, TOtherAllocator>& other)
     {
         Append(other.Data(), other.Data() + other.Size());
 
@@ -711,8 +746,8 @@ public:
 
     void Clear(bool freeMemory = true);
 
-    bool StartsWith(const String& other) const;
-    bool EndsWith(const String& other) const;
+    bool StartsWith(const utilities::StringView<TStringType>& comp) const;
+    bool EndsWith(const utilities::StringView<TStringType>& comp) const;
 
     HYP_NODISCARD String ToLower() const;
     HYP_NODISCARD String ToUpper() const;
@@ -992,7 +1027,7 @@ public:
 
     HYP_NODISCARD static Array<ubyte> Base64Decode(const String& in)
     {
-        static const int lookupTable[] = {
+        static constexpr int LookupTable[] = {
             -1, -1, -1, -1, -1, -1, -1, -1,
             -1, -1, -1, -1, -1, -1, -1, -1,
             -1, -1, -1, -1, -1, -1, -1, -1,
@@ -1034,12 +1069,12 @@ public:
 
         for (auto&& c : in)
         {
-            if (lookupTable[c] == -1)
+            if (LookupTable[c] == -1)
             {
                 break;
             }
 
-            i = (i << 6) + lookupTable[c];
+            i = (i << 6) + LookupTable[c];
             j += 6;
 
             if (j >= 0)
@@ -1635,16 +1670,7 @@ void String<TStringType, TAllocator>::Append(const utilities::StringView<TString
 {
     if (Size() + stringView.Size() + 1 >= Base::Capacity())
     {
-#if !defined(HYP_USE_SLIM_ARRAY) || !HYP_USE_SLIM_ARRAY
-        if (Base::Capacity() >= Size() + stringView.Size() + 1)
-        {
-            Base::ResetOffsets();
-        }
-        else
-#endif // !HYP_USE_SLIM_ARRAY
-        {
-            Base::SetCapacity(Base::CalculateDesiredCapacity(Size() + stringView.Size() + 1));
-        }
+        Base::SetCapacity(Base::CalculateDesiredCapacity(Size() + stringView.Size() + 1));
     }
 
     Base::PopBack(); // current NT char
@@ -1653,17 +1679,17 @@ void String<TStringType, TAllocator>::Append(const utilities::StringView<TString
 
     Memory::Copy(buffer + Base::Size(), stringView.Data(), stringView.Size() * sizeof(CharType));
 
-#if defined(HYP_USE_SLIM_ARRAY) && HYP_USE_SLIM_ARRAY
-    uint32& backingArraySize = Base::size;
-#else
+//#if defined(HYP_USE_SLIM_ARRAY) && HYP_USE_SLIM_ARRAY
+//    uint32& backingArraySize = Base::size;
+//#else
     size_t& backingArraySize = Base::m_size;
-#endif
+//#endif
 
     backingArraySize += stringView.Size();
 
     Base::PushBack(CharType { 0 });
 
-    m_length += stringView.m_length;
+    m_length += stringView.Length();
 }
 
 template <int TStringType, class TAllocator>
@@ -1684,23 +1710,14 @@ void String<TStringType, TAllocator>::Append(CharType value)
     // @FIXME: Don't actually need +2 if null char exists
     if (Size() + 2 >= Base::Capacity())
     {
-#if !defined(HYP_USE_SLIM_ARRAY) || !HYP_USE_SLIM_ARRAY
-        if (Base::Capacity() >= Size() + 2)
-        {
-            Base::ResetOffsets();
-        }
-        else
-#endif // !HYP_USE_SLIM_ARRAY
-        {
-            Base::SetCapacity(Base::CalculateDesiredCapacity(Size() + 2));
-        }
+        Base::SetCapacity(Base::CalculateDesiredCapacity(Size() + 2));
     }
 
-#if defined(HYP_USE_SLIM_ARRAY) && HYP_USE_SLIM_ARRAY
-    uint32& backingArraySize = Base::size;
-#else
+//#if defined(HYP_USE_SLIM_ARRAY) && HYP_USE_SLIM_ARRAY
+//    uint32& backingArraySize = Base::size;
+//#else
     size_t& backingArraySize = Base::m_size;
-#endif
+//#endif
 
     // swap null char with value and add null char at the end
     Base::Data()[backingArraySize - 1] = value;
@@ -1746,25 +1763,25 @@ void String<TStringType, TAllocator>::Clear(bool freeMemory)
 }
 
 template <int TStringType, class TAllocator>
-bool String<TStringType, TAllocator>::StartsWith(const String& other) const
+bool String<TStringType, TAllocator>::StartsWith(const utilities::StringView<TStringType>& comp) const
 {
-    if (Size() < other.Size())
+    if (Size() < comp.Size())
     {
         return false;
     }
 
-    return std::equal(Base::Begin(), Base::Begin() + other.Size(), other.Base::Begin());
+    return std::equal(Begin(), Begin() + comp.Size(), comp.Begin());
 }
 
 template <int TStringType, class TAllocator>
-bool String<TStringType, TAllocator>::EndsWith(const String& other) const
+bool String<TStringType, TAllocator>::EndsWith(const utilities::StringView<TStringType>& comp) const
 {
-    if (Size() < other.Size())
+    if (Size() < comp.Size())
     {
         return false;
     }
 
-    return std::equal(Base::Begin() + Size() - other.Size(), Base::End(), other.Base::Begin());
+    return std::equal(Begin() + (Size() - comp.Size()), End(), comp.Begin());
 }
 
 template <int TStringType, class TAllocator>
@@ -2003,7 +2020,8 @@ String<TStringType, TAllocator> String<TStringType, TAllocator>::Escape() const
 template <int TStringType, class TAllocator>
 auto String<TStringType, TAllocator>::Substr(size_t first, size_t last) const -> String
 {
-    if (first == size_t(-1)) {
+    if (first == SIZE_MAX)
+    {
         return *this;
     }
 
@@ -2164,7 +2182,11 @@ inline constexpr bool operator==(const utilities::StringView<TStringType>& lhs, 
     return Memory::StrEqual(lhs.Data(), rhs.Data(), lhs.Size());
 }
 
+using DefaultStringAllocator = InlineAllocator<16, DynamicAllocator>;
+
 } // namespace containers
+
+using containers::DefaultStringAllocator;
 
 // StringView + String
 template <int TStringType, class TAllocator>
@@ -2175,23 +2197,23 @@ inline containers::String<TStringType, TAllocator> operator+(const utilities::St
 
 // StringView + StringView
 template <int TStringType>
-inline containers::String<TStringType, DynamicAllocator> operator+(const utilities::StringView<TStringType>& lhs, const utilities::StringView<TStringType>& rhs)
+inline containers::String<TStringType, DefaultStringAllocator> operator+(const utilities::StringView<TStringType>& lhs, const utilities::StringView<TStringType>& rhs)
 {
-    return containers::String<TStringType, DynamicAllocator>(lhs) + rhs;
+    return containers::String<TStringType, DefaultStringAllocator>(lhs) + rhs;
 }
 
 // StringView + char pointer
 template <int TStringType>
-inline containers::String<TStringType, DynamicAllocator> operator+(const utilities::StringView<TStringType>& lhs, const typename containers::String<TStringType, DynamicAllocator>::CharType* rhs)
+inline containers::String<TStringType, DefaultStringAllocator> operator+(const utilities::StringView<TStringType>& lhs, const typename containers::String<TStringType, DefaultStringAllocator>::CharType* rhs)
 {
-    return containers::String<TStringType, DynamicAllocator>(lhs) + rhs;
+    return containers::String<TStringType, DefaultStringAllocator>(lhs) + rhs;
 }
 
 // char pointer + StringView
 template <int TStringType>
-inline containers::String<TStringType, DynamicAllocator> operator+(const typename containers::String<TStringType, DynamicAllocator>::CharType* lhs, const utilities::StringView<TStringType>& rhs)
+inline containers::String<TStringType, DefaultStringAllocator> operator+(const typename containers::String<TStringType, DefaultStringAllocator>::CharType* lhs, const utilities::StringView<TStringType>& rhs)
 {
-    return containers::String<TStringType, DynamicAllocator>(lhs) + rhs;
+    return containers::String<TStringType, DefaultStringAllocator>(lhs) + rhs;
 }
 
 // char pointer + String

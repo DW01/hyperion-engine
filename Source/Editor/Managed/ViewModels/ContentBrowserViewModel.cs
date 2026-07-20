@@ -10,6 +10,7 @@ using System.Diagnostics;
 using Avalonia.Threading;
 using Hyperion;
 using Hyperion.Editor.Commands;
+using Hyperion.Editor.Services;
 using Hyperion.Editor.Views;
 
 namespace Hyperion.Editor.ViewModels
@@ -86,39 +87,32 @@ namespace Hyperion.Editor.ViewModels
                 FocusAsset(AssetBucket.Scripts.Value, "NewScript");
             });
 
-            NewPhysicsShapeCommand = new AsyncRelayCommand(async _ =>
+            NewPhysicsShapeCommand = new RelayCommand(() =>
             {
-                var lifetime = Avalonia.Application.Current?.ApplicationLifetime
-                    as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
-
-                if (lifetime?.MainWindow == null)
-                    return;
-
-                var dialog = new NewPhysicsShapeDialog();
-                await dialog.ShowDialog(lifetime.MainWindow);
-
-                if (!dialog.Result || dialog.ViewModel.CreatedShape == null)
+                var panel = new NewPhysicsShapePanelViewModel(shape =>
                 {
-                    Logger.Log(LogLevel.Warning, "Physics shape creation cancelled or failed?");
-                    return;
-                }
-
-                PhysicsShape? shape = dialog.ViewModel.CreatedShape;
-                Debug.Assert(shape != null);
-
-                // Task hell...
-                _ = EngineManager.PostToSimThread(() =>
-                {
-                    AssetRegistry? registry = EngineManager.EditorGame?.AssetRegistry;
-                    Debug.Assert(registry != null);
-
-                    registry.PutAssetUnique(shape);
-                    
-                    Dispatcher.UIThread.Post(() =>
+                    if (shape == null)
                     {
-                        FocusAsset(AssetBucket.PhysicsShapes.Value, shape.GetName().ToString());
+                        Logger.Log(LogLevel.Warning, "Physics shape creation cancelled.");
+                        return;
+                    }
+
+                    // Task hell...
+                    _ = EngineManager.PostToSimThread(() =>
+                    {
+                        AssetRegistry? registry = EngineManager.EditorGame?.AssetRegistry;
+                        Debug.Assert(registry != null);
+
+                        registry.PutAssetUnique(shape);
+
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            FocusAsset(AssetBucket.PhysicsShapes.Value, shape.GetName().ToString());
+                        });
                     });
                 });
+
+                PanelService.Instance.OpenPanel(panel);
             });
 
             Instance = this;

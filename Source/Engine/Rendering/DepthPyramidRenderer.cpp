@@ -46,9 +46,6 @@ DepthPyramidRenderer::~DepthPyramidRenderer()
 {
     EnqueueDeletion(std::move(m_depthImageView));
 
-    EnqueueDeletion(std::move(m_depthPyramid));
-    EnqueueDeletion(std::move(m_depthPyramidView));
-
     EnqueueDeletion(std::move(m_mipImageViews));
     EnqueueDeletion(std::move(m_mipUniformBuffers));
 }
@@ -70,32 +67,25 @@ void DepthPyramidRenderer::Create()
     Assert(depthImage.IsValid());
 
     // create depth pyramid image
-    m_depthPyramid = RI.MakeImage(TextureDesc {
+    m_hzbTexture = MakeHandle<Texture>(TextureDesc {
         TextureType::Texture2D,
         TextureFormat::R32F,
-        Vec3u {
-            depthImage->GetExtent().x,
-            depthImage->GetExtent().y,
-            1 },
+        depthImage->GetExtent(),
         TFM_NEAREST_MIPMAP,
         TFM_NEAREST,
         TWM_CLAMP_TO_EDGE,
         1,
-        IU_SAMPLED | IU_STORAGE });
+        IU_SAMPLED | IU_STORAGE
+    });
 
-#ifdef HYP_RHI_DEBUG_NAMES
-    m_depthPyramid->SetDebugName(NAME("DepthPyramid"));
-#endif
+    m_hzbTexture->SetName(NAME("HZBTexture"));
 
-    m_depthPyramid->Create();
-
-    m_depthPyramidView = RI.MakeImageView(m_depthPyramid);
-    m_depthPyramidView->Create();
+    Check(m_hzbTexture->Create());
 
     const Vec3u& imageExtent = m_depthImageView->GetImage()->GetExtent();
-    const Vec3u& depthPyramidExtent = m_depthPyramid->GetExtent();
+    const Vec3u& depthPyramidExtent = m_hzbTexture->GetExtent();
 
-    const uint32 numMipLevels = m_depthPyramid->NumMips();
+    const uint32 numMipLevels = m_hzbTexture->GetTextureDesc().NumMips();
 
     m_mipImageViews.Clear();
     m_mipImageViews.Reserve(numMipLevels);
@@ -128,7 +118,7 @@ void DepthPyramidRenderer::Create()
         mipUniformBuffer->Copy(sizeof(DepthPyramidUniforms), &uniforms);
         mipUniformBuffer->Flush(0, sizeof(DepthPyramidUniforms));
 
-        GpuImageViewRef& mipImageView = m_mipImageViews.PushBack(RI.MakeImageView(m_depthPyramid, mipLevel, 1, 0, m_depthPyramid->NumArrayLayers()));
+        GpuImageViewRef& mipImageView = m_mipImageViews.PushBack(RI.MakeImageView(m_hzbTexture->GetGpuImage(), mipLevel, 1, 0, 1));
 #ifdef HYP_RHI_DEBUG_NAMES
         mipImageView->SetDebugName(NAME_FMT("DepthPyramid_Mip{}_ImageView", mipLevel));
 #endif
@@ -139,12 +129,12 @@ void DepthPyramidRenderer::Create()
 
 Vec2u DepthPyramidRenderer::GetExtent() const
 {
-    if (!m_depthPyramid.IsValid())
+    if (!m_hzbTexture.IsValid())
     {
         return Vec2u::One();
     }
 
-    const Vec3u extent = m_depthPyramid->GetExtent();
+    const Vec3u& extent = m_hzbTexture->GetExtent();
 
     return { extent.x, extent.y };
 }
@@ -156,7 +146,8 @@ void DepthPyramidRenderer::Render(Frame* frame)
     const uint8 numDepthPyramidMipLevels = uint8(m_mipImageViews.Size());
 
     const Vec3u& imageExtent = m_depthImageView->GetImage()->GetExtent();
-    const Vec3u& depthPyramidExtent = m_depthPyramid->GetExtent();
+
+    const Vec3u& depthPyramidExtent = m_hzbTexture->GetExtent();
 
     uint32 mipWidth = imageExtent.x;
     uint32 mipHeight = imageExtent.y;
@@ -188,10 +179,10 @@ void DepthPyramidRenderer::Render(Frame* frame)
 
         frame->cr << DispatchCompute({ (mipWidth + 7) / 8, (mipHeight + 7) / 8, 1 });
 
-        frame->cr << InsertUAVBarrier(m_depthPyramid.Get());
+        frame->cr << InsertUAVBarrier(m_hzbTexture->GetGpuImage());
     }
 
-    frame->cr << InsertBarrier(m_depthPyramid, RS_SHADER_RESOURCE);
+    frame->cr << InsertBarrier(m_hzbTexture->GetGpuImage(), RS_SHADER_RESOURCE);
 
     m_isRendered = true;
 }

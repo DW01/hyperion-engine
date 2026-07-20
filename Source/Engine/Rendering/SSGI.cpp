@@ -165,7 +165,7 @@ void SSGI::Create()
             : m_extent / (2 * (NumDownsamplePasses - i - 1));
 
         m_upsamplePasses[i] = MakeUnique<FullScreenPass>(SSGIFormat, MathUtil::Max(targetExtent, Vec2u::One()), nullptr, FSP_NONE);
-        m_upsamplePasses[i]->SetShaderDesc(ShaderDesc(NAME("SSGIUpsample"), ShaderPropertySet {}));
+        m_upsamplePasses[i]->SetShaderDesc(ShaderDesc(NAME("Upsample"), ShaderPropertySet {}));
         m_upsamplePasses[i]->Create();
     }
 
@@ -453,18 +453,20 @@ void SSGI::Render(Frame* frame, const RenderSetup& renderSetup)
         cbufferOffset = 0;
 
         { // Update constant buffer
-            struct SSGIUpsampleConstants
+            struct UpsampleConstants
             {
                 CameraShaderData camera;
 
                 Vec2f texelSize;
+                Vec2f uvScale;
                 float depthThreshold;
                 float normalThreshold;
             };
 
-            SSGIUpsampleConstants upsampleConstants {};
+            UpsampleConstants upsampleConstants {};
             upsampleConstants.camera = cameraProxy->bufferData;
             upsampleConstants.texelSize = Vec2f::One() / sourceResolution;
+            upsampleConstants.uvScale = Vec2f::One();
             upsampleConstants.depthThreshold = g_cvSSGIDepthThreshold.Get();
             upsampleConstants.normalThreshold = g_cvSSGINormalPower.Get();
 
@@ -481,8 +483,8 @@ void SSGI::Render(Frame* frame, const RenderSetup& renderSetup)
         cr << SetShaderUniform(numShaderUniforms++, "SamplerNearest"_sh, RI.placeholderData->GetSamplerNearest());
 
         // GBuffer textures
-        cr << SetShaderUniform(numShaderUniforms++, "GBufferNormalsTexture"_sh, inputsFramebuffer->GetAttachment(GBufferTarget::Normals)->GetImageView());
-        cr << SetShaderUniform(numShaderUniforms++, "GBufferDepthTexture"_sh, inputsFramebuffer->GetAttachment(GBufferTarget::Depth)->GetImageView());
+        cr << SetShaderUniform(numShaderUniforms++, "NormalsTexture"_sh, inputsFramebuffer->GetAttachment(GBufferTarget::Normals)->GetImageView());
+        cr << SetShaderUniform(numShaderUniforms++, "DepthTexture"_sh, inputsFramebuffer->GetAttachment(GBufferTarget::Depth)->GetImageView());
 
         cr << SetShaderUniform(numShaderUniforms++, "PrevPassTexture"_sh,
                                i == 0 ? RI.textureViewCache->GetOrCreate(m_downsampleTextures[NumDownsamplePasses - 1])

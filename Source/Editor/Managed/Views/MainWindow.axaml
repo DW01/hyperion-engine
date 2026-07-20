@@ -7,7 +7,6 @@
     xmlns:inspector="clr-namespace:Hyperion.Editor.Views.Inspector;assembly=Hyperion.Editor"
     xmlns:local="clr-namespace:Hyperion.Editor"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:ribbon="clr-namespace:Ribbon.Avalonia;assembly=Ribbon.Avalonia"
     xmlns:views="clr-namespace:Hyperion.Editor.Views;assembly=Hyperion.Editor"
     xmlns:vm="clr-namespace:Hyperion.Editor.ViewModels;assembly=Hyperion.Editor"
     x:Name="Root"
@@ -204,7 +203,7 @@
 
             <Grid RowDefinitions="Auto, Auto, *, Auto">
                 <!--  Main Content Area  -->
-                <Grid Grid.Row="2" ColumnDefinitions="280, 2, *">
+                <Grid x:Name="MainContentGrid" Grid.Row="2" ColumnDefinitions="280, 2, *, 2, 320">
 
                     <!--  Left Panel: Scene Hierarchy + Actions (cond) + Inspector  -->
                     <Grid Grid.Column="0" RowDefinitions="*, Auto, *">
@@ -253,7 +252,8 @@
                                         Padding="8,2"
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center"
-                                        Content="Add to scene...">
+                                        ToolTip.Tip="Add new node to the active scene...">
+                                        <LucideIcon Kind="Plus" Size="16" />
                                         <Button.Flyout>
                                             <MenuFlyout>
                                                 <MenuItem
@@ -264,9 +264,10 @@
                                                     Foreground="#808080"
                                                     Header="Node"
                                                     IsEnabled="False" />
-                                                <MenuItem Command="{Binding AddEntity}" Header="Basic Entity" />
-                                                <MenuItem Command="{Binding AddEmptyNode}" Header="Empty Node" />
-                                                <MenuItem Command="{Binding AddCamera}" Header="Camera Node" />
+                                                <MenuItem Command="{Binding AddEmptyNode}" Header="Base Node" />
+                                                <Separator />
+                                                <MenuItem Command="{Binding AddEntity}" Header="Entity" />
+                                                <MenuItem Command="{Binding AddCamera}" Header="Camera" />
                                                 <Separator />
                                                 <MenuItem
                                                     Margin="0,2"
@@ -304,9 +305,8 @@
                                                 <Separator />
                                                 <MenuItem Command="{Binding AddReflectionProbe}" Header="Reflection Probe" /> <!-- Tooltip.Tip="Reflection probes capture static objects as a cubemap for reflections as well as spherical harmonics for indirect lighting." /> -->
                                                 <MenuItem Command="{Binding AddIrradianceProbe}" Header="Irradiance Probe" />
-                                                <Separator />
                                                 <MenuItem Command="{Binding AddLightmapVolume}" Header="Lightmap Volume" /> <!-- Tooltip.Tip="Lightmap Volumes bake lighting for static objects into an atlas texture. Dynamic objects do not receive light from lightmaps." /> -->
-                                                <MenuItem Command="{Binding AddProbeVolume}" Header="Probe Volume" /> <!-- Tooltip.Tip="Irradiance Probe Volumes encase four irradiance probes which capture the scene lighting to be used as indirect lighting for static and dynamic objects." /> -->
+                                                <!--<MenuItem Command="{Binding AddProbeVolume}" Header="Probe Volume" />--> <!-- Tooltip.Tip="Irradiance Probe Volumes encase four irradiance probes which capture the scene lighting to be used as indirect lighting for static and dynamic objects." /> -->
                                                 <Separator />
                                                 <MenuItem
                                                     Margin="0,2"
@@ -318,7 +318,7 @@
                                                     IsEnabled="False" />
                                                 <MenuItem Command="{Binding AddParticleVolume}" Header="Particle Volume" />
                                                 <MenuItem Command="{Binding AddFogVolume}" Header="Fog Volume" />
-                                                <Separator />
+                                                <!-- <Separator />
                                                 <MenuItem
                                                     Margin="0,2"
                                                     Padding="8,4"
@@ -327,7 +327,23 @@
                                                     Foreground="#808080"
                                                     Header="Scripts"
                                                     IsEnabled="False" />
-                                                <MenuItem Command="{Binding NewScript}" Header="Script" />
+                                                <MenuItem Command="{Binding NewScript}" Header="Script" /> -->
+
+                                                <Separator />
+                                                <MenuItem
+                                                    Margin="0,2"
+                                                    Padding="8,4"
+                                                    HorizontalAlignment="Center"
+                                                    FontSize="12"
+                                                    Foreground="#808080"
+                                                    Header="Shapes"
+                                                    IsEnabled="False" />
+
+                                                <MenuItem Command="{Binding AddCube}" Header="Cube" />
+                                                <MenuItem Command="{Binding AddNormalizedCubeSphere}" Header="Normalized Cube Sphere" />
+                                                <MenuItem Command="{Binding AddPlane}" Header="Plane" />
+                                                <MenuItem Command="{Binding AddCylinder}" Header="Cylinder" />
+
                                             </MenuFlyout>
                                         </Button.Flyout>
                                     </Button>
@@ -537,7 +553,7 @@
                                                             Command="{Binding SelectCommand}"
                                                             Content="Swap"
                                                             IsEnabled="{Binding CanSelectFromContentBrowser}"
-                                                            ToolTip.Tip="Assign to the currently selected asset in the Content Browser" />
+                                                            ToolTip.Tip="Assign to the currently selected asset in the Assets drawer" />
                                                         <Button
                                                             Padding="8,2"
                                                             FontSize="11"
@@ -633,7 +649,6 @@
                         <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
 
                         <Grid x:Name="BottomPanelGrid" Grid.Row="2" ColumnDefinitions="*, 2, *">
-                                <!--  Content Browser slot  -->
                                 <Grid Grid.Column="0">
                                     <DockPanel x:Name="ContentBrowserPanel">
                                         <Border Classes="panel-header" DockPanel.Dock="Top" Height="36">
@@ -652,7 +667,7 @@
                                                     VerticalAlignment="Center"
                                                     Classes="header"
                                                     FontSize="12"
-                                                    Text="Content Browser" />
+                                                    Text="Assets" />
                                                 <ComboBox
                                                     Grid.Column="2"
                                                     Margin="0,0,4,0"
@@ -732,7 +747,6 @@
                                         </Grid>
                                     </DockPanel>
 
-                                    <!--  Content Browser collapsed strip  -->
                                     <Border
                                         x:Name="ContentBrowserCollapsedStrip"
                                         IsVisible="False"
@@ -797,6 +811,59 @@
                                     </Border>
                                 </Grid>
                             </Grid>
+                    </Grid>
+
+                    <!--  Right panel host (dynamic editor panels)  -->
+                    <GridSplitter x:Name="RightPanelSplitter" Grid.Column="3" ResizeDirection="Columns" />
+
+                    <Grid Grid.Column="4">
+                        <DockPanel x:Name="RightPanelHost">
+                            <Border Classes="panel-header" DockPanel.Dock="Top" Height="36">
+                                <Grid VerticalAlignment="Center" ColumnDefinitions="*, Auto, Auto">
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        Margin="6,0"
+                                        VerticalAlignment="Center"
+                                        Classes="header"
+                                        FontSize="12"
+                                        Text="{Binding ActivePanel.Title}" />
+                                    <Button
+                                        x:Name="CollapseRightPanel"
+                                        Grid.Column="1"
+                                        Width="26" Height="26" Padding="0"
+                                        VerticalAlignment="Center"
+                                        ToolTip.Tip="Collapse">
+                                        <LucideIcon Kind="ChevronsRight" Size="14" />
+                                    </Button>
+                                    <Button
+                                        Grid.Column="2"
+                                        Width="26" Height="26" Padding="0"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding ClosePanelCommand}"
+                                        ToolTip.Tip="Close">
+                                        <LucideIcon Kind="X" Size="14" />
+                                    </Button>
+                                </Grid>
+                            </Border>
+                            <ContentControl Content="{Binding ActivePanel}" />
+                        </DockPanel>
+
+                        <Border
+                            x:Name="RightPanelCollapsedStrip"
+                            IsVisible="False"
+                            Background="{DynamicResource Brush.PanelAlt}"
+                            BorderBrush="{DynamicResource Brush.Border}"
+                            BorderThickness="1,0,0,0">
+                            <Button
+                                x:Name="ExpandRightPanel"
+                                Width="26" Height="26" Padding="0"
+                                Margin="0,4"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Top"
+                                ToolTip.Tip="Expand">
+                                <LucideIcon Kind="ChevronsLeft" Size="14" />
+                            </Button>
+                        </Border>
                     </Grid>
 
                 </Grid>

@@ -17,7 +17,6 @@
 
 #include <Core/Containers/SparsePagedArray.hpp>
 
-#include <Rendering/CullData.hpp>
 #include <Rendering/GraphicsPipelineCache.hpp>
 #include <Rendering/RenderTypes.hpp>
 
@@ -29,7 +28,6 @@ class EnvProbe;
 class ProbeVolume;
 class LightmapVolume;
 class ParticleVolume;
-struct CullData;
 class PassData;
 class PassBase;
 class View;
@@ -193,8 +191,6 @@ public:
 
     WeakHandle<View> view;
 
-    CullData cullData;
-
     PassDataExt* next = nullptr;
 };
 
@@ -203,7 +199,7 @@ class PassBase
 public:
     HYP_DEF_POOL_NEW_DELETE(g_renderPool);
 
-    using PassDataMap = SparsePagedArray<PassData*, 16, RenderAllocator>;
+    using PassDataMap = Map<View*, PassData*, RenderAllocator>;
 
     virtual ~PassBase();
 
@@ -212,9 +208,7 @@ public:
 
     virtual void RenderFrame(Frame* frame, const RenderSetup& renderSetup) = 0;
 
-    /*! \brief Cleans up data no longer used for rendering, amortised.
-     *  Returns number of cleanup iterations used by this execution */
-    virtual int RunCleanupCycle(int maxIter = 10);
+    virtual void OnFrameEnd(uint32 prevFrameIndex);
 
 protected:
     PassBase();
@@ -227,11 +221,8 @@ protected:
     PassData* TryGetViewPassData(View* view);
     PassData* FetchViewPassData(View* view, PassDataExt* ext = nullptr, bool forceNew = false);
 
-    static int RunCleanupCycle(PassDataMap& passData, int maxIter, typename PassDataMap::Iterator* pIter = nullptr);
-
 private:
     PassDataMap m_viewPassData;
-    typename PassDataMap::Iterator m_viewPassDataCleanupIterator;
 };
 
 } // namespace Hyperion

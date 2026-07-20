@@ -62,7 +62,6 @@ void ClosestHitMain(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
     if (mesh_description.bindlessIndex == ~0u)
     {
         /// BAD mesh!
-        payload.throughput = 0.0f;
         return;
     }
     

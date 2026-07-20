@@ -1110,10 +1110,16 @@ void TCommandRecorder<RenderAllocator>::Execute(CommandBuffer* commandBuffer)
                 HYP_FAIL("Unexpected command type {}", header.GetCommandType());
             }
         }
-        else
+        else if (header.IsCustom())
         {
-            InvokeCmdFnPtr fnPtr = header.GetCustom<InvokeCmdFnPtr>();
+            // Read next header which holds fnptr directly
+
+            i++;
+
+            InvokeCmdFnPtr fnPtr = reinterpret_cast<InvokeCmdFnPtr>(m_headersPtr[i].address);
             fnPtr(cmdDataPtr, commandBuffer);
+
+            continue;
         }
     }
 

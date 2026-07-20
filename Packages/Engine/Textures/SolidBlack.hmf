@@ -8,7 +8,24 @@ Texture "SolidBlack" {
         TextureWrapMode = TWM_REPEAT
         NumLayers = 1
         ImageUsage = IU_SAMPLED
-        MipOffsets = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        MipOffsets = [
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+        ]
     }
     ImageData = {
         Key = "Engine://Textures/SolidBlack.TEX"

@@ -416,7 +416,7 @@ public:
     ProfileScopeStack()
         : m_threadId(CurrentThreadId()),
           m_rootEntry("ROOT", ""),
-          m_head(&m_rootEntry),
+          m_head(std::ref(m_rootEntry)),
           m_numRecordedScopes(0)
     {
         m_rootEntry.StartMeasure();
@@ -447,7 +447,7 @@ public:
         m_rootEntry.children.Clear();
         m_rootEntry.StartMeasure();
 
-        m_head = &m_rootEntry;
+        m_head = std::ref(m_rootEntry);
 
         m_numRecordedScopes = 0;
     }
@@ -457,28 +457,28 @@ public:
         AssertOnThread(m_threadId);
 
         if (m_numRecordedScopes >= MaxRecordedScopes
-            && m_head == &m_rootEntry) // only reset if at root (don't mess up nesting)
+            && &m_head.get() == &m_rootEntry) // only reset if at root (don't mess up nesting)
         {
             Reset();
         }
 
         ++m_numRecordedScopes;
 
-        m_head = &m_head->children.EmplaceBack(label, location, m_head);
-        return *m_head;
+        m_head = std::ref(m_head.get().children.EmplaceBack(label, location, &m_head.get()));
+        return m_head.get();
     }
 
     void Close()
     {
         AssertOnThread(m_threadId);
 
-        m_head->SaveDiff();
+        m_head.get().SaveDiff();
 
-        if (m_head != &m_rootEntry)
+        if (&m_head.get() != &m_rootEntry)
         {
             // m_head should not be set to nullptr
-            HYP_CORE_ASSERT(m_head->parent != nullptr);
-            m_head = m_head->parent;
+            HYP_CORE_ASSERT(m_head.get().parent != nullptr);
+            m_head = std::ref(*m_head.get().parent);
         }
     }
 
@@ -570,7 +570,7 @@ private:
 
     ThreadId m_threadId;
     ProfileScopeEntry m_rootEntry;
-    NotNullPtr<ProfileScopeEntry> m_head;
+    std::reference_wrapper<ProfileScopeEntry> m_head;
     JSON::JArray m_queue;
     uint32 m_numRecordedScopes;
 

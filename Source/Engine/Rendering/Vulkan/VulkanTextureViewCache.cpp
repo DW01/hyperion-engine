@@ -188,7 +188,7 @@ void VulkanTextureViewCache::RemoveTexture(const Texture* texture)
     }
 }
 
-void VulkanTextureViewCache::CleanupUnusedTextures()
+void VulkanTextureViewCache::OnFrameEnd(uint32 prevFrameIndex)
 {
     AssertOnThread(g_renderThread);
 

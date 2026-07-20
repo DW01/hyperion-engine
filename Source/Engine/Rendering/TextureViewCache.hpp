@@ -40,7 +40,7 @@ public:
 
     virtual void RemoveTexture(const Texture* texture) = 0;
 
-    virtual void CleanupUnusedTextures() = 0;
+    virtual void OnFrameEnd(uint32 prevFrameIndex) = 0;
 };
 
 } // namespace Hyperion

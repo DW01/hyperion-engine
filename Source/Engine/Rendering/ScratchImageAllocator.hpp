@@ -25,8 +25,8 @@ public:
     ScratchImageAllocator(const ScratchImageAllocator&) = delete;
     ScratchImageAllocator& operator=(const ScratchImageAllocator&) = delete;
 
-    void OnFrameStart();
-    void OnFrameEnd();
+    void OnFrameStart(uint32 newFrameIndex);
+    void OnFrameEnd(uint32 prevFrameIndex);
 
     Handle<Texture> AcquireScratchImage(TextureType type, TextureFormat format, Vec3u extent);
 

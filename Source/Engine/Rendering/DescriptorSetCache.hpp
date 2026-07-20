@@ -23,12 +23,14 @@ class DescriptorSetCache
 {
 public:
     DescriptorSetCache();
+    
     DescriptorSetCache(const DescriptorSetCache&) = delete;
     DescriptorSetCache& operator=(const DescriptorSetCache&) = delete;
+
     ~DescriptorSetCache();
 
-    void OnFrameStart();
-    void OnFrameEnd();
+    void OnFrameStart(uint32 newFrameIndex);
+    void OnFrameEnd(uint32 prevFrameIndex);
 
     DescriptorSet* GetOrCreate(const DescriptorSetLayout& layout);
 
@@ -44,6 +46,8 @@ private:
     AllocationsMap m_allocsByLayout;
 
     Array<AllocatedDescriptorSet, RenderAllocator> m_descriptorSetsInUse;
+
+    uint32 m_frameIndex;
 };
 
 } // namespace Hyperion

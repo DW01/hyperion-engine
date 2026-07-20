@@ -163,15 +163,13 @@ Camera::Camera()
 
 Camera::Camera(int width, int height)
     : Entity(),
-      m_cameraFlags(CameraFlags::NONE),
+      m_cameraFlags(CameraFlags::None),
       m_matchWindowSizeRatio(1.0f),
-      m_direction(Vec3f::UnitZ()),
-      m_up(Vec3f::UnitY()),
       m_width(width),
       m_height(height),
       m_near(0.01f),
       m_far(1000.0f),
-      m_fov(50.0f),
+      m_fov(75.0f),
       m_streamingVolumeAdded(false)
 {
     // make sure there is always at least 1 camera controller
@@ -183,10 +181,8 @@ Camera::Camera(int width, int height)
 
 Camera::Camera(float fov, int width, int height, float _near, float _far)
     : Entity(),
-      m_cameraFlags(CameraFlags::NONE),
+      m_cameraFlags(CameraFlags::None),
       m_matchWindowSizeRatio(1.0f),
-      m_direction(Vec3f::UnitZ()),
-      m_up(Vec3f::UnitY()),
       m_width(width),
       m_height(height),
       m_fov(fov)
@@ -202,10 +198,8 @@ Camera::Camera(float fov, int width, int height, float _near, float _far)
 
 Camera::Camera(int width, int height, float left, float right, float bottom, float top, float _near, float _far)
     : Entity(),
-      m_cameraFlags(CameraFlags::NONE),
+      m_cameraFlags(CameraFlags::None),
       m_matchWindowSizeRatio(1.0f),
-      m_direction(Vec3f::UnitZ()),
-      m_up(Vec3f::UnitY()),
       m_width(width),
       m_height(height),
       m_fov(0.0f)
@@ -463,7 +457,7 @@ void Camera::SetNextTranslation(const Vec3f& translation)
 
 void Camera::SetDirection(const Vec3f& direction)
 {
-    m_direction = direction;
+    SetWorldRotation(Quat4f::LookAt(direction, GetUpVector()).Inverse(), TransformChangeType::Simulation);
 
     if (HasActiveCameraController())
     {
@@ -478,7 +472,7 @@ void Camera::SetDirection(const Vec3f& direction)
 
 void Camera::SetUpVector(const Vec3f& up)
 {
-    m_up = up;
+    SetWorldRotation(Quat4f::LookAt(GetDirection(), up).Inverse(), TransformChangeType::Simulation);
 
     if (HasActiveCameraController())
     {
@@ -493,8 +487,7 @@ void Camera::SetUpVector(const Vec3f& up)
 
 void Camera::Rotate(const Vec3f& axis, float radians)
 {
-    m_direction.Rotate(axis, radians);
-    m_direction.Normalize();
+    SetWorldRotation(Quat4f(axis, radians) * GetWorldRotation(), TransformChangeType::Simulation);
 
     UpdateMatrices();
 }
@@ -807,7 +800,7 @@ void Camera::UpdateRenderProxy(RenderProxyCamera* proxy)
     bufferData.dimensions = Vec4u { uint32(MathUtil::Abs(m_width)), uint32(MathUtil::Abs(m_height)), 0, 1 };
 
     bufferData.cameraPosition = Vec4f(GetWorldTranslation(), 1.0f);
-    bufferData.cameraDirection = Vec4f(m_direction, 1.0f);
+    bufferData.cameraDirection = Vec4f(GetDirection(), 1.0f);
 
     bufferData.cameraNear = m_near;
     bufferData.cameraFar = m_far;

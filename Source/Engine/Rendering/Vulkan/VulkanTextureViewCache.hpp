@@ -56,7 +56,7 @@ public:
         TextureType viewTextureType) override;
 
     void RemoveTexture(const Texture* texture) override;
-    void CleanupUnusedTextures() override;
+    void OnFrameEnd(uint32 prevFrameIndex) override;
 
 private:
     SubtypeData& GetSubtypeData(ObjId<Texture> id);

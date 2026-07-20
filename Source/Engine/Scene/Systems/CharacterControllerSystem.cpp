@@ -220,6 +220,15 @@ void CharacterControllerSystem::Process(float delta, Span<Handle<Scene>> scenes)
 
                 Vec2f movementInput = inputHandler->GetMovementInput();
 
+                TransformComponent& transformComponent = entity->GetComponent<TransformComponent>();
+                const Vec3f facingDirection = transformComponent.rotation.RotateVector(Vec3f(0.0f, 0.0f, 1.0f));
+                const Vec3f horizontalFacing(facingDirection.x, 0.0f, facingDirection.z);
+
+                if (horizontalFacing.LengthSquared() > 0.0001f)
+                {
+                    component.viewDirection = facingDirection;
+                }
+
                 if (movementInput.LengthSquared() > 0.0001f)
                 {
                     Vec3f forward = Vec3f(component.viewDirection.x, 0.0f, component.viewDirection.z).Normalize();

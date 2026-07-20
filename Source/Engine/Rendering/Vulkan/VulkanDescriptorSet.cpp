@@ -274,7 +274,7 @@ void VulkanDescriptorSet::UpdateDirtyState(bool* outIsDirty)
 
                 if (isBufferBinding)
                 {
-                    AssertDebug(Hyperion::IsA<VulkanGpuBuffer>(ptr), "Invalid buffer descriptor: {}", name);
+                    Assert(Hyperion::IsA<VulkanGpuBuffer>(ptr), "Invalid buffer descriptor: {}", name);
 
                     VulkanGpuBuffer* ref = static_cast<VulkanGpuBuffer*>(ptr);
                     AssertDebug(ref != nullptr);

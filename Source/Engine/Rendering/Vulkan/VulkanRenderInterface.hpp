@@ -208,11 +208,6 @@ private:
 
     void ReleaseTransientMemory() override;
 
-    void NewFrameIndex() override
-    {
-        m_currentFrameIndex = (m_currentFrameIndex + 1) % NumFramesInFlight;
-    }
-
     void PrepareFrame(VulkanFrame* frame) override;
 
     VulkanInstance* m_instance;

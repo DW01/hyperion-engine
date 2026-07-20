@@ -49,19 +49,15 @@ public:
         return AtomicAdd(&m_value, 0) != 0;
     }
 
-    HYP_FORCE_INLINE void Store(bool value)
+    /// Returns previous value
+    HYP_FORCE_INLINE bool Store(bool value)
     {
-        AtomicExchange(&m_value, value ? 1 : 0);
+        return bool(AtomicExchange(&m_value, value ? 1 : 0));
     }
 
     HYP_FORCE_INLINE bool LoadVolatile() const
     {
         return m_value != 0;
-    }
-
-    HYP_FORCE_INLINE void StoreVolatile(bool value)
-    {
-        m_value = value ? 1 : 0;
     }
 
     void Acquire() const

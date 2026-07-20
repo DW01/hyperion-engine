@@ -21,6 +21,7 @@
 #include <Rendering/Mesh.hpp>
 #include <Rendering/PlaceholderData.hpp>
 #include <Rendering/CBufferAllocator.hpp>
+#include <Rendering/TextureViewCache.hpp>
 
 #include <Rendering/Passes/EnvProbePass.hpp>
 #include <Rendering/Passes/DeferredPass.hpp>
@@ -339,8 +340,7 @@ void IndirectDrawState::UpdateBufferData(CommandRecorder& cr, bool* outWasResize
 #pragma region IndirectRenderer
 
 IndirectRenderer::IndirectRenderer()
-    : m_cachedCullDataUpdatedBits(0x0),
-      m_batchAllocator(nullptr)
+    : m_batchAllocator(nullptr)
 {
 }
 
@@ -388,8 +388,6 @@ void IndirectRenderer::ExecuteCullShaderInBatches(CommandRecorder& cr, const Ren
 
     AssertDebug(m_batchAllocator != nullptr);
 
-    AssertDebug(renderSetup.passData->cullData.depthPyramidImageView != nullptr);
-
     const uint32 frameIndex = GetFrameCounter() % NumFramesInFlight;
 
     AssertDebug(m_indirectDrawState.GetIndirectBuffer(frameIndex).IsValid());
@@ -405,12 +403,6 @@ void IndirectRenderer::ExecuteCullShaderInBatches(CommandRecorder& cr, const Ren
 
     PrepareDrawCommands(cr);
 
-    if (m_cachedCullData != renderSetup.passData->cullData)
-    {
-        m_cachedCullData = renderSetup.passData->cullData;
-        m_cachedCullDataUpdatedBits = 0xFF;
-    }
-
     DeferredPassData* pd = DynamicCast<DeferredPassData>(renderSetup.passData);
     AssertDebug(pd != nullptr);
 
@@ -423,7 +415,7 @@ void IndirectRenderer::ExecuteCullShaderInBatches(CommandRecorder& cr, const Ren
     cr << SetShaderUniform(numShaderUniforms++, "WorldsBuffer"_sh, RI.namedBuffers[NamedBuffer::Worlds]);
 
     cr << SetShaderUniform(numShaderUniforms++, "SamplerNearest"_sh, RI.placeholderData->GetSamplerNearest());
-    cr << SetShaderUniform(numShaderUniforms++, "DepthPyramidResult"_sh, renderSetup.passData->cullData.depthPyramidImageView);
+    cr << SetShaderUniform(numShaderUniforms++, "DepthPyramidResult"_sh, RI.textureViewCache->GetOrCreate(pd->depthPyramidRenderer->GetHZBTexture()));
 
     cr << SetShaderUniform(numShaderUniforms++, "ObjectInstancesBuffer"_sh, m_indirectDrawState.GetInstanceBuffer(frameIndex), ShaderDataOffset(0, sizeof(ObjectInstance)));
     cr << SetShaderUniform(numShaderUniforms++, "IndirectDrawCommandsBuffer"_sh, m_indirectDrawState.GetIndirectBuffer(frameIndex), ShaderDataOffset(0, sizeof(IndirectDrawCommand)));

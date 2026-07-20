@@ -30,13 +30,20 @@ namespace Hyperion::DataProcessing::HMF {
 class Parser
 {
 public:
-    Parser(TokenStream* tokenStream, DataProcessing::ErrorList<CompilerError>* errorList);
+    Parser(
+        TokenStream* tokenStream,
+        DataProcessing::ErrorList<CompilerError>* errorList,
+        BoxedValue* target = nullptr);
 
-    bool Parse(BoxedValue& out);
+    Parser(const Parser& other) = delete;
+    Parser& operator=(const Parser& other) = delete;
+
+    ~Parser();
+
+    bool Parse();
+    bool Parse(BoxedValue& out, bool moveResult = true);
 
 private:
-    bool ParseManifest(BoxedValue& out);
-
     bool ParseObjectBody(const Class* cls, BoxedValue& target);
     bool ParseValue(const TypeInfo& typeInfo, BoxedValue& out);
 
@@ -85,6 +92,8 @@ private:
 
     TokenStream* m_tokenStream;
     DataProcessing::ErrorList<CompilerError>* m_errorList;
+    BoxedValue* m_target;
+    bool m_ownsTarget;
 };
 
 } // namespace Hyperion::DataProcessing::HMF

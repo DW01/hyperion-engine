@@ -24,6 +24,9 @@
 #include <Core/Math/MathUtil.hpp>
 
 #include <algorithm>
+#include <cstring>
+
+#include <d3d12shader.h>
 
 #include <DX12GraphicsPipeline.generated.inl>
 
@@ -32,6 +35,135 @@ namespace Hyperion {
 ENGINE_API HYP_DECLARE_LOG_CHANNEL(RenderingBackend);
 
 extern DX12RenderInterface RI;
+
+namespace {
+
+/*! \brief Function pointer type for D3DReflect, dynamically loaded from d3dcompiler.dll
+ *  to avoid adding a static linker dependency on legacy d3dcompiler.lib. */
+using PFN_D3DReflect = HRESULT(WINAPI*)(LPCVOID, SIZE_T, REFIID, void**);
+
+/*! \brief Lazily load D3DReflect from d3dcompiler.dll. Returns null if unavailable. */
+PFN_D3DReflect GetD3DReflect()
+{
+    static PFN_D3DReflect s_pfnD3DReflect = []() -> PFN_D3DReflect
+    {
+        HMODULE module = LoadLibraryW(L"d3dcompiler.dll");
+
+        if (!module)
+        {
+            return nullptr;
+        }
+
+        return reinterpret_cast<PFN_D3DReflect>(GetProcAddress(module, "D3DReflect"));
+    }();
+
+    return s_pfnD3DReflect;
+}
+
+/*! \brief Inspect the pixel shader bytecode via reflection and return the highest
+ *  SV_Target output slot index (+1) declared by the shader.
+ *
+ *  This is used to pad the PSO's \c NumRenderTargets / \c RTVFormats so the D3D12 debug
+ *  layer does not emit CREATEGRAPHICSPIPELINESTATE_RENDERTARGETVIEW_NOT_SET (#679) when
+ *  a shader writes to render target slots that the active framebuffer does not provide.
+ *  Writes to the unbound slots are discarded at draw time, which is the intended behavior.
+ *
+ *  \param  shaderBytecode  The compiled pixel shader bytecode to reflect.
+ *  \param  outFormats      Optional output buffer (must hold at least 8 entries) that,
+ *                          on return, contains a type-compatible DXGI format for each
+ *                          SV_Target slot declared by the shader. Entries for slots that
+ *                          are not declared are left untouched.
+ *
+ *  \return The number of SV_Target outputs declared by the shader (highest index + 1),
+ *          or 0 if reflection failed or the shader has no render target outputs. */
+uint32 ReflectPixelShaderOutputCount(
+    const D3D12_SHADER_BYTECODE& shaderBytecode,
+    DXGI_FORMAT* outFormats = nullptr)
+{
+    if (!shaderBytecode.pShaderBytecode || shaderBytecode.BytecodeLength == 0)
+    {
+        return 0;
+    }
+
+    const PFN_D3DReflect pfnD3DReflect = GetD3DReflect();
+
+    if (!pfnD3DReflect)
+    {
+        return 0;
+    }
+
+    ComPtr<ID3D12ShaderReflection> reflection;
+
+    if (FAILED(pfnD3DReflect(
+            shaderBytecode.pShaderBytecode,
+            shaderBytecode.BytecodeLength,
+            IID_PPV_ARGS(&reflection))))
+    {
+        return 0;
+    }
+
+    D3D12_SHADER_DESC shaderDesc {};
+
+    if (FAILED(reflection->GetDesc(&shaderDesc)))
+    {
+        return 0;
+    }
+
+    uint32 maxRenderTargetIndex = 0;
+
+    for (UINT outputIndex = 0; outputIndex < shaderDesc.OutputParameters; ++outputIndex)
+    {
+        D3D12_SIGNATURE_PARAMETER_DESC paramDesc {};
+
+        if (FAILED(reflection->GetOutputParameterDesc(outputIndex, &paramDesc)))
+        {
+            continue;
+        }
+
+        if (std::strcmp(paramDesc.SemanticName, "SV_Target") != 0)
+        {
+            continue;
+        }
+
+        const uint32 slotIndex = paramDesc.SemanticIndex;
+
+        if (slotIndex >= D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT)
+        {
+            continue;
+        }
+
+        if (slotIndex + 1 > maxRenderTargetIndex)
+        {
+            maxRenderTargetIndex = slotIndex + 1;
+        }
+
+        if (outFormats != nullptr)
+        {
+            DXGI_FORMAT compatibleFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+            switch (paramDesc.ComponentType)
+            {
+            case D3D_REGISTER_COMPONENT_UINT32:
+                compatibleFormat = DXGI_FORMAT_R8G8B8A8_UINT;
+                break;
+            case D3D_REGISTER_COMPONENT_SINT32:
+                compatibleFormat = DXGI_FORMAT_R8G8B8A8_SINT;
+                break;
+            case D3D_REGISTER_COMPONENT_FLOAT32:
+            case D3D_REGISTER_COMPONENT_UNKNOWN:
+            default:
+                compatibleFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+                break;
+            }
+
+            outFormats[slotIndex] = compatibleFormat;
+        }
+    }
+
+    return maxRenderTargetIndex;
+}
+
+} // anonymous namespace
 
 void DX12GraphicsPipeline::BuildVertexAttributes(
     Array<D3D12_INPUT_ELEMENT_DESC>& outInputElementDescs,
@@ -306,10 +438,10 @@ RendererResult DX12GraphicsPipeline::Rebuild()
     psoDesc.BlendState.AlphaToCoverageEnable = FALSE;
     psoDesc.BlendState.IndependentBlendEnable = enableBlend;
 
+    bool hasDSV = false;
+
     if (m_framebufferDesc.numAttachments > 0)
     {
-        bool hasDSV = false;
-
         for (uint32 attachmentIndex = 0; attachmentIndex < m_framebufferDesc.numAttachments; attachmentIndex++)
         {
             const AttachmentDesc& attachmentDesc = m_framebufferDesc.attachments[attachmentIndex];
@@ -354,6 +486,36 @@ RendererResult DX12GraphicsPipeline::Rebuild()
             }
 
             psoDesc.RTVFormats[rtIndex] = ToDXGIFormat(attachmentDesc.format, DX12ViewType::RTV_DSV);
+        }
+    }
+
+    // If the framebuffer does not provide a depth-stencil attachment, force depth/stencil
+    // operations off. Otherwise the debug layer emits
+    // CREATEGRAPHICSPIPELINESTATE_DEPTHSTENCILVIEW_NOT_SET (#680) because the PSO enables
+    // depth testing (m_depthTest defaults to true) while DSVFormat is UNKNOWN.
+    if (!hasDSV)
+    {
+        psoDesc.DepthStencilState.DepthEnable = FALSE;
+        psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+        psoDesc.DepthStencilState.StencilEnable = FALSE;
+    }
+
+    // If the pixel shader declares more SV_Target outputs than the framebuffer provides color
+    // attachments, pad NumRenderTargets / RTVFormats to cover them. The debug layer otherwise
+    // emits CREATEGRAPHICSPIPELINESTATE_RENDERTARGETVIEW_NOT_SET (#679). Writes to the
+    // unbound slots are discarded at draw time, which matches the existing behavior.
+    {
+        DXGI_FORMAT shaderOutputFormats[D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT] = {};
+
+        const uint32 shaderOutputCount = ReflectPixelShaderOutputCount(psoDesc.PS, shaderOutputFormats);
+
+        while (psoDesc.NumRenderTargets < shaderOutputCount)
+        {
+            const uint32 padIndex = psoDesc.NumRenderTargets++;
+
+            psoDesc.RTVFormats[padIndex] = shaderOutputFormats[padIndex] != DXGI_FORMAT_UNKNOWN
+                ? shaderOutputFormats[padIndex]
+                : DXGI_FORMAT_R8G8B8A8_UNORM;
         }
     }
 

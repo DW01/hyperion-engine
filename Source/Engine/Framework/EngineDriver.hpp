@@ -13,6 +13,8 @@
 #include <Core/Reflection/ObjectBase.hpp>
 #include <Core/Reflection/Handle.hpp>
 
+#include <Core/Threading/AtomicFlag.hpp>
+
 #include <Core/Functional/Delegate.hpp>
 
 #include <Framework/Config/EngineConfig.hpp>
@@ -94,7 +96,7 @@ public:
 
     HYP_FORCE_INLINE bool IsShuttingDown() const
     {
-        return AtomicAdd(&m_isShuttingDown, 0) > 0;
+        return m_isShuttingDown.LoadVolatile();
     }
 
     void AddWorld(const Handle<World>& world);
@@ -127,7 +129,7 @@ public:
 private:
     void SyncConfig();
 
-    void UpdateSim(float delta);
+    void UpdateSim(float delta, Game* gameInstance);
 
     Array<Handle<World>> m_worlds; // Sim thread only
     World* m_currentWorld;         // Sim thread only
@@ -139,7 +141,8 @@ private:
     TaskBatch* m_viewCollectionBatch;
 
     bool m_isInitialized;
-    mutable volatile int32 m_isShuttingDown;
+
+    AtomicFlag m_isShuttingDown;
 };
 
 } // namespace Hyperion

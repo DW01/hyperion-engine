@@ -2,9 +2,23 @@
     x:Class="Hyperion.Editor.App"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:panels="clr-namespace:Hyperion.Editor.Views.Panels;assembly=Hyperion.Editor"
+    xmlns:vm="clr-namespace:Hyperion.Editor.ViewModels;assembly=Hyperion.Editor"
     Name="Hyperion Editor"
     RequestedThemeVariant="Dark">
     <!--  Compact dark design with custom palette and control styles  -->
+
+    <Application.DataTemplates>
+        <DataTemplate DataType="vm:NewPhysicsShapePanelViewModel">
+            <panels:NewPhysicsShapePanelView />
+        </DataTemplate>
+        <DataTemplate DataType="vm:AddNewScenePanelViewModel">
+            <panels:AddNewScenePanelView />
+        </DataTemplate>
+        <DataTemplate DataType="vm:AssetObjectEditPanelViewModel">
+            <panels:AssetObjectEditPanelView />
+        </DataTemplate>
+    </Application.DataTemplates>
 
     <Application.Resources>
         <ResourceDictionary>

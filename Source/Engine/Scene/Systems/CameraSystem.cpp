@@ -24,7 +24,7 @@ bool CameraSystem::ShouldProcessScene(Scene* scene) const
 {
     static constexpr EnumFlags<SceneFlags> ExpectedFlags = SceneFlags::FOREGROUND;
 
-    return (scene->GetSceneFlags() & (SceneFlags::UI | SceneFlags::DETACHED | ExpectedFlags)) == ExpectedFlags;
+    return (scene->GetSceneFlags() & (SceneFlags::UI | SceneFlags::DETACHED | SceneFlags::EDITOR | ExpectedFlags)) == ExpectedFlags;
 }
 
 void CameraSystem::OnEntityAdded(Entity* entity)

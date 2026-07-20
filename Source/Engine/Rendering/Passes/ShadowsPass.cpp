@@ -93,20 +93,18 @@ void ShadowsPassBase::Shutdown()
     }
 }
 
-int ShadowsPassBase::RunCleanupCycle(int maxIter)
+void ShadowsPassBase::OnFrameEnd(uint32 prevFrameIndex)
 {
-    const uint32 currentFrame = GetFrameCounter();
-
-    int numCycles = PassBase::RunCleanupCycle(maxIter);
+    PassBase::OnFrameEnd(prevFrameIndex);
 
     for (auto it = m_cachedShadowMapData.Begin(); it != m_cachedShadowMapData.End();)
     {
         CachedShadowMapData& value = it->second;
 
         static constexpr uint32 MaxFramesBeforeDiscard = 16;
-        if (int64(currentFrame) - int64(value.lastUsedFrame) >= MaxFramesBeforeDiscard)
+        if (static_cast<int64>(prevFrameIndex) - static_cast<int64>(value.lastUsedFrame) >= MaxFramesBeforeDiscard)
         {
-            HYP_LOG(Rendering, Verbose, "Removing cached shadow map as it has not been used in {} frames", int64(currentFrame) - int64(value.lastUsedFrame));
+            HYP_LOG(Rendering, Verbose, "Removing cached shadow map as it has not been used in {} frames", static_cast<int64>(prevFrameIndex) - static_cast<int64>(value.lastUsedFrame));
 
             bool removed = RI.shadowMapCache->Remove(ShadowMapCacheKey { it->first });
             AssertDebug(removed, "Failed to remove shadow map frame cache - will cause a leak and further shadow map allocations to fail when filled");
@@ -118,8 +116,6 @@ int ShadowsPassBase::RunCleanupCycle(int maxIter)
 
         ++it;
     }
-
-    return numCycles;
 }
 
 void ShadowsPassBase::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
@@ -158,8 +154,17 @@ void ShadowsPassBase::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
 
     cachedData->lastUsedFrame = GetFrameCounter();
 
-    FatArray<RenderProxyList*, FixedAllocator<6 * 2>> renderProxyLists;
-    HYP_DEFER({ for (RenderProxyList* rpl : renderProxyLists) rpl->EndRead(); });
+    // Max = 12
+    //     = 6 (number of cube faces for omni shadow maps) * 2 (one for static cached shadow map, one for the dynamic one)
+    RenderProxyList* renderProxyLists[12] {};
+    uint8 numRenderProxyLists = 0;
+
+    HYP_DEFER({
+        for (uint8 i = 0; i < numRenderProxyLists; i++)
+        {
+            renderProxyLists[i]->EndRead();
+        }
+    });
 
     RenderProxyCamera* shadowCameraProxy = nullptr;
 
@@ -502,7 +507,8 @@ void ShadowsPassBase::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
 
                 RenderProxyList& rpl = GetConsumerProxyList(shadowView);
                 rpl.BeginRead();
-                renderProxyLists.PushBack(&rpl);
+
+                renderProxyLists[numRenderProxyLists++] = &rpl;
 
                 frame->cr << InsertBarrier(resultImage, RS_RENDER_TARGET, target->GetImageView()->GetImageSubResource());
 

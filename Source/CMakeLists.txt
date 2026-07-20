@@ -198,8 +198,10 @@ endif()
 add_definitions(-DHYPERION_ENGINE=1)
 set(HYPERION_ENGINE 1)
 
-set(HYP_TESTS 1)
-add_definitions(-DHYP_TESTS=1)
+if (NOT HYP_ANDROID AND NOT HYP_IOS AND NOT HYPERION_BUILD_RELEASE_FINAL)
+  set(HYP_TESTS 1)
+  add_definitions(-DHYP_TESTS=1)
+endif()
 
 # enable TypeId generatation at compile time
 # will increase compile times slightly but improve runtime performance
@@ -442,7 +444,7 @@ endif()
 set(RENDERING_BACKEND "Vulkan")
 
 if(WIN32)
-  set(ENABLE_EXPERIMENTAL_DX12_RENDERING_BACKEND true)
+  # set(ENABLE_EXPERIMENTAL_DX12_RENDERING_BACKEND true)
 
   if(ENABLE_EXPERIMENTAL_DX12_RENDERING_BACKEND)
     set(RENDERING_BACKEND "DX12")

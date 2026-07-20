@@ -36,7 +36,7 @@ void PerspectiveCameraController::UpdateViewMatrix()
     m_camera->m_viewMat = Mat4f::LookAt(
         m_camera->GetWorldTranslation(),
         m_camera->GetTarget(),
-        m_camera->m_up);
+        m_camera->GetUpVector());
 }
 
 void PerspectiveCameraController::UpdateProjectionMatrix()

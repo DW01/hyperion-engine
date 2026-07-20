@@ -132,11 +132,12 @@ void TemporalBlending::Resize(Vec2u newSize)
         return;
     }
 
-    GetThreadById(g_renderThread)->GetScheduler().Enqueue([this, newSize]()
-                                                          {
-                                                              Resize_Internal(newSize);
-                                                          },
-                                                          TaskEnqueueFlags::FIRE_AND_FORGET);
+    GetThreadById(g_renderThread)->GetScheduler().Enqueue(
+        [this, newSize]()
+        {
+            Resize_Internal(newSize);
+        },
+        TaskEnqueueFlags::FIRE_AND_FORGET);
 }
 
 void TemporalBlending::Resize_Internal(Vec2u newSize)

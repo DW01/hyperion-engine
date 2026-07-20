@@ -268,7 +268,7 @@ Result AssetObject::SaveManifest(ByteWriter& stream) const
     opts.skipTransientProperties = true;
     opts.writeClassName = true;
 
-    ObjectToHMFDocument(InstanceClass(), BoxedValue(HandleFromThis()), text, &opts);
+    ObjectToHMF(InstanceClass(), BoxedValue(HandleFromThis()), text, &opts);
 
     stream.WriteString(text.ToUtf8());
 

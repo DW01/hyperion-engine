@@ -2254,23 +2254,20 @@ struct ShaderPropertySet
 
     HYP_FORCE_INLINE void Add(ShaderPropertyId id)
     {
-        AssertDebug(uint32(id) < ChunkSizeBits * NumChunks);
-
         chunks[uint32(id) / ChunkSizeBits] |= (1ull << (uint32(id) % ChunkSizeBits));
     }
 
     HYP_FORCE_INLINE void Set(ShaderPropertyId id, bool enable)
     {
-        AssertDebug(uint32(id) < ChunkSizeBits * NumChunks);
+        const uint32 currValue = chunks[uint32(id) / ChunkSizeBits];
+        const uint32 mask = (1 << (uint32(id) % ChunkSizeBits));
 
-        if (enable)
-        {
-            chunks[uint32(id) / ChunkSizeBits] |= (1ull << (uint32(id) % ChunkSizeBits));
-        }
-        else
-        {
-            chunks[uint32(id) / ChunkSizeBits] &= ~(1ull << (uint32(id) % ChunkSizeBits));
-        }
+        const uint32 values[2] = {
+            currValue & ~mask,
+            currValue | mask
+        };
+
+        chunks[uint32(id) / ChunkSizeBits] = values[enable];
     }
 
     HYP_FORCE_INLINE constexpr bool Test(ShaderPropertyId id) const

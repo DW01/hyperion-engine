@@ -54,16 +54,18 @@ namespace Hyperion.Editor.Commands
 
                                     if (!editorSubsystem.StartSimulation())
                                     {
-                                        throw new Exception("Failed to start simulation!");
+                                        throw new Exception("StartSimulation() returned false");
                                     }
 
                                     innerGameInstance = editorSubsystem.CurrentProject?.GameInstance;
                                     Debug.Assert(innerGameInstance != null);
                                 }
-                                catch (Exception)
+                                catch (Exception ex)
                                 {
+                                    Logger.Log(LogLevel.Error, $"Failed to start simulation: {ex.Message}");
+
                                     Interlocked.Exchange(ref _isChangingGameMode, 0);
-                                    throw;
+                                    return;
                                 }
 
                                 Dispatcher.UIThread.Post(() =>

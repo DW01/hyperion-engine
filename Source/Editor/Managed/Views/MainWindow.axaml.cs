@@ -29,6 +29,12 @@ namespace Hyperion.Editor
         private bool _contentBrowserExpanded = true;
         private bool _consoleExpanded = true;
 
+        private Grid? _mainContentGrid;
+        private GridSplitter? _rightPanelSplitter;
+        private Control? _rightPanelHost;
+        private Border? _rightPanelCollapsedStrip;
+        private bool _rightPanelExpanded = true;
+
         private const string NodeViewModelDragFormat = "application/x-hyperion-nodeviewmodel";
         private const string AssetDragFormat = "application/x-hyperion-asset";
         private NodeViewModel? _dragCandidate;
@@ -90,6 +96,20 @@ namespace Hyperion.Editor
             if (expandContentBrowser != null) expandContentBrowser.Click += OnExpandContentBrowser;
             if (collapseConsole != null) collapseConsole.Click += OnCollapseConsole;
             if (expandConsole != null) expandConsole.Click += OnExpandConsole;
+
+            _mainContentGrid = this.FindControl<Grid>("MainContentGrid");
+            _rightPanelSplitter = this.FindControl<GridSplitter>("RightPanelSplitter");
+            _rightPanelHost = this.FindControl<Control>("RightPanelHost");
+            _rightPanelCollapsedStrip = this.FindControl<Border>("RightPanelCollapsedStrip");
+
+            var collapseRightPanel = this.FindControl<Button>("CollapseRightPanel");
+            var expandRightPanel = this.FindControl<Button>("ExpandRightPanel");
+
+            if (collapseRightPanel != null) collapseRightPanel.Click += OnCollapseRightPanel;
+            if (expandRightPanel != null) expandRightPanel.Click += OnExpandRightPanel;
+
+            PanelService.Instance.ActivePanelChanged += OnActivePanelChanged;
+            UpdateRightPanelLayout();
 
             SetupSceneHierarchyDragDrop();
             SetupContentBrowserDragDrop();
@@ -525,6 +545,20 @@ namespace Hyperion.Editor
         private void OnCollapseConsole(object? sender, RoutedEventArgs e) { _consoleExpanded = false; UpdateBottomPanelLayout(); }
         private void OnExpandConsole(object? sender, RoutedEventArgs e) { _consoleExpanded = true; UpdateBottomPanelLayout(); }
 
+        private void OnCollapseRightPanel(object? sender, RoutedEventArgs e) { _rightPanelExpanded = false; UpdateRightPanelLayout(); }
+        private void OnExpandRightPanel(object? sender, RoutedEventArgs e) { _rightPanelExpanded = true; UpdateRightPanelLayout(); }
+
+        private void OnActivePanelChanged(object? sender, EventArgs e)
+        {
+            // Auto-expand when a new panel opens.
+            if ((DataContext as MainWindowViewModel)?.ActivePanel != null)
+            {
+                _rightPanelExpanded = true;
+            }
+
+            UpdateRightPanelLayout();
+        }
+
         private void UpdateBottomPanelLayout()
         {
             if (_bottomPanelGrid == null) return;
@@ -541,6 +575,35 @@ namespace Hyperion.Editor
             if (_contentBrowserCollapsedStrip != null) _contentBrowserCollapsedStrip.IsVisible = !_contentBrowserExpanded;
             if (_consolePanel != null) _consolePanel.IsVisible = _consoleExpanded;
             if (_consoleCollapsedStrip != null) _consoleCollapsedStrip.IsVisible = !_consoleExpanded;
+        }
+
+        private void UpdateRightPanelLayout()
+        {
+            if (_mainContentGrid == null) return;
+
+            bool hasPanel = (DataContext as MainWindowViewModel)?.ActivePanel != null;
+
+            var cols = _mainContentGrid.ColumnDefinitions;
+
+            if (!hasPanel)
+            {
+                cols[3].Width = new GridLength(0);
+                cols[4].Width = new GridLength(0);
+            }
+            else if (_rightPanelExpanded)
+            {
+                cols[3].Width = new GridLength(2);
+                cols[4].Width = new GridLength(320, GridUnitType.Pixel);
+            }
+            else
+            {
+                cols[3].Width = new GridLength(2);
+                cols[4].Width = new GridLength(30);
+            }
+
+            if (_rightPanelSplitter != null) _rightPanelSplitter.IsEnabled = hasPanel && _rightPanelExpanded;
+            if (_rightPanelHost != null) _rightPanelHost.IsVisible = hasPanel && _rightPanelExpanded;
+            if (_rightPanelCollapsedStrip != null) _rightPanelCollapsedStrip.IsVisible = hasPanel && !_rightPanelExpanded;
         }
 
         protected override void OnClosing(WindowClosingEventArgs e)

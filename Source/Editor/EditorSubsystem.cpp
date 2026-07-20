@@ -374,13 +374,14 @@ void TranslateEditorGizmo::OnDragStart(const Handle<Camera>& camera, const Mouse
     }
 
     int axis = -1;
-    axisTag.data.Visit([&axis](auto&& value)
-                       {
-                           if constexpr (std::is_integral_v<NormalizedType<decltype(value)>>)
-                           {
-                               axis = static_cast<int>(value);
-                           }
-                       });
+    axisTag.data.Visit(
+        [&axis](auto&& value)
+        {
+            if constexpr (std::is_integral_v<NormalizedType<decltype(value)>>)
+            {
+                axis = static_cast<int>(value);
+            }
+        });
 
     Handle<Node> focusedNode = m_focusedNode.Lock();
 
@@ -867,13 +868,14 @@ void RotateEditorGizmo::OnDragStart(const Handle<Camera>& camera, const MouseEve
     }
 
     int axis = -1;
-    axisTag.data.Visit([&axis](auto&& value)
-                       {
-                           if constexpr (std::is_integral_v<NormalizedType<decltype(value)>>)
-                           {
-                               axis = static_cast<int>(value);
-                           }
-                       });
+    axisTag.data.Visit(
+        [&axis](auto&& value)
+        {
+            if constexpr (std::is_integral_v<NormalizedType<decltype(value)>>)
+            {
+                axis = static_cast<int>(value);
+            }
+        });
 
     if (axis < 0)
     {
@@ -1204,13 +1206,14 @@ void ScaleEditorGizmo::OnDragStart(const Handle<Camera>& camera, const MouseEven
     }
 
     int axis = -1;
-    axisTag.data.Visit([&axis](auto&& value)
-                       {
-                           if constexpr (std::is_integral_v<NormalizedType<decltype(value)>>)
-                           {
-                               axis = static_cast<int>(value);
-                           }
-                       });
+    axisTag.data.Visit(
+        [&axis](auto&& value)
+        {
+            if constexpr (std::is_integral_v<NormalizedType<decltype(value)>>)
+            {
+                axis = static_cast<int>(value);
+            }
+        });
 
     Handle<Node> focusedNode = m_focusedNode.Lock();
 
@@ -2485,7 +2488,7 @@ void EditorSubsystem::CreateHighlightNode()
 
 bool EditorSubsystem::StartSimulation()
 {
-    if (m_editorViewports.Empty() || !m_currentProject.IsValid())
+    if (!m_currentProject.IsValid())
     {
         return false;
     }
@@ -2760,6 +2763,11 @@ void EditorSubsystem::InitViewport()
         backdropPanel.Get(),
         [this](const MouseEvent& event)
         {
+            if (!GetWorld()->GetGameState().IsEditMode())
+            {
+                return UIEventHandlerResult::OK;
+            }
+
             EditorViewport* activeViewport = GetActiveViewport();
             if (!activeViewport)
             {
@@ -2791,6 +2799,11 @@ void EditorSubsystem::InitViewport()
         backdropPanel.Get(),
         [this, uiStage = uiSubsystem->GetUIStage().Get()](const MouseEvent& event)
         {
+            if (!GetWorld()->GetGameState().IsEditMode())
+            {
+                return UIEventHandlerResult::OK;
+            }
+
             // prevent click being triggered on release once mouse has been dragged
             m_shouldCancelNextClick = true;
 
@@ -2914,6 +2927,11 @@ void EditorSubsystem::InitViewport()
         backdropPanel.Get(),
         [this, uiStageWeak = uiSubsystem->GetUIStage().ToWeak()](const MouseEvent& event)
         {
+            if (!GetWorld()->GetGameState().IsEditMode())
+            {
+                return UIEventHandlerResult::OK;
+            }
+
             m_shouldCancelNextClick = false;
 
             EditorViewport* activeViewport = GetActiveViewport();
@@ -2971,6 +2989,11 @@ void EditorSubsystem::InitViewport()
         backdropPanel.Get(),
         [this](const MouseEvent& event)
         {
+            if (!GetWorld()->GetGameState().IsEditMode())
+            {
+                return UIEventHandlerResult::OK;
+            }
+
             m_shouldCancelNextClick = false;
 
             EditorViewport* activeViewport = GetActiveViewport();
@@ -3069,6 +3092,11 @@ void EditorSubsystem::InitViewport()
         backdropPanel.Get(),
         [this](const MouseEvent& event)
         {
+            if (!GetWorld()->GetGameState().IsEditMode())
+            {
+                return UIEventHandlerResult::OK;
+            }
+
             m_editorCameraEnabled = true;
 
             EditorViewport* activeViewport = GetActiveViewport();
@@ -3100,6 +3128,11 @@ void EditorSubsystem::InitViewport()
         backdropPanel.Get(),
         [this](const MouseEvent& event)
         {
+            if (!GetWorld()->GetGameState().IsEditMode())
+            {
+                return UIEventHandlerResult::OK;
+            }
+
             m_editorCameraEnabled = false;
 
             EditorViewport* activeViewport = GetActiveViewport();
@@ -3476,7 +3509,7 @@ void EditorSubsystem::NewProject()
     sun->SetName(NAME("SunLight"));
     sun->SetDirection(Vec3f(-0.2f, 0.8f, 0.2f).Normalize());
     sun->SetColor(Color(Vec4f(1.0f, 0.9f, 0.8f, 1.0f)));
-    sun->SetIntensity(100.0f);
+    sun->SetIntensity(50.0f);
     InitObject(sun);
 
     mainScene->GetRoot()->AddChild(sun);
@@ -3623,17 +3656,7 @@ void EditorSubsystem::SetFocusedNode(const Handle<Node>& focusedNode, bool shoul
         HYP_LOG(Editor, Verbose, "Set focused node: {}\t{}\t is static ? {}", focusedNode->GetName(), focusedNode->GetWorldTranslation(),
                 focusedNode->IsStatic());
 
-        /// \todo watch for transform changes and update the highlight node
-
-        // m_scene->GetRoot()->AddChild(m_highlightNode);
-        // m_highlightNode->SetWorldScale(m_focusedNode->GetWorldBounds().GetExtent() * 0.5f);
-        // m_highlightNode->SetWorldTranslation(m_focusedNode->GetWorldTranslation());
-
-        // HYP_LOG(Editor, Verbose, "Set focused node: {}\t{}", m_focusedNode->GetName(), m_focusedNode->GetWorldTranslation());
-        // HYP_LOG(Editor, Verbose, "Set highlight node translation: {}", m_highlightNode->GetWorldTranslation());
-
         if (focusedNode->IsA<VolumeBase>() && StaticCast<VolumeBase>(focusedNode)->useVolumeEditTool)
-        //|| (focusedNode->IsA(Light::StaticClass()) && !focusedNode->IsA(DirectionalLight::StaticClass())))
         {
             SetSelectedManipulationMode(EditorManipulationMode::VOLUME_EDIT);
         }
@@ -3657,6 +3680,16 @@ void EditorSubsystem::SetFocusedNode(const Handle<Node>& focusedNode, bool shoul
         {
             entity->RemoveTag<EntityTag::FocusedInEditor>();
         }
+    }
+
+    // So, we now use SelectedNodes for multi-select, but for backwards compatibility and some other stuff that needs a single
+    // 'focused' node (i.e where to place the gizmo? or maybe it should use avg position?) 
+    // We check if the selection includes the focused node.
+    //  - if it does, we do nothing,
+    //  - otherwise, clear the selection, and set selection to be *just* the focused node.
+    if (!m_selectedNodes.Contains(focusedNode))
+    {
+        SetSelectedNodes({ focusedNode });
     }
 
     OnFocusedNodeChanged(focusedNode, previousFocusedNode, shouldSelectInOutline);

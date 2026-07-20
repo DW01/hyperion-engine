@@ -7,6 +7,7 @@
 #include <HyperionPch.hpp>
 
 #include <Framework/Threads/RenderThread.hpp>
+#include <Framework/Threads/RenderWorkerThread.hpp>
 
 #include <Framework/EngineGlobals.hpp>
 #include <Framework/EngineDriver.hpp>
@@ -297,12 +298,27 @@ void RenderThread::Update()
 
     g_renderArena->Reset();
 
-    // Wait AFTER the frame is rendered to allow sim thread to catch up,
-    // as we want buffered data to keep being written even as we wait.
     if (targetFrameRate > 0.0f)
     {
         g_frameLimiter.SetTargetFPS(static_cast<int>(targetFrameRate));
         g_frameLimiter.Wait();
+    }
+}
+
+static void ResetWorkerThreadAllocators()
+{
+    if (!g_renderWorkerThreadPool)
+    {
+        return;
+    }
+
+    auto& poolThreads = g_renderWorkerThreadPool->GetThreads();
+
+    for (const UniquePtr<ThreadBase>& taskThread : g_renderWorkerThreadPool->GetThreads())
+    {
+        Assert(taskThread != nullptr);
+        
+        static_cast<RenderWorkerThread&>(*taskThread).ResetThreadLinearAllocator();
     }
 }
 
@@ -332,6 +348,8 @@ void RenderThread::operator()()
             Update();
 
             m_threadAllocator->Reset();
+            
+            ResetWorkerThreadAllocators();
         }
 
         RI.Shutdown();

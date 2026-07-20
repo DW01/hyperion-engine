@@ -183,7 +183,6 @@ PSOutput PSMain(PSInput input)
     float ao = 1.0;
     float4 irradiance = (float4)0.0;
     float4 reflections = (float4)0.0;
-    float3 ibl = (float3)0.0;
 
 #if HBAO_ENABLED || SSAO_ENABLED
     const float4 ssao_data = SAMPLE_TEXTURE_2D_LOD(sampler_linear, SSAOResultTexture, texcoord, 0);
@@ -238,20 +237,17 @@ PSOutput PSMain(PSInput input)
     const float NdotV = max(0.00001, dot(N, V));
     
     const float3 F0 = CalculateF0(albedo.rgb, metalness);
-    const float3 F = CalculateFresnelTerm(F0, perceptualRoughness, NdotV);
-    const float3 dfg = CalculateDFG(F, perceptualRoughness, NdotV);
+    const float3 dfg = CalculateDFG(perceptualRoughness, NdotV);
     const float3 E = CalculateE(F0, dfg);
     float3 Fd = diffuse_color.rgb * irradiance.rgb * (1.0 - E) * ao;
 
-    float3 specular_ao = (float3)SpecularAO_Lagarde(NdotV, ao, roughness);
+    float3 specular_ao = (float3)SpecularAO_Lagarde(NdotV, ao, perceptualRoughness);
 
     const float3 energy_compensation = CalculateEnergyCompensation(F0, dfg);
     specular_ao *= energy_compensation;
 
-    float3 Fr = ibl * E * specular_ao;
-
     reflections.rgb *= specular_ao;
-    Fr = Fr * (1.0 - reflections.a) + (E * reflections.rgb);
+    float3 Fr = E * reflections.rgb;
 
     result = Fd + Fr;
 

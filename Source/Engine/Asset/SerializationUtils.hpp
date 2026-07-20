@@ -157,12 +157,6 @@ Result ObjectToHMF(
     String& outText,
     ToHMFOptions* pOptions = nullptr);
 
-Result ObjectToHMFDocument(
-    const Class* cls,
-    const BoxedValue& target,
-    String& outText,
-    ToHMFOptions* pOptions = nullptr);
-
 #pragma endregion Hyperion Manifest
 
 #pragma region Shared

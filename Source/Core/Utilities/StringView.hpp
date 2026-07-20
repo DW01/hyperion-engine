@@ -55,6 +55,12 @@ private:
     template <bool IsConst>
     struct IteratorBase
     {
+        using iterator_category = std::input_iterator_tag;
+        using value_type = WidestCharType;
+        using difference_type = std::ptrdiff_t;
+        using pointer = value_type*;
+        using reference = value_type;
+
         std::conditional_t<IsConst, const CharType*, CharType*> ptr;
         std::conditional_t<IsConst, const CharType*, CharType*> end;
 
@@ -210,6 +216,21 @@ private:
         HYP_FORCE_INLINE bool operator>=(const IteratorBase& other) const
         {
             return ptr >= other.ptr;
+        }
+
+        struct ArrowProxy
+        {
+            WidestCharType value;
+
+            HYP_FORCE_INLINE const WidestCharType* operator->() const
+            {
+                return &value;
+            }
+        };
+
+        HYP_FORCE_INLINE ArrowProxy operator->() const
+        {
+            return ArrowProxy{ operator*() };
         }
     };
 
@@ -455,7 +476,7 @@ public:
     /*! \brief Find the first occurrence of the character
      *  \param ch The character to search for.
      *  \returns The index of the first occurrence of the character or NotFound if it is not in the string. */
-    HYP_FORCE_INLINE constexpr size_t FindFirstIndex(WidestCharType ch) const
+    constexpr size_t FindFirstIndex(WidestCharType ch) const
     {
         if (ch == 0)
         {
@@ -478,7 +499,7 @@ public:
     /*! \brief Find the last occurrence of the character
      *  \param ch The character to search for.
      *  \returns The index of the last occurrence of the character or NotFound if it is not in the string. */
-    HYP_FORCE_INLINE constexpr size_t FindLastIndex(WidestCharType ch) const
+    constexpr size_t FindLastIndex(WidestCharType ch) const
     {
         if (ch == 0)
         {
@@ -502,7 +523,7 @@ public:
     /*! \brief Find the first occurrence of the substring.
      *  \param substr The substring to search for.
      *  \returns The index of the first occurrence of the substring. */
-    HYP_FORCE_INLINE constexpr size_t FindFirstIndex(const StringView& substr) const
+    constexpr size_t FindFirstIndex(const StringView& substr) const
     {
         const StringView str = StrStr(substr);
 
@@ -524,7 +545,7 @@ public:
     /*! \brief Find the last occurrence of the substring.
      *  \param substr The substring to search for.
      *  \returns The index of the last occurrence of the substring or NotFound if it is not in the string. */
-    HYP_FORCE_INLINE constexpr size_t FindLastIndex(const StringView& substr) const
+    constexpr size_t FindLastIndex(const StringView& substr) const
     {
         const size_t thisSize = Size();
         const size_t otherSize = substr.Size();

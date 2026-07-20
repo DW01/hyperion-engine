@@ -54,14 +54,52 @@ public:
         m_ownerThread = ownerThread;
     }
 
-    void WakeUpOwnerThread()
+    /*! \brief Wake the owner thread up so it can check for new work. The default
+     *  implementation notifies the condition variable used by WaitForTasks(Mutex&, bool*).
+     *  Overridden by schedulers (e.g. FastScheduler) that use a different parking
+     *  mechanism, so callers can wake any SchedulerBase uniformly without knowing the
+     *  concrete type. */
+    virtual void WakeUpOwnerThread()
     {
         m_hasTasksCV.NotifyAll();
     }
 
+    HYP_FORCE_INLINE uint32 NumEnqueued() const
+    {
+        return m_numEnqueued.Get(MemoryOrder::ACQUIRE);
+    }
     void RequestStop();
 
-    virtual TaskID EnqueueTaskExecutor(TaskExecutorBase* executorPtr, TaskCompleteNotifier* notifier, OnTaskCompletedCallback&& callback = nullptr, const StaticMessage& debugName = StaticMessage()) = 0;
+    template <class Function>
+    auto Enqueue(Function&& fn, EnumFlags<TaskEnqueueFlags> flags = TaskEnqueueFlags::NONE) -> Task<typename FunctionTraits<Function>::ReturnType>
+    {
+        return Enqueue(HYP_STATIC_MESSAGE("<no debug name>"), std::forward<Function>(fn), flags);
+    }
+
+    template <class Function>
+    auto Enqueue(const StaticMessage& debugName, Function&& fn, EnumFlags<TaskEnqueueFlags> flags = TaskEnqueueFlags::NONE) -> Task<typename FunctionTraits<Function>::ReturnType>
+    {
+        using ReturnType = typename FunctionTraits<Function>::ReturnType;
+
+        TaskExecutorInstance<ReturnType>* executor = new TaskExecutorInstance<ReturnType>(std::forward<Function>(fn));
+
+        const bool ownsExecutor = (flags & TaskEnqueueFlags::FIRE_AND_FORGET);
+
+        const TaskID taskId = EnqueueTaskExecutor(
+            executor,
+            &executor->GetNotifier(),
+            OnTaskCompletedCallback(&executor->GetCallbackChain()),
+            debugName,
+            ownsExecutor);
+
+        ValueStorage<Task<ReturnType>> taskStorage;
+        taskStorage.Construct(taskId, this, executor, !ownsExecutor);
+
+        return std::move(reinterpret_cast<Task<ReturnType>&>(taskStorage));
+    }
+
+    virtual TaskID EnqueueTaskExecutor(TaskExecutorBase* executorPtr, TaskCompleteNotifier* notifier,
+        OnTaskCompletedCallback&& callback = nullptr, const StaticMessage& debugName = StaticMessage(), bool ownsExecutor = false) = 0;
 
     virtual bool Dequeue(TaskID id) = 0;
 
@@ -80,8 +118,9 @@ protected:
     void WaitForTasks(Mutex& mtx, bool* outStopRequested);
 
     uint32 m_idCounter = 0;
-    AtomicVar<uint32> m_numEnqueued { 0 };
-    AtomicFlag m_stopRequested;
+
+    alignas(64) AtomicVar<uint32> m_numEnqueued { 0 };
+    alignas(64) AtomicFlag m_stopRequested;
 
     mutable Mutex m_mutex;
     ConditionVariable m_hasTasksCV;
@@ -90,7 +129,7 @@ protected:
     ThreadId m_ownerThread;
 };
 
-class Scheduler final : public SchedulerBase
+class Scheduler : public SchedulerBase
 {
     friend class TaskThreadPool;
 
@@ -217,71 +256,13 @@ public:
     Scheduler& operator=(Scheduler&& other) noexcept = delete;
     virtual ~Scheduler() override = default;
 
-    HYP_FORCE_INLINE uint32 NumEnqueued() const
-    {
-        return m_numEnqueued.Get(MemoryOrder::ACQUIRE);
-    }
-
     HYP_FORCE_INLINE const Array<ScheduledTask>& GetEnqueuedTasks() const
     {
         return m_queue;
     }
 
-    /*! \brief Enqueue a function to be executed on the owner thread. This is to be
-     *  called from a non-owner thread.
-     *  \param fn The function to execute
-     *  \param flags Flags to control the behavior of the task - see TaskEnqueueFlags */
-    template <class Function>
-    auto Enqueue(Function&& fn, EnumFlags<TaskEnqueueFlags> flags = TaskEnqueueFlags::NONE) -> Task<typename FunctionTraits<Function>::ReturnType>
-    {
-        return Enqueue(HYP_STATIC_MESSAGE("<no debug name>"), std::forward<Function>(fn), flags);
-    }
-
-    /*! \brief Enqueue a function to be executed on the owner thread. This is to be
-     *  called from a non-owner thread.
-     *  \param debugName A StaticMessage instance containing the name of the task (for debugging)
-     *  \param fn The function to execute
-     *  \param flags Flags to control the behavior of the task - see TaskEnqueueFlags */
-    template <class Function>
-    auto Enqueue(const StaticMessage& debugName, Function&& fn, EnumFlags<TaskEnqueueFlags> flags = TaskEnqueueFlags::NONE) -> Task<typename FunctionTraits<Function>::ReturnType>
-    {
-        using ReturnType = typename FunctionTraits<Function>::ReturnType;
-
-        TaskExecutorInstance<ReturnType>* executor;
-        ValueStorage<Task<ReturnType>> taskStorage;
-
-        {
-            Mutex::Guard guard(m_mutex);
-
-            executor = new TaskExecutorInstance<ReturnType>(std::forward<Function>(fn));
-
-            ScheduledTask scheduledTask;
-            scheduledTask.executor = executor;
-            scheduledTask.ownsExecutor = (flags & TaskEnqueueFlags::FIRE_AND_FORGET);
-            scheduledTask.notifier = &executor->GetNotifier();
-            scheduledTask.pTaskExecutedCV = &m_taskExecutedCV;
-            scheduledTask.callback = OnTaskCompletedCallback(&executor->GetCallbackChain());
-            scheduledTask.debugName = debugName;
-
-            Enqueue_Internal(std::move(scheduledTask));
-            
-            // Need to construct within the lock.
-            taskStorage.Construct(executor->GetTaskID(), this, executor, !(flags & TaskEnqueueFlags::FIRE_AND_FORGET));
-        }
-
-        WakeUpOwnerThread();
-
-        return std::move(reinterpret_cast<Task<ReturnType>&>(taskStorage));
-    }
-
-    /*! \brief Enqueue a task to be executed on the owner thread. This is to be
-     *  called from a non-owner thread.
-     *  \internal Used by TaskSystem to enqueue batches of tasks.
-     *  \param executorPtr The TaskExecutor to execute (owned by the caller)
-     *  \param notifier A TaskCompleteNotifier to be used to notify when the task is completed.
-     *  \param callback A callback to be executed after the task is completed.
-     *  \param debugName A StaticMessage instance containing the name of the task (for debugging) */
-    virtual TaskID EnqueueTaskExecutor(TaskExecutorBase* executorPtr, TaskCompleteNotifier* notifier, OnTaskCompletedCallback&& callback = nullptr, const StaticMessage& debugName = StaticMessage()) override
+    
+    virtual TaskID EnqueueTaskExecutor(TaskExecutorBase* executorPtr, TaskCompleteNotifier* notifier, OnTaskCompletedCallback&& callback = nullptr, const StaticMessage& debugName = StaticMessage(), bool ownsExecutor = false) override
     {
         TaskID taskId;
 
@@ -290,7 +271,7 @@ public:
 
             ScheduledTask scheduledTask;
             scheduledTask.executor = executorPtr;
-            scheduledTask.ownsExecutor = false;
+            scheduledTask.ownsExecutor = ownsExecutor;
             scheduledTask.notifier = notifier;
             scheduledTask.pTaskExecutedCV = &m_taskExecutedCV;
             scheduledTask.callback = std::move(callback);
@@ -404,6 +385,16 @@ public:
     {
         HYP_CORE_ASSERT(IsOnThread(m_ownerThread));
 
+        if (NumEnqueued() > 0)
+        {
+            if (outStopRequested)
+            {
+                *outStopRequested = m_stopRequested.LoadVolatile();
+            }
+            
+            return;
+        }
+
         Mutex::Guard guard(m_mutex);
 
         SchedulerBase::WaitForTasks(m_mutex, outStopRequested);
@@ -475,7 +466,7 @@ private:
         return true;
     }
 
-    void Enqueue_Internal(ScheduledTask&& scheduledTask)
+    virtual void Enqueue_Internal(ScheduledTask&& scheduledTask)
     {
         const TaskID taskId { ++m_idCounter };
 

@@ -67,7 +67,8 @@ struct CBufferAllocatorBlock
 
 CBufferAllocator::CBufferAllocator()
     : m_minAllocationAlignment(0),
-      m_scratchAlignment {}
+      m_scratchAlignment {},
+      m_frameIndex(0)
 {
 }
 
@@ -97,12 +98,13 @@ void CBufferAllocator::Initialize(size_t minAllocationAlignment)
     }
 }
 
-void CBufferAllocator::OnFrameStart()
+void CBufferAllocator::OnFrameStart(uint32 newFrameIndex)
 {
+    m_frameIndex = newFrameIndex;
 }
 
 // only ever called after all workers are done.
-void CBufferAllocator::OnFrameEnd()
+void CBufferAllocator::OnFrameEnd(uint32 prevFrameIndex)
 {
     AssertOnThread(g_renderThread);
 
@@ -182,10 +184,12 @@ HYP_NODISCARD void* CBufferAllocator::Allocate(size_t count, size_t alignment)
 HYP_NODISCARD void* CBufferAllocator::Allocate(size_t count, size_t alignment, GpuBuffer*& outBuffer, size_t& outStartOffset)
 {
     if (alignment < m_minAllocationAlignment)
+    {
         alignment = m_minAllocationAlignment;
+    }
 
     const uint32 idx = CurrentRenderThreadIndex();
-    const uint32 currentFrameCounter = GetFrameCounter();
+    const uint32 currentFrameCounter = m_frameIndex;
 
     outBuffer = nullptr;
     outStartOffset = 0;

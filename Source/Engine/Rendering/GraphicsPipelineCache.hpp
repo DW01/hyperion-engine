@@ -107,7 +107,7 @@ public:
 
     void ExpirePipelinesForShader(const Shader* shader);
 
-    int RunCleanupCycle(int maxIter = 10);
+    void OnFrameEnd(uint32 prevFrameIndex);
 
 private:
     GraphicsPipelineCacheHandle FindGraphicsPipeline(

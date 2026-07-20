@@ -46,7 +46,6 @@ namespace threading {
 enum TaskThreadPoolName : uint32
 {
     THREAD_POOL_GENERIC,
-    THREAD_POOL_RENDER,
     THREAD_POOL_BACKGROUND,
     THREAD_POOL_MAX
 };
@@ -190,12 +189,12 @@ public:
         return *m_pools[uint32(poolName)];
     }
 
-    HYP_FORCE_INLINE TaskThread* GetTaskThread(TaskThreadPoolName poolName, ThreadId threadId) const
+    HYP_FORCE_INLINE ThreadBase* GetTaskThread(TaskThreadPoolName poolName, ThreadId threadId) const
     {
         return GetPool(poolName).GetTaskThread(threadId);
     }
 
-    HYP_FORCE_INLINE TaskThread* GetTaskThread(ThreadId threadId) const
+    HYP_FORCE_INLINE ThreadBase* GetTaskThread(ThreadId threadId) const
     {
         for (const UniquePtr<TaskThreadPool>& pool : m_pools)
         {
@@ -204,7 +203,7 @@ public:
                 continue;
             }
 
-            if (TaskThread* taskThread = pool->GetTaskThread(threadId))
+            if (ThreadBase* taskThread = pool->GetTaskThread(threadId))
             {
                 return taskThread;
             }

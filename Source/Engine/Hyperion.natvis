@@ -71,33 +71,31 @@
   </Type>
 
   <Type Name="Hyperion::containers::FatArray&lt;*,*&gt;">
-    <DisplayString>{{ Size={m_size - m_startOffset} Dynamic={m_allocation.isDynamic} }}</DisplayString>
+    <DisplayString>{{ Size={m_size} Dynamic={m_allocation.isDynamic} }}</DisplayString>
 
     <Expand>
-      <Item Name="[Size]">(m_size - m_startOffset)</Item>
+      <Item Name="[Size]">(m_size)</Item>
       <!--<Item Name="[Capacity]" Condition="m_allocation.allocationType == 1">m_allocation.capacity</Item>-->
       <!--<Item Name="[Capacity]" Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false">m_allocation.capacity</Item>-->
       <!--<Item Name="[Capacity]" Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == true">m_allocation.dynamicAllocation.capacity</Item>-->
       <Item Name="[Dynamic]">(m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic)</Item>
-      <Item Name="[StartOffset]">(m_startOffset)</Item>
-
 
       <CustomListItems>
         <Variable Name="idx" InitialValue="0" />
 
         <Loop>
-          <Break Condition="idx == (m_size - m_startOffset)" />
+          <Break Condition="idx == m_size" />
 
           <If Condition="m_allocation.allocationType == 1">
-            <Item Name="[{ idx }]">*((($T1 *)m_allocation.buffer) + m_startOffset + idx)</Item>
+            <Item Name="[{ idx }]">*((($T1 *)m_allocation.buffer) + idx)</Item>
           </If>
 
           <If Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false">
-            <Item Name="[{ idx }]">*((($T1 *)&amp;m_allocation.storage.dataBuffer[0]) + m_startOffset + idx)</Item>
+            <Item Name="[{ idx }]">*((($T1 *)&amp;m_allocation.storage.dataBuffer[0]) + idx)</Item>
           </If>
 
           <If Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == true">
-            <Item Name="[{ idx }]">*((($T1 *)m_allocation.dynamicAllocation.buffer) + m_startOffset + idx)</Item>
+            <Item Name="[{ idx }]">*((($T1 *)m_allocation.dynamicAllocation.buffer) + idx)</Item>
           </If>
 
           <Exec>idx++</Exec>
@@ -150,18 +148,18 @@
         <Variable Name="idx" InitialValue="0" />
 
         <Loop>
-          <Break Condition="idx == (m_blocks.m_size - m_blocks.m_startOffset) * NumBitsPerBlock" />
+          <Break Condition="idx == m_blocks.m_size * NumBitsPerBlock" />
 
           <If Condition="m_blocks.m_allocation.allocationType == 1">
-            <Item Name="[{ idx }]">((*(((unsigned __int32 *)m_blocks.m_allocation.buffer) + m_blocks.m_startOffset + idx / NumBitsPerBlock)) &gt;&gt; (idx % NumBitsPerBlock)) &amp; 1</Item>
+            <Item Name="[{ idx }]">((*(((unsigned __int32 *)m_blocks.m_allocation.buffer) + idx / NumBitsPerBlock)) &gt;&gt; (idx % NumBitsPerBlock)) &amp; 1</Item>
           </If>
 
           <If Condition="m_blocks.m_allocation.allocationType == 2 &amp;&amp; m_blocks.m_allocation.isDynamic == false">
-            <Item Name="[{ idx }]">((*(((unsigned __int32 *)&amp;m_blocks.m_allocation.storage.dataBuffer[0]) + m_blocks.m_startOffset + idx / NumBitsPerBlock)) &gt;&gt; (idx % NumBitsPerBlock)) &amp; 1</Item>
+            <Item Name="[{ idx }]">((*(((unsigned __int32 *)&amp;m_blocks.m_allocation.storage.dataBuffer[0]) + idx / NumBitsPerBlock)) &gt;&gt; (idx % NumBitsPerBlock)) &amp; 1</Item>
           </If>
 
           <If Condition="m_blocks.m_allocation.allocationType == 2 &amp;&amp; m_blocks.m_allocation.isDynamic == true">
-            <Item Name="[{ idx }]">(* ( (unsigned __int32 *)m_blocks.m_allocation.dynamicAllocation.buffer + m_blocks.m_startOffset + (idx / NumBitsPerBlock)) &gt;&gt; (idx % NumBitsPerBlock)) &amp; 1</Item>
+            <Item Name="[{ idx }]">(* ( (unsigned __int32 *)m_blocks.m_allocation.dynamicAllocation.buffer + (idx / NumBitsPerBlock)) &gt;&gt; (idx % NumBitsPerBlock)) &amp; 1</Item>
           </If>
 
           <Exec>idx++</Exec>
@@ -171,36 +169,35 @@
   </Type>
 
   <Type Name="Hyperion::containers::String&lt;*&gt;">
-    <DisplayString Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 2">{{ {((CharType *)m_allocation.buffer + m_startOffset), s8} }}</DisplayString>
-    <DisplayString Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 2">{{ {(((CharType *)&amp;m_allocation.storage.dataBuffer[0]) + m_startOffset), s8} }}</DisplayString>
-    <DisplayString Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 1 &amp;&amp; isAnsi">{{ {((CharType *)m_allocation.buffer + m_startOffset), s} }}</DisplayString>
-    <DisplayString Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 1 &amp;&amp; isAnsi">{{ {(((CharType *)&amp;m_allocation.storage.dataBuffer[0]) + m_startOffset), s} }}</DisplayString>
-    <DisplayString Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 3 &amp;&amp; isUtf16">{{ {((CharType *)m_allocation.buffer + m_startOffset), su} }}</DisplayString>
-    <DisplayString Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 3 &amp;&amp; isUtf16">{{ {(((CharType *)&amp;m_allocation.storage.dataBuffer[0]) + m_startOffset), su} }}</DisplayString>
-    <DisplayString Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 4 &amp;&amp; isUtf32">{{ {((CharType *)m_allocation.buffer + m_startOffset), s32} }}</DisplayString>
-    <DisplayString Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 4 &amp;&amp; isUtf32">{{ {(((CharType *)&amp;m_allocation.storage.dataBuffer[0]) + m_startOffset), s32} }}</DisplayString>
-    <DisplayString Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 5 &amp;&amp; isWide">{{ {((CharType *)m_allocation.buffer + m_startOffset), su} }}</DisplayString>
-    <DisplayString Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 5 &amp;&amp; isWide">{{ {(((CharType *)&amp;m_allocation.storage.dataBuffer[0]) + m_startOffset), su} }}</DisplayString>
+    <DisplayString Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 2">{{ {((CharType *)m_allocation.buffer), s8} }}</DisplayString>
+    <DisplayString Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 2">{{ {(((CharType *)&amp;m_allocation.storage.dataBuffer[0])), s8} }}</DisplayString>
+    <DisplayString Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 1">{{ {((CharType *)m_allocation.buffer), s} }}</DisplayString>
+    <DisplayString Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 1">{{ {(((CharType *)&amp;m_allocation.storage.dataBuffer[0])), s} }}</DisplayString>
+    <DisplayString Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 3">{{ {((CharType *)m_allocation.buffer), su} }}</DisplayString>
+    <DisplayString Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 3">{{ {(((CharType *)&amp;m_allocation.storage.dataBuffer[0])), su} }}</DisplayString>
+    <DisplayString Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 4">{{ {((CharType *)m_allocation.buffer), s32} }}</DisplayString>
+    <DisplayString Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 4">{{ {(((CharType *)&amp;m_allocation.storage.dataBuffer[0])), s32} }}</DisplayString>
+    <DisplayString Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 5">{{ {((CharType *)m_allocation.buffer), su} }}</DisplayString>
+    <DisplayString Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 5">{{ {(((CharType *)&amp;m_allocation.storage.dataBuffer[0])), su} }}</DisplayString>
 
     <Expand>
-      <Item Name="[Text]" Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; isUtf8">((CharType *)m_allocation.buffer + m_startOffset + m_startOffset), s8</Item>
-      <Item Name="[Text]" Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; isUtf8">(((CharType *)&amp;m_allocation.storage.dataBuffer[0]) + m_startOffset), s8</Item>
-      <Item Name="[Text]" Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; isAnsi">((CharType *)m_allocation.buffer + m_startOffset + m_startOffset), s</Item>
-      <Item Name="[Text]" Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; isAnsi">(((CharType *)&amp;m_allocation.storage.dataBuffer[0]) + m_startOffset), s</Item>
-      <Item Name="[Text]" Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; isUtf16">((CharType *)m_allocation.buffer + m_startOffset + m_startOffset), su</Item>
-      <Item Name="[Text]" Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; isUtf16">(((CharType *)&amp;m_allocation.storage.dataBuffer[0]) + m_startOffset), su</Item>
-      <Item Name="[Text]" Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; isUtf32">((CharType *)m_allocation.buffer + m_startOffset + m_startOffset), s32</Item>
-      <Item Name="[Text]" Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; isUtf32">(((CharType *)&amp;m_allocation.storage.dataBuffer[0]) + m_startOffset), s32</Item>
-      <Item Name="[Text]" Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; isWide">((CharType *)m_allocation.buffer + m_startOffset + m_startOffset), su</Item>
-      <Item Name="[Text]" Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; isWide">(((CharType *)&amp;m_allocation.storage.dataBuffer[0]) + m_startOffset), su</Item>
+      <Item Name="[Text]" Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 2">((CharType *)m_allocation.buffer), s8</Item>
+      <Item Name="[Text]" Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 2">(((CharType *)&amp;m_allocation.storage.dataBuffer[0])), s8</Item>
+      <Item Name="[Text]" Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 1">((CharType *)m_allocation.buffer), s</Item>
+      <Item Name="[Text]" Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 1">(((CharType *)&amp;m_allocation.storage.dataBuffer[0])), s</Item>
+      <Item Name="[Text]" Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 3">((CharType *)m_allocation.buffer), su</Item>
+      <Item Name="[Text]" Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 3">(((CharType *)&amp;m_allocation.storage.dataBuffer[0])), su</Item>
+      <Item Name="[Text]" Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 4">((CharType *)m_allocation.buffer), s32</Item>
+      <Item Name="[Text]" Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 4">(((CharType *)&amp;m_allocation.storage.dataBuffer[0])), s32</Item>
+      <Item Name="[Text]" Condition="m_allocation.allocationType == 1 || m_allocation.isDynamic == true &amp;&amp; $T1 == 5">((CharType *)m_allocation.buffer), su</Item>
+      <Item Name="[Text]" Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false &amp;&amp; $T1 == 5">(((CharType *)&amp;m_allocation.storage.dataBuffer[0])), su</Item>
 
-      <Item Name="[Size]">(m_size - m_startOffset - 1)</Item>
+      <Item Name="[Size]">(m_size - 1)</Item>
       <Item Name="[Capacity]" Condition="m_allocation.allocationType == 1">m_allocation.capacity</Item>
       <Item Name="[Capacity]" Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == false">m_allocation.capacity</Item>
       <Item Name="[Capacity]" Condition="m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic == true">m_allocation.dynamicAllocation.capacity</Item>
       <Item Name="[Length]">(m_length)</Item>
       <Item Name="[Dynamic]">(m_allocation.allocationType == 2 &amp;&amp; m_allocation.isDynamic)</Item>
-      <Item Name="[StartOffset]">(m_startOffset)</Item>
     </Expand>
   </Type>
 

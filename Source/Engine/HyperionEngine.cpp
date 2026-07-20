@@ -17,6 +17,7 @@
 #include <Framework/Threads/MainThread.hpp>
 #include <Framework/Threads/SimThread.hpp>
 #include <Framework/Threads/RenderThread.hpp>
+#include <Framework/Threads/RenderWorkerThread.hpp>
 #include <Framework/Threads/VisThread.hpp>
 
 #include <Asset/Assets.hpp>
@@ -97,7 +98,7 @@ CORE_API extern AAssetManager* g_androidAssetManager;
 #pragma region Memory Pools
 
 #define HYP_ENGINE_MEMORY_IMPLEMENTATION 1
-#include <Framework/EngineMemory.inc>
+#include <Framework/EngineMemory.inl>
 #undef HYP_ENGINE_MEMORY_IMPLEMENTATION
 
 #pragma endregion Memory Pools
@@ -199,6 +200,13 @@ static void InitThreads()
     g_renderThreadInstance = new RenderThread();
     g_simThreadInstance = new SimThread();
     g_visThreadInstance = new VisThread();
+
+#if !defined(HYP_IOS) && !defined(HYP_ANDROID)
+    if constexpr (NumRendererWorkerThreads != 0)
+    {
+        g_renderWorkerThreadPool = new RenderWorkerThreadPool(NumRendererWorkerThreads, ThreadPriorityValue::HIGHEST);
+    }
+#endif // !HYP_IOS && !HYP_ANDROID
 }
 
 static void InitLogger()
@@ -593,6 +601,9 @@ extern "C"
 
         delete g_visThreadInstance;
         g_visThreadInstance = nullptr;
+
+        delete g_renderWorkerThreadPool;
+        g_renderWorkerThreadPool = nullptr;
 
         // Shutdown object container map - destroys all remaining ObjectBase instances
         // @TODO Move init/shutdown into CoreApi Initialize and Dhutdown

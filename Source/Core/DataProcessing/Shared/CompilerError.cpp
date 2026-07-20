@@ -2,7 +2,7 @@
 
 namespace Hyperion::DataProcessing {
 
-const Map<ErrorMessage, String> CompilerError::errorMessageStrings {
+const Map<ErrorMessage, String> CompilerError::s_errorMessageStrings {
     /* Generic / lexical errors */
     { MSG_INTERNAL_ERROR, "Internal error" },
     { MSG_CUSTOM_ERROR, "%" },
@@ -55,14 +55,6 @@ const Map<ErrorMessage, String> CompilerError::errorMessageStrings {
     { MSG_UNBALANCED_BRACKETS, "Unbalanced brackets: Expected ']'" },
     { MSG_UNKNOWN_ASSET_PATH, "Asset path '%' could not be resolved" }
 };
-
-CompilerError::CompilerError(const CompilerError& other)
-    : m_level(other.m_level),
-      m_msg(other.m_msg),
-      m_location(other.m_location),
-      m_text(other.m_text)
-{
-}
 
 bool CompilerError::operator<(const CompilerError& other) const
 {

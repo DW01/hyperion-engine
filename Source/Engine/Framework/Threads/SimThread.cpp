@@ -36,8 +36,9 @@
 
 #include <Input/InputManager.hpp>
 
+#include <Streaming/StreamingManager.hpp>
+
 #include <Rendering/RenderInterface.hpp>
-#include <Rendering/DebugDrawer.hpp>
 
 #if HYP_EDITOR
 #include <Editor/EditorState.hpp>
@@ -170,11 +171,19 @@ void SimThread::Update()
 {
     ENGINE_STAT_SCOPE(&g_statSimUpdate);
 
-    static const bool s_isDetached = CoreApi::GetCommandLineArguments()["Detached"].ToBool();
-
     m_counter.NextTick();
 
-    BeginFrameSim(&m_stopRequested);
+    g_assetManager->Update(m_counter.delta);
+    g_streamingManager->Update(m_counter.delta);
+
+#if HYP_EDITOR
+    g_editorState->Update(m_counter.delta);
+#endif
+
+    if constexpr (UseRingBuffer)
+    {
+        BeginSimRenderSyncBlock(&m_stopRequested);
+    }
 
     if (HYP_UNLIKELY(m_stopRequested.LoadVolatile()))
     {
@@ -193,8 +202,6 @@ void SimThread::Update()
             }
         }
     }
-
-    g_assetManager->Update(m_counter.delta);
 
     if (m_gameInstance != nullptr)
     {
@@ -216,43 +223,14 @@ void SimThread::Update()
         }
     }
 
-#if HYP_EDITOR
-    g_editorState->Update(m_counter.delta);
-#endif
+    g_engineDriver->UpdateSim(m_counter.delta, m_gameInstance);
 
-    g_engineDriver->UpdateSim(m_counter.delta);
-
-    if (m_gameInstance != nullptr)
+    if constexpr (UseRingBuffer)
     {
-        m_gameInstance->OnUpdate(m_counter.delta);
-
-        m_gameInstance->m_gameState.gameTime += m_counter.delta;
+        EndSimRenderSyncBlock();
     }
-
-    DebugDrawer::GetInstance().Update();
-
-    EndFrameSim();
-
-    // if (ApplicationWindow* mainWindow = g_appContext->GetMainWindow())
-    // {
-    //     if (!mainWindow->HasFocus())
-    //     {
-    //         static constexpr float unfocusedFrameRate = 30.0f;
-    //         static ClockTimer focusThrottle;
-
-    //         const float elapsed = focusThrottle.Interval(ClockTimer::Now());
-    //         const float targetInterval = 1.0f / unfocusedFrameRate;
-
-    //         if (elapsed < targetInterval)
-    //         {
-    //             ThreadSleep(uint32((targetInterval - elapsed) * 1000.0f));
-    //         }
-
-    //         focusThrottle.NextTick();
-
-    //         m_counter.Reset();
-    //     }
-    // }
+    
+    g_sceneArena->Reset();
 }
 
 void SimThread::operator()()

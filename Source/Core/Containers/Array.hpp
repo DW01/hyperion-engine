@@ -68,12 +68,6 @@ public:
     template <class OtherT, class OtherAllocatorType>
     friend class FatArray;
 
-protected:
-    // on PushFront() we can pad the start with this number,
-    // so when multiple successive calls to PushFront() happen,
-    // we're not realloc'ing everything each time
-    static constexpr size_t pushFrontPadding = 4;
-
 public:
     using Iterator = T*;
     using ConstIterator = const T*;
@@ -81,8 +75,7 @@ public:
 
     template <bool ConditionalEnable = HasDefaultAllocatorInstance<AllocatorType>, typename = std::enable_if_t<ConditionalEnable>>
     FatArray()
-        : m_size(0),
-          m_startOffset(0)
+        : m_size(0)
     {
         m_allocation.SetToInitialState();
     }
@@ -254,37 +247,37 @@ public:
     /*! \brief Returns the number of elements in the array. */
     HYP_FORCE_INLINE size_t Size() const
     {
-        return m_size - m_startOffset;
+        return m_size;
     }
 
     /*! \brief Returns the size in bytes of the array. */
     HYP_FORCE_INLINE size_t ByteSize() const
     {
-        return (m_size - m_startOffset) * sizeof(T);
+        return m_size * sizeof(T);
     }
 
     /*! \brief Returns a pointer to the first element in the array. */
     HYP_FORCE_INLINE ValueType* Data()
     {
-        return GetBuffer() + m_startOffset;
+        return GetBuffer();
     }
 
     /*! \brief Returns a pointer to the first element in the array. */
     HYP_FORCE_INLINE const ValueType* Data() const
     {
-        return GetBuffer() + m_startOffset;
+        return GetBuffer();
     }
 
     /*! \brief Returns a reference to the first element in the array. */
     HYP_FORCE_INLINE ValueType& Front()
     {
-        return GetBuffer()[m_startOffset];
+        return GetBuffer()[0];
     }
 
     /*! \brief Returns a reference to the first element in the array. */
     HYP_FORCE_INLINE const ValueType& Front() const
     {
-        return GetBuffer()[m_startOffset];
+        return GetBuffer()[0];
     }
 
     /*! \brief Returns a reference to the last element in the array.  */
@@ -316,7 +309,7 @@ public:
     {
         HYP_CORE_ASSERT(index >= 0 && index < Size(), "Index out of bounds");
 
-        return GetBuffer()[m_startOffset + index];
+        return GetBuffer()[index];
     }
 
     /*! \brief Returns the element at the given index. No bounds checking is performed in release mode. */
@@ -324,7 +317,7 @@ public:
     {
         HYP_CORE_ASSERT(index >= 0 && index < Size(), "Index out of bounds");
 
-        return GetBuffer()[m_startOffset + index];
+        return GetBuffer()[index];
     }
 
     /*! \brief Reserves enough space for {capacity} elements. If the capacity is smaller than the current capacity, nothing happens. */
@@ -344,7 +337,7 @@ public:
     void Refit();
 
     /*! \brief Updates the capacity of the array to be at least {capacity} */
-    void SetCapacity(size_t capacity, size_t copyOffset = 0);
+    void SetCapacity(size_t capacity);
 
     HYP_FORCE_INLINE size_t Capacity() const
     {
@@ -396,14 +389,7 @@ public:
     {
         if (m_size + 1 >= Capacity())
         {
-            if (Capacity() >= Size() + 1)
-            {
-                ResetOffsets();
-            }
-            else
-            {
-                SetCapacity(CalculateDesiredCapacity(Size() + 1));
-            }
+            SetCapacity(CalculateDesiredCapacity(m_size + 1));
         }
 
         // set item at index
@@ -422,46 +408,32 @@ public:
     template <class... Args>
     ValueType& EmplaceFront(Args&&... args)
     {
-        if (m_startOffset == 0)
+        if (m_size + 1 >= Capacity())
         {
-            // have to push everything else over by 1
-            if (m_size + pushFrontPadding >= Capacity())
+            SetCapacity(CalculateDesiredCapacity(m_size + 1));
+        }
+
+        T* buffer = GetBuffer();
+
+        for (size_t i = m_size; i > 0; --i)
+        {
+            if constexpr (std::is_move_constructible_v<T>)
             {
-                SetCapacity(
-                    CalculateDesiredCapacity(Size() + pushFrontPadding),
-                    pushFrontPadding // copyOffset is 1 so we have a space for 1 at the start
-                );
+                Memory::Construct<T>(buffer + i, std::move(buffer[i - 1]));
             }
             else
             {
-                T* buffer = GetBuffer();
-
-                // shift over without realloc
-                for (size_t index = Size(); index > 0;)
-                {
-                    --index;
-
-                    const auto moveIndex = index + pushFrontPadding;
-
-                    Memory::Construct<T>(buffer + moveIndex, std::forward<Args>(args)...);
-
-                    // manual destructor call
-                    Memory::Destruct(buffer[index]);
-                }
-
-                m_startOffset = pushFrontPadding;
-                m_size += m_startOffset;
+                Memory::Construct<T>(buffer + i, buffer[i - 1]);
             }
+
+            Memory::Destruct(buffer[i - 1]);
         }
 
-        --m_startOffset;
+        ++m_size;
 
-        T* buffer = GetBuffer();
-        T* element = buffer + m_startOffset;
+        Memory::Construct<T>(buffer, std::forward<Args>(args)...);
 
-        Memory::Construct<T>(element, std::forward<Args>(args)...);
-
-        return *element;
+        return *buffer;
     }
 
     /*! \brief Shift the array to the left by {count} times */
@@ -497,14 +469,7 @@ public:
 
         if (m_size + spanSize >= Capacity())
         {
-            if (Capacity() >= Size() + spanSize)
-            {
-                ResetOffsets();
-            }
-            else
-            {
-                SetCapacity(CalculateDesiredCapacity(Size() + spanSize));
-            }
+            SetCapacity(CalculateDesiredCapacity(m_size + spanSize));
         }
 
         T* buffer = GetBuffer();
@@ -697,7 +662,7 @@ public:
         return ConstByteView(reinterpret_cast<const ubyte*>(Data()) + offset, size * sizeof(T));
     }
 
-    HYP_DEF_STL_BEGIN_END(GetBuffer() + m_startOffset, GetBuffer() + m_size)
+    HYP_DEF_STL_BEGIN_END(GetBuffer(), GetBuffer() + m_size)
 
 protected:
     HYP_FORCE_INLINE T* GetBuffer()
@@ -710,17 +675,12 @@ protected:
         return m_allocation.GetBuffer();
     }
 
-    void ResetOffsets();
-
     static size_t CalculateDesiredCapacity(size_t size)
     {
         return 1ull << static_cast<size_t>(std::ceil(std::log(size) / std::log(2.0)));
     }
 
     size_t m_size;
-
-protected:
-    size_t m_startOffset;
 
     HYP_FORCE_INLINE static AllocatorType* GetAllocator()
     {
@@ -732,15 +692,14 @@ protected:
 
 template <class T, class AllocatorType>
 FatArray<T, AllocatorType>::FatArray(const FatArray& other)
-    : m_size(other.m_size - other.m_startOffset),
-      m_startOffset(0)
+    : m_size(other.m_size)
 {
     HYP_CORE_ASSERT(GetAllocator() != nullptr);
 
     m_allocation.SetToInitialState();
     m_allocation.Allocate(GetAllocator(), m_size);
 
-    if (other.Size() > 0)
+    if (m_size > 0)
     {
         m_allocation.InitFromRangeCopy(other.Begin(), other.End());
     }
@@ -748,8 +707,7 @@ FatArray<T, AllocatorType>::FatArray(const FatArray& other)
 
 template <class T, class AllocatorType>
 FatArray<T, AllocatorType>::FatArray(FatArray&& other) noexcept
-    : m_size(0),
-      m_startOffset(0)
+    : m_size(0)
 {
     HYP_CORE_ASSERT(GetAllocator() != nullptr);
 
@@ -758,36 +716,32 @@ FatArray<T, AllocatorType>::FatArray(FatArray&& other) noexcept
     if (other.m_allocation.IsDynamic())
     {
         m_size = other.m_size;
-        m_startOffset = other.m_startOffset;
 
         m_allocation.TakeOwnership(other.GetBuffer(), other.GetBuffer() + other.m_size);
 
         other.m_allocation.SetToInitialState();
 
         other.m_size = 0;
-        other.m_startOffset = 0;
     }
     else
     {
-        m_size = other.m_size - other.m_startOffset;
-        m_startOffset = 0;
+        m_size = other.m_size;
 
         m_allocation.Allocate(GetAllocator(), m_size);
 
-        if (other.Size() > 0)
+        if (m_size > 0)
         {
             m_allocation.InitFromRangeMove(other.Begin(), other.End());
         }
 
-        if (other.Size() > 0)
+        if (other.m_size > 0)
         {
-            other.m_allocation.DestructInRange(other.m_startOffset, other.m_size);
+            other.m_allocation.DestructInRange(0, other.m_size);
         }
 
         other.m_allocation.Free(other.GetAllocator());
 
         other.m_size = 0;
-        other.m_startOffset = 0;
     }
 }
 
@@ -796,9 +750,9 @@ FatArray<T, AllocatorType>::~FatArray()
 {
     if (m_allocation.GetCapacity() != 0)
     {
-        if (Size() > 0)
+        if (m_size > 0)
         {
-            m_allocation.DestructInRange(m_startOffset, m_size);
+            m_allocation.DestructInRange(0, m_size);
         }
 
         m_allocation.Free(GetAllocator());
@@ -813,19 +767,18 @@ auto FatArray<T, AllocatorType>::operator=(const FatArray& other) -> FatArray&
         return *this;
     }
 
-    if (Size() > 0)
+    if (m_size > 0)
     {
-        m_allocation.DestructInRange(m_startOffset, m_size);
+        m_allocation.DestructInRange(0, m_size);
     }
 
     m_allocation.Free(GetAllocator());
 
-    m_size = other.m_size - other.m_startOffset;
-    m_startOffset = 0;
+    m_size = other.m_size;
 
     m_allocation.Allocate(GetAllocator(), m_size);
 
-    if (other.Size() > 0)
+    if (m_size > 0)
     {
         m_allocation.InitFromRangeCopy(other.Begin(), other.End());
     }
@@ -841,9 +794,9 @@ auto FatArray<T, AllocatorType>::operator=(FatArray&& other) noexcept -> FatArra
         return *this;
     }
 
-    if (Size() > 0)
+    if (m_size > 0)
     {
-        m_allocation.DestructInRange(m_startOffset, m_size);
+        m_allocation.DestructInRange(0, m_size);
     }
 
     m_allocation.Free(GetAllocator());
@@ -851,81 +804,38 @@ auto FatArray<T, AllocatorType>::operator=(FatArray&& other) noexcept -> FatArra
     if (other.m_allocation.IsDynamic() && GetAllocator() == other.GetAllocator())
     {
         m_size = other.m_size;
-        m_startOffset = other.m_startOffset;
 
         m_allocation.TakeOwnership(other.GetBuffer(), other.GetBuffer() + other.m_size);
 
         other.m_allocation.SetToInitialState();
 
         other.m_size = 0;
-        other.m_startOffset = 0;
     }
     else
     {
-        m_size = other.m_size - other.m_startOffset;
-        m_startOffset = 0;
+        m_size = other.m_size;
 
         m_allocation.Allocate(GetAllocator(), m_size);
 
-        if (other.Size() > 0)
+        if (m_size > 0)
         {
             m_allocation.InitFromRangeMove(other.Begin(), other.End());
 
-            other.m_allocation.DestructInRange(other.m_startOffset, other.m_size);
+            other.m_allocation.DestructInRange(0, other.m_size);
         }
 
         other.m_allocation.Free(other.GetAllocator());
 
         other.m_size = 0;
-        other.m_startOffset = 0;
     }
 
     return *this;
 }
 
 template <class T, class AllocatorType>
-void FatArray<T, AllocatorType>::ResetOffsets()
+void FatArray<T, AllocatorType>::SetCapacity(size_t capacity)
 {
-    if (m_startOffset == 0)
-    {
-        return;
-    }
-
-    T* buffer = GetBuffer();
-
-    if constexpr (std::is_trivially_copyable_v<T>)
-    {
-        Memory::Move(buffer, buffer + m_startOffset, (m_size - m_startOffset) * sizeof(T));
-    }
-    else
-    {
-        // shift all items to left
-        for (size_t index = m_startOffset; index < m_size; ++index)
-        {
-            const auto moveIndex = index - m_startOffset;
-
-            if constexpr (std::is_move_constructible_v<T>)
-            {
-                Memory::Construct<T>(buffer + moveIndex, std::move(buffer[index]));
-            }
-            else
-            {
-                Memory::Construct<T>(buffer + moveIndex, buffer[index]);
-            }
-
-            // manual destructor call
-            Memory::Destruct(buffer[index]);
-        }
-    }
-
-    m_size -= m_startOffset;
-    m_startOffset = 0;
-}
-
-template <class T, class AllocatorType>
-void FatArray<T, AllocatorType>::SetCapacity(size_t capacity, size_t offset)
-{
-    if (capacity == Capacity() && offset == m_startOffset)
+    if (capacity == Capacity())
     {
         return;
     }
@@ -939,23 +849,18 @@ void FatArray<T, AllocatorType>::SetCapacity(size_t capacity, size_t offset)
     {
         newAllocation.Allocate(GetAllocator(), capacity);
 
-        if (Size() > 0)
+        if (m_size > 0)
         {
-            newAllocation.InitFromRangeMove(Begin(), End(), offset);
+            newAllocation.InitFromRangeMove(Begin(), End());
         }
     }
 
-    if (Size() > 0)
+    if (m_size > 0)
     {
-        m_allocation.DestructInRange(m_startOffset, m_size);
+        m_allocation.DestructInRange(0, m_size);
     }
 
     m_allocation.Free(GetAllocator());
-
-    m_size -= m_startOffset;
-    m_size += offset;
-
-    m_startOffset = offset;
 
     m_allocation = newAllocation;
 }
@@ -974,7 +879,7 @@ void FatArray<T, AllocatorType>::Reserve(size_t capacity)
 template <class T, class AllocatorType>
 void FatArray<T, AllocatorType>::Resize(size_t newSize)
 {
-    const size_t currentSize = Size();
+    const size_t currentSize = m_size;
 
     if (newSize == currentSize)
     {
@@ -987,14 +892,7 @@ void FatArray<T, AllocatorType>::Resize(size_t newSize)
 
         if (m_size + diff > Capacity())
         {
-            if (Capacity() >= currentSize + diff)
-            {
-                ResetOffsets();
-            }
-            else
-            {
-                SetCapacity(CalculateDesiredCapacity(currentSize + diff));
-            }
+            SetCapacity(CalculateDesiredCapacity(currentSize + diff));
         }
 
         T* buffer = GetBuffer();
@@ -1032,7 +930,7 @@ void FatArray<T, AllocatorType>::Resize(size_t newSize)
 template <class T, class AllocatorType>
 void FatArray<T, AllocatorType>::ResizeUninitialized(size_t newSize)
 {
-    const size_t currentSize = Size();
+    const size_t currentSize = m_size;
 
     if (newSize == currentSize)
     {
@@ -1045,14 +943,7 @@ void FatArray<T, AllocatorType>::ResizeUninitialized(size_t newSize)
 
         if (m_size + diff > Capacity())
         {
-            if (Capacity() >= currentSize + diff)
-            {
-                ResetOffsets();
-            }
-            else
-            {
-                SetCapacity(CalculateDesiredCapacity(currentSize + diff));
-            }
+            SetCapacity(CalculateDesiredCapacity(currentSize + diff));
         }
 
         m_size += diff;
@@ -1089,7 +980,7 @@ void FatArray<T, AllocatorType>::ResizeZeroed(size_t newSize)
 
     if (newSize > currentSize)
     {
-        Memory::Zero(GetBuffer() + (currentSize + m_startOffset), sizeof(T) * (newSize - currentSize));
+        Memory::Zero(GetBuffer() + currentSize, sizeof(T) * (newSize - currentSize));
     }
 }
 
@@ -1109,14 +1000,7 @@ auto FatArray<T, AllocatorType>::PushBack(const ValueType& value) -> ValueType&
 {
     if (m_size + 1 >= Capacity())
     {
-        if (Capacity() >= Size() + 1)
-        {
-            ResetOffsets();
-        }
-        else
-        {
-            SetCapacity(CalculateDesiredCapacity(Size() + 1));
-        }
+        SetCapacity(CalculateDesiredCapacity(m_size + 1));
     }
 
     // set item at index
@@ -1133,14 +1017,7 @@ auto FatArray<T, AllocatorType>::PushBack(ValueType&& value) -> ValueType&
 {
     if (m_size + 1 >= Capacity())
     {
-        if (Capacity() >= Size() + 1)
-        {
-            ResetOffsets();
-        }
-        else
-        {
-            SetCapacity(CalculateDesiredCapacity(Size() + 1));
-        }
+        SetCapacity(CalculateDesiredCapacity(m_size + 1));
     }
 
     // set item at index
@@ -1155,104 +1032,63 @@ auto FatArray<T, AllocatorType>::PushBack(ValueType&& value) -> ValueType&
 template <class T, class AllocatorType>
 auto FatArray<T, AllocatorType>::PushFront(const ValueType& value) -> ValueType&
 {
-    if (m_startOffset == 0)
+    if (m_size + 1 >= Capacity())
     {
-        // have to push everything else over by 1
-        if (m_size + pushFrontPadding >= Capacity())
+        SetCapacity(CalculateDesiredCapacity(m_size + 1));
+    }
+
+    T* buffer = GetBuffer();
+
+    for (size_t i = m_size; i > 0; --i)
+    {
+        if constexpr (std::is_move_constructible_v<T>)
         {
-            SetCapacity(
-                CalculateDesiredCapacity(Size() + pushFrontPadding),
-                pushFrontPadding // copyOffset is 1 so we have a space for 1 at the start
-            );
+            Memory::Construct<T>(buffer + i, std::move(buffer[i - 1]));
         }
         else
         {
-            T* buffer = GetBuffer();
-
-            // shift over without realloc
-            for (size_t index = Size(); index > 0;)
-            {
-                --index;
-
-                const auto moveIndex = index + pushFrontPadding;
-
-                if constexpr (std::is_move_constructible_v<T>)
-                {
-                    Memory::Construct<T>(buffer + moveIndex, std::move(buffer[index]));
-                }
-                else
-                {
-                    Memory::Construct<T>(buffer + moveIndex, buffer[index]);
-                }
-
-                // manual destructor call
-                Memory::Destruct(buffer[index]);
-            }
-
-            m_startOffset = pushFrontPadding;
-            m_size += m_startOffset;
+            Memory::Construct<T>(buffer + i, buffer[i - 1]);
         }
+
+        Memory::Destruct(buffer[i - 1]);
     }
 
-    // in-place
-    --m_startOffset;
+    ++m_size;
 
-    Memory::Construct<T>(GetBuffer() + m_startOffset, value);
+    Memory::Construct<T>(buffer, value);
 
-    return Front();
+    return *buffer;
 }
 
 template <class T, class AllocatorType>
 auto FatArray<T, AllocatorType>::PushFront(ValueType&& value) -> ValueType&
 {
-    if (m_startOffset == 0)
+    if (m_size + 1 >= Capacity())
     {
-        // have to push everything else over by 1
-        if (m_size + pushFrontPadding >= Capacity())
+        SetCapacity(CalculateDesiredCapacity(m_size + 1));
+    }
+
+    T* buffer = GetBuffer();
+
+    for (size_t i = m_size; i > 0; --i)
+    {
+        if constexpr (std::is_move_constructible_v<T>)
         {
-            SetCapacity(
-                CalculateDesiredCapacity(Size() + pushFrontPadding),
-                pushFrontPadding // copyOffset is 1 so we have a space for 1 at the start
-            );
+            Memory::Construct<T>(buffer + i, std::move(buffer[i - 1]));
         }
         else
         {
-            T* buffer = GetBuffer();
-
-            // shift over without realloc
-            for (size_t index = Size(); index > 0;)
-            {
-                --index;
-
-                const auto moveIndex = index + pushFrontPadding;
-
-                if constexpr (std::is_move_constructible_v<T>)
-                {
-                    Memory::Construct<T>(buffer + moveIndex, std::move(buffer[index]));
-                }
-                else
-                {
-                    Memory::Construct<T>(buffer + moveIndex, buffer[index]);
-                }
-
-                // manual destructor call
-                Memory::Destruct(buffer[index]);
-            }
-
-            m_startOffset = pushFrontPadding;
-            m_size += m_startOffset;
+            Memory::Construct<T>(buffer + i, buffer[i - 1]);
         }
+
+        Memory::Destruct(buffer[i - 1]);
     }
 
-    // in-place
-    --m_startOffset;
+    ++m_size;
 
-    T* buffer = GetBuffer();
-    T* element = buffer + m_startOffset;
+    Memory::Construct<T>(buffer, std::move(value));
 
-    Memory::Construct<T>(element, std::move(value));
-
-    return *element;
+    return *buffer;
 }
 
 template <class T, class AllocatorType>
@@ -1262,7 +1098,7 @@ void FatArray<T, AllocatorType>::Shift(size_t count)
 
     T* buffer = GetBuffer();
 
-    for (size_t index = m_startOffset; index < m_size; ++index, ++newSize)
+    for (size_t index = 0; index < m_size; ++index, ++newSize)
     {
         if (index + count >= m_size)
         {
@@ -1345,14 +1181,14 @@ FatArray<T, AllocatorType> FatArray<T, AllocatorType>::Slice(int first, int last
 template <class T, class AllocatorType>
 void FatArray<T, AllocatorType>::Reverse()
 {
-    if (Size() < 2)
+    if (m_size < 2)
     {
         return;
     }
 
     T* buffer = GetBuffer();
 
-    size_t left = m_startOffset;
+    size_t left = 0;
     size_t right = m_size - 1;
 
     while (left < right)
@@ -1369,7 +1205,6 @@ auto FatArray<T, AllocatorType>::Erase(ConstIterator iter) -> Iterator
 {
     const Iterator begin = Begin();
     const Iterator end = End();
-    const size_t sizeOffset = Size();
 
     if (iter < begin || iter >= end)
     {
@@ -1382,8 +1217,8 @@ auto FatArray<T, AllocatorType>::Erase(ConstIterator iter) -> Iterator
 
     if constexpr (std::is_trivially_copyable_v<T>)
     {
-        T* erasePtr = buffer + m_startOffset + dist;
-        const size_t numToMove = sizeOffset - dist - 1;
+        T* erasePtr = buffer + dist;
+        const size_t numToMove = m_size - dist - 1;
 
         if (numToMove > 0)
         {
@@ -1392,17 +1227,17 @@ auto FatArray<T, AllocatorType>::Erase(ConstIterator iter) -> Iterator
     }
     else
     {
-        for (size_t index = dist; index < sizeOffset - 1; ++index)
+        for (size_t index = dist; index < m_size - 1; ++index)
         {
             if constexpr (std::is_move_constructible_v<T>)
             {
-                Memory::Destruct(buffer[m_startOffset + index]);
-                Memory::Construct<T>(buffer + m_startOffset + index, std::move(buffer[m_startOffset + index + 1]));
+                Memory::Destruct(buffer[index]);
+                Memory::Construct<T>(buffer + index, std::move(buffer[index + 1]));
             }
             else
             {
-                Memory::Destruct(buffer[m_startOffset + index]);
-                Memory::Construct<T>(buffer + m_startOffset + index, buffer[m_startOffset + index + 1]);
+                Memory::Destruct(buffer[index]);
+                Memory::Construct<T>(buffer + index, buffer[index + 1]);
             }
         }
 
@@ -1440,13 +1275,13 @@ auto FatArray<T, AllocatorType>::Insert(ConstIterator where, const ValueType& va
 
     if (where == End())
     {
-        PushBack(std::move(value));
+        PushBack(value);
 
         return GetBuffer() + m_size - 1;
     }
-    else if (where == Begin() && dist <= m_startOffset)
+    else if (where == Begin())
     {
-        PushFront(std::move(value));
+        PushFront(value);
 
         return Begin();
     }
@@ -1457,14 +1292,7 @@ auto FatArray<T, AllocatorType>::Insert(ConstIterator where, const ValueType& va
 
     if (m_size + 1 >= Capacity())
     {
-        if (Capacity() >= Size() + 1)
-        {
-            ResetOffsets();
-        }
-        else
-        {
-            SetCapacity(CalculateDesiredCapacity(Size() + 1));
-        }
+        SetCapacity(CalculateDesiredCapacity(m_size + 1));
     }
 
 #if HYP_DEBUG_MODE
@@ -1475,8 +1303,8 @@ auto FatArray<T, AllocatorType>::Insert(ConstIterator where, const ValueType& va
 
     if constexpr (std::is_trivially_copyable_v<T>)
     {
-        T* insertPtr = buffer + m_startOffset + dist;
-        const size_t numToMove = Size() - dist;
+        T* insertPtr = buffer + dist;
+        const size_t numToMove = m_size - dist;
 
         if (numToMove > 0)
         {
@@ -1488,21 +1316,21 @@ auto FatArray<T, AllocatorType>::Insert(ConstIterator where, const ValueType& va
     {
         size_t index;
 
-        for (index = Size(); index > dist; --index)
+        for (index = m_size; index > dist; --index)
         {
             if constexpr (std::is_move_constructible_v<T>)
             {
-                Memory::Construct<T>(buffer + index + m_startOffset, std::move(buffer[index + m_startOffset - 1]));
+                Memory::Construct<T>(buffer + index, std::move(buffer[index - 1]));
             }
             else
             {
-                Memory::Construct<T>(buffer + index + m_startOffset, buffer[index + m_startOffset - 1]);
+                Memory::Construct<T>(buffer + index, buffer[index - 1]);
             }
 
-            Memory::Destruct(buffer[index + m_startOffset - 1]);
+            Memory::Destruct(buffer[index - 1]);
         }
 
-        Memory::Construct<T>(buffer + index + m_startOffset, value);
+        Memory::Construct<T>(buffer + index, value);
     }
 
     ++m_size;
@@ -1521,7 +1349,7 @@ auto FatArray<T, AllocatorType>::Insert(ConstIterator where, ValueType&& value) 
 
         return GetBuffer() + m_size - 1;
     }
-    else if (where == Begin() && dist <= m_startOffset)
+    else if (where == Begin())
     {
         PushFront(std::move(value));
 
@@ -1532,14 +1360,7 @@ auto FatArray<T, AllocatorType>::Insert(ConstIterator where, ValueType&& value) 
 
     if (m_size + 1 >= Capacity())
     {
-        if (Capacity() >= Size() + 1)
-        {
-            ResetOffsets();
-        }
-        else
-        {
-            SetCapacity(CalculateDesiredCapacity(Size() + 1));
-        }
+        SetCapacity(CalculateDesiredCapacity(m_size + 1));
     }
 
     HYP_CORE_ASSERT(Capacity() >= m_size + 1);
@@ -1548,8 +1369,8 @@ auto FatArray<T, AllocatorType>::Insert(ConstIterator where, ValueType&& value) 
 
     if constexpr (std::is_trivially_copyable_v<T>)
     {
-        T* insertPtr = buffer + m_startOffset + dist;
-        const size_t numToMove = Size() - dist;
+        T* insertPtr = buffer + dist;
+        const size_t numToMove = m_size - dist;
 
         if (numToMove > 0)
         {
@@ -1561,21 +1382,21 @@ auto FatArray<T, AllocatorType>::Insert(ConstIterator where, ValueType&& value) 
     else
     {
         size_t index;
-        for (index = Size(); index > dist; --index)
+        for (index = m_size; index > dist; --index)
         {
             if constexpr (std::is_move_constructible_v<T>)
             {
-                Memory::Construct<T>(buffer + index + m_startOffset, std::move(buffer[index + m_startOffset - 1]));
+                Memory::Construct<T>(buffer + index, std::move(buffer[index - 1]));
             }
             else
             {
-                Memory::Construct<T>(buffer + index + m_startOffset, buffer[index + m_startOffset - 1]);
+                Memory::Construct<T>(buffer + index, buffer[index - 1]);
             }
 
-            Memory::Destruct(buffer[index + m_startOffset - 1]);
+            Memory::Destruct(buffer[index - 1]);
         }
 
-        Memory::Construct<T>(buffer + index + m_startOffset, std::move(value));
+        Memory::Construct<T>(buffer + index, std::move(value));
     }
 
     ++m_size;
@@ -1586,13 +1407,29 @@ auto FatArray<T, AllocatorType>::Insert(ConstIterator where, ValueType&& value) 
 template <class T, class AllocatorType>
 auto FatArray<T, AllocatorType>::PopFront() -> ValueType
 {
-    HYP_CORE_ASSERT(Size() != 0);
+    HYP_CORE_ASSERT(m_size != 0);
 
-    auto value = std::move(GetBuffer()[m_startOffset]);
+    T* buffer = GetBuffer();
 
-    Memory::Destruct(GetBuffer()[m_startOffset]);
+    auto value = std::move(buffer[0]);
 
-    ++m_startOffset;
+    Memory::Destruct(buffer[0]);
+
+    for (size_t i = 1; i < m_size; ++i)
+    {
+        if constexpr (std::is_move_constructible_v<T>)
+        {
+            Memory::Construct<T>(buffer + i - 1, std::move(buffer[i]));
+        }
+        else
+        {
+            Memory::Construct<T>(buffer + i - 1, buffer[i]);
+        }
+
+        Memory::Destruct(buffer[i]);
+    }
+
+    --m_size;
 
     return value;
 }
@@ -1602,11 +1439,8 @@ auto FatArray<T, AllocatorType>::PopBack() -> ValueType
 {
     HYP_CORE_ASSERT(m_size != 0);
 
-    auto value = std::move(GetBuffer()[m_size - 1]);
-
-    Memory::Destruct(GetBuffer()[m_size - 1]);
-
-    --m_size;
+    auto value = std::move(GetBuffer()[--m_size]);
+    Memory::Destruct(GetBuffer()[m_size]);
 
     return value;
 }
@@ -1614,17 +1448,12 @@ auto FatArray<T, AllocatorType>::PopBack() -> ValueType
 template <class T, class AllocatorType>
 void FatArray<T, AllocatorType>::Clear()
 {
-    T* buffer = GetBuffer();
-
-    while (m_size - m_startOffset)
+    if (m_size > 0)
     {
-        // manual destructor call
-        Memory::Destruct(buffer[m_size - 1]);
-        --m_size;
+        m_allocation.DestructInRange(0, m_size);
     }
 
     m_size = 0;
-    m_startOffset = 0;
 
     Refit();
 }

@@ -12,8 +12,6 @@
 #include <Core/Containers/FixedArray.hpp>
 #include <Core/Containers/Array.hpp>
 
-#include <Rendering/CullData.hpp>
-
 #include <Rendering/Shared.hpp>
 #include <Rendering/RenderTypes.hpp>
 #include <Rendering/RenderMemory.hpp>
@@ -126,8 +124,6 @@ private:
     void PrepareDrawCommands(CommandRecorder& cr);
 
     IndirectDrawState m_indirectDrawState;
-    CullData m_cachedCullData;
-    uint8 m_cachedCullDataUpdatedBits;
     EntityBatchAllocatorBase* m_batchAllocator;
 };
 

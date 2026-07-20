@@ -39,8 +39,6 @@ namespace Hyperion {
 
 static constexpr uint32 MinSafeDeleteCycles = RingBufferDepth; // minimum number of cycles to wait before deleting an object
 
-extern uint32 GetFrameCounter();
-
 template <class T>
 class DeletionQueueElem;
 
@@ -324,13 +322,7 @@ public:
     void Initialize();
     void Shutdown();
 
-    /*! \brief Read the counter values for the last n frames, accumulated (n = num multi buffers).
-     *   - only call this on the render thread.
-     *  \param outNumElements The number of elements in the deletion queue.
-     *  \param outTotalBytes The total size of the deletion queue in bytes. */
-    void GetCounterValues(uint32& outNumElements, uint32& outTotalBytes) const;
-
-    int Iterate(int maxIter = 1000);
+    void OnFrameEnd(uint32 prevFrameIndex);
 
     // returns number of entries that were deleted
     size_t ForceDeleteAll(uint32 bufferIndex);
@@ -356,7 +348,7 @@ public:
 
         DeletionQueueElem<T>* ptr = reinterpret_cast<DeletionQueueElem<T>*>(list.Alloc(sizeof(DeletionQueueElem<T>), alignof(DeletionQueueElem<T>), header));
 
-        header.fc = GetFrameCounter();
+        header.fc = GetCounterValue();
         header.destructFn = &DeletionQueueElem<T>::Destroy;
 
         list.Push(header);
@@ -381,7 +373,7 @@ public:
 
         T* ptr = reinterpret_cast<T*>(list.Alloc(sizeof(T), alignof(T), header));
 
-        header.fc = GetFrameCounter();
+        header.fc = GetCounterValue();
         header.destructFn = destructFn;
         header.moveFn = nullptr;
 
@@ -391,15 +383,14 @@ public:
     }
 
 private:
-    struct Counter
+
+    int64 GetCounterValue() const
     {
-        uint32 numElements = 0;
-        uint32 numTotalBytes = 0;
-    };
+        return AtomicAdd(&m_counterValue, 0);
+    }
 
     EntryListBase& GetCurrentEntryList(Mutex::Guard** ppGuard);
     EntryListBase& GetEntryList(Mutex::Guard** ppGuard, uint32 desiredIdx = ~0u);
-    void UpdateCounter(uint32 bufferIndex);
 
     // for calling on another thread than sim thread / render thread.
     Mutex m_mutex;
@@ -408,7 +399,9 @@ private:
     volatile int32 m_tempEntryListCount = 0;
 
     FixedArray<EntryList<DynamicAllocator>*, RingBufferDepth> m_entryLists;
-    Counter m_counters[RingBufferDepth];
+
+    // synchs to frame counter
+    mutable volatile int64 m_counterValue;
 
     bool m_isInitialized;
 };

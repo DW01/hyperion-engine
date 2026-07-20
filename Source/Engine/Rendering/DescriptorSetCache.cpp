@@ -20,6 +20,7 @@ namespace Hyperion {
 static constexpr bool ShouldDestroyDescriptorSets = false;
 
 DescriptorSetCache::DescriptorSetCache()
+    : m_frameIndex(0)
 {
 }
 
@@ -39,11 +40,11 @@ DescriptorSetCache::~DescriptorSetCache()
     }
 }
 
-void DescriptorSetCache::OnFrameStart()
+void DescriptorSetCache::OnFrameStart(uint32 newFrameIndex)
 {
     AssertOnThread(g_renderThread);
 
-    const uint32 frameCounter = GetFrameCounter();
+    m_frameIndex = newFrameIndex;
 
     size_t chompIndexStart = SIZE_MAX;
 
@@ -51,9 +52,9 @@ void DescriptorSetCache::OnFrameStart()
     for (auto it = m_descriptorSetsInUse.Begin(); it != m_descriptorSetsInUse.End(); ++it)
     {
         AllocatedDescriptorSet& allocated = *it;
-        AssertDebug(frameCounter >= allocated.frameCounter);
+        AssertDebug(newFrameIndex >= allocated.frameCounter);
 
-        if (frameCounter - allocated.frameCounter < NumFramesInFlight)
+        if (static_cast<int64>(newFrameIndex) - allocated.frameCounter < NumFramesInFlight)
         {
             break;
         }
@@ -80,7 +81,7 @@ void DescriptorSetCache::OnFrameStart()
     }
 }
 
-void DescriptorSetCache::OnFrameEnd()
+void DescriptorSetCache::OnFrameEnd(uint32 prevFrameIndex)
 {
     AssertOnThread(g_renderThread);
 
@@ -88,8 +89,6 @@ void DescriptorSetCache::OnFrameEnd()
     {
         // Remove unused allocs after being unused in a while.
         static constexpr uint32 NumFramesBeforeDiscard = 2000;
-
-        const uint32 frameCounter = GetFrameCounter();
 
         // Note, we don't destroy empty layout slots, as we may need them again for recycling
         // used descriptor sets
@@ -100,9 +99,9 @@ void DescriptorSetCache::OnFrameEnd()
             for (auto jt = list.Begin(); jt != list.End();)
             {
                 AllocatedDescriptorSet& allocated = *jt;
-                AssertDebug(frameCounter >= allocated.frameCounter);
+                AssertDebug(prevFrameIndex >= allocated.frameCounter);
 
-                if (frameCounter - allocated.frameCounter >= NumFramesBeforeDiscard)
+                if (static_cast<int64>(prevFrameIndex) - allocated.frameCounter >= NumFramesBeforeDiscard)
                 {
                     // we don't need to enqueue deletion, it isn't used by the gpu.
                     // We can just delete it by means of Erase(), as NumFramesBeforeDiscard is AT LEAST NumFramesInFlight
@@ -141,7 +140,7 @@ DescriptorSet* DescriptorSetCache::GetOrCreate(const DescriptorSetLayout& layout
         AllocatedDescriptorSet& allocated = *it;
 
         AllocatedDescriptorSet& newAllocated = m_descriptorSetsInUse.EmplaceBack(std::move(allocated));
-        newAllocated.frameCounter = GetFrameCounter(); // refresh frame counter
+        newAllocated.frameCounter = m_frameIndex; // refresh frame counter
 
         mapIt->second.Erase(it);
 
@@ -150,7 +149,7 @@ DescriptorSet* DescriptorSetCache::GetOrCreate(const DescriptorSetLayout& layout
 
     // need to allocate new descriptor set
     AllocatedDescriptorSet& allocated = m_descriptorSetsInUse.EmplaceBack();
-    allocated.frameCounter = GetFrameCounter();
+    allocated.frameCounter = m_frameIndex;
     allocated.descriptorSet = RI.MakeDescriptorSet(layout);
 
     return allocated.descriptorSet;

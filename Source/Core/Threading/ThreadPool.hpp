@@ -112,8 +112,6 @@ public:
     template <class TaskThreadType>
     TaskThreadPool(TypeWrapper<TaskThreadType>, ANSIStringView baseName, uint32 numThreads)
     {
-        static_assert(std::is_base_of_v<TaskThread, TaskThreadType>, "TaskThreadType must be a subclass of TaskThread");
-
         m_threadMask = 0;
 
         m_threads.Reserve(numThreads);
@@ -122,8 +120,7 @@ public:
         {
             UniquePtr<ThreadBase>& thread = m_threads.PushBack(MakeUnique<TaskThreadType>(CreateTaskThreadId(baseName, threadIndex)));
 
-            TaskThread* taskThread = static_cast<TaskThread*>(thread.Get());
-
+            TaskThreadType* taskThread = static_cast<TaskThreadType*>(thread.Get());
             taskThread->SetThreadIndex(threadIndex);
             taskThread->SetOwnerPool(this);
 
@@ -141,16 +138,17 @@ public:
 
     virtual void Start() override;
 
-    HYP_FORCE_INLINE TaskThread* GetTaskThread(ThreadId threadId) const
+    ThreadBase* GetTaskThread(const ThreadId& threadId) const
     {
-        const auto it = m_threads.FindIf([threadId](const UniquePtr<ThreadBase>& thread)
-                                         {
-                                             return thread->Id() == threadId;
-                                         });
+        const auto it = m_threads.FindIf(
+            [threadId](const UniquePtr<ThreadBase>& thread)
+            {
+                return thread->Id() == threadId;
+            });
 
         if (it != m_threads.End())
         {
-            return static_cast<TaskThread*>(it->Get());
+            return it->Get();
         }
 
         return nullptr;

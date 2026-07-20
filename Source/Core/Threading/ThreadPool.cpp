@@ -48,13 +48,14 @@ ThreadPoolBase::~ThreadPoolBase()
 {
     HYP_LOG(Threading, Verbose, "Destroying thread pool with {} threads", m_threads.Size());
 
-    for (auto& it : m_threads)
+    for (const UniquePtr<ThreadBase>& thread : m_threads)
     {
-        AssertDebug(it != nullptr);
+        AssertDebug(thread != nullptr);
 
-        if (it->CanJoin())
+        if (thread->CanJoin())
         {
-            it->Join();
+            thread->GetScheduler().WakeUpOwnerThread();
+            thread->Join();
         }
     }
 }
@@ -66,11 +67,11 @@ bool ThreadPoolBase::IsRunning() const
         return false;
     }
 
-    for (auto& it : m_threads)
+    for (const UniquePtr<ThreadBase>& thread : m_threads)
     {
-        HYP_CORE_ASSERT(it != nullptr);
+        HYP_CORE_ASSERT(thread != nullptr);
 
-        if (it->IsRunning())
+        if (thread->IsRunning())
         {
             return true;
         }
@@ -86,14 +87,11 @@ void ThreadPoolBase::Stop()
         return;
     }
 
-    for (auto& it : m_threads)
+    for (const UniquePtr<ThreadBase>& thread : m_threads)
     {
-        it->Stop();
-    }
+        HYP_CORE_ASSERT(thread != nullptr);
 
-    for (auto& it : m_threads)
-    {
-        it->Join();
+        thread->Stop();
     }
 }
 

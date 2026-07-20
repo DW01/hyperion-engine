@@ -107,8 +107,12 @@ uint32 GetFrameCounter();
  *  Undefined for sim thread or other threads than the render thread or renderer worker threads. */
 uint32 CurrentRenderThreadIndex();
 
-void BeginFrameSim(AtomicFlag* pCancelFlag);
-void EndFrameSim();
+void BeginSimRenderSyncBlock(AtomicFlag* pCancelFlag);
+void EndSimRenderSyncBlock();
+
+/// Ensure the current thread has control over rendering data
+/// Only relevant when UseRingBuffer is false
+void CheckCurrentThreadSynced();
 
 /*! \brief Get the RenderProxyList for the Sim thread to write to for the current frame, for the given view.
  *  The sim thread adds proxies of entities, lights, envprobes, etc. to this list, which the render thread will
@@ -464,9 +468,6 @@ public:
     Resources::ResourceContainer* resources;
 
 protected:
-    virtual void NewFrameIndex()
-    {
-    }
     virtual void PrepareFrame(Frame* frame) = 0;
 
     virtual void ReleaseTransientMemory() = 0;
@@ -481,6 +482,11 @@ protected:
 
 private:
     virtual void InitDeviceDetails(DeviceDetails& deviceDetails) = 0;
+
+    HYP_NODISCARD bool WaitForSync(AtomicFlag* pCancelFlag);
+
+    void UpdateResources(AtomicFlag* pCancelFlag);
+    void CleanupUnusedResources(uint32 prevFrameIndex);
 };
 
 } // namespace Hyperion

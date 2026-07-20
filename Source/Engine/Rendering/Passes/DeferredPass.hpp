@@ -173,22 +173,43 @@ private:
 class FogVolumePass final : public FullScreenPass
 {
 public:
-    FogVolumePass();
+    FogVolumePass(Vec2u extent, GBuffer* gbuffer);
+    
     FogVolumePass(const FogVolumePass& other) = delete;
     FogVolumePass& operator=(const FogVolumePass& other) = delete;
+    
     virtual ~FogVolumePass() override;
 
-    virtual void Create() override;
+    HYP_FORCE_INLINE Texture* GetUpsampledResultTexture() const
+    {
+        return m_upsamplePasses[NumUpsamplePasses - 1]->GetAttachment(0);
+    }
 
-protected:
+    virtual void Create() override;
+    virtual void Render(Frame* frame, const RenderSetup& renderSetup) override;
+
+private:
+    // Since we render quarter res, we double then double again:
+    static constexpr uint32 NumUpsamplePasses = 2;
+
+    virtual bool UsesTemporalBlending() const override
+    {
+        return false;
+    }
+
+    virtual bool ShouldRenderCheckerboarded() const override
+    {
+        return false;
+    }
+
+    virtual void Resize_Internal(Vec2u newSize) override;
+
     struct FogVolumePassData
     {
         class FogVolume* volume = nullptr;
         Texture* volumeTexture = nullptr;
         Texture* noiseTexture = nullptr;
     };
-
-    virtual void RenderToFramebuffer_Internal(Frame* frame, const RenderSetup& renderSetup, Framebuffer* framebuffer) override;
 
     FogVolumePassData& GetFogVolumePassData(FogVolume* fogVolume)
     {
@@ -211,19 +232,8 @@ protected:
 
     Array<FogVolumePassData, RenderAllocator> m_fogVolumePassData;
     Handle<Mesh> m_volumeMesh;
-
-private:
-    virtual bool UsesTemporalBlending() const override
-    {
-        return false;
-    }
-
-    virtual bool ShouldRenderCheckerboarded() const override
-    {
-        return false;
-    }
-
-    virtual void Resize_Internal(Vec2u newSize) override;
+    
+    UniquePtr<FullScreenPass> m_upsamplePasses[NumUpsamplePasses];
 };
 
 class ReflectionsPass final : public FullScreenPass

@@ -53,7 +53,9 @@ void FillPlaceholderBuffer_Tex2D(Vec2u dimensions, ByteBuffer& outBuffer)
 
     if constexpr (Helper::IsFloatingPoint)
     {
-        outBuffer = ByteBuffer(bitmap.GetUnpackedFloats().ToByteView());
+
+        
+        outBuffer = ByteBuffer(bitmap.ToByteView());
     }
     else
     {
@@ -65,7 +67,6 @@ template <TextureFormat Format, FillPattern Pattern>
 void FillPlaceholderBuffer_Cubemap(Vec2u dimensions, ByteBuffer& outBuffer)
 {
     using Helper = TextureFormatHelper<Format>;
-    static_assert(!Helper::IsFloatingPoint, "FillPlaceholderBuffer_Cubemap not implemented for floating point type textures");
 
     auto bitmap = Bitmap<Format>(dimensions.x, dimensions.y);
 
@@ -90,7 +91,15 @@ void FillPlaceholderBuffer_Cubemap(Vec2u dimensions, ByteBuffer& outBuffer)
         }
     }
 
-    ByteBuffer faceByteBuffer = bitmap.GetUnpackedBytes(Helper::BytesPerComponent * Helper::NumComponents);
+    ByteBuffer faceByteBuffer;
+    if constexpr (Helper::IsFloatingPoint)
+    {
+        faceByteBuffer = ByteBuffer(bitmap.ToByteView());
+    }
+    else
+    {
+        faceByteBuffer = bitmap.GetUnpackedBytes(Helper::BytesPerComponent * Helper::NumComponents);
+    }
 
     outBuffer.SetSize(faceByteBuffer.Size() * 6);
 
@@ -107,6 +116,8 @@ template void FillPlaceholderBuffer_Tex2D<TextureFormat::RGBA32F, FillPattern::S
 
 template void FillPlaceholderBuffer_Cubemap<TextureFormat::R8, FillPattern::SolidBlack>(Vec2u dimensions, ByteBuffer& outBuffer);    // R8
 template void FillPlaceholderBuffer_Cubemap<TextureFormat::RGBA8, FillPattern::SolidBlack>(Vec2u dimensions, ByteBuffer& outBuffer); // RGBA8
+template void FillPlaceholderBuffer_Cubemap<TextureFormat::RGBA16F, FillPattern::SolidBlack>(Vec2u dimensions, ByteBuffer& outBuffer); // RGBA16F
+template void FillPlaceholderBuffer_Cubemap<TextureFormat::RGBA32F, FillPattern::SolidBlack>(Vec2u dimensions, ByteBuffer& outBuffer); // RGBA32F
 
 #pragma region PlaceholderData
 

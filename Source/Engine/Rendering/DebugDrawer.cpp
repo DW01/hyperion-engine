@@ -149,15 +149,17 @@ Mesh* SphereDebugDrawShape::GetMesh_Internal() const
         {
             mesh = MeshBuilder::NormalizedCubeSphere(4);
             mesh->SetFlags(MeshFlags::ViewIndependent);
+            mesh->SetIsTransient(true);
             mesh->SetName(NAME("SphereDebugDrawShape"));
             mesh->UploadGpuData();
 
             GetEngineAssetRegistry()->PutAsset(mesh);
 
-            onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind([m = &mesh]()
-                                                                              {
-                                                                                  m->Reset();
-                                                                              });
+            onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind(
+                [m = &mesh]()
+                {
+                    m->Reset();
+                });
         }
     } s_initializer;
 
@@ -399,15 +401,17 @@ Mesh* PlaneDebugDrawShape::GetMesh_Internal() const
         {
             mesh = MeshBuilder::Quad();
             mesh->SetFlags(MeshFlags::ViewIndependent);
+            mesh->SetIsTransient(true);
             mesh->SetName(NAME("PlaneDebugDrawShape"));
             mesh->UploadGpuData();
 
             GetEngineAssetRegistry()->PutAsset(mesh);
 
-            onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind([m = &mesh]()
-                                                                              {
-                                                                                  m->Reset();
-                                                                              });
+            onShutdownHandle = g_engineDriver->GetDelegates().OnShutdown.Bind(
+                [m = &mesh]()
+                {
+                    m->Reset();
+                });
         }
     } s_initializer;
 
@@ -610,11 +614,11 @@ void TriangleDebugDrawShape::operator()(const Vec3f& v0, const Vec3f& v1, const 
 
 #pragma region DebugDrawer
 
-static FixedArray<ByteBuffer, RingBufferDepth> CreateDebugDrawBuffers()
+static FixedArray<ByteBuffer, DebugDrawer::BufferCount> CreateDebugDrawBuffers()
 {
-    ValueStorage<FixedArray<ByteBuffer, RingBufferDepth>> buffersStorage;
+    ValueStorage<FixedArray<ByteBuffer, DebugDrawer::BufferCount>> buffersStorage;
 
-    for (uint32 i = 0; i < RingBufferDepth; i++)
+    for (uint32 i = 0; i < DebugDrawer::BufferCount; i++)
     {
         new (buffersStorage.GetPointer()->Data() + i) ByteBuffer;
     }
@@ -683,29 +687,29 @@ void DebugDrawer::Shutdown()
         HYP_DEFER({ if (pGuard) delete pGuard; });
 
         // safely destroy the buffer data on the correct frame
-        DebugDrawBufferDeleter* deleter = DeletionQueue::GetInstance().AllocCustom<DebugDrawBufferDeleter>([](void* ptr)
-                                                                                                           {
-                                                                                                               AssertOnThread(g_renderThread);
+        DebugDrawBufferDeleter* deleter = DeletionQueue::GetInstance().AllocCustom<DebugDrawBufferDeleter>(
+            [](void* ptr)
+            {
+                AssertOnThread(g_renderThread);
 
-                                                                                                               DebugDrawBufferDeleter* del = reinterpret_cast<DebugDrawBufferDeleter*>(ptr);
-                                                                                                               AssertDebug(del->idx == GetRingIndex());
+                DebugDrawBufferDeleter* del = reinterpret_cast<DebugDrawBufferDeleter*>(ptr);
 
-                                                                                                               DebugDrawBufferDeleterPayload* payload = del->payload;
-                                                                                                               AssertDebug(payload != nullptr);
+                DebugDrawBufferDeleterPayload* payload = del->payload;
+                AssertDebug(payload != nullptr);
 
-                                                                                                               // invoke destructors
-                                                                                                               for (DebugDrawCommandHeader& header : payload->headers)
-                                                                                                               {
-                                                                                                                   if (header.destructFn)
-                                                                                                                   {
-                                                                                                                       header.destructFn(reinterpret_cast<void*>(payload->buffer.Data() + header.offset));
-                                                                                                                   }
-                                                                                                               }
+                // invoke destructors
+                for (DebugDrawCommandHeader& header : payload->headers)
+                {
+                    if (header.destructFn)
+                    {
+                        header.destructFn(reinterpret_cast<void*>(payload->buffer.Data() + header.offset));
+                    }
+                }
 
-                                                                                                               delete del->payload;
-                                                                                                           },
-                                                                                                           &pGuard,
-                                                                                                           /* desiredIdx */ i);
+                delete del->payload;
+            },
+            &pGuard,
+            /* desiredIdx */ i);
 
         deleter->idx = i;
         deleter->payload = new DebugDrawBufferDeleterPayload {
@@ -720,12 +724,7 @@ void DebugDrawer::Update()
     HYP_SCOPE;
     AssertOnThread(g_simThread);
 
-    const uint32 idx = GetRingIndex();
-
-    if (m_commandLists[idx].Empty())
-    {
-        return;
-    }
+    const uint32 idx = m_pendingIndex;
 
     auto& buffer = m_buffers[idx];
     uint32& bufferOffset = m_bufferOffsets[idx];
@@ -796,6 +795,8 @@ void DebugDrawer::Update()
         it.m_buffer.Clear();
         it.m_bufferOffset = 0;
     }
+
+    std::swap(m_pendingIndex, m_readyIndex);
 }
 
 void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
@@ -803,12 +804,12 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
     HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
-    const uint32 idx = GetRingIndex();
+    const uint32 idx = m_readyIndex;
 
     if (!IsEnabled() || m_headers[idx].Empty())
     {
         // clear, otherwise we'll start to leak a huge amount of memory
-        ClearCommands(idx);
+        ClearCommands();
 
         return;
     }
@@ -818,7 +819,10 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
     const Viewport& viewport = renderSetup.viewport;
 
     RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(renderSetup.view->GetCamera()));
-    Assert(cameraProxy != nullptr);
+    if (!cameraProxy)
+    {
+        return;
+    }
 
     CommandRecorder& cr = frame->cr;
 
@@ -970,6 +974,7 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
 
                     cr << BindVertexBuffer(mesh->GetVertexBuffer());
                     cr << BindIndexBuffer(mesh->GetIndexBuffer());
+
                     cr << DrawIndexed(mesh->NumIndices(0), numToDraw);
 
                     ++totalDrawCalls;
@@ -1023,16 +1028,15 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
 
     instanceBuffer.FlushBatched();
 
-    ClearCommands(idx);
+    ClearCommands();
 }
 
-void DebugDrawer::ClearCommands(uint32 idx)
+void DebugDrawer::ClearCommands()
 {
     HYP_SCOPE;
-    AssertDebug(idx < m_commandLists.Size());
+    AssertOnThread(g_renderThread);
 
-    // would cause issues if we try to free from pool being used by wrong thread..
-    Assert(idx == GetRingIndex());
+    const uint32 idx = m_readyIndex;
 
     for (DebugDrawCommandHeader& header : m_headers[idx])
     {
@@ -1062,18 +1066,18 @@ void DebugDrawer::ClearCommands(uint32 idx)
 
     m_bufferSizeHistory[0] = m_buffers[idx].Size();
 
-    // safe to clear command lists only after rendering
+    // Destroy the command list objects for this slot now that rendering is done. This MUST
+    // happen after rendering because the DebugDrawCommand data above contained raw `shape`
+    // pointers into these objects' shape members (sphere, box, etc.).
     m_commandLists[idx].Clear();
 }
 
 DebugDrawCommandList& DebugDrawer::CreateCommandList()
 {
     HYP_SCOPE;
-    AssertOnThread(g_simThread | g_renderThread);
+    AssertOnThread(g_simThread);
 
-    const uint32 idx = GetRingIndex();
-
-    return m_commandLists[idx].EmplaceBack(this);
+    return m_commandLists[m_pendingIndex].EmplaceBack(this);
 }
 
 #pragma endregion DebugDrawer
@@ -1082,7 +1086,6 @@ DebugDrawCommandList& DebugDrawer::CreateCommandList()
 
 DebugDrawCommandList::DebugDrawCommandList(DebugDrawer* debugDrawer)
     : m_debugDrawer(debugDrawer),
-      m_lock(debugDrawer->m_sharedMutex),
       sphere(*this),
       ambientProbe(*this),
       reflectionProbe(*this),

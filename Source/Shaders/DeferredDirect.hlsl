@@ -205,9 +205,7 @@ PSOutput PSMain(PSInput input)
 
     float4 result = (float4)0;
 
-    const float material_reflectance = 0.5;
-    const float reflectance = 0.16 * material_reflectance * material_reflectance;
-    float4 F0 = float4(albedo.rgb * metalness + (reflectance * (1.0 - metalness)), 1.0);
+    float4 F0 = float4(CalculateF0(albedo.rgb, metalness), 1.0);
 
     const float4 diffuseColor = CalculateDiffuseColor(albedo, metalness);
 
@@ -273,12 +271,11 @@ PSOutput PSMain(PSInput input)
         float shadow = 1.0; // @TODO shadows for clustered deferred
 
         const float D = CalculateDistributionTerm(perceptualRoughness, NdotH);
-        const float G = CalculateGeometryTerm(NdotL, NdotV, HdotV, NdotH);
-        const float4 F = CalculateFresnelTerm(F0, perceptualRoughness, LdotH);
+        const float G = V_SmithGGXCorrelated(roughness * roughness, NdotV, NdotL);
+        const float4 F = CalculateFresnelTerm(F0, LdotH);
 
-        const float4 dfg = CalculateDFG(F, perceptualRoughness, NdotV);
-        const float4 E = CalculateE(F0, dfg);
-        const float3 energy_compensation = CalculateEnergyCompensation(F0.rgb, dfg.rgb);
+        const float3 dfg = CalculateDFG(perceptualRoughness, NdotV);
+        const float3 energy_compensation = CalculateEnergyCompensation(F0.rgb, dfg);
 
         const float4 specular_lobe = D * G * F;
 
@@ -379,7 +376,7 @@ PSOutput PSMain(PSInput input)
 
     const float3 R = reflect(-V, N);
 
-    float2 lut_uv = (float2(roughness, sqrt(1.0 - NdotV))); // @TODO Look at if perceptual roughness should be used here instead of roughness
+    float2 lut_uv = (float2(perceptualRoughness, sqrt(1.0 - NdotV)));
     lut_uv.y = 1.0 - lut_uv.y;
     lut_uv = lut_uv * lut_scale + lut_bias;
     lut_uv = clamp(lut_uv, float2(0.0, 0.0), float2(1.0, 1.0));
@@ -471,12 +468,11 @@ PSOutput PSMain(PSInput input)
 #endif // LIGHT_TYPE_POINT
 
     const float D = CalculateDistributionTerm(perceptualRoughness, NdotH);
-    const float G = CalculateGeometryTerm(NdotL, NdotV, HdotV, NdotH);
-    const float4 F = CalculateFresnelTerm(F0, perceptualRoughness, LdotH);
+    const float G = V_SmithGGXCorrelated(roughness * roughness, NdotV, NdotL);
+    const float4 F = CalculateFresnelTerm(F0, LdotH);
 
-    const float4 dfg = CalculateDFG(F, perceptualRoughness, NdotV);
-    const float4 E = CalculateE(F0, dfg);
-    const float3 energy_compensation = CalculateEnergyCompensation(F0.rgb, dfg.rgb);
+    const float3 dfg = CalculateDFG(perceptualRoughness, NdotV);
+    const float3 energy_compensation = CalculateEnergyCompensation(F0.rgb, dfg);
 
     const float4 specular_lobe = D * G * F;
 

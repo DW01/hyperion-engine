@@ -30,18 +30,49 @@
 
 namespace Hyperion::DataProcessing::HMF {
 
-Parser::Parser(TokenStream* tokenStream, DataProcessing::ErrorList<CompilerError>* errorList)
+Parser::Parser(
+    TokenStream* tokenStream,
+    DataProcessing::ErrorList<CompilerError>* errorList,
+    BoxedValue* target)
     : m_tokenStream(tokenStream),
-      m_errorList(errorList)
+      m_errorList(errorList),
+      m_target(target),
+      m_ownsTarget(target == nullptr)
 {
 }
 
-bool Parser::Parse(BoxedValue& out)
+Parser::~Parser()
 {
-    return ParseManifest(out);
+    if (m_ownsTarget)
+    {
+        delete m_target;
+    }
 }
 
-bool Parser::ParseManifest(BoxedValue& out)
+bool Parser::Parse(BoxedValue& out, bool moveResult)
+{
+    if (!Parse())
+    {
+        return false;
+    }
+
+    Assert(m_target != nullptr);
+
+    if (moveResult)
+    {
+        AssertDebug(m_ownsTarget);
+
+        out = std::move(*m_target);
+    }
+    else
+    {
+        out = *m_target;
+    }
+
+    return true;
+}
+
+bool Parser::Parse()
 {
     String className;
 
@@ -76,13 +107,34 @@ bool Parser::ParseManifest(BoxedValue& out)
         return false;
     }
 
-    if (!cls->CreateInstance(out))
+    if (m_target != nullptr)
     {
-        Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
-        return false;
+        const Class* targetClass = m_target->GetTypeInfo()->GetClass();
+        if (!targetClass)
+        {
+            Error(MSG_TYPE_MISMATCH, Peek().GetLocation());
+            return false;
+        }
+
+        if (!targetClass->IsDerivedFrom(cls))
+        {
+            Error(MSG_TYPE_MISMATCH, Peek().GetLocation());
+            return false;
+        }
+    }
+    else
+    {
+        Assert(m_ownsTarget);
+        m_target = new BoxedValue();
+        
+        if (!cls->CreateInstance(*m_target))
+        {
+            Error(MSG_INTERNAL_ERROR, Peek().GetLocation());
+            return false;
+        }
     }
 
-    if (!ParseObjectBody(cls, out))
+    if (!ParseObjectBody(cls, *m_target))
     {
         return false;
     }
@@ -98,7 +150,7 @@ bool Parser::ParseManifest(BoxedValue& out)
 
         if (Property* nameProp = cls->GetProperty("Name"_sh))
         {
-            nameProp->Set(out, BoxedValue(nameValue));
+            nameProp->Set(*m_target, BoxedValue(nameValue));
         }
     }
 

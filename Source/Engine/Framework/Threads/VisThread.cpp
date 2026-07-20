@@ -26,8 +26,6 @@
 
 namespace Hyperion {
 
-extern uint32 GetFrameCounter();
-
 static EngineStatTimer s_statVisUpdate("Vis/Update");
 
 static bool ProcessEntity(

@@ -37,10 +37,10 @@ using ResolveAssetPathFn = bool (*)(const String& path, const TypeInfo& targetTy
 
 CORE_API extern ResolveAssetPathFn g_resolveAssetPath;
 
-CORE_API ParseResult Parse(const FilePath& filePath, const String& source, ErrorList* outErrors = nullptr);
-CORE_API ParseResult Parse(const String& source, ErrorList* outErrors = nullptr);
+CORE_API ParseResult Parse(const FilePath& filePath, const String& source, ErrorList* outErrors = nullptr, BoxedValue* target = nullptr);
+CORE_API ParseResult Parse(const String& source, ErrorList* outErrors = nullptr, BoxedValue* target = nullptr);
 
-CORE_API ParseResult Parse(const SourceFile& sourceFile);
+CORE_API ParseResult Parse(const SourceFile& sourceFile, BoxedValue* target = nullptr);
 
 } // namespace Hyperion::DataProcessing::HMF
 

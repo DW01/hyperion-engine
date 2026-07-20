@@ -108,6 +108,7 @@ void DeletionQueueElem<Handle<ObjectBase>>::DestroyObject()
 DeletionQueue::DeletionQueue()
     : m_entryLists { nullptr },
       m_tempEntryListCount(0),
+      m_counterValue(0),
       m_isInitialized(false)
 {
     for (uint32 i = 0; i < RingBufferDepth; i++)
@@ -236,24 +237,12 @@ void DeletionQueue::Shutdown()
     }
 }
 
-void DeletionQueue::GetCounterValues(uint32& outNumElements, uint32& outTotalBytes) const
-{
-    AssertOnThread(g_renderThread);
-
-    outNumElements = 0;
-    outTotalBytes = 0;
-
-    for (const Counter& counter : m_counters)
-    {
-        outNumElements += counter.numElements;
-        outTotalBytes += counter.numTotalBytes;
-    }
-}
-
-int DeletionQueue::Iterate(int maxIter)
+void DeletionQueue::OnFrameEnd(uint32 prevFrameIndex)
 {
     HYP_SCOPE;
     AssertOnThread(g_renderThread);
+
+    AtomicExchange(&m_counterValue, static_cast<int64>(prevFrameIndex));
 
     uint32 bufferIndex = GetRingIndex();
     AssertDebug(bufferIndex < m_entryLists.Size());
@@ -263,14 +252,12 @@ int DeletionQueue::Iterate(int maxIter)
     Array<EntryHeader>& headers = *entryList.currHeaders;
     entryList.SwapHeaderBuffers();
 
-    const uint32 frameCounter = GetFrameCounter();
-
     int iterCount = 0;
-    for (auto it = headers.Begin(); iterCount < maxIter && it != headers.End(); ++iterCount)
+    for (auto it = headers.Begin(); it != headers.End(); ++iterCount)
     {
         EntryHeader header = *it;
 
-        if ((int64(frameCounter) - int64(header.fc)) < MinSafeDeleteCycles)
+        if ((int64(prevFrameIndex) - int64(header.fc)) < MinSafeDeleteCycles)
         {
             ++it;
             continue; // skip this entry, it will be processed again next frame
@@ -329,8 +316,6 @@ int DeletionQueue::Iterate(int maxIter)
 
         entryList.bufferPos = newSize;
     }
-
-    return iterCount;
 }
 
 size_t DeletionQueue::ForceDeleteAll(uint32 bufferIndex)
@@ -385,19 +370,6 @@ size_t DeletionQueue::ForceDeleteAll(uint32 bufferIndex)
     return numTotalDestroyed;
 }
 
-void DeletionQueue::UpdateCounter(uint32 bufferIndex)
-{
-    AssertOnThread(g_renderThread);
-
-    AssertDebug(bufferIndex < m_entryLists.Size());
-
-    auto& entryList = *m_entryLists[bufferIndex];
-    Counter& counter = m_counters[bufferIndex];
-
-    counter.numElements = entryList.currHeaders->Size();
-    counter.numTotalBytes = entryList.bufferSize;
-}
-
 void DeletionQueue::Flush()
 {
     AssertOnThread(g_renderThread);
@@ -418,9 +390,7 @@ void DeletionQueue::UpdateEntryListQueue()
 
     if (AtomicAdd(&m_tempEntryListCount, 0) == 0)
     {
-        // no temp entry lists, nothing to append to our list,
-        // so just update counter and return
-        UpdateCounter(bufferIndex);
+        // no temp entry lists, nothing to append to our list
         return;
     }
 
@@ -489,8 +459,6 @@ void DeletionQueue::UpdateEntryListQueue()
 
         AtomicDecrement(&m_tempEntryListCount);
     }
-
-    UpdateCounter(bufferIndex);
 }
 
 #pragma endregion DeletionQueue
@@ -502,7 +470,7 @@ DeletionQueue::EntryListBase& DeletionQueue::GetCurrentEntryList(Mutex::Guard** 
     AssertDebug(ppGuard != nullptr);
     *ppGuard = nullptr;
 
-    if (IsOnThread(g_simThread | g_renderThread))
+    if (IsOnThread(g_renderThread) || (UseRingBuffer && IsOnThread(g_simThread)))
     {
         uint32 bufferIndex = GetRingIndex();
         AssertDebug(bufferIndex < m_entryLists.Size());

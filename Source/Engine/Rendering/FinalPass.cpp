@@ -162,7 +162,13 @@ void FinalPass::Render(Frame* frame, const RenderSetup& rs)
                     AssertDebug(camera != nullptr);
 
                     RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(camera));
-                    AssertDebug(cameraProxy != nullptr);
+                    if (!cameraProxy)
+                    {
+                        // Camera has been expired, will be removed from proxy list on next frame.
+                        // GetActiveWorlds() returns previous frame's worlds when UseRingBuffer is false,
+                        // so these can be stale
+                        continue;
+                    }
 
                     Viewport viewport {};
                     viewport.extent = MathUtil::Max(cameraProxy->bufferData.dimensions.GetXY(), Vec2u::One());
