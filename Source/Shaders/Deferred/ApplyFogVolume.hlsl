@@ -322,6 +322,11 @@ float4 PSMain(PSInput input) : SV_TARGET
 
     tFar = min(tFar, linearDepth);
     tNear = max(tNear, 0.0);
+
+    if (tNear >= tFar)
+    {
+        discard;
+    }
     
 #define NUM_TEMPORAL_SAMPLES 32
 
@@ -332,17 +337,11 @@ float4 PSMain(PSInput input) : SV_TARGET
 
     float temporalNoise = fract(noise + (frameCounter * s_goldenRatio));
 
-    static const float s_farDistance = 100.0;
-    
-    // scale the jitter so it is less prevalent as we move the camera farther away.
-    float depthFade = 1.0 - smoothstep(0.2, 1.0, clamp(linearDepth / s_farDistance, 0.0, 1.0));
+    // static const float s_farDistance = 100.0;
+    // // scale the jitter so it is less prevalent as we move the camera farther away.
+    // float depthFade = 1.0 - smoothstep(0.2, 1.0, clamp(linearDepth / s_farDistance, 0.0, 1.0));
 
-    tNear += temporalNoise * stepSize * depthFade;
-
-    if (tNear >= tFar)
-    {
-        discard;
-    }
+    tNear += temporalNoise * stepSize;// * depthFade;
 
     float4 fogColor = RayMarch(camera.position.xyz, rayDir, tNear, tFar);
 

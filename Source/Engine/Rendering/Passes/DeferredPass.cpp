@@ -1351,7 +1351,7 @@ void FogVolumePass::Render(Frame* frame, const RenderSetup& renderSetup)
         const Vec2i screenDimensions = Vec2i(m_extent);
         RI.cbufferAllocator->Write(&screenDimensions);
 
-        const float stepSize = 0.1f;
+        const float stepSize = 0.125f;
         RI.cbufferAllocator->Write(&stepSize);
 
         const uint32 maxSteps = 256;
