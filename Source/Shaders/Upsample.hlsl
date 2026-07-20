@@ -2,6 +2,8 @@
 #include "../include/Shared.hlsli"
 #include "../include/Scene.hlsli"
 
+PERMUTE(RED_TO_WHITE);
+
 #ifdef VERTEX_SHADER
 
 struct VSInput
@@ -48,19 +50,20 @@ struct PSOutput
     float4 output_color : SV_Target0;
 };
 
-DECLARE_SAMPLER(SSGIUpsample, SamplerLinear) SamplerState SamplerLinear;
-DECLARE_SAMPLER(SSGIUpsample, SamplerNearest) SamplerState SamplerNearest;
+DECLARE_SAMPLER(Upsample, SamplerLinear) SamplerState SamplerLinear;
+DECLARE_SAMPLER(Upsample, SamplerNearest) SamplerState SamplerNearest;
 
-DECLARE_SRV(SSGIUpsample, GBufferNormalsTexture) Texture2D GBufferNormalsTexture;
-DECLARE_SRV(SSGIUpsample, GBufferDepthTexture) Texture2D GBufferDepthTexture;
+DECLARE_SRV(Upsample, NormalsTexture) Texture2D NormalsTexture;
+DECLARE_SRV(Upsample, DepthTexture) Texture2D DepthTexture;
 
-DECLARE_SRV(SSGIUpsample, PrevPassTexture) Texture2D InTexture;
+DECLARE_SRV(Upsample, PrevPassTexture) Texture2D InTexture;
 
-DECLARE_BUFFER_DYNAMIC(SSGIUpsample, CBuffer) cbuffer CBuffer
+DECLARE_BUFFER_DYNAMIC(Upsample, CBuffer) cbuffer CBuffer
 {
     Camera camera;
 
     float2 texelSize;
+    float2 uvScale;
     float depthThreshold;
     float normalThreshold;
 };
@@ -78,12 +81,12 @@ static const int Radius = 2;
 
 float3 GetNormal(float2 uv) 
 {
-    return GBufferUnpackNormal(GBufferNormalsTexture.SampleLevel(SamplerNearest, uv, 0));
+    return GBufferUnpackNormal(NormalsTexture.SampleLevel(SamplerNearest, uv, 0));
 }
 
 float GetDepth(float2 uv)
 {
-    return ViewDepth(GBufferDepthTexture.SampleLevel(SamplerNearest, uv, 0).r, camera.near, camera.far);
+    return ViewDepth(DepthTexture.SampleLevel(SamplerNearest, uv, 0).r, camera.near, camera.far);
 }
 
 PSOutput PSMain(PSInput i)
@@ -98,7 +101,8 @@ PSOutput PSMain(PSInput i)
     {
         for (int y = -Radius; y <= Radius; ++y)
         {
-            float2 offsetUV = i.texcoord + float2(x, y) * texelSize;
+            float2 offsetUV = (i.texcoord + float2(x, y) * texelSize);
+            float2 offsetUVScaled = ((i.texcoord * uvScale) + float2(x, y) * texelSize);
             
             float neighborDepth = GetDepth(offsetUV);
             float3 neighborNormal = GetNormal(offsetUV);
@@ -113,7 +117,7 @@ PSOutput PSMain(PSInput i)
             
             float finalWeight = spatialWeight * depthWeight * normalWeight;
             
-            float4 neighborColor = InTexture.SampleLevel(SamplerLinear, offsetUV, 0);
+            float4 neighborColor = InTexture.SampleLevel(SamplerLinear, offsetUVScaled, 0);
             
             colorSum += neighborColor * finalWeight;
             weightSum += finalWeight;
@@ -122,6 +126,11 @@ PSOutput PSMain(PSInput i)
     
     PSOutput output;
     output.output_color = colorSum / (weightSum + 0.001f);
+
+#ifdef RED_TO_WHITE
+    output.output_color.gba = output.output_color.rrr;
+#endif
+
     return output;
 }
 

@@ -569,7 +569,7 @@ void View::PrepareShadowViews(Array<View*, SceneTempAllocator>& outShadowViews)
             {
                 // failed to allocate shadow view - out of slots is most likely cause
                 // skip processing for this light.
-                HYP_LOG(Scene, Warning, "Failed to allocate shadow view for light {}, view: {} (id: {})", light->GetName(), GetName(), Id());
+                HYP_LOG_ONCE(Scene, Warning, "Failed to allocate shadow view for light {}, view: {} (id: {})", light->GetName(), GetName(), Id());
                 break;
             }
 
@@ -1097,14 +1097,14 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
                     {
                         rpl.GetMaterials().Track(material->Id(), material, GET_RESOURCE_VERSION(material));
 
-                        for (const Handle<Texture>& texture : material->GetTextures())
+                        for (Texture* texture : material->GetTextures())
                         {
-                            if (!texture.IsValid())
+                            if (!texture)
                             {
                                 continue;
                             }
 
-                            rpl.GetTextures().Track(texture.Id(), texture.Get());
+                            rpl.GetTextures().Track(texture->Id(), texture);
                         }
                     }
 
@@ -1145,7 +1145,7 @@ void View::CollectCameras(RenderProxyList& rpl)
     {
         for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<Camera>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
         {
-            Camera* camera = static_cast<Camera*>(entity);
+            Camera* camera = StaticCast<Camera>(entity);
 
             rpl.GetCameras().Track(camera->Id(), camera, GET_RESOURCE_VERSION(camera));
         }
@@ -1165,7 +1165,7 @@ void View::CollectLights(RenderProxyList& rpl)
     {
         for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<Light>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
         {
-            Light* light = static_cast<Light*>(entity);
+            Light* light = StaticCast<Light>(entity);
 
             bool isLightInFrustum = false;
             bool lightCastsShadows = light->GetLightFlags() & LightFlags::ShadowCaster;
@@ -1204,14 +1204,14 @@ void View::CollectLights(RenderProxyList& rpl)
                 {
                     rpl.GetMaterials().Track(light->GetMaterial()->Id(), light->GetMaterial().Get());
 
-                    for (const Handle<Texture>& texture : light->GetMaterial()->GetTextures())
+                    for (Texture* texture : light->GetMaterial()->GetTextures())
                     {
-                        if (!texture.IsValid())
+                        if (!texture)
                         {
                             continue;
                         }
 
-                        rpl.GetTextures().Track(texture->Id(), texture.Get());
+                        rpl.GetTextures().Track(texture->Id(), texture);
                     }
                 }
             }
@@ -1232,8 +1232,7 @@ void View::CollectLightmapVolumes(RenderProxyList& rpl)
     {
         for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<LightmapVolume>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
         {
-            LightmapVolume* lightmapVolume = DynamicCast<LightmapVolume>(entity);
-            Assert(lightmapVolume != nullptr);
+            LightmapVolume* lightmapVolume = StaticCast<LightmapVolume>(entity);
 
             const BoundingBox worldBounds = lightmapVolume->GetWorldBounds();
 
@@ -1272,7 +1271,7 @@ void View::CollectParticleVolumes(RenderProxyList& rpl)
     {
         for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<ParticleVolume>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
         {
-            ParticleVolume* volume = static_cast<ParticleVolume*>(entity);
+            ParticleVolume* volume = StaticCast<ParticleVolume>(entity);
 
             const BoundingBox worldBounds = volume->GetWorldBounds();
 
@@ -1323,7 +1322,7 @@ void View::CollectFogVolumes(RenderProxyList& rpl)
     {
         for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<FogVolume>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
         {
-            FogVolume* volume = static_cast<FogVolume*>(entity);
+            FogVolume* volume = StaticCast<FogVolume>(entity);
 
             const BoundingBox worldBounds = volume->GetWorldBounds();
 
@@ -1364,7 +1363,7 @@ void View::CollectProbeVolumes(RenderProxyList& rpl)
     {
         for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<ProbeVolume>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
         {
-            ProbeVolume* probeVolume = static_cast<ProbeVolume*>(entity);
+            ProbeVolume* probeVolume = StaticCast<ProbeVolume>(entity);
 
             const BoundingBox worldBounds = probeVolume->GetWorldBounds();
 
@@ -1446,7 +1445,7 @@ void View::CollectEnvProbes(RenderProxyList& rpl)
     {
         for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<EnvProbe>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
         {
-            EnvProbe* probe = static_cast<EnvProbe*>(entity);
+            EnvProbe* probe = StaticCast<EnvProbe>(entity);
 
             if (desc.flags & ViewFlags::ENV_PROBE_VIEW)
             {
@@ -1510,13 +1509,13 @@ void View::CollectSprites(RenderProxyList& rpl)
     {
         for (auto [entity, _] : scene->GetEntityManager()->GetEntitySet<EntityType<Sprite>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
         {
-            Sprite* sprite = static_cast<Sprite*>(entity);
+            Sprite* sprite = StaticCast<Sprite>(entity);
 
             rpl.GetSprites().Track(sprite->Id(), sprite, GET_RESOURCE_VERSION(sprite));
 
             if (sprite->IsA<TextSprite>())
             {
-                TextSprite* textSprite = static_cast<TextSprite*>(sprite);
+                TextSprite* textSprite = StaticCast<TextSprite>(sprite);
 
                 if (Texture* fontAtlasTexture = textSprite->GetFontAtlasTexture())
                 {

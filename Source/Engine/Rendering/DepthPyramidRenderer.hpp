@@ -26,9 +26,9 @@ public:
     explicit DepthPyramidRenderer(GBuffer* gbuffer);
     ~DepthPyramidRenderer();
 
-    HYP_FORCE_INLINE const GpuImageViewRef& GetResultImageView() const
+    HYP_FORCE_INLINE Texture* GetHZBTexture() const
     {
-        return m_depthPyramidView;
+        return m_hzbTexture;
     }
 
     HYP_FORCE_INLINE bool IsRendered() const
@@ -51,8 +51,8 @@ private:
     GBuffer* m_gbuffer;
 
     GpuImageViewRef m_depthImageView;
-    GpuImageRef m_depthPyramid;
-    GpuImageViewRef m_depthPyramidView;
+
+    Handle<Texture> m_hzbTexture;
 
     Array<GpuImageViewRef, RenderAllocator> m_mipImageViews;
     Array<GpuBufferRef, RenderAllocator> m_mipUniformBuffers;

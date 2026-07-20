@@ -115,6 +115,11 @@ DECLARE_SRV(FogVolume, PointLightShadowMapsTextureArray) TextureCubeArray point_
 
 #include "./FogVolume.inl"
 
+/// Blue noise
+DECLARE_SRV(PathTracer, BlueNoiseBuffer) StructuredBuffer<int4> BlueNoiseBuffer;
+
+#include "../include/BlueNoise.hlsli"
+
 #undef HYP_DO_NOT_DEFINE_DESCRIPTOR_SETS
 
 DECLARE_SRV(FogVolume, NoiseMap) Texture3D<float> NoiseMap;
@@ -123,6 +128,11 @@ DECLARE_BUFFER_DYNAMIC(FogVolume, FogVolumeConstants) cbuffer FogVolumeConstants
     FogVolume fogVolume;
     Light lights[MAX_LIGHTS];
     ShadowMap shadowMaps[MAX_LIGHTS];
+
+    int2 screenDimensions;
+    float stepSize;
+    uint maxSteps;
+    uint frameCounter;
 };
 
 float2 RayBoxIntersect(float3 rayOrigin, float3 rayDir, float3 boxMin, float3 boxMax)
@@ -172,10 +182,9 @@ float GetFogDensity(float3 uvw)
     return SAMPLE_TEXTURE_3D(texture_sampler, NoiseMap, uvw).r;
 }
 
-float4 RayMarch(float3 rayOrigin, float3 rayDir, float tNear, float tFar, float stepSize)
+float4 RayMarch(float3 rayOrigin, float3 rayDir, float tNear, float tFar)
 {
     float t = tNear;
-    const int maxSteps = 128;
 
     float transmittance = 1.0;
     float3 accumulatedColor = float3(0.0, 0.0, 0.0);
@@ -313,13 +322,29 @@ float4 PSMain(PSInput input) : SV_TARGET
 
     tFar = min(tFar, linearDepth);
     tNear = max(tNear, 0.0);
+    
+#define NUM_TEMPORAL_SAMPLES 32
+
+    int2 coord = int2(screenSpaceUV * screenDimensions);
+
+    const float noise = SampleBlueNoise(coord.x, coord.y, int(frameCounter % NUM_TEMPORAL_SAMPLES), NUM_TEMPORAL_SAMPLES);
+    static const float s_goldenRatio = 0.61803398875;
+
+    float temporalNoise = fract(noise + (frameCounter * s_goldenRatio));
+
+    static const float s_farDistance = 100.0;
+    
+    // scale the jitter so it is less prevalent as we move the camera farther away.
+    float depthFade = 1.0 - smoothstep(0.2, 1.0, clamp(linearDepth / s_farDistance, 0.0, 1.0));
+
+    tNear += temporalNoise * stepSize * depthFade;
 
     if (tNear >= tFar)
     {
         discard;
     }
 
-    float4 fogColor = RayMarch(camera.position.xyz, rayDir, tNear, tFar, 0.25);
+    float4 fogColor = RayMarch(camera.position.xyz, rayDir, tNear, tFar);
 
     return fogColor;
 }

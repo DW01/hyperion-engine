@@ -190,8 +190,6 @@ static const Name s_nameHasParallaxMap = NAME("HAS_PARALLAX_MAP");
 static const Name s_nameHasMetalnessMap = NAME("HAS_METALNESS_MAP");
 static const Name s_nameHasRoughnessMap = NAME("HAS_ROUGHNESS_MAP");
 
-static const Name s_nameMultiView = NAME("MULTI_VIEW");
-
 /// Property interning
 
 static const ShaderPropertyId s_propInstancing = InternShaderProperty(ShaderProperty(s_nameInstancing));
@@ -1257,13 +1255,13 @@ static void PerformRenderingImpl(Frame* frame, const TPerformRenderingPayload<TC
 
     static const bool s_indirectRenderingEnabled = RI.GetRenderConfig().indirectRendering;
 
+    DeferredPassData* dpd = DynamicCast<DeferredPassData>(renderSetup.passData);
+    
     const bool useIndirectRendering = indirectRenderer != nullptr
         && prepassStage != DepthPrepass::DPP_InPrepass
         && s_indirectRenderingEnabled
         && drawCallCollection.flags[RenderGroupFlags::INDIRECT_RENDERING]
-        && (renderSetup.passData && renderSetup.passData->cullData.depthPyramidImageView);
-
-    DeferredPassData* dpd = DynamicCast<DeferredPassData>(renderSetup.passData);
+        && dpd != nullptr;
 
     // Not env probes, prepass, etc. Just main drawing pass.
     const bool isNormalDrawingPass = dpd != nullptr
@@ -1622,7 +1620,7 @@ void RenderCollector::PerformOcclusionCulling(Frame* frame, const RenderSetup& r
     AssertDebug(renderSetup.passData != nullptr, "RenderSetup must have valid PassData to perform occlusion culling");
 
     static const bool s_isIndirectRenderingEnabled = RI.GetRenderConfig().indirectRendering;
-    const bool performOcclusionCulling = s_isIndirectRenderingEnabled && renderSetup.passData->cullData.depthPyramidImageView != nullptr;
+    const bool performOcclusionCulling = s_isIndirectRenderingEnabled;
 
     if (performOcclusionCulling)
     {

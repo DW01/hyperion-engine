@@ -17,7 +17,6 @@
 
 #include <Core/Containers/SparsePagedArray.hpp>
 
-#include <Rendering/CullData.hpp>
 #include <Rendering/GraphicsPipelineCache.hpp>
 #include <Rendering/RenderTypes.hpp>
 
@@ -29,7 +28,6 @@ class EnvProbe;
 class ProbeVolume;
 class LightmapVolume;
 class ParticleVolume;
-struct CullData;
 class PassData;
 class PassBase;
 class View;
@@ -192,8 +190,6 @@ public:
     virtual ~PassData();
 
     WeakHandle<View> view;
-
-    CullData cullData;
 
     PassDataExt* next = nullptr;
 };

@@ -107,7 +107,7 @@ public:
         return m_framebuffer;
     }
 
-    HYP_FORCE_INLINE const ShaderDesc& GetShaderdesc() const
+    HYP_FORCE_INLINE const ShaderDesc& GetShaderDesc() const
     {
         return m_shaderDesc;
     }

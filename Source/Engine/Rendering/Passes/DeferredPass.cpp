@@ -72,6 +72,8 @@
 
 #include <Core/FileSystem/FsUtil.hpp>
 
+#include <Core/Math/MathUtil.hpp>
+
 #include <Core/Utilities/DeferredScope.hpp>
 #include <Core/Utilities/Float16.hpp>
 
@@ -1146,8 +1148,8 @@ void LightmapPass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup&
 
 static constexpr uint32 MaxBoundLightsPerFogVolume = 4;
 
-FogVolumePass::FogVolumePass()
-    : FullScreenPass(TextureFormat::RGBA16F, nullptr, FSP_EXTERNAL_RENDERTARGET)
+FogVolumePass::FogVolumePass(Vec2u extent, GBuffer* gbuffer)
+    : FullScreenPass(TextureFormat::RGBA16F, extent / 4, gbuffer)
 {
     SetPassName(NAME("FogVolume"));
 }
@@ -1169,6 +1171,27 @@ void FogVolumePass::Create()
     m_shaderDesc = ShaderDesc(NAME("ApplyFogVolume"));
 
     FullScreenPass::Create();
+
+    // Upsampling
+    for (uint32 i = 0; i < NumUpsamplePasses; i++)
+    {
+        const bool isLast = i == NumUpsamplePasses - 1;
+
+        const Vec2u targetExtent = isLast
+            ? m_gbuffer->GetExtent()
+            : m_gbuffer->GetExtent() / (2 * (NumUpsamplePasses - i - 1));
+
+        const TextureFormat format = GetFormat();
+
+        m_upsamplePasses[i] = MakeUnique<FullScreenPass>(
+            format,
+            MathUtil::Max(targetExtent, Vec2u::One()),
+            nullptr,
+            isLast ? FSP_EXTERNAL_RENDERTARGET : FSP_NONE);
+
+        m_upsamplePasses[i]->SetShaderDesc(ShaderDesc(NAME("Upsample"), ShaderPropertySet {}));
+        m_upsamplePasses[i]->Create();
+    }
 }
 
 void FogVolumePass::Resize_Internal(Vec2u newSize)
@@ -1176,150 +1199,260 @@ void FogVolumePass::Resize_Internal(Vec2u newSize)
     FullScreenPass::Resize_Internal(newSize);
 }
 
-void FogVolumePass::RenderToFramebuffer_Internal(Frame* frame, const RenderSetup& renderSetup, Framebuffer* framebuffer)
+void FogVolumePass::Render(Frame* frame, const RenderSetup& renderSetup)
 {
-    AssertDebug(renderSetup.world && renderSetup.volume && renderSetup.view);
+    AssertDebug(renderSetup.world && renderSetup.volume && renderSetup.view && renderSetup.framebuffer);
+    AssertDebug(renderSetup.volume->IsA<FogVolume>());
 
     DeferredPassData* dpd = DynamicCast<DeferredPassData>(renderSetup.passData);
     AssertDebug(dpd != nullptr);
 
-    FogVolume* volume = DynamicCast<FogVolume>(renderSetup.volume);
+    FogVolume* volume = StaticCast<FogVolume>(renderSetup.volume);
     AssertDebug(volume != nullptr);
 
     RenderProxyFogVolume* proxy = static_cast<RenderProxyFogVolume*>(GetRenderProxy(volume));
     Assert(proxy != nullptr);
 
+    RenderProxyCamera* cameraProxy = static_cast<RenderProxyCamera*>(GetRenderProxy(renderSetup.view->GetCamera()));
+    if (!cameraProxy)
+    {
+        return;
+    }
+
     FogVolumePassData& data = GetFogVolumePassData(volume);
     data.noiseTexture = proxy->noiseTexture;
     data.volumeTexture = proxy->volumeTexture;
 
+    Attachment* normalsAttachment = m_gbuffer->GetPass(GBufferPass::Opaque).GetAttachment(GBufferTarget::Normals);
+
     CommandRecorder& cr = frame->cr;
-
-    cr << SetCurrentViewport(renderSetup.viewport);
-
-    cr << SetTopology(m_volumeMesh->GetMeshAttributes().topology);
-    cr << SetInputLayout(m_volumeMesh->GetMeshAttributes().inputLayout);
 
     cr << SetFillMode(FM_FILL);
     cr << SetDepthWrite(false);
     cr << SetDepthTest(false);
     cr << SetStencilTest(false);
-    cr << SetFaceCullMode(FCM_FRONT); // cull front faces to render inside of the volume
-    cr << SetCurrentBlendFunction(BlendFunction::Additive());
+    cr << SetCurrentBlendFunction(BlendFunction::None());
 
-    cr << SetCurrentShader(m_shaderDesc);
-
-    cr << SetShaderUniform(0, "SamplerLinear"_sh, RI.placeholderData->GetSamplerLinearMipmap());
-    cr << SetShaderUniform(1, "SamplerNearest"_sh, RI.placeholderData->GetSamplerNearest());
-
-    cr << SetShaderUniform(2, "CamerasBuffer"_sh, RI.namedBuffers[NamedBuffer::Cameras], Resources::GetBinding(renderSetup.view->GetCamera()));
-
-    cr << SetShaderUniform(3, "ShadowMapsTextureArray"_sh, RI.shadowMapCache->GetAtlasImageView());
-    cr << SetShaderUniform(4, "PointLightShadowMapsTextureArray"_sh, RI.shadowMapCache->GetPointLightShadowMapImageView());
-
-    if (data.volumeTexture)
-        cr << SetShaderUniform(5, "DataMap"_sh, RI.textureViewCache->GetOrCreate(data.volumeTexture));
-
-    if (data.noiseTexture)
-        cr << SetShaderUniform(6, "NoiseMap"_sh, RI.textureViewCache->GetOrCreate(data.noiseTexture));
-
-    cr << SetShaderUniform(7, "DepthTexture"_sh, framebuffer->GetAttachment(GBufferTarget::Depth)->GetImageView());
-
-    // Set constants
-    FogVolumeShaderData shaderData = proxy->bufferData;
-
-    uint32& numBoundLights = shaderData.numBoundLights;
-    numBoundLights = 0;
-
-    uint32* lightIndicesU32 = reinterpret_cast<uint32*>(shaderData.lightIndices);
-
-    RenderProxyList& rpl = GetConsumerProxyList(renderSetup.view);
-
-    Array<Pair<Light*, LightShaderData*>, RenderAllocator> tempLightsArray;
-
-    for (Light* light : rpl.GetLights())
     {
-        const LightType lightType = light->GetLightType();
+        cr << SetCurrentViewport(Viewport { m_extent, renderSetup.viewport.position });
 
-        if (lightType != LightType::Directional && lightType != LightType::Point)
+        cr << SetCurrentFramebuffer(m_framebuffer);
+
+        cr << SetTopology(m_volumeMesh->GetMeshAttributes().topology);
+        cr << SetInputLayout(m_volumeMesh->GetMeshAttributes().inputLayout);
+
+        cr << SetFaceCullMode(FCM_FRONT); // cull front faces to render inside of the volume
+
+        cr << SetCurrentShader(m_shaderDesc);
+
+        cr << SetShaderUniform(0, "SamplerLinear"_sh, RI.placeholderData->GetSamplerLinearMipmap());
+        cr << SetShaderUniform(1, "SamplerNearest"_sh, RI.placeholderData->GetSamplerNearest());
+
+        cr << SetShaderUniform(2, "CamerasBuffer"_sh, RI.namedBuffers[NamedBuffer::Cameras], Resources::GetBinding(renderSetup.view->GetCamera()));
+
+        cr << SetShaderUniform(3, "ShadowMapsTextureArray"_sh, RI.shadowMapCache->GetAtlasImageView());
+        cr << SetShaderUniform(4, "PointLightShadowMapsTextureArray"_sh, RI.shadowMapCache->GetPointLightShadowMapImageView());
+
+        if (data.volumeTexture)
+            cr << SetShaderUniform(5, "DataMap"_sh, RI.textureViewCache->GetOrCreate(data.volumeTexture));
+
+        if (data.noiseTexture)
+            cr << SetShaderUniform(6, "NoiseMap"_sh, RI.textureViewCache->GetOrCreate(data.noiseTexture));
+
+        // Select second mip
+        cr << SetShaderUniform(7, "DepthTexture"_sh, RI.textureViewCache->GetOrCreate(dpd->depthPyramidRenderer->GetHZBTexture(), 2, 1));
+
+        // Set constants
+        FogVolumeShaderData shaderData = proxy->bufferData;
+
+        uint32& numBoundLights = shaderData.numBoundLights;
+        numBoundLights = 0;
+
+        uint32* lightIndicesU32 = reinterpret_cast<uint32*>(shaderData.lightIndices);
+
+        RenderProxyList& rpl = GetConsumerProxyList(renderSetup.view);
+
+        Array<Pair<Light*, LightShaderData*>, RenderAllocator> tempLightsArray;
+
+        for (Light* light : rpl.GetLights())
         {
-            continue;
-        }
+            const LightType lightType = light->GetLightType();
 
-        if (numBoundLights >= MaxBoundLightsPerFogVolume)
-        {
-            break;
-        }
-
-        RenderProxyLight* lightProxy = static_cast<RenderProxyLight*>(GetRenderProxy(light));
-        Assert(lightProxy != nullptr);
-
-        tempLightsArray.EmplaceBack(light, &lightProxy->bufferData);
-
-        lightIndicesU32[numBoundLights++] = Resources::GetBinding(light);
-    }
-
-    GpuBuffer* cbuffer = nullptr;
-    size_t cbufferOffset = 0;
-    size_t cbufferSize = 0;
-
-    RI.cbufferAllocator->Write(&shaderData);
-
-    for (uint32 i = 0; i < MaxBoundLightsPerFogVolume; i++)
-    {
-        if (i < uint32(tempLightsArray.Size()))
-        {
-            RI.cbufferAllocator->Write(tempLightsArray[i].second);
-            continue;
-        }
-
-        LightShaderData dummy {};
-        RI.cbufferAllocator->Write(&dummy);
-    }
-
-    for (uint32 i = 0; i < MaxBoundLightsPerFogVolume; i++)
-    {
-        ShadowMapData shadowMapData {};
-
-        if (i < uint32(tempLightsArray.Size()))
-        {
-            View* shadowMapViewDynamic;
-            View* shadowMapViewStatic;
-
-            Light* light = tempLightsArray[i].first;
-
-            const uint32 cascadeIndex = 0;
-
-            ShadowMap* shadowMap = RI.shadowMapCache->GetShadowMap(
-                light,
-                renderSetup.view,
-                cascadeIndex,
-                shadowMapViewDynamic,
-                shadowMapViewStatic);
-
-            if (shadowMap != nullptr)
+            if (lightType != LightType::Directional && lightType != LightType::Point)
             {
-                DeferredRendererHelpers::FillShadowMapData(
-                    shadowMapData,
-                    *shadowMap,
+                continue;
+            }
+
+            if (numBoundLights >= MaxBoundLightsPerFogVolume)
+            {
+                break;
+            }
+
+            RenderProxyLight* lightProxy = static_cast<RenderProxyLight*>(GetRenderProxy(light));
+            Assert(lightProxy != nullptr);
+
+            tempLightsArray.EmplaceBack(light, &lightProxy->bufferData);
+
+            lightIndicesU32[numBoundLights++] = Resources::GetBinding(light);
+        }
+
+        GpuBuffer* cbuffer = nullptr;
+        size_t cbufferOffset = 0;
+        size_t cbufferSize = 0;
+
+        RI.cbufferAllocator->Write(&shaderData);
+
+        for (uint32 i = 0; i < MaxBoundLightsPerFogVolume; i++)
+        {
+            if (i < uint32(tempLightsArray.Size()))
+            {
+                RI.cbufferAllocator->Write(tempLightsArray[i].second);
+                continue;
+            }
+
+            LightShaderData dummy {};
+            RI.cbufferAllocator->Write(&dummy);
+        }
+
+        for (uint32 i = 0; i < MaxBoundLightsPerFogVolume; i++)
+        {
+            ShadowMapData shadowMapData {};
+
+            if (i < uint32(tempLightsArray.Size()))
+            {
+                View* shadowMapViewDynamic;
+                View* shadowMapViewStatic;
+
+                Light* light = tempLightsArray[i].first;
+
+                const uint32 cascadeIndex = 0;
+
+                ShadowMap* shadowMap = RI.shadowMapCache->GetShadowMap(
+                    light,
+                    renderSetup.view,
                     cascadeIndex,
                     shadowMapViewDynamic,
                     shadowMapViewStatic);
+
+                if (shadowMap != nullptr)
+                {
+                    DeferredRendererHelpers::FillShadowMapData(
+                        shadowMapData,
+                        *shadowMap,
+                        cascadeIndex,
+                        shadowMapViewDynamic,
+                        shadowMapViewStatic);
+                }
             }
+
+            RI.cbufferAllocator->Write(&shadowMapData);
         }
 
-        RI.cbufferAllocator->Write(&shadowMapData);
+        const Vec2i screenDimensions = Vec2i(m_extent);
+        RI.cbufferAllocator->Write(&screenDimensions);
+
+        const float stepSize = 0.1f;
+        RI.cbufferAllocator->Write(&stepSize);
+
+        const uint32 maxSteps = 256;
+        RI.cbufferAllocator->Write(&maxSteps);
+
+        const uint32 frameCounter = GetFrameCounter();
+        RI.cbufferAllocator->Write(&frameCounter);
+
+        RI.cbufferAllocator->Commit(cbuffer, cbufferOffset, cbufferSize);
+
+        cr << SetShaderUniform(8, "FogVolumeConstants"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
+        cr << SetShaderUniform(9, "BlueNoiseBuffer"_sh, RI.blueNoiseBuffer);
+
+        cr << CommitDrawState();
+
+        cr << BindVertexBuffer(m_volumeMesh->GetVertexBuffer());
+        cr << BindIndexBuffer(m_volumeMesh->GetIndexBuffer());
+        cr << DrawIndexed(36); // draw cube
     }
 
-    RI.cbufferAllocator->Commit(cbuffer, cbufferOffset, cbufferSize);
+    cr << SetFaceCullMode(FCM_NONE);
 
-    cr << SetShaderUniform(8, "FogVolumeConstants"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
+    // Now upsampling passes
+    for (uint32 i = 0; i < NumUpsamplePasses; i++)
+    {
+        const bool isFirst = i == 0;
+        const bool isLast = i == NumUpsamplePasses - 1;
 
-    cr << CommitDrawState();
+        FullScreenPass* pass = m_upsamplePasses[i].Get();
 
-    cr << BindVertexBuffer(m_volumeMesh->GetVertexBuffer());
-    cr << BindIndexBuffer(m_volumeMesh->GetIndexBuffer());
-    cr << DrawIndexed(36); // draw cube
+        const Vec2f sourceResolution = MathUtil::Max(Vec2f(pass->GetExtent()) / 2, Vec2f::One());
+
+        // Need new cbuffer
+        GpuBuffer* cbuffer = nullptr;
+        size_t cbufferSize = 0;
+        size_t cbufferOffset = 0;
+
+        { // Update constant buffer
+            struct UpsampleConstants
+            {
+                CameraShaderData camera;
+
+                Vec2f texelSize;
+                Vec2f uvScale;
+                float depthThreshold;
+                float normalThreshold;
+            };
+
+            UpsampleConstants upsampleConstants {};
+            upsampleConstants.camera = cameraProxy->bufferData;
+            upsampleConstants.texelSize = Vec2f::One() / sourceResolution;
+            upsampleConstants.uvScale = Vec2f::One();
+            upsampleConstants.depthThreshold = 0.1f;
+            upsampleConstants.normalThreshold = 1.0f;
+
+            RI.cbufferAllocator->Write(&upsampleConstants);
+            RI.cbufferAllocator->Commit(cbuffer, cbufferOffset, cbufferSize);
+        }
+        
+        cr << SetCurrentShader(pass->GetShaderDesc());
+
+        // if last - direct to framebuffer
+        if (isLast)
+        {
+            cr << SetCurrentBlendFunction(BlendFunction::Additive());
+            cr << SetCurrentFramebuffer(renderSetup.framebuffer);
+            cr << SetCurrentViewport(renderSetup.viewport);
+
+        }
+        else
+        {
+            cr << SetCurrentFramebuffer(pass->GetFramebuffer());
+            cr << SetCurrentViewport(Viewport { pass->GetExtent() });
+        }
+
+        uint32 numShaderUniforms = 0;
+
+        // Samplers
+        cr << SetShaderUniform(numShaderUniforms++, "SamplerLinear"_sh, RI.placeholderData->GetSamplerLinear());
+        cr << SetShaderUniform(numShaderUniforms++, "SamplerNearest"_sh, RI.placeholderData->GetSamplerNearest());
+
+        // GBuffer textures
+        cr << SetShaderUniform(numShaderUniforms++, "NormalsTexture"_sh, normalsAttachment->GetImageView());
+        cr << SetShaderUniform(numShaderUniforms++, "DepthTexture"_sh, RI.textureViewCache->GetOrCreate(dpd->depthPyramidRenderer->GetHZBTexture(), NumUpsamplePasses - i - 1, 1));
+
+        cr << SetShaderUniform(numShaderUniforms++, "PrevPassTexture"_sh,
+                               i == 0 ? m_framebuffer->GetAttachment(0)->GetImageView()
+                                      : m_upsamplePasses[i - 1]->GetAttachment(0)->GetImageView());
+
+        cr << SetShaderUniform(numShaderUniforms++, "CBuffer"_sh, cbuffer, ShaderDataOffset(cbufferOffset, cbufferSize));
+
+        cr << CommitDrawState();
+
+        // Draw quad
+        pass->RenderFullScreenQuad(frame, renderSetup);
+
+        if (i == 0)
+        {
+            cr << InsertBarrier(pass->GetAttachment(0)->GetGpuImage(), RS_SHADER_RESOURCE);
+        }
+    }
 
     // reset states
     cr << SetCurrentBlendFunction(BlendFunction::None());
@@ -1427,8 +1560,13 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
     cr << SetDepthTest(false);
     cr << SetDepthWrite(false);
     cr << SetStencilTest(false);
+
     cr << SetCurrentBlendFunction(BlendFunction(
-        BlendModeFactor::SrcAlpha, BlendModeFactor::OneMinusSrcAlpha, BlendModeFactor::One, BlendModeFactor::OneMinusSrcAlpha));
+        BlendModeFactor::SrcAlpha,
+        BlendModeFactor::OneMinusSrcAlpha,
+        BlendModeFactor::One,
+        BlendModeFactor::OneMinusSrcAlpha));
+
     cr << SetFillMode(FM_FILL);
     cr << SetFaceCullMode(FCM_BACK);
 
@@ -1529,7 +1667,12 @@ void ReflectionsPass::Render(Frame* frame, const RenderSetup& rs)
         // reset
         cr << SetDepthTest(false);
         cr << SetDepthWrite(false);
-        cr << SetCurrentBlendFunction(BlendFunction(BlendModeFactor::SrcAlpha, BlendModeFactor::OneMinusSrcAlpha, BlendModeFactor::One, BlendModeFactor::OneMinusSrcAlpha));
+
+        cr << SetCurrentBlendFunction(BlendFunction(
+            BlendModeFactor::SrcAlpha,
+            BlendModeFactor::OneMinusSrcAlpha,
+            BlendModeFactor::One, 
+            BlendModeFactor::OneMinusSrcAlpha));
 
         cr << SetShaderUniform(0, "SamplerLinear"_sh, RI.placeholderData->GetSamplerLinear());
         cr << SetShaderUniform(1, "WorldsBuffer"_sh, RI.namedBuffers[NamedBuffer::Worlds]);
@@ -2280,9 +2423,6 @@ PassData* DeferredPass::CreateViewPassData(View* view, PassDataExt&)
         passData.depthPyramidRenderer = MakeUnique<DepthPyramidRenderer>(gbuffer);
         passData.depthPyramidRenderer->Create();
 
-        passData.cullData.depthPyramidImageView = passData.depthPyramidRenderer->GetResultImageView();
-        passData.cullData.depthPyramidDimensions = passData.depthPyramidRenderer->GetExtent();
-
         passData.mipChain = MakeHandle<Texture>(TextureDesc {
             TextureType::Texture2D,
             opaquePassFramebuffer->GetAttachment(0)->GetFormat(),
@@ -2358,7 +2498,7 @@ PassData* DeferredPass::CreateViewPassData(View* view, PassDataExt&)
         passData.lightmapPass = MakeUnique<LightmapPass>();
         passData.lightmapPass->Create();
 
-        passData.fogVolumePass = MakeUnique<FogVolumePass>();
+        passData.fogVolumePass = MakeUnique<FogVolumePass>(gbuffer->GetExtent(), gbuffer);
         passData.fogVolumePass->Create();
 
         passData.taaPass = MakeUnique<TAAPass>(passData.tonemapPass->GetFinalImageView(), gbuffer->GetExtent(), gbuffer);
@@ -2478,9 +2618,6 @@ void DeferredPass::ResizeView(Viewport viewport, View* view, DeferredPassData& p
     passData.depthPyramidRenderer = MakeUnique<DepthPyramidRenderer>(gbuffer);
     passData.depthPyramidRenderer->Create();
 
-    passData.cullData.depthPyramidImageView = passData.depthPyramidRenderer->GetResultImageView();
-    passData.cullData.depthPyramidDimensions = passData.depthPyramidRenderer->GetExtent();
-
     EnqueueDeletion(std::move(passData.mipChain));
     for (FramebufferRef& framebuffer : passData.mipChainFramebuffers)
     {
@@ -2567,7 +2704,7 @@ void DeferredPass::ResizeView(Viewport viewport, View* view, DeferredPassData& p
     passData.lightmapPass = MakeUnique<LightmapPass>();
     passData.lightmapPass->Create();
 
-    passData.fogVolumePass = MakeUnique<FogVolumePass>();
+    passData.fogVolumePass = MakeUnique<FogVolumePass>(viewport.extent, gbuffer);
     passData.fogVolumePass->Create();
 
     passData.taaPass = MakeUnique<TAAPass>(passData.tonemapPass->GetFinalImageView(), newSize, gbuffer);
@@ -2922,8 +3059,6 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
         ENGINE_STAT_GPU_SCOPE(&s_statBuildHiZ);
 
         passData.depthPyramidRenderer->Render(frame);
-        passData.cullData.depthPyramidImageView = passData.depthPyramidRenderer->GetResultImageView();
-        passData.cullData.depthPyramidDimensions = passData.depthPyramidRenderer->GetExtent();
     }
 
     {
@@ -3199,9 +3334,11 @@ void DeferredPass::RenderFrameForView(Frame* frame, const RenderSetup& rs)
             {
                 RenderSetup fogVolumeRS = rs.Fork();
                 fogVolumeRS.volume = fogVolume;
+                fogVolumeRS.framebuffer = effectPassFramebuffer;
 
-                // Render into EFFECT framebuffer as we don't write normals/matdata/velocity
-                passData.fogVolumePass->RenderToFramebuffer(frame, fogVolumeRS, effectPassFramebuffer);
+                // @TODO We should do upsample all together!!!!!!
+                // This sucks butts if we have multiple fog vols
+                passData.fogVolumePass->Render(frame, fogVolumeRS);
             }
         }
 
