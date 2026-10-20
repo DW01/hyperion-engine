@@ -3169,7 +3169,7 @@ uint32 EditorSubsystem::GetNumConvexCollisionPresets() const
     return GetNumConvexDecompositionPresets();
 }
 
-String EditorSubsystem::GetConvexCollisionPresetName(uint32 presetIndex) const
+ANSIStringView EditorSubsystem::GetConvexCollisionPresetName(uint32 presetIndex) const
 {
     return GetConvexDecompositionPresetName(presetIndex);
 }
