@@ -1198,17 +1198,15 @@ bool Node::TestRay(const Ray& ray, RayTestResults& outResults, EnumFlags<RayTest
 
                         if (!pickCacheEntry)
 #endif
+                        {
                             resGuard.Reset(*meshComponent->mesh);
+                        }
                     }
                 }
 
                 modelMatrix = entity->GetWorldMatrix();
             }
 
-            // The BVH carries its own always-current root AABB (rebuilt from live vertex
-            // data whenever the mesh changes), so it's authoritative for rejection - don't
-            // additionally gate on worldAabb, which is derived from the entity's separately
-            // maintained local bounds and can be stale relative to the actual geometry.
             if (bvh)
             {
                 RayTestResults localBvhResults;
@@ -1218,9 +1216,16 @@ bool Node::TestRay(const Ray& ray, RayTestResults& outResults, EnumFlags<RayTest
 #ifdef HYP_EDITOR
                 if ((flags & RayTestFlags::EditorPick) && pickCacheEntry)
                 {
+                    VertexArrayView vaView {};
+                    vaView.floatData = pickCacheEntry->positions.Data();
+                    vaView.vertexCount = pickCacheEntry->positions.Size() / 3;
+
+                    // Only positions
+                    vaView.layoutDesc = StaticVertexInputLayout<VT_Position>;
+
                     localBvhResults = bvh->TestRay(
                         localSpaceRay,
-                        pickCacheEntry->positions.ToSpan(),
+                        vaView,
                         pickCacheEntry->indices.ToSpan());
                 }
 
@@ -1229,15 +1234,15 @@ bool Node::TestRay(const Ray& ray, RayTestResults& outResults, EnumFlags<RayTest
                 {
                     AssertDebug(resGuard);
 
-                    const VertexArrayView vertexData = mesh->GetVertexData(0);
+                    const VertexArrayView vaView = mesh->GetVertexData(0);
                     const Span<const ubyte> indexData = mesh->GetIndexData(0);
 
                     // @TODO fix for non-uint32 indices
-                    if (vertexData.floatData && indexData.Size() != 0)
+                    if (vaView.floatData && indexData.Size() != 0)
                     {
                         localBvhResults = bvh->TestRay(
                             localSpaceRay,
-                            vertexData,
+                            vaView,
                             Span<const uint32>(reinterpret_cast<const uint32*>(indexData.Data()), indexData.Size() / sizeof(uint32)));
                     }
                 }
