@@ -86,7 +86,12 @@ bool ManagedClass::HasParentClass(ANSIStringView parentClassName) const
 
 bool ManagedClass::HasParentClass(const ManagedClass* parentClass) const
 {
-    const ManagedClass* current = parentClass;
+    if (!parentClass)
+    {
+        return false;
+    }
+
+    const ManagedClass* current = m_parentClass;
 
     while (current)
     {
