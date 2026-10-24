@@ -88,7 +88,7 @@ public static class HarnessEnvironment
 
     public static TimeSpan RunTimeout { get; } = TimeSpan.FromMinutes(5);
 
-    private static string NativeLibraryName =>
+    public static string NativeLibraryName =>
         OperatingSystem.IsWindows() ? "hyperion.dll"
         : OperatingSystem.IsMacOS() ? "libhyperion.dylib"
         : "libhyperion.so";

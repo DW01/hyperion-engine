@@ -7,6 +7,11 @@
     <HyperionBaseDir Condition="'$(HyperionBaseDir)' == ''">$([System.IO.Path]::GetFullPath('$(HyperionBinDir)../../../'))</HyperionBaseDir>
     <HyperionOutputToBinDir Condition="'$(HyperionOutputToBinDir)' == ''">false</HyperionOutputToBinDir>
 
+    <!-- the Linux and macOS packages ship the generator only in ref/, while their managed dir is the bin dir -->
+    <HyperionGeneratorsPath Condition="'$(HyperionGeneratorsPath)' == '' And Exists('$(HyperionManagedDir)Hyperion.NET.Generators.dll')">$(HyperionManagedDir)Hyperion.NET.Generators.dll</HyperionGeneratorsPath>
+    <HyperionGeneratorsPath Condition="'$(HyperionGeneratorsPath)' == '' And Exists('$(HyperionBinDir)Hyperion.NET.Generators.dll')">$(HyperionBinDir)Hyperion.NET.Generators.dll</HyperionGeneratorsPath>
+    <HyperionGeneratorsPath Condition="'$(HyperionGeneratorsPath)' == '' And Exists('$(HyperionBinDir)ref/Hyperion.NET.Generators.dll')">$(HyperionBinDir)ref/Hyperion.NET.Generators.dll</HyperionGeneratorsPath>
+
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
     <!-- must match the native hyperion library, or the apphost fails to load it -->
@@ -31,8 +36,7 @@
       <HintPath>$(HyperionManagedDir)Hyperion.NET.Runtime.dll</HintPath>
     </Reference>
 
-    <Analyzer Include="$(HyperionManagedDir)Hyperion.NET.Generators.dll" Condition="Exists('$(HyperionManagedDir)Hyperion.NET.Generators.dll')" />
-    <Analyzer Include="$(HyperionBinDir)Hyperion.NET.Generators.dll" Condition="!Exists('$(HyperionManagedDir)Hyperion.NET.Generators.dll') And Exists('$(HyperionBinDir)Hyperion.NET.Generators.dll')" />
+    <Analyzer Include="$(HyperionGeneratorsPath)" Condition="'$(HyperionGeneratorsPath)' != ''" />
 
     <AssemblyMetadata Include="HyperionBaseDir" Value="$(HyperionBaseDir)" />
   </ItemGroup>
@@ -83,6 +87,9 @@
   <Target Name="HyperionCheckBinDir" BeforeTargets="ResolveAssemblyReferences" Condition="'$(HyperionWebBuild)' != 'true'">
     <Error Condition="'$(HyperionBinDir)' == '/' Or (!Exists('$(HyperionBinDir)hyperion.dll') And !Exists('$(HyperionBinDir)libhyperion.so') And !Exists('$(HyperionBinDir)libhyperion.dylib'))"
            Text="HyperionBinDir must point at a Hyperion engine build (containing the native hyperion library); got '$(HyperionBinDir)'" />
+    <!-- without the generator the assembly has no type registry, so the engine finds none of its classes -->
+    <Warning Condition="'$(HyperionGeneratorsPath)' == ''"
+             Text="Hyperion.NET.Generators.dll not found in '$(HyperionManagedDir)', '$(HyperionBinDir)' or '$(HyperionBinDir)ref/'; the engine won't find any classes in this assembly" />
   </Target>
 
   <Target Name="HyperionCopyEngineRuntime" AfterTargets="Build" Condition="'$(HyperionOutputToBinDir)' != 'true' And '$(HyperionWebBuild)' != 'true' And '$(HyperionCopyEngineRuntime)' != 'false'">

@@ -61,7 +61,8 @@ public sealed class GameProject
     }
 
     /// <param name="directoryName">The project's folder under the work directory, when it isn't named after the project</param>
-    public static GameProject Create(string name, GameProjectLanguage language, string? fixtureName = null, string? directoryName = null)
+    /// <param name="engineBinDir">The engine a C# game compiles against, when it isn't HarnessEnvironment.EngineBinDir</param>
+    public static GameProject Create(string name, GameProjectLanguage language, string? fixtureName = null, string? directoryName = null, string? engineBinDir = null)
     {
         string directory = Path.Combine(HarnessEnvironment.WorkDir, directoryName ?? name);
 
@@ -82,7 +83,7 @@ public sealed class GameProject
 
         if (language == GameProjectLanguage.Managed)
         {
-            project.WriteManagedProjectProps();
+            project.WriteManagedProjectProps(engineBinDir ?? HarnessEnvironment.EngineBinDir);
         }
 
         project.WriteProjectFile();
@@ -398,9 +399,9 @@ public sealed class GameProject
     }
 
     // mirrors WriteManagedProjectProps() in Source/Editor/EditorNativeModule.cpp
-    private void WriteManagedProjectProps()
+    private void WriteManagedProjectProps(string engineBinDir)
     {
-        string binDir = HarnessEnvironment.EngineBinDir.Replace('\\', '/').TrimEnd('/');
+        string binDir = engineBinDir.Replace('\\', '/').TrimEnd('/');
         string baseDir = HarnessEnvironment.RepositoryRoot.Replace('\\', '/').TrimEnd('/');
 
         File.WriteAllText(Path.Combine(SourceDirectory, "Hyperion.Local.props"),
