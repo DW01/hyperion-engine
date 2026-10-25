@@ -5,8 +5,6 @@ using Xunit.Abstractions;
 
 namespace Hyperion.GameProjectTests;
 
-/// The tests registered with HYP_ENGINE_TEST in Tests/Engine, run by the engine's EngineTestCommandlet. They need no game
-/// project, so the whole set runs in one launch of the engine, and each test is reported as its own result
 public class EngineTests : IClassFixture<EngineTestFixture>
 {
     private const string DiscoveryFailedPrefix = "<discovery failed> ";
@@ -29,7 +27,7 @@ public class EngineTests : IClassFixture<EngineTestFixture>
         catch (Exception exception)
         {
             // reported as a failing test, rather than a discovery error that hides the other tests in the assembly
-            return new[] { new object[] { DiscoveryFailedPrefix + exception.Message } };
+            return [[DiscoveryFailedPrefix + exception.Message]];
         }
     }
 
@@ -77,7 +75,7 @@ public static class EngineTestRunner
 
     public static IReadOnlyList<string> List()
     {
-        EngineTestRunResult listing = Execute("list", new[] { "--list=true" });
+        EngineTestRunResult listing = Execute("list", ["--list=true"]);
 
         if (listing.Report == null)
         {
@@ -89,7 +87,11 @@ public static class EngineTestRunner
 
     public static EngineTestRunResult Run(string? filter = null)
     {
-        return Execute("run", filter == null ? Array.Empty<string>() : new[] { "--filter=" + filter });
+        return Execute(
+            "run",
+            filter == null
+                ? Array.Empty<string>()
+                : ["--filter=" + filter]);
     }
 
     private static EngineTestRunResult Execute(string label, IEnumerable<string> extraArguments)
@@ -103,8 +105,7 @@ public static class EngineTestRunner
             File.Delete(resultsPath);
         }
 
-        List<string> arguments = new List<string> { "--results=" + resultsPath };
-        arguments.AddRange(extraArguments);
+        List<string> arguments = ["--results=" + resultsPath, .. extraArguments];
 
         ProcessResult process = ProcessRunner.Run(
             $"Engine tests ({label})",

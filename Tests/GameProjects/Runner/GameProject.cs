@@ -42,10 +42,11 @@ public sealed class GameProject
     public string ExecutablePath => Path.Combine(BinariesDirectory, Name + HarnessEnvironment.ExecutableExtension);
     public string ProjectFilePath => Path.Combine(Directory, Name + ".hypproject");
 
-    public string NativeModulePath => Path.Combine(BinariesDirectory,
-        OperatingSystem.IsWindows() ? $"{Name}Game.dll"
-        : OperatingSystem.IsMacOS() ? $"lib{Name}Game.dylib"
-        : $"lib{Name}Game.so");
+    public string NativeModulePath => Path.Combine(
+        BinariesDirectory,
+        OperatingSystem.IsWindows()
+            ? $"{Name}Game.dll" : OperatingSystem.IsMacOS()
+                ? $"lib{Name}Game.dylib" : $"lib{Name}Game.so");
 
     // what a C++ game's CodeGen run writes, and the C# bindings assembly its build compiles from it
     public string NativeGeneratedDirectory => Path.Combine(NativeBuildDirectory, "Generated");
@@ -60,8 +61,6 @@ public sealed class GameProject
         Directory = directory;
     }
 
-    /// <param name="directoryName">The project's folder under the work directory, when it isn't named after the project</param>
-    /// <param name="engineBinDir">The engine a C# game compiles against, when it isn't HarnessEnvironment.EngineBinDir</param>
     public static GameProject Create(string name, GameProjectLanguage language, string? fixtureName = null, string? directoryName = null, string? engineBinDir = null)
     {
         string directory = Path.Combine(HarnessEnvironment.WorkDir, directoryName ?? name);
@@ -96,7 +95,22 @@ public sealed class GameProject
         return project;
     }
 
-    /// Copies a fixture over the project, replacing the files it has
+    public static GameProject CreateInEditor(string name, GameProjectLanguage language)
+    {
+        string directory = Path.Combine(HarnessEnvironment.WorkDir, name);
+
+        if (System.IO.Directory.Exists(directory))
+        {
+            System.IO.Directory.Delete(directory, recursive: true);
+        }
+
+        GameProject project = new GameProject(name, language, directory);
+
+        GameAssert.Succeeded(EditorTestHost.CreateProject(project));
+
+        return project;
+    }
+
     public void ApplyFixture(string fixtureName)
     {
         string fixtureDirectory = Path.Combine(HarnessEnvironment.FixturesDir, fixtureName);
@@ -252,19 +266,18 @@ public sealed class GameProject
         return build;
     }
 
-    /// Launches the packaged game headless; it runs the tests for <paramref name="phase"/> and quits
     public GameRunResult RunPackaged(string packageDirectory, string phase)
     {
         return RunGame(Path.Combine(packageDirectory, Name + HarnessEnvironment.ExecutableExtension), packageDirectory, phase);
     }
 
-    public ProcessResult Build()
+    public ProcessResult Build(params string[] managedBuildArguments)
     {
-        return Language == GameProjectLanguage.Managed ? BuildManaged() : BuildNative();
+        return Language == GameProjectLanguage.Managed
+            ? BuildManaged(managedBuildArguments)
+            : BuildNative();
     }
 
-    /// Builds Content/Scripts as the editor's script compiler does: a module of its own, against the engine assemblies and the
-    /// game's (a C++ game's bindings assembly, or a C# game's own assembly)
     public ProcessResult BuildScripts(string referenceAssemblyPath)
     {
         string scriptsProjectDirectory = Path.Combine(Directory, "Build", "Scripts");
@@ -317,7 +330,6 @@ public sealed class GameProject
             + "</Project>\n";
     }
 
-    /// Launches the built game headless; the test game runs the tests for <paramref name="phase"/> and quits
     public GameRunResult Run(string phase)
     {
         return RunGame(ExecutablePath, BinariesDirectory, phase);
@@ -356,7 +368,6 @@ public sealed class GameProject
         return new GameRunResult(process, report);
     }
 
-    // mirrors GetGameProjectFiles() in Source/Editor/EditorNativeModule.cpp
     private IEnumerable<(string TemplatePath, string OutputPath)> GetTemplateFiles()
     {
         if (Language == GameProjectLanguage.Managed)
@@ -413,12 +424,12 @@ public sealed class GameProject
     }
 
     // the same command the editor's ManagedGameBuildService runs
-    private ProcessResult BuildManaged()
+    private ProcessResult BuildManaged(string[] extraArguments)
     {
         return ProcessRunner.Run(
             $"Building {Name}",
             "dotnet",
-            new[] { "build", Path.Combine(SourceDirectory, Name + ".csproj"), "--configuration", "Release", "--disable-build-servers", "--nologo" },
+            new[] { "build", Path.Combine(SourceDirectory, Name + ".csproj"), "--configuration", "Release", "--disable-build-servers", "--nologo" }.Concat(extraArguments),
             SourceDirectory,
             Path.Combine(LogsDirectory, "build.log"),
             HarnessEnvironment.BuildTimeout);

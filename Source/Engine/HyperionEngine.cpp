@@ -884,6 +884,11 @@ extern "C"
         g_editorState.Reset();
 #endif // HYP_EDITOR
 
+        if (g_appContext.IsValid())
+        {
+            AppContextBase::OnCurrentWindowChanged.RemoveAllForTarget(g_appContext.Get());
+        }
+
         g_appContext.Reset();
 
         // Scenes created after the sim thread exited would otherwise outlive g_scenePool

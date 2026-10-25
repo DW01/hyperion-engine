@@ -164,7 +164,38 @@ bool ConfirmCloseCurrentProject(EditorSubsystem* subsystem)
         return false;
     }
 
-    return !shouldSave || SaveProjectWithPromptOrAlert(currentProject, "The operation will be aborted to prevent loss of data");
+    return !shouldSave
+        || SaveProjectWithPromptOrAlert(
+                currentProject,
+                "The operation will be aborted to prevent loss of data");
+}
+
+void LoadAndOpenProject(EditorSubsystem* subsystem, const FilePath& projectFilepath)
+{
+    g_editorState->ReportProjectLoadStage(ProjectLoadStage::CloseProject);
+
+    subsystem->CloseProject();
+
+    TResult<Handle<EditorProject>> loadProjectResult = EditorProject::Load(projectFilepath);
+
+    if (loadProjectResult.HasError() || !loadProjectResult.GetValue().IsValid())
+    {
+        const String errorMessage = loadProjectResult.HasError() ? String(loadProjectResult.GetError().GetMessage()) : String("Loaded project is invalid.");
+
+        HYP_LOG(Editor, Error, "Failed to load project '{}': {}", projectFilepath, errorMessage);
+
+        SystemMessageBox(MessageBoxType::CRITICAL)
+            .Title("Project could not be opened")
+            .Text(String("The project could not be opened: ") + errorMessage)
+            .Button("OK", NoOpFunction<void> {})
+            .Show();
+
+        subsystem->NewProject();
+
+        return;
+    }
+
+    subsystem->OpenProject(loadProjectResult.GetValue());
 }
 
 void ParseWorldCommandArguments(const EditorCommandBase& command, Name& outWorldName, bool& outSaveWithoutAsking)
@@ -369,27 +400,7 @@ public:
                             return;
                         }
 
-                        g_editorState->ReportProjectLoadStage(ProjectLoadStage::CloseProject);
-
-                        subsystem->CloseProject();
-
-                        TResult<Handle<EditorProject>> loadProjectResult = EditorProject::Load(projectFilepath);
-
-                        if (loadProjectResult.HasError())
-                        {
-                            HYP_LOG(Editor, Error, "Failed to load project: {}", loadProjectResult.GetError().GetMessage());
-                            return;
-                        }
-
-                        Handle<EditorProject> project = loadProjectResult.GetValue();
-
-                        if (!project.IsValid())
-                        {
-                            HYP_LOG(Editor, Error, "Loaded project is invalid.");
-                            return;
-                        }
-
-                        subsystem->OpenProject(project);
+                        LoadAndOpenProject(subsystem.Get(), projectFilepath);
                     },
                     TaskEnqueueFlags::FIRE_AND_FORGET);
                 // clang-format on
@@ -445,31 +456,7 @@ public:
             return;
         }
 
-        g_editorState->ReportProjectLoadStage(ProjectLoadStage::CloseProject);
-
-        subsystem->CloseProject();
-
-        TResult<Handle<EditorProject>> loadProjectResult = EditorProject::Load(projectFilepath);
-
-        if (loadProjectResult.HasError() || !loadProjectResult.GetValue().IsValid())
-        {
-            const String errorMessage = loadProjectResult.HasError() ? String(loadProjectResult.GetError().GetMessage()) : String("Loaded project is invalid.");
-
-            HYP_LOG(Editor, Error, "Failed to load project '{}': {}", projectFilepath, errorMessage);
-
-            SystemMessageBox(MessageBoxType::CRITICAL)
-                .Title("Project could not be opened")
-                .Text(String("The project could not be opened: ") + errorMessage)
-                .Button("OK", NoOpFunction<void> {})
-                .Show();
-
-            // Don't leave the editor without a project
-            subsystem->NewProject();
-
-            return;
-        }
-
-        subsystem->OpenProject(loadProjectResult.GetValue());
+        LoadAndOpenProject(subsystem, projectFilepath);
     }
 };
 

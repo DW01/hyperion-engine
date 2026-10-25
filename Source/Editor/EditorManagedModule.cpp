@@ -21,6 +21,7 @@
 #include <Core/Reflection/ScriptObjectFunctions.hpp>
 
 #include <Core/IO/ByteWriter.hpp>
+#include <Core/IO/ByteReader.hpp>
 
 #include <Core/Logging/Logger.hpp>
 
@@ -363,6 +364,18 @@ EDITOR_API Result WriteManagedProjectProps(const FilePath& projectFilepath)
         + "    <HyperionBaseDir>" + baseDir + "/</HyperionBaseDir>\n"
         + "    <HyperionSdkDir>" + baseDir + "/Source/Engine/DotNET/Sdk/</HyperionSdkDir>\n"
         + "  </PropertyGroup>\n</Project>\n";
+
+    if (propsPath.Exists())
+    {
+        FileByteReader reader { propsPath };
+        const ByteBuffer existing = reader.Read();
+        reader.Close();
+
+        if (String(existing.ToByteView()) == text)
+        {
+            return {};
+        }
+    }
 
     FileByteWriter writer { propsPath };
 

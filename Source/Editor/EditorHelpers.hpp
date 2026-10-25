@@ -22,11 +22,16 @@ using filesystem::FilePath;
 
 namespace EditorHelpers {
 
-Task<void> CaptureViewToPNGAsync(
+EDITOR_API Task<void> CaptureViewToPNGAsync(
     const Handle<View>& view,
     const FilePath& path,
     const Vec2u& wireframeExtent,
     const Vec2u& outputExtent = Vec2u::Zero());
+
+EDITOR_API void PopulateNewWorld(
+    World& world,
+    const Handle<AssetRegistry>& assetRegistry,
+    Name sceneName);
 
 } // namespace EditorHelpers
 } // namespace Hyperion

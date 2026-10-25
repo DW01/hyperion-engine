@@ -32,7 +32,7 @@ HYP_DECLARE_LOG_CHANNEL(Editor);
 
 namespace EditorHelpers {
 
-Task<void> CaptureViewToPNGAsync(
+EDITOR_API Task<void> CaptureViewToPNGAsync(
     const Handle<View>& view,
     const FilePath& path,
     const Vec2u& wireframeExtent,
@@ -83,10 +83,12 @@ Task<void> CaptureViewToPNGAsync(
 
                 return;
             }
-
-            ThumbnailCaptureState* captureState = new ThumbnailCaptureState(isWireframeView
+            
+            const Vec2u& captureExtent = isWireframeView
                 ? wireframeExtent
-                : framebuffer->GetExtent());
+                : framebuffer->GetExtent();
+
+            ThumbnailCaptureState* captureState = new ThumbnailCaptureState(captureExtent);
 
             view->thumbnailCaptureState = captureState;
 
@@ -122,7 +124,7 @@ Task<void> CaptureViewToPNGAsync(
 
                     promise->Fulfill();
 
-                    // not from inside its own callback
+                    // do not delete it from inside its own callback
                     GetThreadById(g_renderThread)->GetScheduler().Enqueue(
                         [captureState]()
                         {
@@ -134,6 +136,50 @@ Task<void> CaptureViewToPNGAsync(
         TaskEnqueueFlags::FIRE_AND_FORGET);
 
     return future;
+}
+
+EDITOR_API void PopulateNewWorld(
+    World& world,
+    const Handle<AssetRegistry>& assetRegistry,
+    Name sceneName)
+{
+    Handle<Scene> mainScene = MakeHandle<Scene>();
+    mainScene->SetName(sceneName);
+    mainScene->SetSceneFlags(SceneFlags::DEFAULT & ~SceneFlags::STREAMED);
+
+    world.AddScene(mainScene, /* addToStreamingLayer */ true);
+    world.MarkDirty();
+
+    Handle<DirectionalLight> sun = MakeHandle<DirectionalLight>();
+    sun->SetName(NAME("SunLight"));
+    sun->SetDirection(Vec3f(-0.92f, 0.31f, -0.25f).Normalize());
+    sun->SetColor(Color(Vec4f(1.0f, 0.86f, 0.7f, 1.0f)));
+    sun->SetIntensity(17.0f);
+    InitObject(sun);
+
+    mainScene->GetRoot()->AddChild(sun);
+
+    {
+        GlobalContextScope assetRegistryScope { AssetRegistryContext { assetRegistry } };
+
+        EditorPlayerSetup::AddGround(mainScene->GetRoot(), NAME("Ground"));
+
+        EditorPlayer player = EditorPlayerSetup::CreateThirdPersonPlayer(NAME("Player"), NAME("Camera"));
+        GetCurrentAssetRegistry()->PutAssetUnique(player.capsuleShape);
+
+        player.playerEntity->SetWorldTranslation(Vec3f(
+            0.0f,
+            EditorPlayerSetup::GroundSurfaceHeight + player.capsuleShape->GetHeight() * 0.5f + player.capsuleShape->GetRadius(),
+            0.0f));
+
+        mainScene->GetRoot()->AddChild(player.playerEntity);
+
+        EditorPlayerSetup::AttachToScene(player);
+
+        player.playerEntity->AddTag<EntityTag::Player>();
+    }
+
+    world->AddSystemT<DynamicSkySystem>();
 }
 
 } // namespace EditorHelpers

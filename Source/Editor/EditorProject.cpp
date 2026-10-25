@@ -773,6 +773,17 @@ TResult<Handle<EditorProject>> EditorProject::Load(const FilePath& filepath)
 
     g_editorState->ReportProjectLoadStage(ProjectLoadStage::LoadGameModule);
 
+    if (IsManagedProject(projectFilepath))
+    {
+        if (Result propsResult = WriteManagedProjectProps(projectFilepath); propsResult.HasError())
+        {
+            HYP_LOG(Editor, Warning,
+                "Could not point {} at this editor: {}",
+                projectFilepath,
+                propsResult.GetError().GetMessage());
+        }
+    }
+
     if (const String versionError = CheckNativeModuleEngineVersion(projectFilepath); versionError.Any())
     {
         HYP_LOG(Editor, Info, "{} Rebuilding the game.", versionError);
@@ -781,7 +792,9 @@ TResult<Handle<EditorProject>> EditorProject::Load(const FilePath& filepath)
 
         if (!g_editorState->OnRebuildNativeGameRequested(String(projectFilepath)))
         {
-            HYP_LOG(Editor, Warning, "Rebuilding the game of {} failed or isn't available here", projectFilepath);
+            HYP_LOG(Editor, Warning,
+                "Rebuilding the game of {} failed or isn't available here",
+                projectFilepath);
         }
     }
 
@@ -799,7 +812,11 @@ TResult<Handle<EditorProject>> EditorProject::Load(const FilePath& filepath)
 
         if (moduleGameResult.HasError())
         {
-            return moduleGameResult.GetError();
+            HYP_LOG(Editor, Error,
+                "{} Opening the project without it; build the game to load it.",
+                moduleGameResult.GetError().GetMessage());
+
+            moduleGameResult = Handle<Game>();
         }
     }
 

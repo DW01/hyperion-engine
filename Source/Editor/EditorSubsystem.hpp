@@ -40,6 +40,7 @@ namespace Hyperion {
 class Game;
 class World;
 class Scene;
+class AssetRegistry;
 class Camera;
 class Node;
 class Entity;
@@ -201,8 +202,8 @@ public:
     HYP_METHOD()
     bool PauseSimulation();
 
-    /*! \brief Whether new assets may be created right now. Simulation runs against a throwaway
-     *  snapshot of the project, so anything authored while it runs would be lost when it stops. */
+    /*! \brief Whether new assets may be created right now.
+     * Simulation runs against a throwaway snapshot of the project, so anything authored while it runs would be lost when it stops. */
     HYP_METHOD()
     bool CanCreateAssets() const;
 
@@ -276,6 +277,8 @@ public:
     HYP_METHOD()
     bool ExecuteCommandByName(Name name, const String& arguments);
 
+    ////////////////////
+
     HYP_METHOD()
     void NewProject();
 
@@ -288,11 +291,15 @@ public:
     HYP_METHOD()
     void CloseProject(bool shutdownWorld = true);
 
+    ////////////////////
+
     HYP_METHOD()
     Handle<World> NewWorldAsset(Name worldName);
 
     HYP_METHOD()
     bool OpenWorld(Name worldName);
+
+    ////////////////////
 
     HYP_METHOD()
     void ShowImportContentDialog();
@@ -300,6 +307,8 @@ public:
     /*! \brief Show a file dialog for a single file */
     HYP_METHOD()
     void RequestAssetImport(uint32 requestId);
+
+    ////////////////////
 
     HYP_METHOD()
     void SetFocusedNode(const Handle<Node>& focusedNode, bool shouldSelectInOutline = true);
@@ -327,11 +336,15 @@ public:
 
     Array<Handle<Node>> GetGizmoTargetNodes() const;
 
+    ////////////////////
+
     HYP_METHOD()
     Handle<Scene> GetActiveScene() const;
 
     HYP_METHOD()
     void SetActiveScene(const Handle<Scene>& scene);
+
+    ////////////////////
 
     HYP_METHOD()
     String GetCodeEditor() const;
