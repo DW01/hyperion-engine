@@ -236,7 +236,7 @@ void BuildMaterialAttributes(const DrawMaterialInputs& inputs, const MaterialAtt
 
         // cutouts and two sided geometry have to stay that way in depth only passes, or foliage
         // casts solid shadows and drops its back faces
-        outMaterialAttributes.flags |= (sourceMaterialAttributes.flags & MAF_ALPHA_DISCARD);
+        outMaterialAttributes.flags |= (sourceMaterialAttributes.flags & MaterialAttributeFlags::AlphaDiscard);
 
         if (sourceMaterialAttributes.cullFaces == FaceCullMode::None)
         {
@@ -258,7 +258,7 @@ void BuildMaterialAttributes(const DrawMaterialInputs& inputs, const MaterialAtt
     const bool hasDeferredLighting = !hasForwardLighting && !hasLightmaps;
 
     const bool hasInstancing = inputs.hasInstancing;
-    const bool hasAlphaDiscard = bool(mas.flags & MAF_ALPHA_DISCARD);
+    const bool hasAlphaDiscard = bool(mas.flags & MaterialAttributeFlags::AlphaDiscard);
     const bool hasSkinning = inputs.hasSkinning;
 
     const bool isPathTracer = inputs.pathTracing;
@@ -292,7 +292,7 @@ void BuildMaterialAttributes(const DrawMaterialInputs& inputs, const MaterialAtt
         stencilReferenceValue = (mas.stencilReference & ~LightmapStencilMask);
     }
 
-    mas.flags = (stencilReferenceValue != 0) ? (mas.flags | MAF_STENCIL_TEST) : (mas.flags & ~MAF_STENCIL_TEST);
+    mas.flags = (stencilReferenceValue != 0) ? (mas.flags | MaterialAttributeFlags::StencilTest) : (mas.flags & ~MaterialAttributeFlags::StencilTest);
     mas.stencilReference = stencilReferenceValue;
 
     ShaderPropertySet& shaderProperties = mas.shaderProperties;
@@ -399,7 +399,7 @@ static inline bool ShouldIncludeInPrepass(
     const MaterialAttributes& mas = meshProxy.attributes.GetMaterialAttributes();
     const RenderBucket bucket = mas.bucket;
 
-    if (!(mas.flags & MAF_DEPTH_WRITE))
+    if (!(mas.flags & MaterialAttributeFlags::DepthWrite))
     {
         return false;
     }
@@ -1227,7 +1227,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
     size_t cbufferSize = 0;
     size_t cbufferOffset = 0;
 
-    bool isDepthWriteEnabled = bool(mas.flags & MAF_DEPTH_WRITE);
+    bool isDepthWriteEnabled = bool(mas.flags & MaterialAttributeFlags::DepthWrite);
 
     // Helper lambda to handle depth prepass logic. Returns true if the draw should be skipped.
     auto handleDepthPrepass = [&](const RenderProxyMesh& meshProxy) -> bool
@@ -1259,7 +1259,7 @@ static void RenderAll(Frame* frame, const TPerformRenderingPayload<TCommandRecor
             else
             {
                 // we need to set depth write based on the mesh proxy's depth write flag
-                shouldEnableDepthWrite = bool(mas.flags & MAF_DEPTH_WRITE);
+                shouldEnableDepthWrite = bool(mas.flags & MaterialAttributeFlags::DepthWrite);
             }
 
             if (shouldEnableDepthWrite != isDepthWriteEnabled)
@@ -1540,16 +1540,16 @@ static void PerformRenderingImpl(Frame* frame, const TPerformRenderingPayload<TC
 
     cr << SetCurrentBlendFunction(mas.blendFunction);
 
-    cr << SetDepthTest(bool(mas.flags & MAF_DEPTH_TEST));
-    cr << SetDepthClamp(bool(mas.flags & MAF_DEPTH_CLAMP));
-    cr << SetDepthWrite(bool(mas.flags & MAF_DEPTH_WRITE));
+    cr << SetDepthTest(bool(mas.flags & MaterialAttributeFlags::DepthTest));
+    cr << SetDepthClamp(bool(mas.flags & MaterialAttributeFlags::DepthClamp));
+    cr << SetDepthWrite(bool(mas.flags & MaterialAttributeFlags::DepthWrite));
 
-    if (mas.flags & MAF_DEPTH_BIAS)
+    if (mas.flags & MaterialAttributeFlags::DepthBias)
     {
         cr << SetDepthBias(mas.depthBias, mas.depthBiasSlope);
     }
 
-    cr << SetStencilTest(bool(mas.flags & MAF_STENCIL_TEST));
+    cr << SetStencilTest(bool(mas.flags & MaterialAttributeFlags::StencilTest));
     cr << SetStencilFunction(mas.stencilFunction);
 
     if (stencilReference != 0)

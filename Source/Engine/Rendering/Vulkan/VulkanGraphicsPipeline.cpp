@@ -162,25 +162,25 @@ void VulkanGraphicsPipeline::UpdateDynamicStates(VulkanCommandBuffer* commandBuf
 
     if (m_dynamicStates.Contains(VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE))
     {
-        if (!onlyChanged || bool(RI.state.attributes.GetMaterialAttributes().flags & MAF_DEPTH_TEST) != m_depthTest)
+        if (!onlyChanged || bool(RI.state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthTest) != m_depthTest)
         {
             RI.dynamicFunctions.vkCmdSetDepthTestEnableEXT(
                 commandBuffer->GetVulkanHandle(),
-                bool(RI.state.attributes.GetMaterialAttributes().flags & MAF_DEPTH_TEST) ? VK_TRUE : VK_FALSE);
+                bool(RI.state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthTest) ? VK_TRUE : VK_FALSE);
 
-            m_depthTest = bool(RI.state.attributes.GetMaterialAttributes().flags & MAF_DEPTH_TEST);
+            m_depthTest = bool(RI.state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthTest);
         }
     }
 
     if (m_dynamicStates.Contains(VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE))
     {
-        if (!onlyChanged || bool(RI.state.attributes.GetMaterialAttributes().flags & MAF_DEPTH_WRITE) != m_depthWrite)
+        if (!onlyChanged || bool(RI.state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthWrite) != m_depthWrite)
         {
             RI.dynamicFunctions.vkCmdSetDepthWriteEnableEXT(
                 commandBuffer->GetVulkanHandle(),
-                bool(RI.state.attributes.GetMaterialAttributes().flags & MAF_DEPTH_WRITE) ? VK_TRUE : VK_FALSE);
+                bool(RI.state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthWrite) ? VK_TRUE : VK_FALSE);
 
-            m_depthWrite = bool(RI.state.attributes.GetMaterialAttributes().flags & MAF_DEPTH_WRITE);
+            m_depthWrite = bool(RI.state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthWrite);
         }
     }
 

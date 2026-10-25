@@ -497,7 +497,7 @@ const TerrainGroundCoverResources::CoverMaterial& TerrainGroundCoverResources::G
     coverMaterial.materialNoShadows->SetName(NAME_FMT("{}_NoShadows", coverMaterial.material->GetName()));
 
     MaterialAttributes attributes = coverMaterial.materialNoShadows->GetAttributes();
-    attributes.flags |= MAF_DISABLE_SHADOW_CASTING;
+    attributes.flags |= MaterialAttributeFlags::DisableShadowCasting;
     coverMaterial.materialNoShadows->SetAttributes(attributes);
 
     InitObject(coverMaterial.materialNoShadows);

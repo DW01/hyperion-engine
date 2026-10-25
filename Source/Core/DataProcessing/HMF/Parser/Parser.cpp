@@ -28,10 +28,55 @@
 #include <Core/Utilities/Uuid.hpp>
 #include <Core/Utilities/DeferredScope.hpp>
 
+#include <cctype>
 #include <cstdlib>
 #include <algorithm>
 
 namespace Hyperion::DataProcessing::HMF {
+
+namespace /* Helpers */ {
+
+bool TryResolveEnumMemberName(const Class* enumClass, const String& name, BoxedValue& outValue)
+{
+    if (StaticField* staticField = enumClass->GetStaticField(StringHash(name)))
+    {
+        outValue = staticField->Get();
+
+        // NOT strict, we want to check if it is 'a' numeric type.
+        if (outValue.Is<uint64>(/* strict */ false))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/// Converts a SCREAMING_SNAKE_CASE name, starting at index \p start, to TitleCase (e.g. DEPTH_WRITE -> DepthWrite)
+String LegacyEnumNameToTitleCase(const String& name, size_t start)
+{
+    String result;
+    bool atWordStart = true;
+
+    for (size_t i = start; i < name.Size(); ++i)
+    {
+        const char ch = char(name.GetChar(i));
+
+        if (ch == '_')
+        {
+            atWordStart = true;
+
+            continue;
+        }
+
+        result += char(atWordStart ? std::toupper(ch) : std::tolower(ch));
+        atWordStart = false;
+    }
+
+    return result;
+}
+
+} // namespace
 
 Parser::Parser(
     TokenStream* tokenStream,
@@ -838,12 +883,30 @@ bool Parser::ResolveEnumName(const Class* enumClass, const String& name, BoxedVa
         return false;
     }
 
-    if (StaticField* staticField = enumClass->GetStaticField(StringHash(name)))
+    if (TryResolveEnumMemberName(enumClass, name, outValue))
     {
-        outValue = staticField->Get();
+        return true;
+    }
 
-        // NOT strict, we want to check if it is 'a' numeric type.
-        if (outValue.Is<uint64>(/* strict */ false))
+    // Backward compatibility:
+    // HMF files written before enum members were renamed to TitleCase use SCREAMING_SNAKE_CASE names,
+    // optionally with a leading prefix segment (e.g. MAF_DEPTH_WRITE).
+    //
+    // Try each underscore-delimited suffix (and the full name) as a TitleCase member name.
+
+    if (name != name.ToUpper() || !name.Contains('_'))
+    {
+        return false;
+    }
+
+    for (size_t start = 0; start < name.Size(); ++start)
+    {
+        if (start != 0 && name.GetChar(start - 1) != '_')
+        {
+            continue;
+        }
+
+        if (TryResolveEnumMemberName(enumClass, LegacyEnumNameToTitleCase(name, start), outValue))
         {
             return true;
         }

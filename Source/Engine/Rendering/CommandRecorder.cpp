@@ -977,21 +977,21 @@ void TCommandRecorder<RenderAllocator>::Execute(CommandBuffer* commandBuffer, bo
 
                 if (cmd->depthWrite)
                 {
-                    if (RI.state.attributes.GetMaterialAttributes().flags & MAF_DEPTH_WRITE)
+                    if (RI.state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthWrite)
                     {
                         break;
                     }
 
-                    RI.state.attributes.GetMaterialAttributes().flags |= MAF_DEPTH_WRITE;
+                    RI.state.attributes.GetMaterialAttributes().flags |= MaterialAttributeFlags::DepthWrite;
                 }
                 else
                 {
-                    if (!(RI.state.attributes.GetMaterialAttributes().flags & MAF_DEPTH_WRITE))
+                    if (!(RI.state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthWrite))
                     {
                         break;
                     }
 
-                    RI.state.attributes.GetMaterialAttributes().flags &= ~MAF_DEPTH_WRITE;
+                    RI.state.attributes.GetMaterialAttributes().flags &= ~MaterialAttributeFlags::DepthWrite;
                 }
 
                 static_assert(std::is_trivially_destructible_v<SetDepthWrite>);
@@ -1003,21 +1003,21 @@ void TCommandRecorder<RenderAllocator>::Execute(CommandBuffer* commandBuffer, bo
 
                 if (cmd->depthTest)
                 {
-                    if (RI.state.attributes.GetMaterialAttributes().flags & MAF_DEPTH_TEST)
+                    if (RI.state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthTest)
                     {
                         break;
                     }
 
-                    RI.state.attributes.GetMaterialAttributes().flags |= MAF_DEPTH_TEST;
+                    RI.state.attributes.GetMaterialAttributes().flags |= MaterialAttributeFlags::DepthTest;
                 }
                 else
                 {
-                    if (!(RI.state.attributes.GetMaterialAttributes().flags & MAF_DEPTH_TEST))
+                    if (!(RI.state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthTest))
                     {
                         break;
                     }
 
-                    RI.state.attributes.GetMaterialAttributes().flags &= ~MAF_DEPTH_TEST;
+                    RI.state.attributes.GetMaterialAttributes().flags &= ~MaterialAttributeFlags::DepthTest;
                 }
 
                 static_assert(std::is_trivially_destructible_v<SetDepthTest>);
@@ -1046,25 +1046,25 @@ void TCommandRecorder<RenderAllocator>::Execute(CommandBuffer* commandBuffer, bo
 
                 if (enableDepthBias)
                 {
-                    if ((state.attributes.GetMaterialAttributes().flags & MAF_DEPTH_BIAS)
+                    if ((state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthBias)
                         && state.attributes.GetMaterialAttributes().depthBias == cmd->depthBias
                         && MathUtil::ApproxEqual(state.attributes.GetMaterialAttributes().depthBiasSlope, cmd->depthBiasSlope))
                     {
                         break;
                     }
 
-                    state.attributes.GetMaterialAttributes().flags |= MAF_DEPTH_BIAS;
+                    state.attributes.GetMaterialAttributes().flags |= MaterialAttributeFlags::DepthBias;
                     state.attributes.GetMaterialAttributes().depthBias = cmd->depthBias;
                     state.attributes.GetMaterialAttributes().depthBiasSlope = cmd->depthBiasSlope;
                 }
                 else
                 {
-                    if (!(state.attributes.GetMaterialAttributes().flags & MAF_DEPTH_BIAS))
+                    if (!(state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthBias))
                     {
                         break;
                     }
 
-                    state.attributes.GetMaterialAttributes().flags &= ~MAF_DEPTH_BIAS;
+                    state.attributes.GetMaterialAttributes().flags &= ~MaterialAttributeFlags::DepthBias;
                 }
 
                 static_assert(std::is_trivially_destructible_v<SetDepthBias>);
@@ -1076,21 +1076,21 @@ void TCommandRecorder<RenderAllocator>::Execute(CommandBuffer* commandBuffer, bo
 
                 if (cmd->depthClamp)
                 {
-                    if (RI.state.attributes.GetMaterialAttributes().flags & MAF_DEPTH_CLAMP)
+                    if (RI.state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthClamp)
                     {
                         break;
                     }
 
-                    RI.state.attributes.GetMaterialAttributes().flags |= MAF_DEPTH_CLAMP;
+                    RI.state.attributes.GetMaterialAttributes().flags |= MaterialAttributeFlags::DepthClamp;
                 }
                 else
                 {
-                    if (!(RI.state.attributes.GetMaterialAttributes().flags & MAF_DEPTH_CLAMP))
+                    if (!(RI.state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthClamp))
                     {
                         break;
                     }
 
-                    RI.state.attributes.GetMaterialAttributes().flags &= ~MAF_DEPTH_CLAMP;
+                    RI.state.attributes.GetMaterialAttributes().flags &= ~MaterialAttributeFlags::DepthClamp;
                 }
 
                 static_assert(std::is_trivially_destructible_v<SetDepthClamp>);
@@ -1102,21 +1102,21 @@ void TCommandRecorder<RenderAllocator>::Execute(CommandBuffer* commandBuffer, bo
 
                 if (cmd->stencilTest)
                 {
-                    if (RI.state.attributes.GetMaterialAttributes().flags & MAF_STENCIL_TEST)
+                    if (RI.state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::StencilTest)
                     {
                         break;
                     }
 
-                    RI.state.attributes.GetMaterialAttributes().flags |= MAF_STENCIL_TEST;
+                    RI.state.attributes.GetMaterialAttributes().flags |= MaterialAttributeFlags::StencilTest;
                 }
                 else
                 {
-                    if (!(RI.state.attributes.GetMaterialAttributes().flags & MAF_STENCIL_TEST))
+                    if (!(RI.state.attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::StencilTest))
                     {
                         break;
                     }
 
-                    RI.state.attributes.GetMaterialAttributes().flags &= ~MAF_STENCIL_TEST;
+                    RI.state.attributes.GetMaterialAttributes().flags &= ~MaterialAttributeFlags::StencilTest;
                 }
 
                 static_assert(std::is_trivially_destructible_v<SetStencilTest>);

@@ -162,7 +162,7 @@ RenderableAttributeSet MakeProbeBlockDebugAttributes()
     materialAttributes.fillMode = FillMode::Line;
     materialAttributes.cullFaces = FaceCullMode::None;
     materialAttributes.blendFunction = BlendFunction::None();
-    materialAttributes.flags = MAF_DEPTH_TEST | MAF_DEPTH_WRITE;
+    materialAttributes.flags = MaterialAttributeFlags::DepthTest | MaterialAttributeFlags::DepthWrite;
 
     return attributes;
 }

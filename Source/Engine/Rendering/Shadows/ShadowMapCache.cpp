@@ -233,7 +233,7 @@ static ViewDesc GetViewDesc(
     MaterialAttributes materialAttributes {};
     materialAttributes.shaderName = shaderDesc.name;
     materialAttributes.shaderProperties = shaderDesc.properties;
-    materialAttributes.flags = MAF_DEPTH_WRITE | MAF_DEPTH_TEST | MAF_DEPTH_BIAS | MAF_DEPTH_CLAMP;
+    materialAttributes.flags = MaterialAttributeFlags::DepthWrite | MaterialAttributeFlags::DepthTest | MaterialAttributeFlags::DepthBias | MaterialAttributeFlags::DepthClamp;
     materialAttributes.depthBias = int32(MathUtil::Round(depthBiasScaled));
     materialAttributes.depthBiasSlope = 2.0f;
     materialAttributes.cullFaces = FaceCullMode::Back;

@@ -131,7 +131,7 @@ void ShadowMapCaptureState::Begin()
     const float depthBias = isDirectional ? g_cvShadowDepthBiasDirectional.Get() : g_cvShadowDepthBias.Get();
     const float depthRange = farClip - m_camera->GetNearClip();
 
-    materialAttributes.flags = MAF_DEPTH_WRITE | MAF_DEPTH_TEST | MAF_DEPTH_BIAS | MAF_DEPTH_CLAMP;
+    materialAttributes.flags = MaterialAttributeFlags::DepthWrite | MaterialAttributeFlags::DepthTest | MaterialAttributeFlags::DepthBias | MaterialAttributeFlags::DepthClamp;
     materialAttributes.depthBias = int32(MathUtil::Round(depthBias * depthRange));
     materialAttributes.depthBiasSlope = 2.0f;
     materialAttributes.cullFaces = FaceCullMode::Back;

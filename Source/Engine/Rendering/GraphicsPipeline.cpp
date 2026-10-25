@@ -104,19 +104,19 @@ bool GraphicsPipelineBase::MatchesSignature(
     if (materialAttributes.blendFunction != m_blendFunction
         || materialAttributes.cullFaces != m_faceCullMode
         || materialAttributes.fillMode != m_fillMode
-        || bool(materialAttributes.flags & MAF_DEPTH_CLAMP) != m_depthClamp)
+        || bool(materialAttributes.flags & MaterialAttributeFlags::DepthClamp) != m_depthClamp)
     {
         return false;
     }
 
     if (!canDynamicallySetDepthState)
     {
-        if (bool(materialAttributes.flags & MAF_DEPTH_WRITE) != m_depthWrite)
+        if (bool(materialAttributes.flags & MaterialAttributeFlags::DepthWrite) != m_depthWrite)
         {
             return false;
         }
 
-        if (bool(materialAttributes.flags & MAF_DEPTH_TEST) != m_depthTest)
+        if (bool(materialAttributes.flags & MaterialAttributeFlags::DepthTest) != m_depthTest)
         {
             return false;
         }
@@ -127,7 +127,7 @@ bool GraphicsPipelineBase::MatchesSignature(
         }
     }
 
-    if (materialAttributes.flags & MAF_DEPTH_BIAS)
+    if (materialAttributes.flags & MaterialAttributeFlags::DepthBias)
     {
         if (m_depthBias != materialAttributes.depthBias || !MathUtil::ApproxEqual(m_depthBiasSlope, materialAttributes.depthBiasSlope))
         {
@@ -142,7 +142,7 @@ bool GraphicsPipelineBase::MatchesSignature(
         }
     }
 
-    if (materialAttributes.flags & MAF_STENCIL_TEST)
+    if (materialAttributes.flags & MaterialAttributeFlags::StencilTest)
     {
         if (!m_stencilFunction.HasValue())
         {

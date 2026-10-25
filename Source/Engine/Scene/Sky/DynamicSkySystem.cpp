@@ -126,7 +126,7 @@ void DynamicSkySystem::InitializeSky()
         materialAttributes.blendFunction = BlendFunction::None();
 
         // enable depth test but not write. we want skybox to be behind everything else, but rendered last to avoid overdraw.
-        materialAttributes.flags = MAF_DEPTH_TEST;
+        materialAttributes.flags = MaterialAttributeFlags::DepthTest;
 
         m_visScene = MakeHandle<Scene>(NAME("SkyVisScene"), SceneFlags::FOREGROUND | SceneFlags::BACKDROP);
         m_visScene->SetIsTransient(true); // don't save; it's generated at runtime
@@ -204,7 +204,7 @@ void DynamicSkySystem::InitializeSky()
             // depth only, and two sided so canopy cards block the sky from either side
             MaterialAttributes materialAttributes {};
             materialAttributes.shaderName = NAME("DrawShadowMap");
-            materialAttributes.flags = MAF_DEPTH_WRITE | MAF_DEPTH_TEST;
+            materialAttributes.flags = MaterialAttributeFlags::DepthWrite | MaterialAttributeFlags::DepthTest;
             materialAttributes.cullFaces = FaceCullMode::None;
 
             skyVisibilityViewDesc.overrideAttributes = RenderableAttributeSet(MeshAttributes(), materialAttributes);

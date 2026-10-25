@@ -201,7 +201,7 @@ RenderableAttributeSet PhysicsWireframeAttributes()
     materialAttributes.bucket = RenderBucket::Debug;
     materialAttributes.fillMode = FillMode::Line;
     materialAttributes.blendFunction = BlendFunction::None();
-    materialAttributes.flags = MAF_DEPTH_TEST;
+    materialAttributes.flags = MaterialAttributeFlags::DepthTest;
 
     return attributes;
 }
@@ -1828,7 +1828,7 @@ static RenderableAttributeSet MeshEditOverlayAttributes(FillMode fillMode)
     materialAttributes.bucket = RenderBucket::Debug;
     materialAttributes.fillMode = fillMode;
     materialAttributes.blendFunction = BlendFunction::AlphaBlending();
-    materialAttributes.flags = MAF_NONE;
+    materialAttributes.flags = MaterialAttributeFlags::None;
 
     return attributes;
 }
@@ -5518,7 +5518,7 @@ void EditorSubsystem::NewProject()
     Handle<EditorProject> project = EditorProject::CreateNew();
     Assert(project.IsValid() && project->GetWorld().IsValid());
 
-    PopulateNewWorld(
+    EditorHelpers::PopulateNewWorld(
         *project->GetWorld(),
         project->GetGame()->GetAssetRegistry(),
         NAME("MainScene"));
@@ -5549,7 +5549,7 @@ Handle<World> EditorSubsystem::NewWorldAsset(Name worldName)
     // Left uninitialized, like a World freshly loaded from disk - OpenWorld() initializes it
     Handle<World> world = MakeHandle<World>(worldName, WorldFlags::Default);
 
-    PopulateNewWorld(world.Get(), assetRegistry, NAME_FMT("{}Scene", worldName));
+    EditorHelpers::PopulateNewWorld(*world, assetRegistry, NAME_FMT("{}Scene", worldName));
 
     assetRegistry->PutAssetsDeep(world);
 

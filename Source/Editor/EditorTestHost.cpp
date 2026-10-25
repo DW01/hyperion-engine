@@ -6,6 +6,7 @@
 
 #include <EditorPch.hpp>
 
+#include <Editor/EditorHelpers.hpp>
 #include <Editor/EditorNativeModule.hpp>
 #include <Editor/EditorProject.hpp>
 #include <Editor/EditorProjectLayout.hpp>
@@ -108,7 +109,7 @@ HYP_EXPORT int EditorTestHost_CreateProject(const char* projectFilepath, int isM
 
     Handle<EditorProject> project = EditorProject::CreateNew();
 
-    PopulateNewWorld(project->GetWorld().Get(), project->GetGame()->GetAssetRegistry(), NAME("MainScene"));
+    EditorHelpers::PopulateNewWorld(*project->GetWorld(), project->GetGame()->GetAssetRegistry(), NAME("MainScene"));
 
     if (Result saveResult = project->SaveAs(FilePath(projectFilepath)); saveResult.HasError())
     {

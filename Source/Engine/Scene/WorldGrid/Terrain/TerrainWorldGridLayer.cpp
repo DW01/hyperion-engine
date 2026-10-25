@@ -330,7 +330,7 @@ MaterialAttributes TerrainWorldGridLayer::GetTerrainMaterialAttributes()
     MaterialAttributes attributes;
     attributes.shaderName = NAME("Terrain");
     attributes.bucket = RenderBucket::Opaque;
-    attributes.flags |= MAF_DEPTH_TEST | MAF_DEPTH_WRITE;
+    attributes.flags |= MaterialAttributeFlags::DepthTest | MaterialAttributeFlags::DepthWrite;
 
     return attributes;
 }

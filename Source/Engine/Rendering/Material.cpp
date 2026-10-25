@@ -99,7 +99,7 @@ Material::Material(Name name, RenderBucket rb)
           .fillMode = FillMode::Fill,
           .blendFunction = BlendFunction::None(),
           .cullFaces = FaceCullMode::Back,
-          .flags = MAF_DEPTH_WRITE | MAF_DEPTH_TEST
+          .flags = MaterialAttributeFlags::DepthWrite | MaterialAttributeFlags::DepthTest
       },
       m_isDynamic(false),
       m_renderProxyVersion(0)

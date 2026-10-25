@@ -791,7 +791,7 @@ static RenderableAttributeSet TerrainCursorDrawAttributes()
     materialAttributes.fillMode = FillMode::Fill;
     materialAttributes.blendFunction = BlendFunction::None();
     materialAttributes.cullFaces = FaceCullMode::None;
-    materialAttributes.flags = MAF_DEPTH_TEST;
+    materialAttributes.flags = MaterialAttributeFlags::DepthTest;
 
     return attributes;
 }

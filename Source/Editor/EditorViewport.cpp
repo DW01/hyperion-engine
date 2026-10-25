@@ -59,7 +59,7 @@ RenderableAttributeSet GetWireframeOverrideAttributes()
     materialAttributes.fillMode = FillMode::Line;
     materialAttributes.cullFaces = FaceCullMode::None;
     materialAttributes.blendFunction = BlendFunction::None();
-    materialAttributes.flags = MAF_NONE;
+    materialAttributes.flags = MaterialAttributeFlags::None;
 
     return RenderableAttributeSet(MeshAttributes {}, materialAttributes);
 }

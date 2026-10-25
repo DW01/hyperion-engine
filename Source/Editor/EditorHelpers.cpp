@@ -24,6 +24,22 @@
 
 #include <Util/Img/WritePng.hpp>
 
+#include <Editor/EditorPlayerSetup.hpp>
+
+#include <Scene/Scene.hpp>
+#include <Scene/World.hpp>
+#include <Scene/Entity.hpp>
+#include <Scene/EntityManager.hpp>
+#include <Scene/EntityTag.hpp>
+#include <Scene/Light/Light.hpp>
+#include <Scene/Sky/DynamicSkySystem.hpp>
+
+#include <Physics/PhysicsShape.hpp>
+
+#include <Asset/AssetRegistry.hpp>
+
+#include <Core/Utilities/GlobalContext.hpp>
+
 namespace Hyperion {
 
 HYP_DECLARE_LOG_CHANNEL(Editor);
@@ -179,7 +195,7 @@ EDITOR_API void PopulateNewWorld(
         player.playerEntity->AddTag<EntityTag::Player>();
     }
 
-    world->AddSystemT<DynamicSkySystem>();
+    world.AddSystemT<DynamicSkySystem>();
 }
 
 } // namespace EditorHelpers

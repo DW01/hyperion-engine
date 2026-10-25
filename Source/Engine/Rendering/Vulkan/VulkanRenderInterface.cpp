@@ -1350,18 +1350,18 @@ VulkanGraphicsPipelineRef VulkanRenderInterface::MakeGraphicsPipeline(
     pipeline->SetFillMode(attributes.GetMaterialAttributes().fillMode);
     pipeline->SetBlendFunction(attributes.GetMaterialAttributes().blendFunction);
 
-    pipeline->SetDepthTest(bool(attributes.GetMaterialAttributes().flags & MAF_DEPTH_TEST));
-    pipeline->SetDepthWrite(bool(attributes.GetMaterialAttributes().flags & MAF_DEPTH_WRITE));
+    pipeline->SetDepthTest(bool(attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthTest));
+    pipeline->SetDepthWrite(bool(attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthWrite));
     pipeline->SetDepthCompareOp(attributes.GetMaterialAttributes().depthCompareOp);
-    pipeline->SetDepthClamp(bool(attributes.GetMaterialAttributes().flags & MAF_DEPTH_CLAMP));
+    pipeline->SetDepthClamp(bool(attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthClamp));
 
-    if (attributes.GetMaterialAttributes().flags & MAF_DEPTH_BIAS)
+    if (attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthBias)
     {
         pipeline->SetDepthBias(attributes.GetMaterialAttributes().depthBias);
         pipeline->SetDepthBiasSlope(attributes.GetMaterialAttributes().depthBiasSlope);
     }
 
-    if (attributes.GetMaterialAttributes().flags & MAF_STENCIL_TEST)
+    if (attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::StencilTest)
     {
         pipeline->SetStencilFunction(attributes.GetMaterialAttributes().stencilFunction);
         pipeline->SetStencilWriteMask(stencilWriteMask);

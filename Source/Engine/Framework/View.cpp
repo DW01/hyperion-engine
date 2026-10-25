@@ -1091,7 +1091,7 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
                     }
 
                     if (!meshComponent.mesh || !meshComponent.material
-                        || (IsShadowCasterView() && (meshComponent.material->GetAttributes().flags & MAF_DISABLE_SHADOW_CASTING))
+                        || (IsShadowCasterView() && (meshComponent.material->GetAttributes().flags & MaterialAttributeFlags::DisableShadowCasting))
                         || IsMaterialExcludedFromView(flags, meshComponent.material.Get()))
                     {
                         continue;
@@ -1166,7 +1166,7 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
                     }
 
                     if (!meshComponent.mesh || !meshComponent.material
-                        || (IsShadowCasterView() && (meshComponent.material->GetAttributes().flags & MAF_DISABLE_SHADOW_CASTING))
+                        || (IsShadowCasterView() && (meshComponent.material->GetAttributes().flags & MaterialAttributeFlags::DisableShadowCasting))
                         || IsMaterialExcludedFromView(flags, meshComponent.material.Get()))
                     {
                         continue;
@@ -1223,7 +1223,7 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
                     }
 
                     if (!meshComponent.mesh || !meshComponent.material
-                        || (IsShadowCasterView() && (meshComponent.material->GetAttributes().flags & MAF_DISABLE_SHADOW_CASTING))
+                        || (IsShadowCasterView() && (meshComponent.material->GetAttributes().flags & MaterialAttributeFlags::DisableShadowCasting))
                         || IsMaterialExcludedFromView(flags, meshComponent.material.Get())
                         || (desc.splitStaticAnimatedMeshes && IsWindAnimatedMesh(meshComponent.mesh) != collectOnlyAnimatedStatics))
                     {
@@ -1299,7 +1299,7 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
                     }
 
                     if (!meshComponent.mesh || !meshComponent.material
-                        || (IsShadowCasterView() && (meshComponent.material->GetAttributes().flags & MAF_DISABLE_SHADOW_CASTING))
+                        || (IsShadowCasterView() && (meshComponent.material->GetAttributes().flags & MaterialAttributeFlags::DisableShadowCasting))
                         || IsMaterialExcludedFromView(flags, meshComponent.material.Get())
                         || (desc.splitStaticAnimatedMeshes && IsWindAnimatedMesh(meshComponent.mesh) != collectOnlyAnimatedStatics))
                     {
@@ -1357,7 +1357,7 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
                     }
 
                     if (!meshComponent.mesh || !meshComponent.material
-                        || (IsShadowCasterView() && (meshComponent.material->GetAttributes().flags & MAF_DISABLE_SHADOW_CASTING))
+                        || (IsShadowCasterView() && (meshComponent.material->GetAttributes().flags & MaterialAttributeFlags::DisableShadowCasting))
                         || IsMaterialExcludedFromView(flags, meshComponent.material.Get()))
                     {
                         continue;
@@ -1432,7 +1432,7 @@ void View::CollectMeshEntities(RenderProxyList& rpl)
                     }
 
                     if (!meshComponent.mesh || !meshComponent.material
-                        || (IsShadowCasterView() && (meshComponent.material->GetAttributes().flags & MAF_DISABLE_SHADOW_CASTING))
+                        || (IsShadowCasterView() && (meshComponent.material->GetAttributes().flags & MaterialAttributeFlags::DisableShadowCasting))
                         || IsMaterialExcludedFromView(flags, meshComponent.material.Get()))
                     {
                         continue;

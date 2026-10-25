@@ -63,7 +63,7 @@ RenderableAttributeSet CursorDrawAttributes()
     materialAttributes.bucket = RenderBucket::Debug;
     materialAttributes.fillMode = FillMode::Line;
     materialAttributes.blendFunction = BlendFunction::None();
-    materialAttributes.flags = MAF_DEPTH_TEST;
+    materialAttributes.flags = MaterialAttributeFlags::DepthTest;
 
     return attributes;
 }

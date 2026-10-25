@@ -23,7 +23,7 @@ Material VolumeFace_2 {
             DstAlpha = One
         }
         FaceCullMode = None
-        Flags = MAF_DEPTH_WRITE|MAF_DEPTH_TEST
+        Flags = DepthWrite|DepthTest
         StencilFunction = {
             PassOp = Replace
             FailOp = Keep

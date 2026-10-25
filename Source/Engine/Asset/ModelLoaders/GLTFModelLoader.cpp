@@ -1553,7 +1553,7 @@ GltfMaterialEntry BuildMaterialEntry(LoaderState& state, GltfLoadContext& ctx, c
         translucentBlendFunction = BlendFunction::AlphaBlending();
         break;
     case cgltf_alpha_mode_mask:
-        materialAttributes.flags |= MAF_ALPHA_DISCARD;
+        materialAttributes.flags |= MaterialAttributeFlags::AlphaDiscard;
         break;
     default:
         break;
@@ -1578,7 +1578,7 @@ GltfMaterialEntry BuildMaterialEntry(LoaderState& state, GltfLoadContext& ctx, c
         // unblended transmission replaces what's behind it (it refracts the opaque mip chain), so it keeps depth like an opaque surface
         if (*translucentBlendFunction != BlendFunction::None())
         {
-            materialAttributes.flags &= ~MAF_DEPTH_WRITE;
+            materialAttributes.flags &= ~MaterialAttributeFlags::DepthWrite;
         }
     }
 

@@ -281,7 +281,7 @@ static void BuildVolumeGizmo(Handle<AssetRegistry>& assetRegistry)
     materialAttributes.bucket = RenderBucket::Debug;
     materialAttributes.blendFunction = BlendFunction::Additive();
     materialAttributes.cullFaces = FaceCullMode::None;
-    materialAttributes.flags = MAF_DEPTH_WRITE | MAF_DEPTH_TEST;
+    materialAttributes.flags = MaterialAttributeFlags::DepthWrite | MaterialAttributeFlags::DepthTest;
 
     MaterialParameters materialParameters;
     materialParameters.albedo = volumeColor;

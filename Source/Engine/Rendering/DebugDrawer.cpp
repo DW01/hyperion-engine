@@ -73,7 +73,8 @@ static RenderableAttributeSet DefaultAttributes()
     materialAttributes.bucket = RenderBucket::Debug;
     materialAttributes.fillMode = FillMode::Fill;
     materialAttributes.blendFunction = BlendFunction::None();
-    materialAttributes.flags = MAF_DEPTH_TEST | MAF_DEPTH_WRITE;
+    materialAttributes.flags = MaterialAttributeFlags::DepthTest
+                             | MaterialAttributeFlags::DepthWrite;
 
     return attributes;
 }
@@ -1316,9 +1317,9 @@ void DebugDrawer::Render(Frame* frame, const RenderSetup& renderSetup)
                     cr << SetCurrentBlendFunction(attributes.GetMaterialAttributes().blendFunction);
                     cr << SetFaceCullMode(attributes.GetMaterialAttributes().cullFaces);
                     cr << SetFillMode(attributes.GetMaterialAttributes().fillMode);
-                    cr << SetDepthTest(bool(attributes.GetMaterialAttributes().flags & MAF_DEPTH_TEST));
-                    cr << SetDepthWrite(bool(attributes.GetMaterialAttributes().flags & MAF_DEPTH_WRITE));
-                    cr << SetStencilTest(bool(attributes.GetMaterialAttributes().flags & MAF_STENCIL_TEST));
+                    cr << SetDepthTest(bool(attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthTest));
+                    cr << SetDepthWrite(bool(attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthWrite));
+                    cr << SetStencilTest(bool(attributes.GetMaterialAttributes().flags & MaterialAttributeFlags::StencilTest));
                     cr << SetStencilFunction(attributes.GetMaterialAttributes().stencilFunction);
 
                     GpuBuffer* cbuffer = nullptr;

@@ -529,7 +529,7 @@ void GlimmerSceneInstances::Gather(RenderProxyList& rpl, const BoundingBox& regi
             flags |= GIF_DOUBLE_SIDED;
         }
 
-        if (materialAttributes.flags & MAF_ALPHA_DISCARD)
+        if (materialAttributes.flags & MaterialAttributeFlags::AlphaDiscard)
         {
             flags |= GIF_ALPHA_TESTED;
         }

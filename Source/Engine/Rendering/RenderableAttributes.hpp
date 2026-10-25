@@ -22,16 +22,16 @@ namespace Hyperion {
 enum class ShaderCacheId : uint64;
 
 HYP_ENUM()
-enum MaterialAttributeFlags : uint8
+enum class MaterialAttributeFlags : uint8
 {
-    MAF_NONE = 0x0,             //!< @editor=false
-    MAF_DEPTH_WRITE = 0x1,      //!< @title="Depth Write" @description="Enable depth write for objects with this material"
-    MAF_DEPTH_TEST = 0x2,       //!< @title="Depth Test" @description="Enable depth testing for objects with this material"
-    MAF_DEPTH_BIAS = 0x4,       //!< @title="Depth Bias" @description="Enable depth bias settings"
-    MAF_DEPTH_CLAMP = 0x8,      //!< @title="Depth Clamp" @description="Depth clamp enablement - objects with depth outside of the 0..1 range will be clamped at those values respectively, rather than clipped."
-    MAF_STENCIL_TEST = 0x10,    //!< @title="Stencil Test" @description="Enable objects with this material to be used in stencil test"
-    MAF_ALPHA_DISCARD = 0x20,   //!< @title="Has Alpha Discard" @description="Objects with this material will have pixels culled, where they have an opacity below a specified threshold (set on the Material object)"
-    MAF_DISABLE_SHADOW_CASTING = 0x40 //!< @title="Disable Shadow Casting" @description="Objects with this material are left out of shadow maps and the sky visibility capture - for small or distant detail whose shadows cost more than they show"
+    None = 0x0,                 //!< @editor=false
+    DepthWrite = 0x1,           //!< @title="Depth Write" @description="Enable depth write for objects with this material"
+    DepthTest = 0x2,            //!< @title="Depth Test" @description="Enable depth testing for objects with this material"
+    DepthBias = 0x4,            //!< @title="Depth Bias" @description="Enable depth bias settings"
+    DepthClamp = 0x8,           //!< @title="Depth Clamp" @description="Depth clamp enablement - objects with depth outside of the 0..1 range will be clamped at those values respectively, rather than clipped."
+    StencilTest = 0x10,         //!< @title="Stencil Test" @description="Enable objects with this material to be used in stencil test"
+    AlphaDiscard = 0x20,        //!< @title="Has Alpha Discard" @description="Objects with this material will have pixels culled, where they have an opacity below a specified threshold (set on the Material object)"
+    DisableShadowCasting = 0x40 //!< @title="Disable Shadow Casting" @description="Objects with this material are left out of shadow maps and the sky visibility capture - for small or distant detail whose shadows cost more than they show"
 };
 
 HYP_MAKE_ENUM_FLAGS(MaterialAttributeFlags);
@@ -62,7 +62,7 @@ struct MaterialAttributes final
     FaceCullMode cullFaces = FaceCullMode::Back;
 
     HYP_FIELD(Property = "Flags", Serialize, Editor)
-    EnumFlags<MaterialAttributeFlags> flags = MAF_DEPTH_WRITE | MAF_DEPTH_TEST;
+    EnumFlags<MaterialAttributeFlags> flags = MaterialAttributeFlags::DepthWrite | MaterialAttributeFlags::DepthTest;
 
     HYP_FIELD(Property = "StencilFunction", Serialize, Editor)
     StencilFunction stencilFunction;

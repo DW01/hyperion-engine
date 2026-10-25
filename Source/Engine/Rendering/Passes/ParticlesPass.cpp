@@ -186,7 +186,7 @@ ParticleVolumeDrawState& ParticlesPass::GetOrCreateVolumeDrawState(RenderProxyPa
     materialAttributes.bucket = RenderBucket::Translucent;
     materialAttributes.blendFunction = BlendFunction::AlphaBlending();
     materialAttributes.cullFaces = FaceCullMode::Back;
-    materialAttributes.flags = MAF_DEPTH_TEST; // depth test on, depth write off by default
+    materialAttributes.flags = MaterialAttributeFlags::DepthTest; // depth test on, depth write off by default
 
     MeshAttributes meshAttributes {};
     meshAttributes.inputLayout = { VT_Simple };
@@ -357,9 +357,9 @@ void ParticlesPass::RenderFrame(Frame* frame, const RenderSetup& renderSetup)
         cr << SetCurrentBlendFunction(state.renderableAttributes.GetMaterialAttributes().blendFunction);
         cr << SetFaceCullMode(state.renderableAttributes.GetMaterialAttributes().cullFaces);
         cr << SetFillMode(state.renderableAttributes.GetMaterialAttributes().fillMode);
-        cr << SetDepthTest(bool(state.renderableAttributes.GetMaterialAttributes().flags & MAF_DEPTH_TEST));
-        cr << SetDepthWrite(bool(state.renderableAttributes.GetMaterialAttributes().flags & MAF_DEPTH_WRITE));
-        cr << SetStencilTest(bool(state.renderableAttributes.GetMaterialAttributes().flags & MAF_STENCIL_TEST));
+        cr << SetDepthTest(bool(state.renderableAttributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthTest));
+        cr << SetDepthWrite(bool(state.renderableAttributes.GetMaterialAttributes().flags & MaterialAttributeFlags::DepthWrite));
+        cr << SetStencilTest(bool(state.renderableAttributes.GetMaterialAttributes().flags & MaterialAttributeFlags::StencilTest));
         cr << SetStencilFunction(state.renderableAttributes.GetMaterialAttributes().stencilFunction);
         cr << SetFaceCullMode(FaceCullMode::Front); // temp
 

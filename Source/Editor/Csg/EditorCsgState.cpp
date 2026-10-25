@@ -98,7 +98,7 @@ RenderableAttributeSet BrushOverlayAttributes(FillMode fillMode)
     materialAttributes.bucket = RenderBucket::Debug;
     materialAttributes.fillMode = fillMode;
     materialAttributes.blendFunction = BlendFunction::AlphaBlending();
-    materialAttributes.flags = MAF_NONE;
+    materialAttributes.flags = MaterialAttributeFlags::None;
 
     return attributes;
 }

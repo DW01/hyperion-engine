@@ -1734,6 +1734,53 @@ CameraOrthoRect {
                       GetFieldUInt64(result.GetValue(), cls, "FillMode") == uint64(FillMode::Fill));
                 Check("MA HMF: CullFaces == FaceCullMode::Back",
                       GetFieldUInt64(result.GetValue(), cls, "CullFaces") == uint64(FaceCullMode::Back));
+                Check("MA HMF (legacy MAF_ names): Flags == DepthWrite|DepthTest",
+                      GetFieldUInt64(result.GetValue(), cls, "Flags")
+                          == uint64(MaterialAttributeFlags::DepthWrite | MaterialAttributeFlags::DepthTest));
+            }
+        }
+    }
+
+    {
+        const String manifest = R"(MaterialAttributes {
+    Flags = DepthWrite|DepthTest|AlphaDiscard|DisableShadowCasting
+}
+)";
+
+        HMF::ParseResult result = HMF::Parse(manifest);
+        Check("Parse MA (TitleCase flags) from HMF succeeds", Success(result), result.GetError().GetMessage());
+
+        if (Success(result))
+        {
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
+            if (cls)
+            {
+                Check("MA HMF: Flags == DepthWrite|DepthTest|AlphaDiscard|DisableShadowCasting",
+                      GetFieldUInt64(result.GetValue(), cls, "Flags")
+                          == uint64(MaterialAttributeFlags::DepthWrite | MaterialAttributeFlags::DepthTest
+                                    | MaterialAttributeFlags::AlphaDiscard | MaterialAttributeFlags::DisableShadowCasting));
+            }
+        }
+    }
+
+    {
+        const String manifest = R"(MaterialAttributes {
+    Flags = MAF_DEPTH_TEST|MAF_STENCIL_TEST|MAF_DISABLE_SHADOW_CASTING
+}
+)";
+
+        HMF::ParseResult result = HMF::Parse(manifest);
+        Check("Parse MA (legacy flags) from HMF succeeds", Success(result), result.GetError().GetMessage());
+
+        if (Success(result))
+        {
+            const Class* cls = GetClass(result.GetValue().GetTypeId());
+            if (cls)
+            {
+                Check("MA HMF (legacy): Flags == DepthTest|StencilTest|DisableShadowCasting",
+                      GetFieldUInt64(result.GetValue(), cls, "Flags")
+                          == uint64(MaterialAttributeFlags::DepthTest | MaterialAttributeFlags::StencilTest
+                                    | MaterialAttributeFlags::DisableShadowCasting));
             }
         }
     }

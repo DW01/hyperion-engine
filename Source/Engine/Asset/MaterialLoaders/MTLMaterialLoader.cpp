@@ -493,7 +493,7 @@ Map<String, Handle<Material>> MTLMaterialLoader::ParseMtl_Internal(LoaderState& 
         MaterialAttributes attributes;
         /*attributes.blendFunction = BlendFunction::AlphaBlending();
         attributes.bucket = RenderBucket::Translucent;*/
-        attributes.flags |= MAF_ALPHA_DISCARD;
+        attributes.flags |= MaterialAttributeFlags::AlphaDiscard;
 
         MaterialParameters& parameters = item.parameters;
         parameters.alphaThreshold = 0.1f;
