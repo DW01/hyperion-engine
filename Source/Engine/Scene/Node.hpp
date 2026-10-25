@@ -45,7 +45,6 @@ class Scene;
 class Node;
 class World;
 class Entity;
-class EditorDelegates;
 
 HYP_ENUM()
 enum class TransformChangeType : uint8

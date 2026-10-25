@@ -57,7 +57,6 @@ class UIObject;
 class UIListView;
 class UIGrid;
 class FontAtlas;
-class EditorDelegates;
 class EditorSubsystem;
 class EditorProject;
 class EditorCommandBase;
@@ -771,11 +770,6 @@ public:
 
     ///
 
-    HYP_FORCE_INLINE EditorDelegates* GetEditorDelegates()
-    {
-        return m_editorDelegates;
-    }
-
     HYP_FIELD()
     ScriptableDelegate<void, Handle<Node>, Handle<Node>, bool> OnFocusedNodeChanged;
 
@@ -1056,8 +1050,6 @@ private:
         Handle<AssetObject> asset;
         WeakHandle<Node> targetNode;
     } m_assetDropState;
-
-    EditorDelegates* m_editorDelegates;
 
     ClockTimer m_bakeStatusUpdateTimer;
     Handle<MessagesOverlay> m_messagesOverlay;

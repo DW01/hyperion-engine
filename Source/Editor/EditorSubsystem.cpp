@@ -7,7 +7,6 @@
 #include <EditorPch.hpp>
 
 #include <Editor/EditorSubsystem.hpp>
-#include <Editor/EditorDelegates.hpp>
 #include <Editor/EditorCamera.hpp>
 #include <Editor/EditorTask.hpp>
 #include <Editor/EditorProject.hpp>
@@ -2409,8 +2408,6 @@ EditorSubsystem::EditorSubsystem()
       m_shouldCancelNextClick(false),
       m_pendingEditorCameraRestore(false)
 {
-    m_editorDelegates = new EditorDelegates();
-
     // Create eagerly so the managed side can always fetch it, regardless of the calling thread.
     GetTerrainState();
     GetDecalPainterState();
@@ -2464,8 +2461,6 @@ EditorSubsystem::~EditorSubsystem()
 
         m_currentProject.Reset();
     }
-
-    delete m_editorDelegates;
 }
 
 const Handle<World>& EditorSubsystem::GetProjectWorld() const
@@ -3835,8 +3830,6 @@ void EditorSubsystem::Update(float delta)
 {
     HYP_SCOPE;
     AssertOnThread(g_simThread);
-
-    m_editorDelegates->Update();
 
     UpdateGameModules(this);
 

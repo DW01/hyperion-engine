@@ -23,7 +23,6 @@
 #include <Core/Debug/Debug.hpp>
 
 #ifdef HYP_EDITOR
-#include <Editor/EditorDelegates.hpp>
 #include <Editor/EditorSubsystem.hpp>
 #include <Editor/EditorState.hpp>
 #include <Editor/EditorPickCache.hpp>

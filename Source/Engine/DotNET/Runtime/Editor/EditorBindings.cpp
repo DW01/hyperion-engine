@@ -6,8 +6,6 @@
 
 #include <HyperionPch.hpp>
 
-#include <Editor/EditorDelegates.hpp>
-
 using namespace Hyperion;
 
 extern "C"
