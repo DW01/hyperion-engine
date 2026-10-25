@@ -188,7 +188,9 @@ bool SaveProjectWithPromptOrAlert(EditorProject* project, const String& abortTex
 
 #pragma region Helpers
 
-static RenderableAttributeSet PhysicsWireframeAttributes()
+namespace {
+
+RenderableAttributeSet PhysicsWireframeAttributes()
 {
     RenderableAttributeSet attributes;
 
@@ -206,7 +208,7 @@ static RenderableAttributeSet PhysicsWireframeAttributes()
 }
 
 /// A hit on an instance selects a InstanceHandleNode instead of the owning group
-static Handle<Node> ResolvePickedNode(const RayHit& hit, EditorSubsystem& editorSubsystem)
+Handle<Node> ResolvePickedNode(const RayHit& hit, EditorSubsystem& editorSubsystem)
 {
     Entity* entity = DynamicCast<Entity>(hit.node);
 
@@ -238,7 +240,7 @@ static Handle<Node> ResolvePickedNode(const RayHit& hit, EditorSubsystem& editor
     return editorSubsystem.GetOrCreateInstanceHandle(group, instanceId);
 }
 
-static Handle<Node> ResolvePickTarget(const Handle<Node>& picked, const Set<Handle<Node>, EditorAllocator>& selectedNodes)
+Handle<Node> ResolvePickTarget(const Handle<Node>& picked, const Set<Handle<Node>, EditorAllocator>& selectedNodes)
 {
     for (const Handle<Node>& selected : selectedNodes)
     {
@@ -258,7 +260,7 @@ static Handle<Node> ResolvePickTarget(const Handle<Node>& picked, const Set<Hand
     return top == picked.Get() ? picked : MakeStrongRef(top);
 }
 
-static Vec3f ComputeMeshEditDragPlaneNormal(const Handle<Camera>& camera, const Vec3f& axisDirection)
+Vec3f ComputeMeshEditDragPlaneNormal(const Handle<Camera>& camera, const Vec3f& axisDirection)
 {
     if (axisDirection.LengthSquared() < MathUtil::epsilonF)
     {
@@ -270,6 +272,29 @@ static Vec3f ComputeMeshEditDragPlaneNormal(const Handle<Camera>& camera, const 
 
     return (crossUp.LengthSquared() > crossSide.LengthSquared() ? crossUp : crossSide).Normalized();
 }
+
+template <class Function>
+void ForEachBakedEnvProbe(World* world, Function&& function)
+{
+    for (const Handle<Scene>& scene : world->GetScenes())
+    {
+        if (!scene)
+        {
+            continue;
+        }
+
+        for (auto [probe] : scene->GetEntityManager()->GetEntitySet<EntityType<EnvProbe>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
+        {
+            // realtime probes rerender on their own
+            if (probe->IsBaked())
+            {
+                function(probe);
+            }
+        }
+    }
+}
+
+} // namespace
 
 #pragma endregion Helpers
 
@@ -7406,27 +7431,6 @@ void EditorSubsystem::UpdateBakeStatus()
         text,
         Color(1.0f, 0.7f, 0.1f, 1.0f)
     });
-}
-
-template <class Function>
-static void ForEachBakedEnvProbe(World* world, Function&& function)
-{
-    for (const Handle<Scene>& scene : world->GetScenes())
-    {
-        if (!scene)
-        {
-            continue;
-        }
-
-        for (auto [probe] : scene->GetEntityManager()->GetEntitySet<EntityType<EnvProbe>>().GetScopedView(DataAccessFlags::ACCESS_READ, HYP_FUNCTION_NAME_LIT))
-        {
-            // realtime probes rerender on their own
-            if (probe->IsBaked())
-            {
-                function(probe);
-            }
-        }
-    }
 }
 
 void EditorSubsystem::TrackBakedEnvProbePlacements()

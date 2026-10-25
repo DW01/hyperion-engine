@@ -8,8 +8,6 @@
 
 #include <Editor/EditorHelpers.hpp>
 
-#include <Core/FileSystem/FilePath.hpp>
-
 #include <Core/Utilities/Time.hpp>
 
 #include <Core/Threading/Threads.hpp>
@@ -98,10 +96,12 @@ EDITOR_API Task<void> CaptureViewToPNGAsync(
             captureState->Request(
                 [view, path, outputExtent, captureState, promise](ByteBuffer&& color, ByteBuffer&&, Vec2u extent)
                 {
-                    const Vec2u dstExtent = outputExtent.x != 0 && outputExtent.y != 0 ? outputExtent : extent;
+                    const Vec2u& dstExtent = outputExtent.Volume() > 0
+                        ? outputExtent
+                        : extent;
 
                     // RGBA16F
-                    if (extent.x != 0 && extent.y != 0 && color.Size() >= size_t(extent.x) * extent.y * 8)
+                    if (extent.Volume() > 0 && color.Size() >= size_t(extent.x) * extent.y * 8)
                     {
                         const ByteBuffer rgba8 = TextureUtils::ResampleToSRGB8(reinterpret_cast<const Float16*>(color.Data()), extent, dstExtent);
 

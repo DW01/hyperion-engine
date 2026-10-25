@@ -10,15 +10,15 @@
 
 #include <Core/Reflection/Handle.hpp>
 
+#include <Core/Name/Name.hpp>
+
+#include <Core/FileSystem/FilePath.hpp>
+
 namespace Hyperion {
 
 class View;
-
-namespace filesystem {
-class FilePath;
-} // namespace filesystem
-
-using filesystem::FilePath;
+class World;
+class AssetRegistry;
 
 namespace EditorHelpers {
 

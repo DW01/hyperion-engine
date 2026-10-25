@@ -476,15 +476,16 @@ public:
 
     ///action stack
 
-    /// The stack Undo/Redo act on: mesh edit's, then prefab edit's, then the project's
+    /// Get the current action stack to act on
     HYP_METHOD()
     EditorActionStack* GetActiveActionStack() const;
 
-    /// The stack scene node edits are pushed to: prefab edit's while a prefab is being edited, otherwise the project's
+    /// The action that stack scene node edits are pushed to
+    /// Will vary based on whether or not we are in Prefab edit mode.
     HYP_METHOD()
     EditorActionStack* GetSceneActionStack() const;
 
-    /// The stack edits to \p node are pushed to: prefab edit's for nodes in the prefab being edited, otherwise the project's
+    /// The action stack that edits to \p node are pushed to.
     HYP_METHOD()
     EditorActionStack* GetActionStackForNode(Node* node) const;
 
