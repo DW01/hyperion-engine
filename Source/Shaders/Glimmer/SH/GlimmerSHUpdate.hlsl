@@ -193,6 +193,7 @@ DECLARE_SRV(GlimmerSHUpdate, GlimmerSHOccupancyMaskBuffer) StructuredBuffer<uint
 #define GLIMMER_LIGHTING_PROBES constants.probes
 #define GLIMMER_LIGHTING_SH constants.volume
 #define GLIMMER_LIGHTING_GROUND constants.ground
+#define GLIMMER_LIGHTING_SPANS constants.spans
 #define GLIMMER_LIGHTING_RELIGHT constants.relight
 #include "../GlimmerLighting.hlsli"
 

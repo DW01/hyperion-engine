@@ -2,8 +2,10 @@
 #define GLIMMER_LIGHTING_HLSLI
 
 #include "GlimmerLight.hlsli"
+#include "GlimmerSpans.hlsli"
 
 #define GLIMMER_MAX_ALBEDO 0.9
+#define GLIMMER_UNKNOWN_OPENNESS 0.5
 
 float3 GlimmerSkyIrradiance(float3 N)
 {
@@ -16,6 +18,33 @@ float3 GlimmerSkyIrradiance(float3 N)
     ProjectSHBands(N, shBands);
 
     return max(EnvProbeSH(skyProbe, shBands), (float3)0.0) * skyProbe.world_position.w * world_shader_data.sky_light_params.x;
+}
+
+float GlimmerUncoveredOpenness(float3 P, float3 N)
+{
+    for (uint level = 0; level < GLIMMER_GROUND_LEVELS; level++)
+    {
+        const float texelSize = GLIMMER_LIGHTING_SPANS.levels[level].params.x;
+        const float3 samplePosition = P + N * texelSize;
+
+        GlimmerSpanSample spanSample;
+
+        if (!GlimmerSampleSpans(GLIMMER_LIGHTING_SPANS, level, samplePosition.xz, spanSample))
+        {
+            continue;
+        }
+
+        const float solidTop = spanSample.solidMin + GlimmerSpanHeight(spanSample.solidMin, spanSample.solidMax);
+
+        if (spanSample.solidBins != 0u && solidTop > samplePosition.y)
+        {
+            return 0.0;
+        }
+
+        return 0.5 + 0.5 * N.y;
+    }
+
+    return GLIMMER_UNKNOWN_OPENNESS;
 }
 
 GlimmerLight GlimmerIndirect(float3 P, float3 N)
@@ -35,8 +64,13 @@ GlimmerLight GlimmerIndirect(float3 P, float3 N)
     const float farWeight = farCoverage * (1.0 - nearCoverage);
     const float weight = nearCoverage + farWeight;
 
-    // where nothing covers P, half of the distant light along N
-    GlimmerLight light = GlimmerDistantLight(N, 0.5 * (1.0 - weight));
+    GlimmerLight light = GlimmerNoLight();
+
+    [branch]
+    if (weight < 0.999)
+    {
+        light = GlimmerDistantLight(N, GlimmerUncoveredOpenness(P, N) * (1.0 - weight));
+    }
 
     GlimmerAddLight(light, nearField, (float3)nearCoverage);
     GlimmerAddLight(light, farField, (float3)farWeight);
@@ -58,7 +92,7 @@ GlimmerLight GlimmerIndirectNearest(float3 P, float3 N)
         return light;
     }
 
-    return GlimmerDistantLight(N, 0.5);
+    return GlimmerDistantLight(N, GlimmerUncoveredOpenness(P, N));
 }
 
 // what a surface sends on of what it receives

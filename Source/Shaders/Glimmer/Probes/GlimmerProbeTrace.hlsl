@@ -169,6 +169,7 @@ DECLARE_SRV(GlimmerProbeTrace, GlimmerRelightTexture) Texture2DArray<float4> gli
 #define GLIMMER_LIGHTING_PROBES constants.volume
 #define GLIMMER_LIGHTING_SH constants.sh
 #define GLIMMER_LIGHTING_GROUND constants.ground
+#define GLIMMER_LIGHTING_SPANS constants.spans
 #define GLIMMER_LIGHTING_RELIGHT constants.relight
 #include "../GlimmerLighting.hlsli"
 
