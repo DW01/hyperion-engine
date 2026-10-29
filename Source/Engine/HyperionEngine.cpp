@@ -815,6 +815,20 @@ extern "C"
         DotNETHost::GetInstance().Shutdown();
 #endif // HYP_DOTNET
 
+        { // Unload cached assets while the device is still alive or deleting meshes, textures, etc. will segfault.
+            if (Handle<AssetRegistry> engineRegistry = GetEngineAssetRegistry(); engineRegistry.IsValid())
+            {
+                engineRegistry->Shutdown();
+            }
+
+#ifdef HYP_EDITOR
+            if (Handle<AssetRegistry> editorRegistry = GetEditorAssetRegistry(); editorRegistry.IsValid())
+            {
+                editorRegistry->Shutdown();
+            }
+#endif // HYP_EDITOR
+        }
+
         // Needs to be destroyed before render thread is stopped!
         delete g_shaderManager;
         g_shaderManager = nullptr;

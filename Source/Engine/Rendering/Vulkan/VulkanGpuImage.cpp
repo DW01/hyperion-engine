@@ -56,7 +56,11 @@ VulkanGpuImage::~VulkanGpuImage()
 
             EnqueueDeletion(FunctionWrapper<Proc<void()>>([handle = m_handle, allocation = m_allocation]() -> void
                 {
-                    vmaDestroyImage(RI.GetDevice()->GetVmaAllocator(), handle, allocation);
+                    // skip if the render interface (and its device) was already shut down - the allocation is gone with it
+                    if (VulkanInstance* instance = RI.GetInstance())
+                    {
+                        vmaDestroyImage(instance->GetDevice()->GetVmaAllocator(), handle, allocation);
+                    }
                 }));
 
             m_allocation = VK_NULL_HANDLE;

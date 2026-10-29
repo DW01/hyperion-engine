@@ -90,7 +90,13 @@ if(NOT TARGET Hyperion::Engine)
 
   # GNU-style linkers search an archive only once, in order, and the engine's archives reference each other
   if(HYPERION_SDK_SHIPPING AND NOT MSVC AND NOT APPLE)
-    set(engine_libraries -Wl,--start-group ${engine_libraries} -Wl,--end-group)
+    # raw -Wl,--start-group flags get deduplicated against the scripts' group, which leaves this one empty and the archives outside it
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+      string(REPLACE ";" "," engine_libraries_csv "${engine_libraries}")
+      set(engine_libraries "$<LINK_GROUP:RESCAN,${engine_libraries_csv}>")
+    else()
+      set(engine_libraries -Wl,--start-group ${engine_libraries} -Wl,--end-group)
+    endif()
   endif()
 
   target_include_directories(Hyperion::Engine INTERFACE ${HYPERION_SDK_INCLUDE_DIRS})

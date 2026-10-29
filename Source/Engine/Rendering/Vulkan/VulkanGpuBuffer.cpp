@@ -123,6 +123,18 @@ VulkanGpuBuffer::~VulkanGpuBuffer()
         return;
     }
 
+    // The render interface is already shut down (device and VMA allocator destroyed along with it),
+    // so the allocation is already gone - nothing left to release.
+    if (RI.GetInstance() == nullptr)
+    {
+        m_mapping = nullptr;
+        m_handle = VK_NULL_HANDLE;
+        m_vmaAllocation = VK_NULL_HANDLE;
+        m_resourceState = ResourceState::Undefined;
+
+        return;
+    }
+
     if (m_mapping != nullptr)
     {
         Unmap();
@@ -130,7 +142,10 @@ VulkanGpuBuffer::~VulkanGpuBuffer()
 
     EnqueueDeletion(FunctionWrapper<Proc<void()>>([handle = m_handle, allocation = m_vmaAllocation]() -> void
         {
-            vmaDestroyBuffer(RI.GetDevice()->GetVmaAllocator(), handle, allocation);
+            if (VulkanInstance* instance = RI.GetInstance())
+            {
+                vmaDestroyBuffer(instance->GetDevice()->GetVmaAllocator(), handle, allocation);
+            }
         }));
 
     m_handle = VK_NULL_HANDLE;
