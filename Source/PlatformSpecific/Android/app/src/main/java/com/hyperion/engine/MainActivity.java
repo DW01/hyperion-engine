@@ -542,8 +542,17 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
 
     // SurfaceHolder.Callback
 
+    // without a vote the system may pick a low render rate (30 Hz seen), and frames that miss it halve the frame rate
+    private static void requestFrameRate(Surface surface) {
+        if (android.os.Build.VERSION.SDK_INT >= 30 && surface != null && surface.isValid()) {
+            surface.setFrameRate(60.0f, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT);
+        }
+    }
+
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
+        requestFrameRate(holder.getSurface());
+
         synchronized (m_surfaceLock) {
             m_pendingSurface = holder.getSurface();
             m_surfaceLock.notifyAll();
@@ -556,6 +565,8 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        requestFrameRate(holder.getSurface());
+
         if (m_engineReady) {
             HyperionBridge.nativeSetSurface(holder.getSurface(), width, height);
         }

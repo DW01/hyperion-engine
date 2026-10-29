@@ -14,6 +14,9 @@
 #include <Core/Threading/Threads.hpp>
 
 #include <Core/Debug/Debug.hpp>
+#include <Core/Math/MathUtil.hpp>
+
+#include <Framework/CVarManager.hpp>
 
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
@@ -363,10 +366,11 @@ float AndroidApplicationWindow::GetContentScaleFactor() const
     return 2.0f;
 }
 
+static CVar<float> s_cvMobileRenderScale("Rendering.Mobile.RenderScale", 0.6f);
+
 float AndroidApplicationWindow::GetRenderTargetScale() const
 {
-    // Render at 60% of native resolution
-    return 0.6f;
+    return MathUtil::Clamp(s_cvMobileRenderScale.Get(), 0.25f, 1.0f);
 }
 
 void AndroidApplicationWindow::Close()

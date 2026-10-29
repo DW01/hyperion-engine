@@ -8,6 +8,14 @@ public final class HyperionBridge {
     static {
         System.loadLibrary("hyperion");
         System.loadLibrary("hyperion-sample");
+
+        // a C++ game project's module, when the engine was built with HYP_ANDROID_GAME_DIR
+        try {
+            System.loadLibrary("hyperion-game");
+        } catch (UnsatisfiedLinkError e) {
+            android.util.Log.i("HyperionBridge", "No game module, running the default game");
+        }
+
         System.loadLibrary("hyperion-android");
     }
 

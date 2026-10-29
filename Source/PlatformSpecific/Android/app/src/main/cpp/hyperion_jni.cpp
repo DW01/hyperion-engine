@@ -9,6 +9,7 @@
 
 #include <cstdio>
 #include <alloca.h>
+#include <dlfcn.h>
 
 #define LOG_TAG "HyperionAndroid"
 
@@ -143,7 +144,23 @@ extern "C" JNIEXPORT jlong JNICALL
 Java_com_hyperion_engine_HyperionBridge_nativeCreateGame(JNIEnv* env, jclass /*clazz*/, jstring gameClassName)
 {
     const char* gameClassNameStr = env->GetStringUTFChars(gameClassName, nullptr);
-    Hyperion::Game* game = Hyp_CreateGame(gameClassNameStr);
+    const char* className = gameClassNameStr;
+
+    if (void* gameModule = dlopen("libhyperion-game.so", RTLD_NOW | RTLD_NOLOAD))
+    {
+        using GetGameClassNameFn = const char* (*)();
+
+        if (GetGameClassNameFn getGameClassName = reinterpret_cast<GetGameClassNameFn>(dlsym(gameModule, "HypGameModule_GetGameClassName")))
+        {
+            className = getGameClassName();
+        }
+
+        dlclose(gameModule);
+    }
+
+    LOGI("Creating game %s", className);
+
+    Hyperion::Game* game = Hyp_CreateGame(className);
     env->ReleaseStringUTFChars(gameClassName, gameClassNameStr);
 
     return reinterpret_cast<jlong>(game);

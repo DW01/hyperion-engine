@@ -9,3 +9,22 @@ add_subdirectory(DefaultGame)
 if(HYP_DOTNET AND NOT HYP_ANDROID AND NOT HYP_IOS AND NOT HYP_WEB)
   add_subdirectory(CSharpGame)
 endif()
+
+# a C++ game project's Source folder, built into libhyperion-game.so that the Android app loads beside the engine
+set(HYP_ANDROID_GAME_DIR "" CACHE PATH "Source folder of a C++ game project to build for Android")
+
+if(HYP_ANDROID AND HYP_ANDROID_GAME_DIR)
+  file(GLOB_RECURSE HYP_ANDROID_GAME_SOURCES CONFIGURE_DEPENDS "${HYP_ANDROID_GAME_DIR}/Game/*.cpp")
+
+  add_library(hyperion-game SHARED ${HYP_ANDROID_GAME_SOURCES})
+  target_include_directories(hyperion-game PRIVATE
+      "${HYP_ANDROID_GAME_DIR}"
+      ${HYP_GENERATED_DIR}
+      ${CMAKE_SOURCE_DIR}
+      ${CMAKE_SOURCE_DIR}/Engine)
+  target_include_directories(hyperion-game SYSTEM PRIVATE ${THIRD_PARTY_INCLUDE_DIR})
+  target_link_libraries(hyperion-game PRIVATE hyperion hyperion-core)
+
+  # games are written against the SDK, which always gives them the engine's precompiled header
+  target_precompile_headers(hyperion-game PRIVATE "${CMAKE_SOURCE_DIR}/Engine/HyperionPch.hpp")
+endif()

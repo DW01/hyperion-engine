@@ -8,8 +8,14 @@
 
 #include <Framework/EngineStats.hpp>
 #include <Framework/EngineGlobals.hpp>
+#include <Framework/CVarManager.hpp>
 
 #include <Core/Math/MathUtil.hpp>
+
+#include <Core/Logging/LogChannels.hpp>
+#include <Core/Logging/Logger.hpp>
+
+#include <algorithm>
 
 #include <Core/Threading/AtomicVar.hpp>
 
@@ -32,6 +38,8 @@ static constexpr uint16 NumReservedStatIds = 5;
 
 static AtomicVar<int> s_nextStatId { NumReservedStatIds };
 
+static CVar<float> g_cvLogStatsInterval("Debug.LogStatsInterval", 0.0f);
+
 static constexpr uint32 NumStatSnapshots = 2;
 
 struct EngineStatsRecorderImpl
@@ -41,6 +49,7 @@ struct EngineStatsRecorderImpl
 
     ClockTimer counter;
     float deltaAccum;
+    float logAccum = 0.0f;
     uint32 numSamples;
     uint32 sampleIndex;
 
@@ -518,6 +527,57 @@ void EngineStats::Publish()
     m_impl->sampleIndex = (m_impl->sampleIndex + 1) % EngineStatsNumSamples;
 
     m_impl->publishedSnapshotIndex.Set(writeIndex, MemoryOrder::RELEASE);
+
+    LogSnapshot(snapshot);
+}
+
+void EngineStats::LogSnapshot(const EngineStatsSnapshot& snapshot)
+{
+    const float logInterval = g_cvLogStatsInterval.Get();
+
+    if (logInterval <= 0.0f)
+    {
+        return;
+    }
+
+    m_impl->logAccum += m_impl->counter.delta;
+
+    if (m_impl->logAccum < logInterval)
+    {
+        return;
+    }
+
+    m_impl->logAccum = 0.0;
+
+    Array<const EngineStatsSnapshotValue*> timers;
+
+    for (uint16 statId = NumReservedStatIds; statId < EngineStatsMaxStats; ++statId)
+    {
+        if (linearStats[statId] != nullptr && snapshot.values[statId].type == EST_TIMER && snapshot.values[statId].avg >= 0.05f)
+        {
+            timers.PushBack(&snapshot.values[statId]);
+        }
+    }
+
+    std::sort(timers.Begin(), timers.End(), [](const EngineStatsSnapshotValue* a, const EngineStatsSnapshotValue* b)
+        {
+            return a->avg > b->avg;
+        });
+
+    HYP_LOG(Engine, Info, "Stats: {} fps, {} ms/frame", snapshot.values[StatIdFps].avg, snapshot.values[StatIdMsPerFrame].avg);
+
+    for (const EngineStatsSnapshotValue* timer : timers)
+    {
+        HYP_LOG(Engine, Info, "  {}: {} ms (max {})", linearStats[timer->statId]->name, timer->avg, timer->max);
+    }
+
+    for (uint16 statId = NumReservedStatIds; statId < EngineStatsMaxStats; ++statId)
+    {
+        if (linearStats[statId] != nullptr && snapshot.values[statId].type == EST_COUNTER && snapshot.values[statId].avg > 0.0f)
+        {
+            HYP_LOG(Engine, Info, "  # {}: {}", linearStats[statId]->name, snapshot.values[statId].avg);
+        }
+    }
 }
 
 void EngineStats::RecordValueSet(const EngineStatsValueSet& valueSet)

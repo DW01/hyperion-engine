@@ -144,7 +144,17 @@ void BuildTierOverlay(const DeviceFacts& facts, const TierProfile& profile, Conf
 
         for (const auto& setting : rule.set)
         {
-            const String key = String(GetNameView(setting.first));
+            String key = String(GetNameView(setting.first));
+
+            if (const CVarBase* cvar = CVarManager::GetInstance().FindVar(ANSIString(key.Data())))
+            {
+                const char* configPath = CVarManager::GetInstance().cvarToConfigPath[cvar->id];
+
+                if (configPath != nullptr && configPath[0] != '\0')
+                {
+                    key = String(configPath);
+                }
+            }
 
             outOverlay.Set(key, ToConfigValue(setting.second));
 

@@ -83,6 +83,8 @@ static constexpr uint32 InitialDescriptorsPerTypePerPool = 1024;
 static constexpr uint32 BindlessDescriptorSetsPerPool = 4;
 
 static EngineStatTimer s_statVulkanFrameSync("Rendering/Vulkan/FrameSync");
+static EngineStatTimer s_statVulkanAcquire("Rendering/Vulkan/Acquire");
+static EngineStatTimer s_statVulkanPresent("Rendering/Vulkan/Present");
 
 extern EngineStatGpuTimer g_statGpuFrameTime;
 extern EngineStatTimer g_statTotalStallTime;
@@ -1078,6 +1080,8 @@ VulkanSwapchainRef VulkanRenderInterface::CreateSwapchain(ApplicationWindow* win
 
 void VulkanRenderInterface::PrepareSwapchain(VulkanSwapchain* swapchain)
 {
+    ENGINE_STAT_SCOPE(&s_statVulkanAcquire);
+
     swapchain->PrepareForFrame(GetCurrentFrame());
 }
 
@@ -1177,6 +1181,8 @@ void VulkanRenderInterface::PresentToSwapchains(Span<VulkanSwapchain* const> swa
 
     for (uint32 index = 0; index < numWaitSemaphores; index++)
     {
+        ENGINE_STAT_SCOPE(&s_statVulkanPresent);
+
         presentSwapchains[index]->PresentFrame(frame, presentQueue);
     }
 

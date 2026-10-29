@@ -387,6 +387,8 @@ public:
 private:
     float CalculateFps() const;
 
+    void LogSnapshot(const EngineStatsSnapshot& snapshot);
+
     void SetSampleData(uint16 statId, uint32 sampleIdx, float value);
     float GetSampleData(uint16 statId, uint32 sampleIdx) const;
 
