@@ -66,6 +66,46 @@ struct TerrainLayerPackSpec
     bool flipNormalGreen;
 };
 
+static constexpr uint32 TerrainLayerMaxExtent = 1024;
+
+static void DropMipsAbove(uint32 maxExtent, TextureDesc& desc, ByteBuffer& imageData)
+{
+    const uint8 numMips = desc.NumMips();
+
+    uint32 numDropped = 0;
+
+    while (numDropped + 1 < numMips && (MathUtil::Max(desc.extent.x, desc.extent.y) >> numDropped) > maxExtent)
+    {
+        numDropped++;
+    }
+
+    if (numDropped == 0)
+    {
+        return;
+    }
+
+    const uint32 baseOffset = desc.mipOffsets[numDropped - 1];
+
+    ByteBuffer remaining(imageData.ToByteView().Slice(baseOffset));
+    imageData = std::move(remaining);
+
+    desc.extent = Vec3u { MathUtil::Max(desc.extent.x >> numDropped, 1u), MathUtil::Max(desc.extent.y >> numDropped, 1u), 1u };
+
+    for (uint32 i = 0; i < TextureDesc::MaxMips; i++)
+    {
+        const uint32 src = i + numDropped;
+
+        if (src + 1 < numMips)
+        {
+            desc.mipOffsets[i] = desc.mipOffsets[src] - baseOffset;
+        }
+        else
+        {
+            desc.mipOffsets[i] = 0;
+        }
+    }
+}
+
 static Handle<Texture> LoadPackSourceTexture(
     const FilePath& inputDir,
     const char* filename,
@@ -160,7 +200,7 @@ static float SnowHeightAt(float u, float v)
 
 static void PackProceduralSnowLayer(Handle<AssetRegistry> registry)
 {
-    constexpr uint32 extent = 1024;
+    constexpr uint32 extent = TerrainLayerMaxExtent;
     constexpr uint32 layerIndex = 3;
 
     // relief is shallow - snow smooths whatever it lies on
@@ -369,6 +409,7 @@ static void PackTerrainLayerTextures(const FilePath& inputDir, Handle<AssetRegis
         };
 
         Texture::GenerateMipmaps(albedoDesc, albedoBytes);
+        DropMipsAbove(TerrainLayerMaxExtent, albedoDesc, albedoBytes);
 
         Handle<Texture> albedoTexture = MakeHandle<Texture>(albedoDesc, albedoBytes.ToByteView());
         albedoTexture->SetName(albedoName);
@@ -383,6 +424,7 @@ static void PackTerrainLayerTextures(const FilePath& inputDir, Handle<AssetRegis
         };
 
         Texture::GenerateMipmaps(packedNormalDesc, normalBytes);
+        DropMipsAbove(TerrainLayerMaxExtent, packedNormalDesc, normalBytes);
 
         Handle<Texture> normalTexture = MakeHandle<Texture>(packedNormalDesc, normalBytes.ToByteView());
         normalTexture->SetName(normalName);
