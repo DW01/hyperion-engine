@@ -106,6 +106,9 @@ void MergeGlobalShaderProperties(ShaderPropertySet& out);
 #pragma region TCommandRecorder
 
 template <>
+void TCommandRecorder<RenderAllocator>::Execute_Internal(CommandBuffer* commandBuffer, bool keepCommands, bool skipCustomCommands, bool prewarmOnly);
+
+template <>
 void TCommandRecorder<RenderAllocator>::Execute(CommandBuffer* commandBuffer, bool keepCommands, bool skipCustomCommands)
 {
     AssertDebug(commandBuffer != nullptr);
