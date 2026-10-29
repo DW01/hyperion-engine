@@ -1,0 +1,9 @@
+{
+  "App": {
+    "Name": "DefaultGame",
+    "Args": ""
+  },
+  "Logging": {
+    "Verbose": false
+  }
+}

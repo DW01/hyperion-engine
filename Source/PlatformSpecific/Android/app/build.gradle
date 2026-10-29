@@ -171,6 +171,20 @@ tasks.register('cleanPackageAssets', Delete) {
     delete assetsDestDir
 }
 
+// an APK holds at most 65535 entries and the cooked shader manifests alone go over that, so Content/
+// ships as one archive that MainActivity extracts on first launch
+def packageContentArchive = tasks.register('packageContentArchive', Zip) {
+    description 'Archive the package Content/ into a single asset'
+
+    archiveFileName = 'Content.zip'
+    destinationDirectory = layout.buildDirectory.dir('hyperion')
+    zip64 = true
+
+    if (hypPackageDir) {
+        from(file("${hypPackageDir}/Content"))
+    }
+}
+
 tasks.register('stagePackageAssets', Copy) {
     description 'Stage Hyperion content into assets/'
 
@@ -179,7 +193,10 @@ tasks.register('stagePackageAssets', Copy) {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     if (hypPackageDir) {
-        from(file(hypPackageDir))
+        from(file(hypPackageDir)) {
+            exclude 'Content/**'
+        }
+        from(packageContentArchive)
     } else {
         logger.warn("[hyperion] No package dir set, run PackageBuildAndroid.bat or pass -PhypPackageDir=<dir>")
     }
@@ -198,6 +215,7 @@ tasks.register('stageValidationLayers') {
    def capturedProjectDir = projectDir
     def capturedNdkDir = resolvedNdkDir
 
+    inputs.file(new File(capturedProjectDir, "../../../../External/ThirdParty/Binaries/Android/arm64-v8a/${validationLayerFilename}")).optional()
     outputs.file validationLayerDestFile
 
     doLast {

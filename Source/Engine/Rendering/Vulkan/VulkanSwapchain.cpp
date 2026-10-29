@@ -407,9 +407,14 @@ RendererResult VulkanSwapchain::Create()
         : m_supportDetails.capabilities.currentTransform;
 
 #if HYP_ANDROID || HYP_IOS
-    createInfo.compositeAlpha = (m_supportDetails.capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR)
-        ? VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR
-        : VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    if (m_supportDetails.capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
+    {
+        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    }
+    else
+    {
+        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+    }
 #else
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 #endif

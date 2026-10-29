@@ -27,6 +27,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 public class MainActivity extends Activity implements SurfaceHolder.Callback {
 
@@ -35,6 +37,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
 
     private static final String BUNDLED_CACHE_ASSET_PATH = "Cache";
     private static final String BUNDLED_CONTENT_ASSET_PATH = "Content";
+    private static final String BUNDLED_CONTENT_ARCHIVE_ASSET_PATH = "Content.zip";
 
     private static final String INSTALLED_CACHE_STAMP_NAME = ".bundled_cache_stamp";
 
@@ -258,6 +261,85 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         return success;
     }
 
+    private void deleteRecursive(File file) {
+        File[] children = file.listFiles();
+
+        if (children != null) {
+            for (File child : children) {
+                deleteRecursive(child);
+            }
+        }
+
+        if (file.exists() && !file.delete()) {
+            Log.w(TAG, "Failed to delete " + file);
+        }
+    }
+
+    private boolean hasAsset(AssetManager assetManager, String assetPath) {
+        try (InputStream input = assetManager.open(assetPath, AssetManager.ACCESS_STREAMING)) {
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    // an APK holds at most 65535 entries, and the cooked shader manifests alone go over that
+    private boolean extractAssetArchive(AssetManager assetManager, String assetPath, File destination) {
+        String destinationRoot;
+
+        try {
+            destinationRoot = destination.getCanonicalPath() + File.separator;
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to resolve " + destination, e);
+
+            return false;
+        }
+
+        byte[] buffer = new byte[COPY_BUFFER_SIZE];
+
+        try (ZipInputStream zip = new ZipInputStream(assetManager.open(assetPath, AssetManager.ACCESS_STREAMING))) {
+            ZipEntry entry;
+
+            while ((entry = zip.getNextEntry()) != null) {
+                File entryFile = new File(destination, entry.getName());
+
+                if (!entryFile.getCanonicalPath().startsWith(destinationRoot)) {
+                    Log.e(TAG, "Skipping archive entry outside the destination: " + entry.getName());
+
+                    continue;
+                }
+
+                if (entry.isDirectory()) {
+                    entryFile.mkdirs();
+
+                    continue;
+                }
+
+                File parent = entryFile.getParentFile();
+
+                if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+                    Log.e(TAG, "Failed to create directory " + parent);
+
+                    return false;
+                }
+
+                try (OutputStream output = new FileOutputStream(entryFile)) {
+                    int read;
+
+                    while ((read = zip.read(buffer)) > 0) {
+                        output.write(buffer, 0, read);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to extract " + assetPath + " to " + destination, e);
+
+            return false;
+        }
+
+        return true;
+    }
+
     // Copy minimal engine cache included in the apk to the dest cache directory.
     private void installBundledCache(File downloadedDir)  throws Exception {
         AssetManager assetManager = getAssets();
@@ -267,9 +349,11 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
 
         String[] bundledCacheEntries = assetManager.list(BUNDLED_CACHE_ASSET_PATH);
         String[] bundledContentEntries = assetManager.list(BUNDLED_CONTENT_ASSET_PATH);
+        boolean hasContentArchive = hasAsset(assetManager, BUNDLED_CONTENT_ARCHIVE_ASSET_PATH);
 
         if ((bundledCacheEntries == null || bundledCacheEntries.length == 0)
-            && (bundledContentEntries == null || bundledContentEntries.length == 0)) {
+            && (bundledContentEntries == null || bundledContentEntries.length == 0)
+            && !hasContentArchive) {
             
             Log.w(TAG, "No assets to copy? Num cache entries: "
                     + (bundledCacheEntries != null ? bundledCacheEntries.length : 0) + ", num content entries: "
@@ -289,7 +373,14 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
 
         long startTime = System.currentTimeMillis();
 
-        if (!copyAssetTree(assetManager, BUNDLED_CONTENT_ASSET_PATH, contentDirectory)) {
+        deleteRecursive(contentDirectory);
+        deleteRecursive(cacheDirectory);
+
+        if (hasContentArchive) {
+            if (!extractAssetArchive(assetManager, BUNDLED_CONTENT_ARCHIVE_ASSET_PATH, contentDirectory)) {
+                throw new Exception("Failed to install the engine assets! (content archive)");
+            }
+        } else if (!copyAssetTree(assetManager, BUNDLED_CONTENT_ASSET_PATH, contentDirectory)) {
             throw new Exception("Failed to install the engine assets! (content)");
         }
 

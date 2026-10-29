@@ -1,6 +1,9 @@
 @echo off
 setlocal EnableDelayedExpansion
 
+REM SHIFT moves %0 too, so the script's folder has to be taken before the arguments are parsed
+set "SCRIPT_DIR=%~dp0"
+
 set "COOK_ASSETS=0"
 set "PROJECT_NAME="
 
@@ -15,11 +18,11 @@ SHIFT
 GOTO PARSE_ARGS
 :END_PARSE_ARGS
 
-for %%i in ("%~dp0..\..") do set "HYP_ROOT_DIR=%%~fi\"
+for %%i in ("%SCRIPT_DIR%..\..") do set "HYP_ROOT_DIR=%%~fi\"
 
 echo Building...
 
-call "%~dp0BuildHyperion.bat" Shipping Android Regenerate
+call "%SCRIPT_DIR%BuildHyperion.bat" Shipping Android Regenerate
 
 if errorlevel 1 (
     echo Build failed, aborting packaged build.
@@ -64,16 +67,19 @@ if "%COOK_ASSETS%"=="0" (
 ) else (
     echo Running Cook commandlet...
 
-    REM Get the project name input from user, pass it concat with Projects/ below:
-    if "%PROJECT_NAME%"=="" set /p "PROJECT_NAME=Enter the project name (folder under Projects/): "
-    if "%PROJECT_NAME%"=="" (
+    REM --project takes a project folder, or the name of one under Projects/
+    if "!PROJECT_NAME!"=="" set /p "PROJECT_NAME=Enter the project folder or name under Projects/: "
+    if "!PROJECT_NAME!"=="" (
         echo No project name entered, aborting packaged build.
         exit /b 1
     )
 
-    echo Cooking project: %PROJECT_NAME%
+    set "PROJECT_PATH=Projects/!PROJECT_NAME!"
+    if exist "!PROJECT_NAME!\" set "PROJECT_PATH=!PROJECT_NAME!"
 
-    "%BIN_DIR_RELEASE%\BlobStorageCookCommandlet.exe" --project=Projects/%PROJECT_NAME% --out-cache=%OUT_DIR%\Cache --out-content=%OUT_DIR%\Content %TARGET_COOK_ARGS%
+    echo Cooking project: !PROJECT_PATH!
+
+    "%BIN_DIR_RELEASE%\BlobStorageCookCommandlet.exe" "--project=!PROJECT_PATH!" --out-cache=%OUT_DIR%\Cache --out-content=%OUT_DIR%\Content %TARGET_COOK_ARGS%
     if errorlevel 1 (
         echo Cook commandlet failed, aborting packaged build.
         exit /b 1
