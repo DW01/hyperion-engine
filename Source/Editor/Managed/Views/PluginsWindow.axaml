@@ -64,7 +64,7 @@
                     Classes="muted"
                     FontSize="11.5"
                     IsVisible="{Binding !HasProject}"
-                    Text="No project is open." />
+                    Text="{Binding NoProjectText}" />
 
                 <ItemsControl IsVisible="{Binding HasProject}" ItemsSource="{Binding Plugins}">
                     <ItemsControl.ItemTemplate>

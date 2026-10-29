@@ -1110,13 +1110,18 @@ namespace Hyperion.Editor
                 return;
             }
 
+            var viewModel = new PluginsViewModel();
             var window = new PluginsWindow
             {
-                DataContext = new PluginsViewModel()
+                DataContext = viewModel
             };
 
             _pluginsWindow = window;
-            window.Closed += (_, _) => _pluginsWindow = null;
+            window.Closed += (_, _) =>
+            {
+                _pluginsWindow = null;
+                viewModel.Dispose();
+            };
 
             await window.ShowDialog(this);
         }

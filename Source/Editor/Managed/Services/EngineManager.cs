@@ -20,6 +20,14 @@ namespace Hyperion.Editor
 
         public static EditorProject? CurrentProject { get; private set; }
 
+        public static string? ProjectLoadStatus { get; private set; }
+
+        // raised on the sim thread
+        public static event Action<string?>? ProjectLoadStatusChanged;
+
+        private static DelegateHandler? _onProjectLoadStatusChanged;
+        private static DelegateHandler? _onProjectLoadFinished;
+
         private static List<EditorViewport> _registeredViewports = new List<EditorViewport>();
         private static Lock _lockViewports = new();
 
@@ -107,6 +115,8 @@ namespace Hyperion.Editor
                     throw new Exception("Failed to initialize Hyperion Engine. NativeBindings.Hyp_Initialize returned false.");
                 }
 
+                BindProjectLoadStatus();
+
                 NativeBindings.Hyp_LaunchThreads();
             }
             catch (Exception ex)
@@ -130,6 +140,33 @@ namespace Hyperion.Editor
             InitializeEditorTasks();
 
             IsInitialized = true;
+        }
+
+        private static void BindProjectLoadStatus()
+        {
+            EditorState editorState = EditorState.Instance;
+            Debug.Assert(editorState != null, "Failed to get EditorState instance");
+
+            _onProjectLoadStatusChanged?.Remove();
+            _onProjectLoadStatusChanged = editorState.GetOnProjectLoadStatusChangedDelegate().Bind((string status, uint percent) =>
+            {
+                SetProjectLoadStatus($"{status}... {percent}%");
+            });
+
+            _onProjectLoadFinished?.Remove();
+            _onProjectLoadFinished = editorState.GetOnCurrentProjectChangedDelegate().Bind((EditorProject? newProject, bool isSimulationStateChange) =>
+            {
+                if (newProject != null && !isSimulationStateChange)
+                {
+                    SetProjectLoadStatus(null);
+                }
+            });
+        }
+
+        private static void SetProjectLoadStatus(string? status)
+        {
+            ProjectLoadStatus = status;
+            ProjectLoadStatusChanged?.Invoke(status);
         }
 
         private static void InitializeEditorTasks()
@@ -314,6 +351,8 @@ namespace Hyperion.Editor
         {
             _gameLaunchedHandler?.Remove();
             _onCurrentProjectChanged?.Remove();
+            _onProjectLoadStatusChanged?.Remove();
+            _onProjectLoadFinished?.Remove();
             _onSceneAddedHandler?.Remove();
             _onSceneRemovedHandler?.Remove();
 

@@ -53,7 +53,7 @@ namespace Hyperion.Editor.ViewModels
         }
     }
 
-    public class PluginsViewModel : ViewModelBase
+    public class PluginsViewModel : ViewModelBase, IDisposable
     {
         public ObservableCollection<PluginItemViewModel> Plugins { get; } = new();
 
@@ -74,9 +74,44 @@ namespace Hyperion.Editor.ViewModels
             private set => SetProperty(ref _hasChanges, value);
         }
 
+        private bool _isProjectLoading = EngineManager.ProjectLoadStatus != null;
+        public bool IsProjectLoading
+        {
+            get => _isProjectLoading;
+            private set
+            {
+                if (SetProperty(ref _isProjectLoading, value))
+                {
+                    OnPropertyChanged(nameof(NoProjectText));
+                }
+            }
+        }
+
+        public string NoProjectText => IsProjectLoading ? "Loading project..." : "No project is open.";
+
         public PluginsViewModel()
         {
+            EngineManager.ProjectLoadStatusChanged += OnProjectLoadStatusChanged;
+
             _ = RefreshAsync();
+        }
+
+        public void Dispose()
+        {
+            EngineManager.ProjectLoadStatusChanged -= OnProjectLoadStatusChanged;
+        }
+
+        private void OnProjectLoadStatusChanged(string? status)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                IsProjectLoading = status != null;
+
+                if (status == null)
+                {
+                    _ = RefreshAsync();
+                }
+            });
         }
 
         private async Task RefreshAsync()

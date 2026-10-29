@@ -980,9 +980,11 @@ namespace Hyperion.Editor.ViewModels
             }
         }
 
+        private string? _projectLoadStatus = EngineManager.ProjectLoadStatus;
+
         public string StatusText
         {
-            get => _playNetStatus switch
+            get => _projectLoadStatus ?? _playNetStatus switch
             {
                 EditorPlayNetStatus.Connecting => $"Connecting to {PlayNetAddress}...",
                 EditorPlayNetStatus.Connected => $"Connected to {PlayNetAddress}",
@@ -1940,6 +1942,8 @@ namespace Hyperion.Editor.ViewModels
             EngineManager.TaskEnded += OnTaskEnded;
             EngineManager.TaskProgressUpdated += OnTaskProgressUpdated;
             EngineManager.EditorInitialized += OnEditorInitialized;
+            EngineManager.ProjectLoadStatusChanged += OnProjectLoadStatusChanged;
+            OnProjectLoadStatusChanged(EngineManager.ProjectLoadStatus);
 
             _ = EngineManager.PostToSimThread(() =>
             {
@@ -1951,6 +1955,16 @@ namespace Hyperion.Editor.ViewModels
             });
 
             _isReady = true;
+        }
+
+        private void OnProjectLoadStatusChanged(string? status)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                _projectLoadStatus = status;
+
+                OnPropertyChanged(nameof(StatusText));
+            });
         }
 
         ~MainWindowViewModel()
@@ -1994,6 +2008,7 @@ namespace Hyperion.Editor.ViewModels
                 EngineManager.TaskEnded -= OnTaskEnded;
                 EngineManager.TaskProgressUpdated -= OnTaskProgressUpdated;
                 EngineManager.EditorInitialized -= OnEditorInitialized;
+                EngineManager.ProjectLoadStatusChanged -= OnProjectLoadStatusChanged;
 
                 SceneHierarchy.SelectedNodeChanged -= OnSceneHierarchyNodeSelected;
                 SceneHierarchy.SelectionChanged -= OnSceneHierarchySelectionChanged;
