@@ -75,7 +75,7 @@ jobs:
     name: build (${{ matrix.backend }})
     needs: codegen
     runs-on: windows-2025
-    timeout-minutes: 120
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -153,6 +153,13 @@ jobs:
           HYP_SKIP_CODEGEN: 1
         run: Tools\Scripts\BuildHyperion.bat Release ninja distribution ${{ matrix.backend }} regenerate
 
+      # the static engine Package Game links games against (Sdk/Shipping in the package)
+      - name: Build shipping SDK
+        shell: cmd
+        env:
+          HYP_SKIP_CODEGEN: 1
+        run: Tools\Scripts\BuildHyperion.bat Release ninja sdk ${{ matrix.backend }} regenerate
+
       - name: Package
         shell: pwsh
         run: |
@@ -217,6 +224,13 @@ jobs:
           HYP_BUILD_JOBS: 4
           HYP_SKIP_CODEGEN: 1
         run: bash Tools/Scripts/BuildHyperion.sh distribution ninja regenerate
+
+      # the static engine Package Game links games against (Sdk/Shipping in the package)
+      - name: Build shipping SDK
+        env:
+          HYP_BUILD_JOBS: 4
+          HYP_SKIP_CODEGEN: 1
+        run: bash Tools/Scripts/BuildHyperion.sh ninja sdk regenerate
 
       # shipped in the SDK, where C++ games run it over their own headers; artifacts don't keep the executable bit
       - name: Make CodeGen tool executable
@@ -284,6 +298,15 @@ jobs:
           HYP_BUILD_JOBS: 4
           HYP_SKIP_CODEGEN: 1
         run: bash Tools/Scripts/BuildHyperion.sh distribution ninja regenerate
+
+      # the static engine Package Game links games against (Sdk/Shipping in the package)
+      - name: Build shipping SDK
+        env:
+          CC: gcc
+          CXX: g++
+          HYP_BUILD_JOBS: 4
+          HYP_SKIP_CODEGEN: 1
+        run: bash Tools/Scripts/BuildHyperion.sh ninja sdk regenerate
 
       - name: Package
         run: bash Tools/Scripts/PackageEditorLinux.sh "$GITHUB_WORKSPACE/Packaged"

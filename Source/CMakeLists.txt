@@ -1623,11 +1623,19 @@ foreach(plugin_module ${HYP_PLUGIN_MODULES})
       ${CMAKE_SOURCE_DIR}/Engine
       ${HYP_PLUGIN_SOURCE_ROOT_${plugin_module}})
 
-  hyp_link_core_library(${plugin_target})
+  if(HYP_DYNAMIC_PLUGINS AND HYP_MONOLITHIC)
+    target_link_libraries(${plugin_target} PRIVATE $<COMPILE_ONLY:hyperion-core>)
+  else()
+    hyp_link_core_library(${plugin_target})
+  endif()
 
   if(HYP_DYNAMIC_PLUGINS)
+    if(NOT HYP_MONOLITHIC)
+      target_link_libraries(${plugin_target} PRIVATE hyperion-core)
+    endif()
+
     # the engine's libraries are in hyperion's, so they only lend their compile settings
-    target_link_libraries(${plugin_target} PRIVATE ${BUILD_NAME} hyperion-core
+    target_link_libraries(${plugin_target} PRIVATE ${BUILD_NAME}
       $<COMPILE_ONLY:hyperion-scene> $<COMPILE_ONLY:hyperion-rendering> $<COMPILE_ONLY:hyperion-asset> $<COMPILE_ONLY:hyperion-ui> $<COMPILE_ONLY:hyperion-input> $<COMPILE_ONLY:hyperion-plugins>)
 
     set_target_properties(${plugin_target} PROPERTIES

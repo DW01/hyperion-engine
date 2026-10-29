@@ -588,7 +588,7 @@ if ($IsMonolithic -and (Test-Path $SdkCMakeFile) -and (Test-Path $SdkImportLibra
     }
     else
     {
-        Add-Warning "Shipping SDK not staged (needs $ShippingSdkCMakeFile and $ShippingStaticLibrariesFile from 'BuildHyperion.bat Release ninja sdk regenerate'); Package Game won't work from this package"
+        throw "Shipping SDK not staged: $ShippingSdkCMakeFile or $ShippingStaticLibrariesFile not found. Build it with 'BuildHyperion.bat Release ninja sdk regenerate' (or pass -Build)"
     }
 }
 else
