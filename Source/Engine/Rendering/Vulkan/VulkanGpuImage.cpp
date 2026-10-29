@@ -1029,7 +1029,7 @@ void VulkanGpuImage::CopyFromBuffer(
 
             // https://docs.vulkan.org/spec/latest/chapters/copies.html#VUID-vkCmdCopyBufferToImage-dstImage-07975
             // bufferOffset must be a multiple texel block size
-            AssertDebug(region.bufferOffset % (TextureUtils::BytesPerComponent(m_textureDesc.format) * TextureUtils::NumComponents(m_textureDesc.format)) == 0);
+            AssertDebug(region.bufferOffset % TextureUtils::GetBytesPerBlock(m_textureDesc.format) == 0);
 
             vkCmdCopyBufferToImage(
                 commandBuffer->GetVulkanHandle(),
@@ -1055,7 +1055,7 @@ void VulkanGpuImage::CopyFromBuffer(
 
         // https://docs.vulkan.org/spec/latest/chapters/copies.html#VUID-vkCmdCopyBufferToImage-dstImage-07975
         // bufferOffset must be a multiple texel block size
-        AssertDebug(region.bufferOffset % (TextureUtils::BytesPerComponent(m_textureDesc.format) * TextureUtils::NumComponents(m_textureDesc.format)) == 0);
+        AssertDebug(region.bufferOffset % TextureUtils::GetBytesPerBlock(m_textureDesc.format) == 0);
 
         vkCmdCopyBufferToImage(
             commandBuffer->GetVulkanHandle(),

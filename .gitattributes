@@ -1,1 +1,3 @@
 *.hmf text eol=lf
+*.blob binary
+*.bat text eol=crlf

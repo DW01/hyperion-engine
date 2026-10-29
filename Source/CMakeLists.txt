@@ -480,8 +480,8 @@ else()
 endif()
 
 set(HYP_VERSION_MAJOR 0)
-set(HYP_VERSION_MINOR 5)
-set(HYP_VERSION_PATCH 9)
+set(HYP_VERSION_MINOR 6)
+set(HYP_VERSION_PATCH 0)
 
 link_directories(${THIRD_PARTY_LIBRARY_DIR})
 
@@ -564,7 +564,7 @@ if(${OpenAL_FOUND})
   # between OpenALAudioAdapter/NullAudioAdapter based on this macro.
   add_definitions(-DHYP_OPENAL=1)
 
-  if(HYP_MONOLITHIC)
+  if(HYP_MONOLITHIC OR HYP_SHIPPING_SDK)
     add_definitions(-DAL_LIBTYPE_STATIC)
   endif()
 else()

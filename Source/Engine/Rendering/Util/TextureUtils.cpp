@@ -7,6 +7,7 @@
 #include <RenderingPch.hpp>
 
 #include <Rendering/Util/TextureUtils.hpp>
+#include <Rendering/Util/TextureCompression.hpp>
 #include <Rendering/Texture.hpp>
 
 #include <Core/Containers/Array.hpp>
@@ -111,6 +112,34 @@ static Vec4f ReadTexel(const ubyte* texel, uint32 numComponents)
 Vec4f ComputeAverageColor(const TextureDesc& textureDesc, ConstByteView imageData)
 {
     static constexpr uint32 maxSamplesPerAxis = 64;
+
+    if (TextureUtils::IsBlockCompressed(textureDesc.format))
+    {
+        if (textureDesc.type != TextureType::Texture2D)
+        {
+            return Vec4f::One();
+        }
+
+        uint8 mipIndex = 0;
+
+        while (textureDesc.HasStoredMips() && mipIndex + 1 < textureDesc.NumMips() && textureDesc.GetMipExtent(mipIndex).x > 256)
+        {
+            mipIndex++;
+        }
+
+        ByteBuffer decoded;
+        if (!TextureCompression::DecodeMip(textureDesc, imageData, mipIndex, decoded))
+        {
+            return Vec4f::One();
+        }
+
+        TextureDesc decodedDesc = textureDesc;
+        decodedDesc.format = TextureUtils::IsSRGB(textureDesc.format) ? TextureFormat::RGBA8_SRGB : TextureFormat::RGBA8;
+        decodedDesc.extent = textureDesc.GetMipExtent(mipIndex);
+        decodedDesc.numLayers = 1;
+
+        return ComputeAverageColor(decodedDesc, decoded.ToByteView());
+    }
 
     const TextureFormat format = textureDesc.format;
 

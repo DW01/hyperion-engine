@@ -53,7 +53,15 @@ namespace Hyperion
         D16,
         D24_S8,
         D32F,
-        D32F_S8
+        D32F_S8,
+
+        /* begin block compressed */
+        BC1,
+        BC1_SRGB,
+        BC4,
+        BC5,
+        BC7,
+        BC7_SRGB
     }
 
     [ClassBinding(Name = "TextureFilterMode")]
@@ -96,6 +104,17 @@ namespace Hyperion
         Attachment = 0x4,
         Blended = 0x8,
         External = 0x10
+    }
+
+    [ClassBinding(Name = "TextureCompressionMode")]
+    public enum TextureCompressionMode : byte
+    {
+        Auto,
+        None,
+        Color,
+        ColorAlpha,
+        Normal,
+        Mask
     }
 
 

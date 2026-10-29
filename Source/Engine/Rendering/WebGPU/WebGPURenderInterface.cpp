@@ -295,7 +295,7 @@ void WebGPURenderInterface::OnAdapterRequestEnded(WGPUAdapter adapter)
 
     requestFeature(WGPUFeatureName_TextureFormatsTier2);
     requestFeature(WGPUFeatureName_Float32Blendable);
-    requestFeature(WGPUFeatureName_TextureCompressionBC);
+    m_deviceFeatures.textureCompressionBC = requestFeature(WGPUFeatureName_TextureCompressionBC);
 #ifndef HYP_WEB
     // Dawn only: lets transient command buffers be recorded off the render thread
     requestFeature(WGPUFeatureName_ImplicitDeviceSynchronization);
@@ -1229,6 +1229,11 @@ bool WebGPURenderInterface::IsSupportedFormat(TextureFormat format, ImageSupport
     if (wgpuFormat == WGPUTextureFormat_Undefined)
     {
         return false;
+    }
+
+    if (TextureUtils::IsBlockCompressed(format))
+    {
+        return supportType == ImageSupport::ShaderResource && m_deviceFeatures.textureCompressionBC;
     }
 
     switch (supportType)

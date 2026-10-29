@@ -980,10 +980,21 @@ void DX12GpuImage::CopyFromBuffer(
     AssertDebug(srcBuffer->GetResourceState() == ResourceState::CopySrc);
 
     const Vec3u mipExtent = m_textureDesc.GetMipExtent(mipIdx);
-    const uint32 bytesPerPixel = TextureUtils::BytesPerComponent(m_textureDesc.format) * TextureUtils::NumComponents(m_textureDesc.format);
-    const uint32 alignedRowPitch = ByteUtil::AlignAs(mipExtent.x * bytesPerPixel, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
-    const size_t requiredBufferSize = size_t(srcBufferOffset) + (size_t(mipExtent.y) * mipExtent.z * alignedRowPitch);
-    const size_t layerStep = ByteUtil::AlignAs(size_t(alignedRowPitch) * mipExtent.y * mipExtent.z, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
+    
+    const uint32 blockExtent = TextureUtils::GetBlockExtent(m_textureDesc.format);
+    
+    const Vec3u copyExtent {
+        ByteUtil::AlignAs(mipExtent.x, blockExtent),
+        ByteUtil::AlignAs(mipExtent.y, blockExtent),
+        mipExtent.z
+    };
+    
+    const uint32 numRows = TextureUtils::GetNumRows(m_textureDesc.format, mipExtent.y) * mipExtent.z;
+    const uint32 alignedRowPitch = ByteUtil::AlignAs(TextureUtils::GetRowByteSize(m_textureDesc.format, mipExtent.x), D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+    
+    const size_t requiredBufferSize = size_t(srcBufferOffset) + (size_t(numRows) * alignedRowPitch);
+    
+    const size_t layerStep = ByteUtil::AlignAs(size_t(alignedRowPitch) * numRows, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 
     AssertDebug(srcBufferOffset % D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT == 0,
         "Source buffer offset {} is not {} byte aligned", srcBufferOffset, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
@@ -1002,9 +1013,9 @@ void DX12GpuImage::CopyFromBuffer(
     srcBox.left = 0;
     srcBox.top = 0;
     srcBox.front = 0;
-    srcBox.right = mipExtent.x;
-    srcBox.bottom = mipExtent.y;
-    srcBox.back = mipExtent.z;
+    srcBox.right = copyExtent.x;
+    srcBox.bottom = copyExtent.y;
+    srcBox.back = copyExtent.z;
 
     for (uint16 layerIdx = 0; layerIdx < numLayersToCopy; layerIdx++)
     {
@@ -1012,9 +1023,9 @@ void DX12GpuImage::CopyFromBuffer(
 
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT placedFootprint {};
         placedFootprint.Offset = srcBufferOffset + uint64(layerIdx) * layerStep;
-        placedFootprint.Footprint.Depth = mipExtent.z;
-        placedFootprint.Footprint.Height = mipExtent.y;
-        placedFootprint.Footprint.Width = mipExtent.x;
+        placedFootprint.Footprint.Depth = copyExtent.z;
+        placedFootprint.Footprint.Height = copyExtent.y;
+        placedFootprint.Footprint.Width = copyExtent.x;
         placedFootprint.Footprint.Format = ToDXGIFormat(m_textureDesc.format);
         placedFootprint.Footprint.RowPitch = alignedRowPitch;
 
@@ -1097,9 +1108,18 @@ void DX12GpuImage::CopyToBuffer(
     for (uint8 mipIndex = newSubResource.baseMipLevel; mipIndex < newSubResource.baseMipLevel + newSubResource.numLevels; mipIndex++)
     {
         const Vec3u mipExtent = m_textureDesc.GetMipExtent(mipIndex);
-        const uint32 bytesPerPixel = TextureUtils::BytesPerComponent(m_textureDesc.format) * TextureUtils::NumComponents(m_textureDesc.format);
-        const uint32 alignedRowPitch = ByteUtil::AlignAs(mipExtent.x * bytesPerPixel, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
-        const size_t layerStep = ByteUtil::AlignAs(static_cast<size_t>(alignedRowPitch) * mipExtent.y * mipExtent.z, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
+        
+        const uint32 blockExtent = TextureUtils::GetBlockExtent(m_textureDesc.format);
+        
+        const Vec3u copyExtent {
+            ByteUtil::AlignAs(mipExtent.x, blockExtent),
+            ByteUtil::AlignAs(mipExtent.y, blockExtent),
+            mipExtent.z
+        };
+        
+        const uint32 alignedRowPitch = ByteUtil::AlignAs(TextureUtils::GetRowByteSize(m_textureDesc.format, mipExtent.x), D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+        
+        const size_t layerStep = ByteUtil::AlignAs(size_t(alignedRowPitch) * TextureUtils::GetNumRows(m_textureDesc.format, mipExtent.y) * mipExtent.z, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 
         for (uint16 layerIndex = newSubResource.baseArrayLayer; layerIndex < newSubResource.baseArrayLayer + newSubResource.numLayers; layerIndex++)
         {
@@ -1119,9 +1139,9 @@ void DX12GpuImage::CopyToBuffer(
                 NumArrayLayers());
 
             D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint {};
-            footprint.Footprint.Width = mipExtent.x;
-            footprint.Footprint.Height = mipExtent.y;
-            footprint.Footprint.Depth = mipExtent.z;
+            footprint.Footprint.Width = copyExtent.x;
+            footprint.Footprint.Height = copyExtent.y;
+            footprint.Footprint.Depth = copyExtent.z;
             footprint.Footprint.Format = ToDXGIFormat(m_textureDesc.format);
             footprint.Footprint.RowPitch = alignedRowPitch;
             footprint.Offset = bufferOffset + ((layerIndex - newSubResource.baseArrayLayer) * layerStep);
@@ -1132,9 +1152,9 @@ void DX12GpuImage::CopyToBuffer(
             dstBox.left = 0;
             dstBox.top = 0;
             dstBox.front = 0;
-            dstBox.right = mipExtent.x;
-            dstBox.bottom = mipExtent.y;
-            dstBox.back = mipExtent.z;
+            dstBox.right = copyExtent.x;
+            dstBox.bottom = copyExtent.y;
+            dstBox.back = copyExtent.z;
 
             commandBuffer->GetCommandList()->CopyTextureRegion(
                 &dstLocation,

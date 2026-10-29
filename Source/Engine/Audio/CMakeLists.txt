@@ -24,6 +24,12 @@ if(${OpenAL_FOUND})
 
   set(hyperion-audio_LIBRARIES ${OPENAL_LIBRARY})
 
+  if(HYP_SHIPPING_SDK AND MSVC)
+    # link dependencies of the static OpenAL Soft library, carried into the shipping SDK's StaticLibraries.txt
+    find_package(fmt CONFIG REQUIRED)
+    list(APPEND hyperion-audio_LIBRARIES fmt::fmt avrt)
+  endif()
+
   include_directories(SYSTEM ${OPENAL_INCLUDE_DIR})
 endif()
 

@@ -68,44 +68,6 @@ struct TerrainLayerPackSpec
 
 static constexpr uint32 TerrainLayerMaxExtent = 1024;
 
-static void DropMipsAbove(uint32 maxExtent, TextureDesc& desc, ByteBuffer& imageData)
-{
-    const uint8 numMips = desc.NumMips();
-
-    uint32 numDropped = 0;
-
-    while (numDropped + 1 < numMips && (MathUtil::Max(desc.extent.x, desc.extent.y) >> numDropped) > maxExtent)
-    {
-        numDropped++;
-    }
-
-    if (numDropped == 0)
-    {
-        return;
-    }
-
-    const uint32 baseOffset = desc.mipOffsets[numDropped - 1];
-
-    ByteBuffer remaining(imageData.ToByteView().Slice(baseOffset));
-    imageData = std::move(remaining);
-
-    desc.extent = Vec3u { MathUtil::Max(desc.extent.x >> numDropped, 1u), MathUtil::Max(desc.extent.y >> numDropped, 1u), 1u };
-
-    for (uint32 i = 0; i < TextureDesc::MaxMips; i++)
-    {
-        const uint32 src = i + numDropped;
-
-        if (src + 1 < numMips)
-        {
-            desc.mipOffsets[i] = desc.mipOffsets[src] - baseOffset;
-        }
-        else
-        {
-            desc.mipOffsets[i] = 0;
-        }
-    }
-}
-
 static Handle<Texture> LoadPackSourceTexture(
     const FilePath& inputDir,
     const char* filename,
@@ -409,7 +371,7 @@ static void PackTerrainLayerTextures(const FilePath& inputDir, Handle<AssetRegis
         };
 
         Texture::GenerateMipmaps(albedoDesc, albedoBytes);
-        DropMipsAbove(TerrainLayerMaxExtent, albedoDesc, albedoBytes);
+        Texture::DropMipsAbove(TerrainLayerMaxExtent, albedoDesc, albedoBytes);
 
         Handle<Texture> albedoTexture = MakeHandle<Texture>(albedoDesc, albedoBytes.ToByteView());
         albedoTexture->SetName(albedoName);
@@ -424,7 +386,7 @@ static void PackTerrainLayerTextures(const FilePath& inputDir, Handle<AssetRegis
         };
 
         Texture::GenerateMipmaps(packedNormalDesc, normalBytes);
-        DropMipsAbove(TerrainLayerMaxExtent, packedNormalDesc, normalBytes);
+        Texture::DropMipsAbove(TerrainLayerMaxExtent, packedNormalDesc, normalBytes);
 
         Handle<Texture> normalTexture = MakeHandle<Texture>(packedNormalDesc, normalBytes.ToByteView());
         normalTexture->SetName(normalName);
@@ -445,6 +407,95 @@ static void PackTerrainLayerTextures(const FilePath& inputDir, Handle<AssetRegis
             roughnessMask.IsValid() ? "yes" : "neutral",
             heightMin, heightMax);
     }
+}
+
+static Handle<AssetRegistry> GetOrCreateEngineRegistry()
+{
+    Handle<AssetRegistry> registry = GetEngineAssetRegistry();
+
+    if (!registry.IsValid())
+    {
+        registry = MakeHandle<AssetRegistry>(
+            AssetRegistryId::Engine,
+            EngineGlobals::GetContentDirectory<HYP_STATIC_STRING("Engine")>());
+
+        registry->Initialize(nullptr);
+
+        // set globally so Engine-id assets can resolve their owning registry for blob persistence
+        SetEngineAssetRegistry(registry);
+    }
+
+    return registry;
+}
+
+static void CompressTexture(const Handle<Texture>& texture)
+{
+    if (Result compressResult = texture->Compress(); compressResult.HasError())
+    {
+        HYP_LOG(Assets, Warning, "Texture {} was not compressed: {}", texture->GetName(), compressResult.GetError().GetMessage());
+    }
+}
+
+// font atlases are read on the CPU, and lookup tables and placeholders need exact values
+static bool ShouldCompressEngineTexture(const String& name)
+{
+    static const char* const excludedPrefixes[] = {
+        "FontAtlas", "LTC_", "Checkerboard", "SolidWhite", "SolidBlack"
+    };
+
+    for (const char* prefix : excludedPrefixes)
+    {
+        if (name.StartsWith(prefix))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static Result CompressEngineTextures()
+{
+    Handle<AssetRegistry> registry = GetOrCreateEngineRegistry();
+
+    GlobalContextScope contextScope { AssetRegistryContext { registry } };
+
+    Array<AssetDesc> assetDescs;
+    registry->GetBucketAssetDescs(AssetBuckets::Textures.GetIndex(), assetDescs);
+
+    uint32 numCompressed = 0;
+
+    for (const AssetDesc& assetDesc : assetDescs)
+    {
+        if (!ShouldCompressEngineTexture(String(*assetDesc.name)))
+        {
+            continue;
+        }
+
+        Handle<Texture> texture = registry->GetAsset<Texture>(AssetBuckets::Textures, assetDesc.name);
+
+        if (!texture.IsValid() || TextureUtils::IsBlockCompressed(texture->GetFormat()))
+        {
+            continue;
+        }
+
+        const TextureFormat sourceFormat = texture->GetFormat();
+
+        CompressTexture(texture);
+
+        if (TextureUtils::IsBlockCompressed(texture->GetFormat()))
+        {
+            HYP_LOG(Assets, Info, "Compressed {} {} -> {}", assetDesc.name, EnumToString(sourceFormat), EnumToString(texture->GetFormat()));
+
+            numCompressed++;
+        }
+    }
+
+    registry->SaveDirtyAssets();
+
+    HYP_LOG(Assets, Info, "Compressed {} engine textures", numCompressed);
+
+    return {};
 }
 
 class CookTexturesCommandlet : public CommandletBase
@@ -471,6 +522,14 @@ public:
                 CommandLineArgumentFlags::NONE,
                 CommandLineArgumentType::STRING,
                 JSON::Value("Data/Textures"));
+
+            s_definitions.Add(
+                "compress-engine",
+                "",
+                "Block-compress the engine textures already in Content/Engine instead of packing sources",
+                CommandLineArgumentFlags::NONE,
+                CommandLineArgumentType::BOOLEAN,
+                false);
         }
 
         return s_definitions;
@@ -479,6 +538,11 @@ public:
 protected:
     virtual Result Run(const CommandLineArguments& args) override
     {
+        if (args["compress-engine"].ToBool())
+        {
+            return CompressEngineTextures();
+        }
+
         FilePath inputDir = FilePath(args["input-dir"].ToString());
 
         if (inputDir.Empty())
@@ -498,19 +562,7 @@ protected:
             return HYP_MAKE_ERROR(Error, "Input directory does not exist: {}", inputDir);
         }
 
-        Handle<AssetRegistry> registry = GetEngineAssetRegistry();
-
-        if (!registry.IsValid())
-        {
-            registry = MakeHandle<AssetRegistry>(
-                AssetRegistryId::Engine,
-                EngineGlobals::GetContentDirectory<HYP_STATIC_STRING("Engine")>());
-
-            registry->Initialize(nullptr);
-
-            // set globally so Engine-id assets can resolve their owning registry for blob persistence
-            SetEngineAssetRegistry(registry);
-        }
+        Handle<AssetRegistry> registry = GetOrCreateEngineRegistry();
 
         GlobalContextScope contextScope { AssetRegistryContext { registry } };
 
@@ -574,11 +626,10 @@ protected:
         PackTerrainLayerTextures(inputDir, registry);
         PackProceduralSnowLayer(registry);
 
-        registry->SaveDirtyAssets();
-
         HYP_LOG(Assets, Info, "Cooked {} textures into the engine asset registry ({} failed)", numCooked, numFailed);
 
-        return {};
+        // the packed layers are compressed with the rest, then everything is saved
+        return CompressEngineTextures();
     }
 };
 

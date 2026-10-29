@@ -39,6 +39,7 @@ struct WebGPUDeviceFeatures
     bool textureFormatsTier1 = false;
     bool indirectFirstInstance = false;
     bool rg11b10UfloatRenderable = false;
+    bool textureCompressionBC = false;
 };
 
 class WebGPURenderInterface final : public RenderInterface

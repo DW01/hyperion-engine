@@ -31,5 +31,6 @@ Texture LTC_BRDF {
         Key = "Engine://Textures/LTC_BRDF.TEX"
         Size = 32768
     }
+    Compression = Auto
     UUID = "acd2870c-52fa-82c5-ac00-1f9e2dd32af0"
 }

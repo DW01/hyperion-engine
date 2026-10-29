@@ -26,12 +26,80 @@
 #include <Scene/Animation/Skeleton.hpp>
 #include <Scene/Animation/Animation.hpp>
 
+#include <Rendering/Texture.hpp>
+
+#include <Core/Threading/TaskSystem.hpp>
+
 #include <Core/Math/MathUtil.hpp>
 #include <Core/Logging/Logger.hpp>
 
 namespace Hyperion {
 
 HYP_DECLARE_LOG_CHANNEL(Editor);
+
+void CompressEditorTextures(Array<Handle<Texture>>&& textures)
+{
+    if (textures.Empty())
+    {
+        return;
+    }
+
+    const uint32 numTextures = uint32(textures.Size());
+
+    EditorTaskScope* editorTaskScope = new EditorTaskScope(
+        TickableEditorTask::StaticClass(),
+        "Compressing textures...",
+        HYP_FORMAT("Compressing 0/{} textures", numTextures));
+
+    TaskSystem::GetInstance().Enqueue(
+        [editorTaskScope, textures = std::move(textures)]()
+        {
+            for (size_t i = 0; i < textures.Size(); i++)
+            {
+                editorTaskScope->GetEditorTask()->SetDescription(HYP_FORMAT("Compressing {}/{}: {}", i + 1, textures.Size(), textures[i]->GetName()));
+
+                if (Result compressResult = textures[i]->Compress(); compressResult.HasError())
+                {
+                    HYP_LOG(Editor, Warning, "Texture {} was not compressed: {}", textures[i]->GetName(), compressResult.GetError().GetMessage());
+                }
+            }
+
+            delete editorTaskScope;
+        },
+        TaskThreadPoolName::THREAD_POOL_BACKGROUND,
+        TaskEnqueueFlags::FIRE_AND_FORGET);
+}
+
+static void CompressImportedTextures(EditorSubsystem& subsystem, const Array<Handle<AssetObject>>& importedAssets)
+{
+    const Handle<EditorProject>& project = subsystem.GetCurrentProject();
+
+    if (!project.IsValid() || !project->GetProjectSettings()->compressImportedTextures)
+    {
+        return;
+    }
+
+    Array<Handle<Texture>> textures;
+
+    auto collectTexture = [&textures](const Handle<AssetObject>& asset)
+    {
+        Handle<Texture> texture = TryCast<Texture>(asset);
+
+        if (texture.IsValid() && !textures.Contains(texture))
+        {
+            textures.PushBack(std::move(texture));
+        }
+    };
+
+    for (const Handle<AssetObject>& asset : importedAssets)
+    {
+        collectTexture(asset);
+
+        AssetRegistry::WalkAssetDeep(BoxedValue(asset), collectTexture);
+    }
+
+    CompressEditorTextures(std::move(textures));
+}
 
 static void FileImportedAssets(
     EditorAssetFolders& assetFolders,
@@ -138,6 +206,8 @@ Array<Handle<AssetObject>> CommitEditorModelImport(
     {
         subsystem.OnAssetsChanged(bucketIndex);
     }
+
+    CompressImportedTextures(subsystem, importedAssets);
 
     return importedAssets;
 }
@@ -246,6 +316,7 @@ void ImportEditorContent(
                   }
 
                   Array<Handle<AssetObject>> importedAssets;
+                  Array<Handle<AssetObject>> directImports;
                   Set<uint32, EditorAllocator> changedBuckets;
 
                   for (auto& it : results)
@@ -310,6 +381,7 @@ void ImportEditorContent(
                       GetCurrentAssetRegistry()->PutAssetUnique(assetObject);
 
                       importedAssets.PushBack(assetObject);
+                      directImports.PushBack(assetObject);
 
                       const AssetPath& assetPath = assetObject->GetPath();
 
@@ -332,6 +404,8 @@ void ImportEditorContent(
                       {
                           subsystem->OnAssetsChanged(bucketIndex);
                       }
+
+                      CompressImportedTextures(*subsystem, directImports);
                   }
 
                   delete editorTaskScope;

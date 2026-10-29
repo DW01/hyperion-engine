@@ -88,7 +88,7 @@ for path in "$BIN_DIR"/*.dylib; do
 done
 
 # a built-in plugin's module libraries and descriptor are in Plugins/<Plugin>, with its content; the editor loads them when a project enables
-# the plugin. Test plugins and editor-wide library plugins (MCPBridge) aren't part of the editor
+# the plugin. Test plugins aren't part of the editor
 for plugin_bin_dir in "$BIN_DIR"/Plugins/*/; do
     plugin_name="$(basename "$plugin_bin_dir")"
     plugin_source_dir="$ROOT_DIR/Source/Plugins/$plugin_name"

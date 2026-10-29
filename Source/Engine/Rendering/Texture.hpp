@@ -27,6 +27,17 @@
 
 namespace Hyperion {
 
+HYP_ENUM()
+enum class TextureCompressionMode : uint8
+{
+    Auto,
+    None,
+    Color,
+    ColorAlpha,
+    Normal,
+    Mask
+};
+
 HYP_CLASS(AssetBucket = "Textures")
 class ENGINE_API Texture : public AssetObject
 {
@@ -141,6 +152,8 @@ public:
 
     static void GenerateMipmaps(TextureDesc& desc, ByteBuffer& imageData);
 
+    static bool DropMipsAbove(uint32 maxExtent, TextureDesc& desc, ByteBuffer& imageData);
+
     /*! \brief Blocking call to readback GPU image data into a CPU-side buffer. Must be called on the render thread.
      *  Do not use frequently as this will stall the gpu */
     void Readback(GpuBufferRef& outBuffer);
@@ -166,6 +179,17 @@ public:
 
     HYP_METHOD(EditorOnly, Property = "SRGB", Label = "sRGB", Editor, Transient, EditorOrder = 10)
     void SetIsSRGB(bool isSrgb);
+
+    HYP_METHOD(EditorOnly, Property = "Compression", Editor, Transient, EditorOrder = 11)
+    HYP_FORCE_INLINE TextureCompressionMode GetCompression() const
+    {
+        return m_compression;
+    }
+
+    HYP_METHOD(EditorOnly, Property = "Compression", Editor, Transient, EditorOrder = 11)
+    void SetCompression(TextureCompressionMode compression);
+
+    Result Compress();
 #endif // HYP_EDITOR
     
     AtomicFlag isUploaded;
@@ -179,6 +203,7 @@ protected:
 
 #ifdef HYP_EDITOR
     void RebuildImageData(TextureFormat format);
+    void ReplaceImageData(const TextureDesc& desc, ConstByteView imageData);
     void RecreateGpuImage();
 #endif // HYP_EDITOR
 
@@ -192,6 +217,9 @@ protected:
 
     HYP_FIELD(Serialize)
     BlobDataReference m_imageData;
+
+    HYP_FIELD(Serialize)
+    TextureCompressionMode m_compression = TextureCompressionMode::Auto;
 
     HYP_FIELD(Transient)
     GpuImageRef m_gpuImage;

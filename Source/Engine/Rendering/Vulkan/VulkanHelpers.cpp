@@ -112,6 +112,18 @@ VkFormat ToVkFormat(TextureFormat fmt)
         return VK_FORMAT_D32_SFLOAT;
     case TextureFormat::D32F_S8:
         return VK_FORMAT_D32_SFLOAT_S8_UINT;
+    case TextureFormat::BC1:
+        return VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
+    case TextureFormat::BC1_SRGB:
+        return VK_FORMAT_BC1_RGBA_SRGB_BLOCK;
+    case TextureFormat::BC4:
+        return VK_FORMAT_BC4_UNORM_BLOCK;
+    case TextureFormat::BC5:
+        return VK_FORMAT_BC5_UNORM_BLOCK;
+    case TextureFormat::BC7:
+        return VK_FORMAT_BC7_UNORM_BLOCK;
+    case TextureFormat::BC7_SRGB:
+        return VK_FORMAT_BC7_SRGB_BLOCK;
     default:
         break;
     }

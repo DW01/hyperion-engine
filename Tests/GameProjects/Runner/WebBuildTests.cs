@@ -146,8 +146,8 @@ public sealed class WebNativeFixture
 
     public WebNativeFixture()
     {
-        // PluginTest and MCPBridge are on by default too, but the first is a test plugin and the second editor only
-        _project = new Lazy<GameProject>(() => GameProject.CreateInEditor("WebNative", GameProjectLanguage.Native, "PluginTest", "MCPBridge"));
+        // PluginTest is on by default too, but it is a test plugin
+        _project = new Lazy<GameProject>(() => GameProject.CreateInEditor("WebNative", GameProjectLanguage.Native, "PluginTest"));
         _cook = new Lazy<ProcessResult>(CookForWeb);
 
         // what the editor passes for a project with AnimToolkit on: the plugin, and its runtime module, linked into the page
@@ -202,7 +202,7 @@ public sealed class WebManagedFixture
 
     public WebManagedFixture()
     {
-        _project = new Lazy<GameProject>(() => GameProject.CreateInEditor("WebManaged", GameProjectLanguage.Managed, "AnimToolkit", "PluginTest", "MCPBridge"));
+        _project = new Lazy<GameProject>(() => GameProject.CreateInEditor("WebManaged", GameProjectLanguage.Managed, "AnimToolkit", "PluginTest"));
         _build = new Lazy<ProcessResult>(() => WebBuildEnvironment.Build(Project, Project.Name, new[] { "-FastLink" }, "build-web"));
     }
 

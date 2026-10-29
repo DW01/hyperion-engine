@@ -66,6 +66,22 @@ if(EXISTS "${MESHOPTIMIZER_DIR}/meshoptimizer.h")
   include_directories(SYSTEM "${MESHOPTIMIZER_DIR}")
 endif()
 
+set(BC7ENC_DIR "${SUBMODULES_DIR}/bc7enc_rdo")
+
+if(HYP_EDITOR AND EXISTS "${BC7ENC_DIR}/bc7enc.h")
+  message(STATUS "bc7enc_rdo found, enabling BC texture encoding")
+
+  add_definitions(-DHYP_BC7ENC=1)
+
+  set(BC7ENC_SOURCES "${BC7ENC_DIR}/bc7enc.cpp" "${BC7ENC_DIR}/rgbcx.cpp")
+
+  set_source_files_properties(${BC7ENC_SOURCES} PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+
+  set(CURRENT_SOURCES ${CURRENT_SOURCES} ${BC7ENC_SOURCES})
+
+  include_directories(SYSTEM "${BC7ENC_DIR}")
+endif()
+
 # manifold powers mesh booleans (MeshBoolean)
 set(MANIFOLD_DIR "${SUBMODULES_DIR}/manifold")
 

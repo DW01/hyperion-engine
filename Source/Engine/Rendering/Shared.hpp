@@ -177,7 +177,15 @@ enum class TextureFormat : uint8
     D16,
     D24_S8,
     D32F,
-    D32F_S8
+    D32F_S8,
+
+    /* begin block compressed */
+    BC1,
+    BC1_SRGB,
+    BC4,
+    BC5,
+    BC7,
+    BC7_SRGB
 };
 
 static constexpr TextureFormat InvalidTextureFormat = TextureFormat(-1);
@@ -293,6 +301,15 @@ static inline constexpr uint32 NumComponents(TextureFormat fmt)
         return 1;
     case TextureFormat::D32F_S8:
         return 2;
+    case TextureFormat::BC4:
+        return 1;
+    case TextureFormat::BC5:
+        return 2;
+    case TextureFormat::BC1:
+    case TextureFormat::BC1_SRGB:
+    case TextureFormat::BC7:
+    case TextureFormat::BC7_SRGB:
+        return 4;
     default:
         // undefined result
         return 0;
@@ -367,7 +384,61 @@ static inline constexpr TextureFormat FormatChangeNumComponents(TextureFormat fm
 
 static inline constexpr bool IsDepthFormat(TextureFormat fmt)
 {
-    return fmt >= TextureFormat::D16;
+    return fmt >= TextureFormat::D16 && fmt <= TextureFormat::D32F_S8;
+}
+
+static inline constexpr bool IsBlockCompressed(TextureFormat fmt)
+{
+    return fmt >= TextureFormat::BC1 && fmt <= TextureFormat::BC7_SRGB;
+}
+
+static inline constexpr uint32 GetBlockExtent(TextureFormat fmt)
+{
+    if (IsBlockCompressed(fmt))
+    {
+        return 4;
+    }
+
+    return 1;
+}
+
+/*! \brief Bytes per 4x4 block for block-compressed formats, bytes per texel otherwise */
+static inline constexpr uint32 GetBytesPerBlock(TextureFormat fmt)
+{
+    switch (fmt)
+    {
+    case TextureFormat::BC1:
+    case TextureFormat::BC1_SRGB:
+    case TextureFormat::BC4:
+        return 8;
+    case TextureFormat::BC5:
+    case TextureFormat::BC7:
+    case TextureFormat::BC7_SRGB:
+        return 16;
+    default:
+        return BytesPerComponent(fmt) * NumComponents(fmt);
+    }
+}
+
+/*! \brief Bytes in one row of blocks (or texels) of an image \p width texels wide */
+static inline constexpr uint32 GetRowByteSize(TextureFormat fmt, uint32 width)
+{
+    const uint32 blockExtent = GetBlockExtent(fmt);
+
+    return ((width + blockExtent - 1) / blockExtent) * GetBytesPerBlock(fmt);
+}
+
+/*! \brief Rows of blocks (or texels) in an image \p height texels tall */
+static inline constexpr uint32 GetNumRows(TextureFormat fmt, uint32 height)
+{
+    const uint32 blockExtent = GetBlockExtent(fmt);
+
+    return (height + blockExtent - 1) / blockExtent;
+}
+
+static inline constexpr size_t GetImageByteSize(TextureFormat fmt, Vec3u extent)
+{
+    return size_t(GetRowByteSize(fmt, extent.x)) * size_t(GetNumRows(fmt, extent.y)) * size_t(extent.z);
 }
 
 static inline constexpr bool HasStencilComponent(TextureFormat fmt)
@@ -377,7 +448,9 @@ static inline constexpr bool HasStencilComponent(TextureFormat fmt)
 
 static inline constexpr bool IsSRGB(TextureFormat fmt)
 {
-    return fmt >= TextureFormat::R8_SRGB && fmt < TextureFormat::D16;
+    return (fmt >= TextureFormat::R8_SRGB && fmt < TextureFormat::D16)
+        || fmt == TextureFormat::BC1_SRGB
+        || fmt == TextureFormat::BC7_SRGB;
 }
 
 /*! \brief Converts srgb formats to non-srgb variants and vice versa. Only for SRGB supported formats. */
@@ -386,6 +459,23 @@ static inline constexpr TextureFormat ChangeFormatSRGB(TextureFormat fmt, bool u
     if (IsSRGB(fmt) == useSRGB)
     {
         return fmt;
+    }
+
+    switch (fmt)
+    {
+    case TextureFormat::BC1:
+        return TextureFormat::BC1_SRGB;
+    case TextureFormat::BC1_SRGB:
+        return TextureFormat::BC1;
+    case TextureFormat::BC7:
+        return TextureFormat::BC7_SRGB;
+    case TextureFormat::BC7_SRGB:
+        return TextureFormat::BC7;
+    case TextureFormat::BC4:
+    case TextureFormat::BC5:
+        return fmt;
+    default:
+        break;
     }
 
     constexpr uint32 BeginSRGB = uint32(TextureFormat::R8_SRGB);
@@ -640,10 +730,7 @@ struct TextureDesc
             return totalByteSize;
         }
 
-        return (extent.x * extent.y * extent.z)
-            * TextureUtils::BytesPerComponent(format)
-            * TextureUtils::NumComponents(format)
-            * NumArrayLayers();
+        return TextureUtils::GetImageByteSize(format, extent) * NumArrayLayers();
     }
 
     size_t GetMipByteSize(uint8 mipIndex, bool includeArrayLayers = false) const
@@ -654,11 +741,7 @@ struct TextureDesc
             return 0;
         }
 
-        const Vec3u mipExtent = GetMipExtent(mipIndex);
-
-        return (mipExtent.x * mipExtent.y * mipExtent.z)
-            * TextureUtils::BytesPerComponent(format)
-            * TextureUtils::NumComponents(format)
+        return TextureUtils::GetImageByteSize(format, GetMipExtent(mipIndex))
             * (includeArrayLayers ? NumArrayLayers() : 1);
     }
 

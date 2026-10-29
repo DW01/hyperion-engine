@@ -76,6 +76,18 @@ constexpr WGPUTextureFormat ToWGPUTextureFormat(TextureFormat format)
         return WGPUTextureFormat_Depth32Float;
     case TextureFormat::D32F_S8:
         return WGPUTextureFormat_Depth32FloatStencil8;
+    case TextureFormat::BC1:
+        return WGPUTextureFormat_BC1RGBAUnorm;
+    case TextureFormat::BC1_SRGB:
+        return WGPUTextureFormat_BC1RGBAUnormSrgb;
+    case TextureFormat::BC4:
+        return WGPUTextureFormat_BC4RUnorm;
+    case TextureFormat::BC5:
+        return WGPUTextureFormat_BC5RGUnorm;
+    case TextureFormat::BC7:
+        return WGPUTextureFormat_BC7RGBAUnorm;
+    case TextureFormat::BC7_SRGB:
+        return WGPUTextureFormat_BC7RGBAUnormSrgb;
     default:
         return WGPUTextureFormat_Undefined;
     }

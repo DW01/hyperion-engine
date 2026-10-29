@@ -1,7 +1,7 @@
 Texture Terrain_Layer3_Albedo {
     TextureDesc = {
         Type = Texture2D
-        Format = RGBA8_SRGB
+        Format = BC7_SRGB
         Extent = (1024, 1024, 1)
         MinFilterMode = LinearMipmap
         MagFilterMode = Linear
@@ -9,16 +9,16 @@ Texture Terrain_Layer3_Albedo {
         NumLayers = 1
         ImageUsage = Sampled
         MipOffsets = [
-            4194304
-            5242880
-            5505024
-            5570560
-            5586944
-            5591040
-            5592064
-            5592320
-            5592384
-            5592400
+            1048576
+            1310720
+            1376256
+            1392640
+            1396736
+            1397760
+            1398016
+            1398080
+            1398096
+            1398112
             0
             0
             0
@@ -29,6 +29,8 @@ Texture Terrain_Layer3_Albedo {
     }
     ImageData = {
         Key = "Engine://Textures/Terrain_Layer3_Albedo.TEX"
-        Size = 5592404
+        Size = 1398128
     }
+    Compression = Auto
+    UUID = "7d1ed0ff-4630-409f-861a-e7d92837e1c3"
 }

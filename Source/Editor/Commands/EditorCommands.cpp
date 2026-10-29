@@ -7,6 +7,9 @@
 #include <Editor/Commands/EditorCommandsCommon.hpp>
 
 #include <Editor/EditorHelpers.hpp>
+#include <Editor/EditorImport.hpp>
+#include <Rendering/Texture.hpp>
+#include <Asset/AssetRegistry.hpp>
 
 #include <Framework/View.hpp>
 #include <Framework/Game.hpp>
@@ -783,6 +786,54 @@ public:
 DEFINE_EDITOR_COMMAND(CookGameContent);
 
 #pragma endregion CookGameContent
+
+#pragma region CompressProjectTextures
+
+class EditorCommandCompressProjectTextures final : public EditorCommandBase
+{
+    HYP_OBJECT_BODY(EditorCommandCompressProjectTextures);
+
+public:
+    virtual ~EditorCommandCompressProjectTextures() override = default;
+
+    virtual String GetText() const override
+    {
+        return "Compress Project Textures";
+    }
+
+    virtual void Execute(EditorSubsystem* subsystem) override
+    {
+        if (!subsystem->GetCurrentProject().IsValid())
+        {
+            return;
+        }
+
+        Handle<AssetRegistry> registry = GetCurrentAssetRegistry();
+
+        Array<AssetDesc> assetDescs;
+        registry->GetBucketAssetDescs(AssetBuckets::Textures.GetIndex(), assetDescs);
+
+        Array<Handle<Texture>> textures;
+
+        for (const AssetDesc& assetDesc : assetDescs)
+        {
+            Handle<Texture> texture = registry->GetAsset<Texture>(AssetBuckets::Textures, assetDesc.name);
+
+            if (texture.IsValid() && !TextureUtils::IsBlockCompressed(texture->GetFormat()))
+            {
+                textures.PushBack(std::move(texture));
+            }
+        }
+
+        HYP_LOG(Editor, Info, "Compressing {} project textures", textures.Size());
+
+        CompressEditorTextures(std::move(textures));
+    }
+};
+
+DEFINE_EDITOR_COMMAND(CompressProjectTextures);
+
+#pragma endregion CompressProjectTextures
 
 #pragma region CaptureViewport
 

@@ -31,5 +31,6 @@ Texture SolidWhite {
         Key = "Engine://Textures/SolidWhite.TEX"
         Size = 4
     }
+    Compression = Auto
     UUID = "1843dff5-62a4-8be1-a6c5-032f7bfe3054"
 }

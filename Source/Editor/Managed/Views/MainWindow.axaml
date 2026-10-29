@@ -452,6 +452,7 @@
                     <MenuItem Command="{Binding RebuildMeshBVHs}" Header="Rebuild Mesh BVHs" />
                     <Separator />
                     <MenuItem Command="{Binding CookGameContent}" Header="Cook Game Content" />
+                    <MenuItem Command="{Binding CompressProjectTextures}" Header="Compress Project Textures" />
                 </MenuItem>
             </Menu>
 

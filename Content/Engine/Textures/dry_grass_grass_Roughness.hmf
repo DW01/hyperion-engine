@@ -1,7 +1,7 @@
 Texture dry_grass_grass_Roughness {
     TextureDesc = {
         Type = Texture2D
-        Format = R8
+        Format = BC4
         Extent = (768, 512, 1)
         MinFilterMode = LinearMipmap
         MagFilterMode = Linear
@@ -9,15 +9,15 @@ Texture dry_grass_grass_Roughness {
         NumLayers = 1
         ImageUsage = Sampled
         MipOffsets = [
-            393216
-            491520
-            516096
-            522240
-            523776
-            524160
-            524256
-            524280
-            524286
+            196608
+            245760
+            258048
+            261120
+            261888
+            262080
+            262128
+            262144
+            262152
             0
             0
             0
@@ -29,7 +29,8 @@ Texture dry_grass_grass_Roughness {
     }
     ImageData = {
         Key = "Engine://Textures/dry_grass_grass_Roughness.TEX"
-        Size = 524287
+        Size = 262160
     }
+    Compression = Auto
     UUID = "b1f376f4-18c6-450d-8a01-91ff642bc836"
 }

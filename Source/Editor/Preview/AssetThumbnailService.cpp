@@ -523,7 +523,8 @@ bool AssetThumbnailService::CaptureTextureDirectly(const PreviewAssetKey& key)
 
     const TextureDesc& desc = texture->GetTextureDesc();
 
-    if (desc.type != TextureType::Texture2D || TextureUtils::BytesPerComponent(desc.format) != 1)
+    if (desc.type != TextureType::Texture2D
+        || (TextureUtils::BytesPerComponent(desc.format) != 1 && !TextureUtils::IsBlockCompressed(desc.format)))
     {
         return false;
     }

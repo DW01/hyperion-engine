@@ -111,6 +111,18 @@ DXGI_FORMAT ToDXGIFormat(TextureFormat format, DX12ViewType getForViewType)
             return DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
 
         return DXGI_FORMAT_R32G8X24_TYPELESS;
+    case TextureFormat::BC1:
+        return DXGI_FORMAT_BC1_UNORM;
+    case TextureFormat::BC1_SRGB:
+        return DXGI_FORMAT_BC1_UNORM_SRGB;
+    case TextureFormat::BC4:
+        return DXGI_FORMAT_BC4_UNORM;
+    case TextureFormat::BC5:
+        return DXGI_FORMAT_BC5_UNORM;
+    case TextureFormat::BC7:
+        return DXGI_FORMAT_BC7_UNORM;
+    case TextureFormat::BC7_SRGB:
+        return DXGI_FORMAT_BC7_UNORM_SRGB;
     default:
         break;
     }

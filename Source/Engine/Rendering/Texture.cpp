@@ -20,6 +20,9 @@
 
 #include <Rendering/Util/DeletionQueue.hpp>
 #include <Rendering/Util/TextureUtils.hpp>
+#include <Rendering/Util/TextureCompression.hpp>
+
+#include <Framework/CVarManager.hpp>
 
 #include <Asset/Assets.hpp>
 #include <Asset/AssetRegistry.hpp>
@@ -50,12 +53,11 @@ static constexpr unsigned int D3D12_TEXTURE_DATA_PITCH_ALIGNMENT = 256;
 static constexpr unsigned int D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT = 512;
 #endif
 
-namespace Hyperion
-{
-
-class Texture;
+namespace Hyperion {
 
 extern ThreadSignal g_renderInitSignal;
+
+CVar<bool> g_cvForceTextureDecode("Rendering.ForceTextureDecode", false);
 
 const FixedArray<Pair<Vec3f, Vec3f>, 6> Texture::s_cubemapDirections = {
     // +x
@@ -72,20 +74,18 @@ const FixedArray<Pair<Vec3f, Vec3f>, 6> Texture::s_cubemapDirections = {
     Pair<Vec3f, Vec3f> { Vec3f { 0.0f, 0.0f, -1.0f }, Vec3f { 0.0f, 1.0f, 0.0f } }
 };
 
-static const Name s_nameTextureDefault = NAME("<unnamed texture>");
+namespace {
 
-static bool CheckImageData(Texture& texture, GpuImage& image)
+const Name g_nameTextureDefault = NAME("<unnamed texture>");
+
+bool CheckImageData(Texture& texture, const TextureDesc& textureDesc, ConstByteView imageData, GpuImage& image)
 {
-    ConstByteView imageData = texture.GetImageData();
-
     if (!imageData.Data())
     {
         HYP_LOG(Streaming, Error, "No image data for texture");
 
         return false;
     }
-
-    const TextureDesc& textureDesc = texture.GetTextureDesc();
 
     const uint32 largestMipSize = textureDesc.HasStoredMips()
         ? textureDesc.mipOffsets[0]
@@ -119,7 +119,7 @@ static bool CheckImageData(Texture& texture, GpuImage& image)
     return true;
 }
 
-static const Texture* GetPlaceholderTexture(const TextureDesc& desc)
+const Texture* GetPlaceholderTexture(const TextureDesc& desc)
 {
     const PlaceholderData* placeholderData = RI.placeholderData;
 
@@ -151,7 +151,13 @@ static const Texture* GetPlaceholderTexture(const TextureDesc& desc)
     return placeholderData->defaultTexture2d.Get();
 }
 
-static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, ResourceState initialState, bool uploadTextureData)
+RendererResult CreateGpuImage(
+    Texture& texture,
+    const TextureDesc& textureDesc,
+    ConstByteView imageData,
+    GpuImage& image,
+    ResourceState initialState,
+    bool uploadTextureData)
 {
     if (!IsOnThread(g_renderThread))
     {
@@ -170,13 +176,11 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
 
     if (uploadTextureData)
     {
-        ConstByteView imageData = texture.GetImageData();
-        const TextureDesc& textureDesc = texture.GetTextureDesc();
         Span<const uint32> mipOffsets = textureDesc.mipOffsets.ToSpan();
 
         Optional<ByteBuffer> placeholderBuffer;
 
-        if (!CheckImageData(texture, image))
+        if (!CheckImageData(texture, textureDesc, imageData, image))
         {
             AssertDebug(false, "Image contains invalid data!");
 
@@ -253,19 +257,17 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
 
         for (uint8 mipIndex = 0; mipIndex < numMips; mipIndex++)
         {
-            // @NOTE Revisit if we use BC formats
             uint32 mipWidth = MathUtil::Max(1u, textureDesc.extent.x >> mipIndex);
             uint32 mipHeight = MathUtil::Max(1u, textureDesc.extent.y >> mipIndex);
             uint32 mipDepth = MathUtil::Max(1u, textureDesc.extent.z >> mipIndex);
 
-            uint32 bytesPerPixel = TextureUtils::NumComponents(textureDesc.format) * TextureUtils::BytesPerComponent(textureDesc.format);
-            uint32 unalignedRowPitch = mipWidth * bytesPerPixel;
+            uint32 unalignedRowPitch = TextureUtils::GetRowByteSize(textureDesc.format, mipWidth);
 
             // Align row pitch to 256 bytes
             uint32 paddedRowPitch = ByteUtil::AlignAs(unalignedRowPitch, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
 
             // every layer has to start on a 512 byte boundary too, not just every mip
-            uint32 paddedLayerStride = ByteUtil::AlignAs(paddedRowPitch * mipHeight * mipDepth, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
+            uint32 paddedLayerStride = ByteUtil::AlignAs(paddedRowPitch * TextureUtils::GetNumRows(textureDesc.format, mipHeight) * mipDepth, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 
             // Record offset for this mip, ensuring 512-byte alignment
             paddedMipOffsets[mipIndex] = ByteUtil::AlignAs(paddedTotalSize, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
@@ -283,10 +285,9 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
             uint32 mipHeight = MathUtil::Max(1u, textureDesc.extent.y >> mipIndex);
             uint32 mipDepth = MathUtil::Max(1u, textureDesc.extent.z >> mipIndex);
 
-            uint32 bytesPerPixel = TextureUtils::NumComponents(textureDesc.format) * TextureUtils::BytesPerComponent(textureDesc.format);
-            uint32 unalignedRowPitch = mipWidth * bytesPerPixel;
+            uint32 unalignedRowPitch = TextureUtils::GetRowByteSize(textureDesc.format, mipWidth);
             uint32 paddedRowPitch = ByteUtil::AlignAs(unalignedRowPitch, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
-            uint32 numRowsPerLayer = mipHeight * mipDepth;
+            uint32 numRowsPerLayer = TextureUtils::GetNumRows(textureDesc.format, mipHeight) * mipDepth;
             uint32 paddedLayerStride = ByteUtil::AlignAs(paddedRowPitch * numRowsPerLayer, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 
             // Get tightly packed source offset
@@ -345,9 +346,8 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
                 const uint32 mipWidth = MathUtil::Max(1u, textureDesc.extent.x >> mipIndex);
                 const uint32 mipHeight = MathUtil::Max(1u, textureDesc.extent.y >> mipIndex);
                 const uint32 mipDepth = MathUtil::Max(1u, textureDesc.extent.z >> mipIndex);
-                const uint32 bytesPerPixel = TextureUtils::NumComponents(textureDesc.format) * TextureUtils::BytesPerComponent(textureDesc.format);
-                const uint32 paddedRowPitch = ByteUtil::AlignAs(mipWidth * bytesPerPixel, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
-                const size_t paddedLayerStride = ByteUtil::AlignAs(paddedRowPitch * mipHeight * mipDepth, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
+                const uint32 paddedRowPitch = ByteUtil::AlignAs(TextureUtils::GetRowByteSize(textureDesc.format, mipWidth), D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+                const size_t paddedLayerStride = ByteUtil::AlignAs(paddedRowPitch * TextureUtils::GetNumRows(textureDesc.format, mipHeight) * mipDepth, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 #else
                 size_t mipBlockStart = 0;
 
@@ -415,6 +415,8 @@ static RendererResult CreateGpuImage(Texture& texture, GpuImage& image, Resource
     return {};
 }
 
+} // namespace
+
 #pragma region Texture
 
 Texture::Texture()
@@ -429,14 +431,14 @@ Texture::Texture()
 }
 
 Texture::Texture(const TextureDesc& textureDesc)
-    : AssetObject(s_nameTextureDefault),
+    : AssetObject(g_nameTextureDefault),
       m_textureDesc(textureDesc)
 {
     AssertDebug(textureDesc.extent.Volume() > 0);
 }
 
 Texture::Texture(const TextureDesc& textureDesc, ConstByteView imageData)
-    : AssetObject(s_nameTextureDefault),
+    : AssetObject(g_nameTextureDefault),
       m_textureDesc(textureDesc)
 {
     AssertDebug(textureDesc.extent.Volume() > 0);
@@ -493,7 +495,25 @@ RendererResult Texture::Create()
 
         const bool shouldUploadTextureData = GetImageData().Size() > 0;
 
-        GpuImageRef gpuImage = RI.MakeImage(m_textureDesc);
+        TextureDesc uploadDesc = m_textureDesc;
+        ConstByteView uploadData = GetImageData();
+        ByteBuffer decodedImageData;
+
+        if (TextureUtils::IsBlockCompressed(m_textureDesc.format)
+            && (g_cvForceTextureDecode.Get() || !RI.IsSupportedFormat(m_textureDesc.format, ImageSupport::ShaderResource)))
+        {
+            HYP_LOG_ONCE(Rendering, Warning, "{} textures are not supported by this device, decoding them on the CPU",
+                EnumToString(m_textureDesc.format));
+
+            if (!shouldUploadTextureData || !TextureCompression::Decode(m_textureDesc, uploadData, uploadDesc, decodedImageData))
+            {
+                return HYP_MAKE_ERROR(RendererError, "Failed to decode block-compressed texture");
+            }
+
+            uploadData = decodedImageData.ToByteView();
+        }
+
+        GpuImageRef gpuImage = RI.MakeImage(uploadDesc);
 
 #ifdef HYP_RHI_DEBUG_NAMES
         Name assetName = GetName();
@@ -503,7 +523,7 @@ RendererResult Texture::Create()
         }
 #endif
 
-        RendererResult createGpuImageResult = CreateGpuImage(*this, *gpuImage, ResourceState::ShaderResource, shouldUploadTextureData);
+        RendererResult createGpuImageResult = CreateGpuImage(*this, uploadDesc, uploadData, *gpuImage, ResourceState::ShaderResource, shouldUploadTextureData);
 
         if (createGpuImageResult.HasError())
         {
@@ -521,7 +541,7 @@ RendererResult Texture::Create()
         }
 
         const Vec4f averageColor = shouldUploadTextureData
-            ? TextureUtils::ComputeAverageColor(m_textureDesc, GetImageData())
+            ? TextureUtils::ComputeAverageColor(uploadDesc, uploadData)
             : Vec4f::One();
 
         // done with image data
@@ -881,6 +901,66 @@ void Texture::GenerateMipmaps(TextureDesc& desc, ByteBuffer& imageData)
     }
 }
 
+bool Texture::DropMipsAbove(uint32 maxExtent, TextureDesc& desc, ByteBuffer& imageData)
+{
+    if (!desc.HasStoredMips())
+    {
+        return false;
+    }
+
+    const uint8 numMips = desc.NumMips();
+    const uint32 blockExtent = TextureUtils::GetBlockExtent(desc.format);
+
+    uint32 numDropped = 0;
+
+    while (numDropped + 1 < numMips
+        && desc.mipOffsets[numDropped] != 0
+        && MathUtil::Max(desc.extent.x >> numDropped, desc.extent.y >> numDropped) > maxExtent)
+    {
+        const Vec3u nextExtent = desc.GetMipExtent(uint8(numDropped + 1));
+
+        if (nextExtent.x % blockExtent != 0 || nextExtent.y % blockExtent != 0)
+        {
+            break;
+        }
+
+        numDropped++;
+    }
+
+    if (numDropped == 0)
+    {
+        return false;
+    }
+
+    const uint32 baseOffset = desc.mipOffsets[numDropped - 1];
+
+    if (imageData.Size() <= baseOffset)
+    {
+        return false;
+    }
+
+    ByteBuffer remaining(imageData.ToByteView().Slice(baseOffset, imageData.Size() - baseOffset));
+    imageData = std::move(remaining);
+
+    desc.extent = desc.GetMipExtent(uint8(numDropped));
+
+    for (uint32 mipIndex = 0; mipIndex < TextureDesc::MaxMips; mipIndex++)
+    {
+        const uint32 sourceIndex = mipIndex + numDropped;
+
+        if (sourceIndex + 1 < numMips && desc.mipOffsets[sourceIndex] != 0)
+        {
+            desc.mipOffsets[mipIndex] = desc.mipOffsets[sourceIndex] - baseOffset;
+        }
+        else
+        {
+            desc.mipOffsets[mipIndex] = 0;
+        }
+    }
+
+    return true;
+}
+
 #ifdef HYP_PADDED_TEXTURE_COPIES
 // DX12 buffer-backed copies require each subresource's rows to be padded out to
 // D3D12_TEXTURE_DATA_PITCH_ALIGNMENT, unlike Vulkan (which copies tightly packed rows
@@ -897,9 +977,8 @@ static size_t GetDX12ReadbackSize(const TextureDesc& desc, bool allMips)
     for (uint8 mipIndex = 0; mipIndex < numMips; mipIndex++)
     {
         const Vec3u mipExtent = desc.GetMipExtent(mipIndex);
-        const uint32 bytesPerPixel = TextureUtils::BytesPerComponent(desc.format) * TextureUtils::NumComponents(desc.format);
-        const uint32 alignedRowPitch = ByteUtil::AlignAs(mipExtent.x * bytesPerPixel, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
-        const size_t layerStep = ByteUtil::AlignAs(size_t(alignedRowPitch) * mipExtent.y * mipExtent.z, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
+        const uint32 alignedRowPitch = ByteUtil::AlignAs(TextureUtils::GetRowByteSize(desc.format, mipExtent.x), D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+        const size_t layerStep = ByteUtil::AlignAs(size_t(alignedRowPitch) * TextureUtils::GetNumRows(desc.format, mipExtent.y) * mipExtent.z, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
         totalSize += layerStep * numArrayLayers;
     }
 
@@ -916,10 +995,9 @@ static void UnpadDX12ReadbackData(const TextureDesc& desc, const ubyte* paddedDa
     for (uint8 mipIndex = 0; mipIndex < numMips; mipIndex++)
     {
         const Vec3u mipExtent = desc.GetMipExtent(mipIndex);
-        const uint32 bytesPerPixel = TextureUtils::BytesPerComponent(desc.format) * TextureUtils::NumComponents(desc.format);
-        const uint32 tightRowPitch = mipExtent.x * bytesPerPixel;
+        const uint32 tightRowPitch = TextureUtils::GetRowByteSize(desc.format, mipExtent.x);
         const uint32 alignedRowPitch = ByteUtil::AlignAs(tightRowPitch, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
-        const uint32 numRows = mipExtent.y * mipExtent.z;
+        const uint32 numRows = TextureUtils::GetNumRows(desc.format, mipExtent.y) * mipExtent.z;
         // must match DX12GpuImage::CopyToBuffer: each layer starts on a 512 byte boundary
         const size_t layerStep = ByteUtil::AlignAs(size_t(alignedRowPitch) * numRows, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 
@@ -1184,6 +1262,25 @@ Vec4f Texture::Sample(Vec3f uvw, uint32 faceIndex)
         uint32(MathUtil::Abs(std::fmod(uvw.z, 1.0f)) * float(textureDesc.extent.z - 1) + 0.5f)
     };
 
+    if (TextureUtils::IsBlockCompressed(textureDesc.format))
+    {
+        const uint32 slice = textureDesc.IsTexture3D() ? coord.z : faceIndex;
+
+        ubyte texel[4];
+
+        if (!TextureCompression::DecodeTexel(textureDesc, imageData, coord, slice, texel))
+        {
+            return Vec4f::Zero();
+        }
+
+        if (TextureUtils::IsSRGB(textureDesc.format))
+        {
+            return ConstPixelReference<ubyte, 4, true>(texel).GetRGBA();
+        }
+
+        return ConstPixelReference<ubyte, 4>(texel).GetRGBA();
+    }
+
     const uint32 bytesPerComponent = TextureUtils::BytesPerComponent(textureDesc.format);
 
     if (bytesPerComponent != 1)
@@ -1419,11 +1516,157 @@ void Texture::SetIsSRGB(bool isSrgb)
         return;
     }
 
+    // the blocks don't change, only how the GPU decodes them
+    if (TextureUtils::IsBlockCompressed(format))
+    {
+        {
+            auto writeScope = GetWriteScope();
+
+            m_textureDesc.format = newFormat;
+
+            MarkDirty();
+        }
+
+        RecreateGpuImage();
+
+        return;
+    }
+
     RebuildImageData(newFormat);
+}
+
+void Texture::SetCompression(TextureCompressionMode compression)
+{
+    if (compression == m_compression)
+    {
+        return;
+    }
+
+    {
+        auto writeScope = GetWriteScope();
+
+        m_compression = compression;
+
+        MarkDirty();
+    }
+
+    if (TextureUtils::IsBlockCompressed(GetFormat()))
+    {
+        TextureDesc decodedDesc;
+        ByteBuffer decodedData;
+
+        {
+            auto readScope = GetReadScope();
+
+            if (!TextureCompression::Decode(m_textureDesc, GetImageData(), decodedDesc, decodedData))
+            {
+                HYP_LOG(Texture, Warning, "Texture {} could not be decoded to change its compression", GetName());
+
+                return;
+            }
+        }
+
+        ReplaceImageData(decodedDesc, decodedData.ToByteView());
+    }
+
+    if (Result compressResult = Compress(); compressResult.HasError())
+    {
+        HYP_LOG(Texture, Warning, "Texture {}: {}", GetName(), compressResult.GetError().GetMessage());
+    }
+}
+
+Result Texture::Compress()
+{
+    TextureDesc encodedDesc;
+    ByteBuffer encodedData;
+
+    {
+        auto readScope = GetReadScope();
+
+        if (TextureUtils::IsBlockCompressed(m_textureDesc.format))
+        {
+            return {};
+        }
+
+        const TextureFormat targetFormat = TextureCompression::ChooseFormat(m_compression, m_textureDesc, GetImageData());
+
+        if (targetFormat == InvalidTextureFormat)
+        {
+            return {};
+        }
+
+        if (!TextureCompression::CanEncode())
+        {
+            return HYP_MAKE_ERROR(Error, "Texture compression is not available in this build");
+        }
+
+        if (!TextureCompression::Encode(m_textureDesc, GetImageData(), targetFormat, encodedDesc, encodedData))
+        {
+            return HYP_MAKE_ERROR(Error, "Failed to encode {} as {}", EnumToString(m_textureDesc.format), EnumToString(targetFormat));
+        }
+    }
+
+    ReplaceImageData(encodedDesc, encodedData.ToByteView());
+
+    return {};
+}
+
+void Texture::ReplaceImageData(const TextureDesc& desc, ConstByteView imageData)
+{
+    {
+        auto writeScope = GetWriteScope();
+
+        m_textureDesc = desc;
+
+        FreeBlobData(m_imageData);
+        AllocateBlobData(m_imageData, imageData.Data(), imageData.Size(), 1);
+
+        MarkDirty();
+    }
+
+    RecreateGpuImage();
 }
 
 void Texture::RebuildImageData(TextureFormat format)
 {
+    if (TextureUtils::IsBlockCompressed(GetFormat()))
+    {
+        TextureDesc desc;
+        ByteBuffer data;
+
+        {
+            auto readScope = GetReadScope();
+
+            ByteBuffer baseMip;
+
+            if (!TextureCompression::DecodeMip(m_textureDesc, GetImageData(), 0, baseMip))
+            {
+                HYP_LOG(Texture, Warning, "Texture {} has no image data to rebuild", GetName());
+
+                return;
+            }
+
+            TextureDesc baseDesc = m_textureDesc;
+            baseDesc.format = TextureUtils::IsSRGB(format) ? TextureFormat::RGBA8_SRGB : TextureFormat::RGBA8;
+
+            for (uint32& mipOffset : baseDesc.mipOffsets)
+            {
+                mipOffset = 0;
+            }
+
+            if (!TextureCompression::Encode(baseDesc, baseMip.ToByteView(), format, desc, data))
+            {
+                HYP_LOG(Texture, Warning, "Texture {} could not be re-encoded as {}", GetName(), EnumToString(format));
+
+                return;
+            }
+        }
+
+        ReplaceImageData(desc, data.ToByteView());
+
+        return;
+    }
+
     ByteBuffer data;
     TextureDesc desc;
 
@@ -1454,22 +1697,18 @@ void Texture::RebuildImageData(TextureFormat format)
 
     Texture::GenerateMipmaps(desc, data);
 
-    {
-        auto writeScope = GetWriteScope();
-
-        m_textureDesc = desc;
-
-        FreeBlobData(m_imageData);
-        AllocateBlobData(m_imageData, data.Data(), data.Size(), 1);
-
-        MarkDirty();
-    }
-
-    RecreateGpuImage();
+    ReplaceImageData(desc, data.ToByteView());
 }
 
 void Texture::RecreateGpuImage()
 {
+    // never uploaded (headless, cooking, or not used yet).
+    // rely on lazy upload instead
+    if (!m_gpuImage.IsValid())
+    {
+        return;
+    }
+
     GetThreadById(g_renderThread)->GetScheduler().Enqueue(
         [weakThis = MakeWeakRef(this)]()
         {

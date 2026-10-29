@@ -444,7 +444,7 @@ RendererResult WebGPUGpuImage::Create(ResourceState initialState)
 
     WGPUTextureUsage usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopySrc | WGPUTextureUsage_CopyDst;
 
-    if (!isVolume || m_textureDesc.imageUsage[ImageUsage::Attachment])
+    if ((!isVolume || m_textureDesc.imageUsage[ImageUsage::Attachment]) && !TextureUtils::IsBlockCompressed(m_textureDesc.format))
     {
         usage |= WGPUTextureUsage_RenderAttachment;
     }
@@ -788,8 +788,13 @@ void WebGPUGpuImage::CopyFromBuffer(
     const uint8 mipIndex = dstMipIndex != UINT8_MAX ? dstMipIndex : 0;
 
     const Vec3u mipExtent = m_textureDesc.GetMipExtent(mipIndex);
-    const uint32 alignedRowPitch = ByteUtil::AlignAs(mipExtent.x * GetBytesPerPixel(m_textureDesc.format), CopyRowPitchAlignment);
-    const size_t layerStep = ByteUtil::AlignAs(size_t(alignedRowPitch) * mipExtent.y * mipExtent.z, size_t(CopyPlacementAlignment));
+    
+    const uint32 blockExtent = TextureUtils::GetBlockExtent(m_textureDesc.format);
+    
+    const uint32 numRows = TextureUtils::GetNumRows(m_textureDesc.format, mipExtent.y);
+    const uint32 alignedRowPitch = ByteUtil::AlignAs(TextureUtils::GetRowByteSize(m_textureDesc.format, mipExtent.x), CopyRowPitchAlignment);
+    
+    const size_t layerStep = ByteUtil::AlignAs(size_t(alignedRowPitch) * numRows * mipExtent.z, size_t(CopyPlacementAlignment));
 
     const bool isVolume = m_textureDesc.type == TextureType::Texture3D;
     const uint16 numLayersToCopy = (dstArrayLayer == UINT16_MAX && !isVolume) ? NumArrayLayers() : 1;
@@ -804,14 +809,18 @@ void WebGPUGpuImage::CopyFromBuffer(
         source.buffer = srcBuffer->GetWGPUBuffer();
         source.layout.offset = uint64(srcBufferOffset) + uint64(layerIndex) * layerStep;
         source.layout.bytesPerRow = alignedRowPitch;
-        source.layout.rowsPerImage = mipExtent.y;
+        source.layout.rowsPerImage = numRows;
 
         WGPUTexelCopyTextureInfo destination = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
         destination.texture = m_texture;
         destination.mipLevel = mipIndex;
         destination.origin.z = isVolume ? 0 : actualLayer;
 
-        const WGPUExtent3D copyExtent { mipExtent.x, mipExtent.y, isVolume ? mipExtent.z : 1 };
+        const WGPUExtent3D copyExtent {
+            ByteUtil::AlignAs(mipExtent.x, blockExtent),
+            ByteUtil::AlignAs(mipExtent.y, blockExtent),
+            isVolume ? mipExtent.z : 1
+        };
 
         wgpuCommandEncoderCopyBufferToTexture(commandBuffer->GetEncoder(), &source, &destination, &copyExtent);
     }
@@ -836,8 +845,13 @@ void WebGPUGpuImage::CopyToBuffer(
     for (uint32 mipIndex = subResource.baseMipLevel; mipIndex < subResource.baseMipLevel + numLevels; mipIndex++)
     {
         const Vec3u mipExtent = m_textureDesc.GetMipExtent(uint8(mipIndex));
-        const uint32 alignedRowPitch = ByteUtil::AlignAs(mipExtent.x * GetBytesPerPixel(m_textureDesc.format), CopyRowPitchAlignment);
-        const size_t layerStep = ByteUtil::AlignAs(size_t(alignedRowPitch) * mipExtent.y * mipExtent.z, size_t(CopyPlacementAlignment));
+        
+        const uint32 blockExtent = TextureUtils::GetBlockExtent(m_textureDesc.format);
+        
+        const uint32 numRows = TextureUtils::GetNumRows(m_textureDesc.format, mipExtent.y);
+        const uint32 alignedRowPitch = ByteUtil::AlignAs(TextureUtils::GetRowByteSize(m_textureDesc.format, mipExtent.x), CopyRowPitchAlignment);
+        
+        const size_t layerStep = ByteUtil::AlignAs(size_t(alignedRowPitch) * numRows * mipExtent.z, size_t(CopyPlacementAlignment));
 
         for (uint32 layerIndex = 0; layerIndex < numLayers; layerIndex++)
         {
@@ -851,9 +865,13 @@ void WebGPUGpuImage::CopyToBuffer(
             destination.buffer = dstBuffer->GetWGPUBuffer();
             destination.layout.offset = uint64(bufferOffset) + uint64(layerIndex) * layerStep;
             destination.layout.bytesPerRow = alignedRowPitch;
-            destination.layout.rowsPerImage = mipExtent.y;
+            destination.layout.rowsPerImage = numRows;
 
-            const WGPUExtent3D copyExtent { mipExtent.x, mipExtent.y, isVolume ? mipExtent.z : 1 };
+            const WGPUExtent3D copyExtent {
+                ByteUtil::AlignAs(mipExtent.x, blockExtent),
+                ByteUtil::AlignAs(mipExtent.y, blockExtent),
+                isVolume ? mipExtent.z : 1
+            };
 
             wgpuCommandEncoderCopyTextureToBuffer(commandBuffer->GetEncoder(), &source, &destination, &copyExtent);
         }

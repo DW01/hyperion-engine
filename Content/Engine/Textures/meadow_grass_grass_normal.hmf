@@ -1,7 +1,7 @@
 Texture meadow_grass_grass_normal {
     TextureDesc = {
         Type = Texture2D
-        Format = RGBA8
+        Format = BC7
         Extent = (1024, 512, 1)
         MinFilterMode = LinearMipmap
         MagFilterMode = Linear
@@ -9,16 +9,16 @@ Texture meadow_grass_grass_normal {
         NumLayers = 1
         ImageUsage = Sampled
         MipOffsets = [
-            2097152
-            2621440
-            2752512
-            2785280
-            2793472
-            2795520
-            2796032
-            2796160
-            2796192
-            2796200
+            524288
+            655360
+            688128
+            696320
+            698368
+            698880
+            699008
+            699040
+            699056
+            699072
             0
             0
             0
@@ -29,7 +29,8 @@ Texture meadow_grass_grass_normal {
     }
     ImageData = {
         Key = "Engine://Textures/meadow_grass_grass_normal.TEX"
-        Size = 2796204
+        Size = 699088
     }
+    Compression = Auto
     UUID = "8ff99015-df43-46ac-b7c5-8e36bb9b9d3f"
 }

@@ -16,3 +16,9 @@
 [submodule "External/Submodules/tracy"]
 	path = External/Submodules/tracy
 	url = https://github.com/wolfpld/tracy.git
+[submodule "External/Submodules/bc7enc_rdo"]
+	path = External/Submodules/bc7enc_rdo
+	url = https://github.com/richgel999/bc7enc_rdo
+[submodule "External/Submodules/astc-encoder"]
+	path = External/Submodules/astc-encoder
+	url = https://github.com/ARM-software/astc-encoder

@@ -391,6 +391,7 @@ public:
     }
 
     template <class Functor>
+        requires std::is_invocable_v<Functor&>
     EditorTaskScope(
         const Class* editorTaskClass,
         Functor&& functor,

@@ -20,6 +20,7 @@ namespace Hyperion {
 
 class EditorSubsystem;
 class AssetObject;
+class Texture;
 
 using EditorImportCallback = Proc<void(EditorSubsystem&, const Array<Handle<AssetObject>>&)>;
 
@@ -39,6 +40,8 @@ Array<Handle<AssetObject>> CommitEditorModelImport(
 const AssetImportInfo* GetEditorAssetImportInfo(const AssetObject* asset);
 
 bool ReimportEditorAsset(EditorSubsystem& subsystem, const Handle<AssetObject>& asset);
+
+void CompressEditorTextures(Array<Handle<Texture>>&& textures);
 
 // @TODO Clean up
 

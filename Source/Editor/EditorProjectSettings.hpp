@@ -104,6 +104,9 @@ public:
     HYP_FIELD(Property = "PlatformSettings", Serialize)
     EditorPlatformSettings platformSettings;
 
+    HYP_FIELD(Property = "CompressImportedTextures", Serialize, Editor, Title = "Compress Imported Textures")
+    bool compressImportedTextures = true;
+
     HYP_FIELD(Property = "Plugins", Serialize)
     Array<Name> plugins;
 };

@@ -1,0 +1,5 @@
+PluginDescriptor "MCPBridge" {
+    Version = "1.0.0"
+    Description = "Lets MCP clients inspect and drive the editor"
+    EnabledByDefault = false
+}

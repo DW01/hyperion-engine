@@ -325,7 +325,7 @@ if ($StagedBinaries.Contains("steam_api64.dll"))
 Write-Step "Staging built-in plugins"
 
 # a built-in plugin's module libraries and descriptor are in Plugins/<Plugin>, with its content; the editor loads them when a project enables
-# the plugin. Test plugins and editor-wide library plugins (MCPBridge) aren't part of the editor
+# the plugin. Test plugins aren't part of the editor
 foreach ($pluginBinDir in Get-ChildItem (Join-Path $BinDir "Plugins") -Directory -ErrorAction SilentlyContinue)
 {
     $pluginSourceDir = Join-Path $RootDir "Source/Plugins/$($pluginBinDir.Name)"

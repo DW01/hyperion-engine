@@ -31,5 +31,6 @@ Texture Checkerboard_3D {
         Key = "Engine://Textures/Checkerboard_3D.TEX"
         Size = 4
     }
+    Compression = Auto
     UUID = "23aee2dd-361f-8b96-9aec-d143ab316d0c"
 }

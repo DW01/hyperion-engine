@@ -704,63 +704,42 @@ private:
     // Leaves out the mips above the size limit. The texture keeps the rest of its chain as it was stored.
     static void LimitTextureSize(Texture& texture, uint32 maxTextureSize)
     {
-        const TextureDesc textureDesc = texture.GetTextureDesc();
+        TextureDesc textureDesc = texture.GetTextureDesc();
 
         if (textureDesc.type != TextureType::Texture2D || textureDesc.numLayers != 1 || !textureDesc.HasStoredMips())
         {
             return;
         }
 
-        const uint32 numMips = textureDesc.NumMips();
-
-        Vec3u extent = textureDesc.extent;
-        uint32 numMipsRemoved = 0;
-
-        while (MathUtil::Max(extent.x, extent.y) > maxTextureSize && numMipsRemoved + 1 < numMips && textureDesc.mipOffsets[numMipsRemoved] != 0)
-        {
-            extent = Vec3u(MathUtil::Max(extent.x >> 1, 1u), MathUtil::Max(extent.y >> 1, 1u), 1u);
-
-            ++numMipsRemoved;
-        }
-
-        if (numMipsRemoved == 0)
+        if (MathUtil::Max(textureDesc.extent.x, textureDesc.extent.y) <= maxTextureSize)
         {
             return;
         }
 
-        const uint32 keptDataStart = textureDesc.mipOffsets[numMipsRemoved - 1];
-
-        ByteBuffer keptData;
+        ByteBuffer imageData;
 
         {
             auto readScope = texture.GetReadScope();
 
-            const ConstByteView imageData = texture.GetImageData();
+            const ConstByteView storedData = texture.GetImageData();
 
-            if (!imageData || imageData.Size() <= keptDataStart)
+            if (!storedData)
             {
                 return;
             }
 
-            keptData = ByteBuffer(imageData.Slice(keptDataStart));
+            imageData = ByteBuffer(storedData);
         }
 
-        TextureDesc limitedDesc = textureDesc;
-        limitedDesc.extent = extent;
-
-        for (uint32 mipIndex = 0; mipIndex < TextureDesc::MaxMips; mipIndex++)
+        if (!Texture::DropMipsAbove(maxTextureSize, textureDesc, imageData))
         {
-            const uint32 sourceIndex = mipIndex + numMipsRemoved;
-
-            limitedDesc.mipOffsets[mipIndex] = (sourceIndex < TextureDesc::MaxMips && textureDesc.mipOffsets[sourceIndex] != 0)
-                ? textureDesc.mipOffsets[sourceIndex] - keptDataStart
-                : 0;
+            return;
         }
 
         auto writeScope = texture.GetWriteScope();
 
-        texture.SetTextureDesc(limitedDesc);
-        texture.SetImageData(keptData.ToByteView());
+        texture.SetTextureDesc(textureDesc);
+        texture.SetImageData(imageData.ToByteView());
     }
 
     static Result CookAsset(
