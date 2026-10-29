@@ -348,7 +348,7 @@ void MCPServer::ServerThreadProc(uint16 port)
     }
 
     {
-        BOOL reuse = TRUE;
+        int reuse = 1;
         setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse));
     }
 
