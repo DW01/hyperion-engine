@@ -163,6 +163,7 @@ CVar<bool> g_cvEnableGpuStats("Rendering.EnableGpuStats", true);
 CVar<bool> g_cvIndirectRendering("Rendering.IndirectRendering", true);
 CVar<bool> g_cvParallelRendering("Rendering.ParallelRendering", true);
 CVar<bool> g_cvBindlessTextures("Rendering.BindlessTextures", true);
+CVar<bool> g_cvPrewarmPipelines("Rendering.PrewarmPipelines", true);
 
 namespace Framework {
 
@@ -1581,6 +1582,59 @@ void RenderInterface::RemovePass(NamedPass passName, PassBase* pass)
     PoolDelete(*g_renderPool, pass);
 
     namedPasses[passName].Erase(pass);
+}
+
+void RenderInterface::PrewarmPipelines(Span<CommandRecorder* const> commandRecorders)
+{
+    HYP_SCOPE;
+    AssertOnThread(g_renderThread);
+
+    if (!g_cvPrewarmPipelines.Get())
+    {
+        return;
+    }
+
+    static constexpr uint32 MaxNumPasses = 3;
+
+    const State stateBefore = state;
+
+    for (uint32 passIndex = 0; passIndex < MaxNumPasses; passIndex++)
+    {
+        state.boundPsoType = PSO_Graphics;
+        state.boundGraphicsPipeline = nullptr;
+
+        for (CommandRecorder* commandRecorder : commandRecorders)
+        {
+            commandRecorder->PrewarmPipelines();
+        }
+
+        state = stateBefore;
+
+        if (!graphicsPipelineCache->FinishPrewarm())
+        {
+            break;
+        }
+    }
+}
+
+void RenderInterface::PrewarmDrawState()
+{
+    if (state.framebuffer == nullptr || state.attributes.GetMeshAttributes().inputLayout.mask == 0)
+    {
+        return;
+    }
+
+    const FramebufferDesc& framebufferDesc = state.framebuffer->GetFramebufferDesc();
+
+    if (state.boundGraphicsPipeline != nullptr
+        && state.boundShaderDesc.properties == state.attributes.GetShaderProperties()
+        && state.boundGraphicsPipeline->MatchesSignature(state.attributes, framebufferDesc, state.stencilWriteMask, state.stencilCompareMask))
+    {
+        return;
+    }
+
+    state.boundGraphicsPipeline = graphicsPipelineCache->Prewarm(state.attributes, framebufferDesc, state.stencilWriteMask, state.stencilCompareMask);
+    state.boundShaderDesc = ShaderDesc(state.attributes.GetShaderName(), state.attributes.GetShaderProperties());
 }
 
 void RenderInterface::CommitPipelineState(PSOType psoType, CommandBuffer* commandBuffer)

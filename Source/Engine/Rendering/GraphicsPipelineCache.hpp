@@ -108,11 +108,27 @@ public:
         bool enableAsync,
         GraphicsPipelineCacheHandle& outCacheHandle);
 
+    // returns the pipeline if it's already cached, otherwise starts compiling it in the background
+    GraphicsPipeline* Prewarm(
+        const RenderableAttributeSet& attributes,
+        const FramebufferDesc& framebufferDesc,
+        uint8 stencilWriteMask,
+        uint8 stencilCompareMask);
+
+    // returns whether there was anything to wait for
+    bool FinishPrewarm();
+
     void ExpirePipelinesForShader(const Shader* shader);
 
     void OnFrameEnd(uint32 prevFrameIndex);
 
 private:
+    struct PrewarmShader
+    {
+        PSOCacheKey key;
+        VertexInputLayoutDesc inputLayout;
+    };
+
     GraphicsPipelineCacheHandle FindGraphicsPipeline(
         const RenderableAttributeSet& attributes,
         const FramebufferDesc& framebufferDesc,
@@ -140,6 +156,10 @@ private:
 
     // Pending creates whose shader got expired - results are discarded once they finish. Guarded by m_mutex.
     Array<Task<GraphicsPipelineRef>, RenderAllocator> m_expiredPendingPipelines;
+
+    // Guarded by m_mutex.
+    Array<PrewarmShader, RenderAllocator> m_prewarmShaders;
+    Set<PSOCacheKey, RenderAllocator> m_failedPrewarms;
 };
 
 } // namespace Hyperion

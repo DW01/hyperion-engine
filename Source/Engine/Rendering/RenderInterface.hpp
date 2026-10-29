@@ -344,6 +344,9 @@ public:
 
     void CommitPipelineState(PSOType psoType, CommandBuffer* commandBuffer);
 
+    void PrewarmPipelines(Span<CommandRecorder* const> commandRecorders);
+    void PrewarmDrawState();
+
     virtual const RenderConfig& GetRenderConfig() const = 0;
 
     virtual BackgroundCompileStatus GetBackgroundCompileStatus(StringHash shaderName) const

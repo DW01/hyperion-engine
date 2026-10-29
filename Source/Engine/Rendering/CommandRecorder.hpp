@@ -1477,9 +1477,14 @@ public:
     /// \param skipCustomCommands leaves out the custom commands, which are not safe to run twice
     void Execute(CommandBuffer* commandBuffer, bool keepCommands = false, bool skipCustomCommands = false);
 
+    // follows the pipeline state only, starting compiles for the graphics pipelines the draws need; records nothing
+    void PrewarmPipelines();
+
     void Submit();
 
 private:
+    void Execute_Internal(CommandBuffer* commandBuffer, bool keepCommands, bool skipCustomCommands, bool prewarmOnly);
+
     void ResizeBuffer(size_t newSize)
     {
         m_buffer.SetSize(ByteUtil::AlignAs(newSize, 16));

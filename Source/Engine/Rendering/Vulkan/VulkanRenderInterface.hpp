@@ -208,11 +208,6 @@ public:
         return m_pipelineCache;
     }
 
-    HYP_FORCE_INLINE Mutex& GetPipelineCacheMutex()
-    {
-        return m_pipelineCacheMutex;
-    }
-
     VulkanDynamicFunctions dynamicFunctions;
 
 private:

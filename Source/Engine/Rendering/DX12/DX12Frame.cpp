@@ -66,6 +66,8 @@ void DX12Frame::WriteCommandBuffer(CommandBuffer* commandBuffer)
         OnPresent.RemoveAllDetached();
     }
 
+    RI.PrewarmPipelines(commandRecorders);
+
     for (CommandRecorder* commandRecorder : commandRecorders)
     {
         commandRecorder->Execute(commandBuffer);

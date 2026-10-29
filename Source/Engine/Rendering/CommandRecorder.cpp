@@ -73,6 +73,32 @@ void InvalidateDuplicateShaderUniforms(RenderInterface::State& state, uint32 uni
     }
 }
 
+bool IsPipelineStateCommand(CommandType type)
+{
+    switch (type)
+    {
+    case CommandType::SetAsyncShaderLoadingEnabled:
+    case CommandType::SetStencilState:
+    case CommandType::SetCurrentShader:
+    case CommandType::SetCurrentViewport:
+    case CommandType::SetTopology:
+    case CommandType::SetInputLayout:
+    case CommandType::SetCurrentBlendFunction:
+    case CommandType::SetDepthWrite:
+    case CommandType::SetDepthTest:
+    case CommandType::SetDepthCompareOp:
+    case CommandType::SetDepthBias:
+    case CommandType::SetDepthClamp:
+    case CommandType::SetStencilTest:
+    case CommandType::SetStencilFunction:
+    case CommandType::SetFillMode:
+    case CommandType::SetFaceCullMode:
+        return true;
+    default:
+        return false;
+    }
+}
+
 } // namespace
 
 void MergeGlobalShaderProperties(ShaderPropertySet& out);
@@ -84,6 +110,18 @@ void TCommandRecorder<RenderAllocator>::Execute(CommandBuffer* commandBuffer, bo
 {
     AssertDebug(commandBuffer != nullptr);
 
+    Execute_Internal(commandBuffer, keepCommands, skipCustomCommands, /* prewarmOnly */ false);
+}
+
+template <>
+void TCommandRecorder<RenderAllocator>::PrewarmPipelines()
+{
+    Execute_Internal(nullptr, /* keepCommands */ true, /* skipCustomCommands */ true, /* prewarmOnly */ true);
+}
+
+template <>
+void TCommandRecorder<RenderAllocator>::Execute_Internal(CommandBuffer* commandBuffer, bool keepCommands, bool skipCustomCommands, bool prewarmOnly)
+{
     for (size_t i = 0; i < m_headerCount; i++)
     {
         CmdHeader& header = m_headersPtr[i];
@@ -96,6 +134,27 @@ void TCommandRecorder<RenderAllocator>::Execute(CommandBuffer* commandBuffer, bo
         if (!header.IsCustom())
         {
             const CommandType type = header.GetCommandType();
+
+            if (prewarmOnly && !IsPipelineStateCommand(type))
+            {
+                switch (type)
+                {
+                case CommandType::SetCurrentFramebuffer:
+                    RI.state.framebuffer = static_cast<SetCurrentFramebuffer*>(cmdDataPtr)->m_framebuffer;
+                    RI.state.boundGraphicsPipeline = nullptr;
+                    break;
+                case CommandType::ClearFramebuffer:
+                    RI.state.framebuffer = static_cast<ClearFramebuffer*>(cmdDataPtr)->framebuffer;
+                    break;
+                case CommandType::CommitDrawState:
+                    RI.PrewarmDrawState();
+                    break;
+                default:
+                    break;
+                }
+
+                continue;
+            }
 
             switch (type)
             {

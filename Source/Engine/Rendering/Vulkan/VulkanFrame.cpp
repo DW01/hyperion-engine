@@ -123,6 +123,8 @@ void VulkanFrame::WriteCommandBuffer(VulkanCommandBuffer* commandBuffer)
         OnPresent.RemoveAllDetached();
     }
 
+    RI.PrewarmPipelines(commandRecorders);
+
     for (CommandRecorder* commandRecorder : commandRecorders)
     {
         commandRecorder->Execute(commandBuffer);

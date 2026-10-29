@@ -24,8 +24,6 @@
 #include <Core/Math/MathUtil.hpp>
 #include <Core/Math/Transform.hpp>
 
-#include <Core/Threading/Mutex.hpp>
-
 #include <cstring>
 
 #include <VulkanGraphicsPipeline.generated.inl>
@@ -475,14 +473,9 @@ RendererResult VulkanGraphicsPipeline::Rebuild()
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     pipelineInfo.basePipelineIndex = -1;
 
-    {
-        // Vulkan requires host access to a shared VkPipelineCache to be externally synchronized.
-        Mutex::Guard pipelineCacheGuard(RI.GetPipelineCacheMutex());
-
-        VULKAN_CHECK_MSG(
-            vkCreateGraphicsPipelines(RI.GetDevice()->GetDevice(), RI.GetVkPipelineCache(), 1, &pipelineInfo, nullptr, &m_handle),
-            "Failed to create graphics pipeline");
-    }
+    VULKAN_CHECK_MSG(
+        vkCreateGraphicsPipelines(RI.GetDevice()->GetDevice(), RI.GetVkPipelineCache(), 1, &pipelineInfo, nullptr, &m_handle),
+        "Failed to create graphics pipeline");
 
     Assert(m_handle != VK_NULL_HANDLE, "We got a null handle on our hands!");
 
