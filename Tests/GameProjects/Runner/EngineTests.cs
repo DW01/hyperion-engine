@@ -107,11 +107,10 @@ public static class EngineTestRunner
 
         List<string> arguments = ["--results=" + resultsPath, .. extraArguments];
 
-        ProcessResult process = ProcessRunner.Run(
+        ProcessResult process = ProcessRunner.RunCommandlet(
             $"Engine tests ({label})",
-            HarnessEnvironment.GetCommandletPath(CommandletName),
+            CommandletName,
             arguments,
-            HarnessEnvironment.EngineBinDir,
             Path.Combine(LogsDirectory, $"engine-tests-{label}.log"),
             HarnessEnvironment.RunTimeout);
 

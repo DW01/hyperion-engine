@@ -134,6 +134,22 @@ public static class ProcessRunner
         return Start(description, fileName, arguments, workingDirectory, logPath, environment).Wait(timeout);
     }
 
+    public static ProcessResult RunCommandlet(
+        string description,
+        string commandletName,
+        IEnumerable<string> arguments,
+        string logPath,
+        TimeSpan timeout)
+    {
+        return Run(
+            description,
+            HarnessEnvironment.EditorPath,
+            Hyperion.Editor.Services.BuildProcess.CommandletArguments(commandletName, arguments),
+            HarnessEnvironment.EngineBinDir,
+            logPath,
+            timeout);
+    }
+
     public static RunningProcess Start(
         string description,
         string fileName,

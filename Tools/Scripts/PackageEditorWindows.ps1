@@ -27,7 +27,7 @@ $RootDir = (Resolve-Path "$PSScriptRoot/../..").Path
 $BinDir = Join-Path $RootDir "Binaries/Windows/$Configuration"
 if (-not $OutputDir) { $OutputDir = Join-Path $RootDir "PackagedBuilds/EditorPreview" }
 
-# Executables shipped alongside the editor. CacheServerCommandlet is launched by play-in-editor.
+# Executables shipped alongside the editor. The editor itself runs commandlets as Hyperion.Editor.exe --exec <Name>.
 $RuntimeExecutables = @(
     "Hyperion.Editor.exe",
     "hyperion-sample.exe",

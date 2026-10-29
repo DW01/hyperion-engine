@@ -195,11 +195,10 @@ public sealed class GameProject
             arguments.Add("--rebuild-script=" + rebuildScript);
         }
 
-        ProcessResult process = ProcessRunner.Run(
+        ProcessResult process = ProcessRunner.RunCommandlet(
             $"{Name} in the editor ({label})",
-            HarnessEnvironment.GetCommandletPath("EditorGameTestCommandlet"),
+            "EditorGameTestCommandlet",
             arguments,
-            HarnessEnvironment.EngineBinDir,
             Path.Combine(LogsDirectory, $"{label}.log"),
             HarnessEnvironment.RunTimeout);
 
@@ -235,11 +234,10 @@ public sealed class GameProject
             arguments.Add("--shader-target=host");
         }
 
-        return ProcessRunner.Run(
+        return ProcessRunner.RunCommandlet(
             $"Cooking {Name}",
-            HarnessEnvironment.GetCommandletPath("BlobStorageCookCommandlet"),
+            "BlobStorageCookCommandlet",
             arguments,
-            HarnessEnvironment.EngineBinDir,
             Path.Combine(LogsDirectory, "cook.log"),
             HarnessEnvironment.BuildTimeout);
     }

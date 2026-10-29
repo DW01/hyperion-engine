@@ -20,7 +20,7 @@ namespace Hyperion.Editor.Services
     {
         public static PlayInEditorServerService Instance { get; } = new PlayInEditorServerService();
 
-        private const string CacheServerExecutableName = "CacheServerCommandlet";
+        private const string CacheServerCommandletName = "CacheServerCommandlet";
 
         private const string CacheServerReadyMarker = "CacheServer listening on port";
 
@@ -165,8 +165,8 @@ namespace Hyperion.Editor.Services
 
             TaskCompletionSource<bool> cacheServerReady = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            Process cacheServer = StartProcess(
-                CacheServerExecutableName,
+            Process cacheServer = StartCommandletProcess(
+                CacheServerCommandletName,
                 [
                     $"--dir={fullProjectDirectory}",
                     "--dev=true",
@@ -222,21 +222,16 @@ namespace Hyperion.Editor.Services
             }
         }
 
-        private static Process StartProcess(
-            string executableName,
+        private static Process StartCommandletProcess(
+            string commandletName,
             IEnumerable<string> arguments,
             LogChannel logChannel,
             LogLevel outputLogLevel,
             Action<string> onOutputLine,
             Action onExited)
         {
-            string binariesDirectory = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
-            string executablePath = Path.Combine(binariesDirectory, GameBuildPlatform.Current.GetExecutableFileName(executableName));
-
-            if (!File.Exists(executablePath))
-            {
-                throw new FileNotFoundException($"'{executableName}' was not found next to the editor. Build it first.", executablePath);
-            }
+            string binariesDirectory = AppContext.BaseDirectory;
+            string executablePath = BuildProcess.EditorExecutablePath;
 
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
@@ -249,7 +244,7 @@ namespace Hyperion.Editor.Services
                 RedirectStandardError = true
             };
 
-            foreach (string argument in arguments)
+            foreach (string argument in BuildProcess.CommandletArguments(commandletName, arguments))
             {
                 startInfo.ArgumentList.Add(argument);
             }

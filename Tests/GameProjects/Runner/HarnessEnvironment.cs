@@ -30,7 +30,7 @@ public static class HarnessEnvironment
 
     public static string ShippingSdkDir { get; } = FindShippingSdkDir();
 
-    public static string GetCommandletPath(string commandletName) => Path.Combine(EngineBinDir, commandletName + ExecutableExtension);
+    public static string EditorPath => Path.Combine(EngineBinDir, "Hyperion.Editor" + ExecutableExtension);
 
     public static string SdkVersion { get; } = ReadSdkVariable("HYPERION_SDK_VERSION");
 

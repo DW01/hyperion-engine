@@ -5,6 +5,11 @@ namespace Hyperion.Editor.Services
 {
     internal static partial class BuildProcess
     {
+        public static List<string> CommandletArguments(string commandletName, IEnumerable<string> arguments)
+        {
+            return ["--exec", commandletName, .. arguments];
+        }
+
         public static ProcessStartInfo CreateStartInfo(string fileName, string workingDirectory, IEnumerable<string> arguments)
         {
             ProcessStartInfo startInfo = new ProcessStartInfo

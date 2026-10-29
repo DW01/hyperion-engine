@@ -214,16 +214,6 @@ namespace Hyperion.Editor.Services
             GameBuildPlatform platform = GameBuildPlatform.Current;
 
             string editorDirectory = AppContext.BaseDirectory;
-            string cookExecutable = Path.Combine(editorDirectory, platform.GetExecutableFileName("BlobStorageCookCommandlet"));
-
-            if (!File.Exists(cookExecutable))
-            {
-                Logger.Log(BuildLogChannel, LogLevel.Error, "The cook commandlet is missing ({0})", cookExecutable);
-
-                ShowMessage(MessageBox.Critical("Cook failed", $"The cook commandlet is missing ({cookExecutable}).").Button("OK", () => { }));
-
-                return false;
-            }
 
             string projectDirectory = Path.GetDirectoryName(Path.GetFullPath(projectFilePath))!;
             string cookCacheDirectory = Path.Combine(projectDirectory, "Build", "PackageCook");
@@ -254,7 +244,7 @@ namespace Hyperion.Editor.Services
             bool isComplete = false;
             string? firstError = null;
 
-            int exitCode = BuildProcess.RunAsync(BuildProcess.CreateStartInfo(cookExecutable, editorDirectory, arguments), BuildLogChannel, line =>
+            int exitCode = BuildProcess.RunAsync(BuildProcess.CreateCommandletStartInfo("BlobStorageCookCommandlet", editorDirectory, arguments), BuildLogChannel, line =>
             {
                 if (line.Contains("Blob storage cook complete."))
                 {

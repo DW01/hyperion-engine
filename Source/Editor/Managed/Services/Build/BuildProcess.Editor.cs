@@ -1,11 +1,20 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace Hyperion.Editor.Services
 {
     internal static partial class BuildProcess
     {
+        public static string EditorExecutablePath => Path.Combine(AppContext.BaseDirectory, GameBuildPlatform.Current.GetExecutableFileName("Hyperion.Editor"));
+
+        public static ProcessStartInfo CreateCommandletStartInfo(string commandletName, string workingDirectory, IEnumerable<string> arguments)
+        {
+            return CreateStartInfo(EditorExecutablePath, workingDirectory, CommandletArguments(commandletName, arguments));
+        }
+
         public static async Task<int> RunAsync(ProcessStartInfo startInfo, LogChannel logChannel, Action<string> onOutputLine)
         {
             using Process process = new Process { StartInfo = startInfo };

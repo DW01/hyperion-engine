@@ -175,9 +175,9 @@ public sealed class WebNativeFixture
         string shaderListsDirectory = Path.Combine(CookDirectory, "NoShaderLists");
         Directory.CreateDirectory(shaderListsDirectory);
 
-        return ProcessRunner.Run(
+        return ProcessRunner.RunCommandlet(
             $"Cooking {Project.Name} for the web",
-            HarnessEnvironment.GetCommandletPath("BlobStorageCookCommandlet"),
+            "BlobStorageCookCommandlet",
             new[]
             {
                 "--project=" + Project.Directory,
@@ -190,7 +190,6 @@ public sealed class WebNativeFixture
                 "--worlds=MainWorld",
                 "--plugins=AnimToolkit"
             },
-            HarnessEnvironment.EngineBinDir,
             Path.Combine(Project.LogsDirectory, "cook-web.log"),
             WebBuildEnvironment.BuildTimeout);
     }
