@@ -41,6 +41,11 @@ endif()
 
 if(MSVC)
   set(CMAKE_CXX_FLAGS "/Zc:preprocessor /MD /O2 /Z7 /Zc:__cplusplus")
+
+  if(HYP_SHIPPING_SDK)
+    string(REPLACE " /Z7 " " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  endif()
+
   add_definitions("/DNOMINMAX")
 else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -fpermissive")
