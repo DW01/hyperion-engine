@@ -530,6 +530,7 @@ Win32ApplicationWindow::~Win32ApplicationWindow()
 
     if (m_hwnd)
     {
+        SetWindowLongPtrW(m_hwnd, GWLP_USERDATA, 0);
         DestroyWindow(m_hwnd);
         m_hwnd = nullptr;
     }
@@ -719,11 +720,14 @@ LRESULT CALLBACK Win32ApplicationWindow::StaticWndProc(HWND hWnd, UINT msg, WPAR
 
         Handle<Win32ApplicationWindow> windowHandle { windowId };
 
-        LRESULT result = windowHandle->WndProc(hWnd, msg, wParam, lParam);
-
         SetWindowLongPtrW(hWnd, GWLP_USERDATA, 0);
 
-        return result;
+        if (!windowHandle.IsValid())
+        {
+            return DefWindowProcW(hWnd, msg, wParam, lParam);
+        }
+
+        return windowHandle->WndProc(hWnd, msg, wParam, lParam);
     }
     default:
     {
@@ -733,7 +737,11 @@ LRESULT CALLBACK Win32ApplicationWindow::StaticWndProc(HWND hWnd, UINT msg, WPAR
         if (windowId.IsValid())
         {
             Handle<Win32ApplicationWindow> windowHandle { windowId };
-            return windowHandle->WndProc(hWnd, msg, wParam, lParam);
+
+            if (windowHandle.IsValid())
+            {
+                return windowHandle->WndProc(hWnd, msg, wParam, lParam);
+            }
         }
 
         return DefWindowProcW(hWnd, msg, wParam, lParam);

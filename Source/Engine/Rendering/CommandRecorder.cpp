@@ -106,10 +106,17 @@ void MergeGlobalShaderProperties(ShaderPropertySet& out);
 #pragma region TCommandRecorder
 
 template <>
-void TCommandRecorder<RenderAllocator>::Execute_Internal(CommandBuffer* commandBuffer, bool keepCommands, bool skipCustomCommands, bool prewarmOnly);
+void TCommandRecorder<RenderAllocator>::Execute_Internal(
+    CommandBuffer* commandBuffer,
+    bool keepCommands,
+    bool skipCustomCommands,
+    bool prewarmOnly);
 
 template <>
-void TCommandRecorder<RenderAllocator>::Execute(CommandBuffer* commandBuffer, bool keepCommands, bool skipCustomCommands)
+void TCommandRecorder<RenderAllocator>::Execute(
+    CommandBuffer* commandBuffer,
+    bool keepCommands,
+    bool skipCustomCommands)
 {
     AssertDebug(commandBuffer != nullptr);
 
@@ -119,11 +126,19 @@ void TCommandRecorder<RenderAllocator>::Execute(CommandBuffer* commandBuffer, bo
 template <>
 void TCommandRecorder<RenderAllocator>::PrewarmPipelines()
 {
-    Execute_Internal(nullptr, /* keepCommands */ true, /* skipCustomCommands */ true, /* prewarmOnly */ true);
+    Execute_Internal(
+        nullptr,
+        /* keepCommands */ true,
+        /* skipCustomCommands */ true,
+        /* prewarmOnly */ true);
 }
 
 template <>
-void TCommandRecorder<RenderAllocator>::Execute_Internal(CommandBuffer* commandBuffer, bool keepCommands, bool skipCustomCommands, bool prewarmOnly)
+void TCommandRecorder<RenderAllocator>::Execute_Internal(
+    CommandBuffer* commandBuffer,
+    bool keepCommands,
+    bool skipCustomCommands,
+    bool prewarmOnly)
 {
     for (size_t i = 0; i < m_headerCount; i++)
     {
