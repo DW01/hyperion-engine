@@ -1,13 +1,11 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SKIP_PRECOMPILE=0"
 set "COOK_ASSETS=0"
 set "PROJECT_NAME="
 
 :PARSE_ARGS
 IF "%~1"=="" GOTO END_PARSE_ARGS
-IF /I "%~1"=="--skip-precompile" set "SKIP_PRECOMPILE=1"
 IF /I "%~1"=="--cook" set "COOK_ASSETS=1"
 IF /I "%~1"=="--project" (
     set "PROJECT_NAME=%~2"
@@ -45,17 +43,20 @@ for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "Get-Date -For
 set "OUT_DIR=%HYP_ROOT_DIR%PackagedBuilds\Android\Build_%TIMESTAMP%"
 if not exist "%OUT_DIR%" mkdir "%OUT_DIR%"
 
-if "%SKIP_PRECOMPILE%"=="1" (
-    echo Skipping shader precompilation.
-) else (
-    echo Running PrecompileShaders commandlet...
-    "%BIN_DIR_RELEASE%\PrecompileShaders.exe" --platform=android
-)
+REM without an empty cachedir, the cook would take the shader lists the host tools' own cache holds
+set "EMPTY_SHADER_CACHE=%HYP_ROOT_DIR%Build\Android\NoShaderLists"
+if exist "%EMPTY_SHADER_CACHE%" rd /s /q "%EMPTY_SHADER_CACHE%"
+mkdir "%EMPTY_SHADER_CACHE%"
+
+set "TARGET_COOK_ARGS=--target-platform=android --shader-target=android --target-config=%HYP_ROOT_DIR%Config\EngineConfig.Android.json --cachedir=%EMPTY_SHADER_CACHE%"
 
 if "%COOK_ASSETS%"=="0" (
     echo Skipping game registry cook, will cook minimal engine cache only.
 
-    "%BIN_DIR_RELEASE%\BlobStorageCookCommandlet.exe" --engine-only=true --out-cache=%OUT_DIR%\Cache --out-content=%OUT_DIR%\Content
+    echo Running PrecompileShaders commandlet...
+    "%BIN_DIR_RELEASE%\PrecompileShaders.exe" --platform=android
+
+    "%BIN_DIR_RELEASE%\BlobStorageCookCommandlet.exe" --engine-only=true --target-platform=android --out-cache=%OUT_DIR%\Cache --out-content=%OUT_DIR%\Content
     if errorlevel 1 (
         echo Cook commandlet failed, aborting packaged build.
         exit /b 1
@@ -72,7 +73,7 @@ if "%COOK_ASSETS%"=="0" (
 
     echo Cooking project: %PROJECT_NAME%
 
-    "%BIN_DIR_RELEASE%\BlobStorageCookCommandlet.exe" --project=Projects/%PROJECT_NAME% --out-cache=%OUT_DIR%\Cache --out-content=%OUT_DIR%\Content
+    "%BIN_DIR_RELEASE%\BlobStorageCookCommandlet.exe" --project=Projects/%PROJECT_NAME% --out-cache=%OUT_DIR%\Cache --out-content=%OUT_DIR%\Content %TARGET_COOK_ARGS%
     if errorlevel 1 (
         echo Cook commandlet failed, aborting packaged build.
         exit /b 1

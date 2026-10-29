@@ -178,7 +178,13 @@ tasks.register('stagePackageAssets', Copy) {
 
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
-    from(file(hypPackageDir)) into assetsDestDir
+    if (hypPackageDir) {
+        from(file(hypPackageDir))
+    } else {
+        logger.warn("[hyperion] No package dir set, run PackageBuildAndroid.bat or pass -PhypPackageDir=<dir>")
+    }
+
+    into assetsDestDir
 }
 
 preBuild.dependsOn 'stageNativeLibs', 'stagePackageAssets'

@@ -24,6 +24,7 @@
 #include <DotNET/Assembly.hpp>
 #include <DotNET/DotNETHost.hpp>
 
+#include <Core/Reflection/Class.hpp>
 #include <Core/Reflection/ClassRegistry.hpp>
 #include <Core/Reflection/Method.hpp>
 #include <Core/Reflection/Property.hpp>
@@ -33,6 +34,9 @@
 #include <Asset/SerializationUtils.hpp>
 
 #include <Core/IO/ByteReader.hpp>
+
+#include <Core/Logging/LogChannels.hpp>
+#include <Core/Logging/Logger.hpp>
 
 #include <Framework/Game.hpp>
 #include <Framework/EngineGlobals.hpp>

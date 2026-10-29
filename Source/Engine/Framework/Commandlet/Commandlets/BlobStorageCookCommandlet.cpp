@@ -193,7 +193,7 @@ public:
             s_definitions.Add(
                 "shader-target",
                 "",
-                "Compiles and cooks shaders for a target. Possible values: `web`, or `host` to use the active platform and graphics backend.",
+                "Compiles and cooks shaders for a target. Possible values: `web`, `android`, or `host` to use the active platform and graphics backend.",
                 CommandLineArgumentFlags::NONE,
                 {},
                 JSON::Value(""));
@@ -447,6 +447,19 @@ protected:
         s_hasTargetPlatform = ParseTargetPlatform(args["target-platform"].ToString().ToAnsi(), s_targetPlatform);
 #endif // HYP_EDITOR
 
+        SetShaderBuild(HostTargetName, HostBackendName);
+
+#ifdef HYP_EDITOR
+        if (s_hasTargetPlatform && s_targetPlatform == TargetPlatform::Android)
+        {
+            SetShaderBuild("ANDROID", "VULKAN");
+        }
+        else if (s_hasTargetPlatform && s_targetPlatform == TargetPlatform::Web)
+        {
+            SetShaderBuild("WEB", "WEBGPU");
+        }
+#endif // HYP_EDITOR
+
         ShaderTarget shaderTarget;
         Array<Handle<AssetObject>> targetShaderAssets;
 
@@ -494,6 +507,7 @@ private:
     static inline bool s_hasTargetPlatform = false;
     static inline TargetPlatform s_targetPlatform = TargetPlatform::Windows;
 #endif // HYP_EDITOR
+    static inline Array<ShaderPropertyId> s_foreignShaderPropertyIds;
     static inline Set<const AssetObject*> s_dataOnlyTextures;
 
     static inline Array<FilePath> s_pluginContentDirectories;
@@ -842,37 +856,35 @@ private:
         return {};
     }
 
+    static void SetShaderBuild(ANSIStringView targetName, ANSIStringView backendName)
+    {
+        static const char* const s_backends[] = { "VULKAN", "DX12", "WEBGPU" };
+        static const char* const s_targets[] = { "WINDOWS", "MAC", "LINUX", "ANDROID", "IOS", "WEB" };
+
+        ShaderPropertyDictionary& dictionary = ShaderPropertyDictionary::GetInstance();
+
+        s_foreignShaderPropertyIds.Clear();
+
+        for (const char* backend : s_backends)
+        {
+            if (backendName != backend)
+            {
+                s_foreignShaderPropertyIds.PushBack(dictionary.Intern(ShaderProperty(NAME("BACKEND"), CreateNameFromDynamicString(backend))));
+            }
+        }
+
+        for (const char* target : s_targets)
+        {
+            if (targetName != target)
+            {
+                s_foreignShaderPropertyIds.PushBack(dictionary.Intern(ShaderProperty(NAME("TARGET"), CreateNameFromDynamicString(target))));
+            }
+        }
+    }
+
     static bool IsShaderForThisBuild(const Shader& shader)
     {
-        static const Array<ShaderPropertyId> s_foreignPropertyIds = []()
-        {
-            static const char* const s_backends[] = { "VULKAN", "DX12", "WEBGPU" };
-            static const char* const s_targets[] = { "WINDOWS", "MAC", "LINUX", "ANDROID", "IOS", "WEB" };
-
-            ShaderPropertyDictionary& dictionary = ShaderPropertyDictionary::GetInstance();
-
-            Array<ShaderPropertyId> ids;
-
-            for (const char* backend : s_backends)
-            {
-                if (HostBackendName == backend)
-                {
-                    ids.PushBack(dictionary.Intern(ShaderProperty(NAME("BACKEND"), CreateNameFromDynamicString(backend))));
-                }
-            }
-
-            for (const char* target : s_targets)
-            {
-                if (HostTargetName == target)
-                {
-                    ids.PushBack(dictionary.Intern(ShaderProperty(NAME("TARGET"), CreateNameFromDynamicString(target))));
-                }
-            }
-
-            return ids;
-        }();
-
-        for (ShaderPropertyId propertyId : s_foreignPropertyIds)
+        for (ShaderPropertyId propertyId : s_foreignShaderPropertyIds)
         {
             if (shader.properties.Test(propertyId))
             {
@@ -1020,6 +1032,13 @@ private:
             outShaderTarget.targetPropertyValue = NAME("WEB");
             outShaderTarget.backendPropertyValue = NAME("WEBGPU");
         }
+        else if (target == "android")
+        {
+            outShaderTarget.platform = ShaderCompileTargetPlatform::Android;
+            outShaderTarget.backend = ShaderCompileTargetBackend::Vulkan;
+            outShaderTarget.targetPropertyValue = NAME("ANDROID");
+            outShaderTarget.backendPropertyValue = NAME("VULKAN");
+        }
         else if (target == "host")
         {
             outShaderTarget.platform = HostShaderCompilePlatform;
@@ -1031,7 +1050,7 @@ private:
         {
             //.. @TODO Others ...
 
-            return HYP_MAKE_ERROR(Error, "Unknown shader target '{}', expected web or host", target);
+            return HYP_MAKE_ERROR(Error, "Unknown shader target '{}', expected web, android or host", target);
         }
 
         outShaderTarget.isEnabled = true;

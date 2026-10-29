@@ -1,5 +1,7 @@
 #include <Core/IO/ByteReader.hpp>
 
+#include <Core/Util.hpp>
+
 #if HYP_ANDROID
 #include <android/asset_manager.h>
 #endif

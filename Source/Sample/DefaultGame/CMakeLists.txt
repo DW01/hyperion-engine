@@ -36,7 +36,7 @@ endif()
 
 message(STATUS "Using platform dir: ${HYP_PLATFORM_DIR}")
 
-if(EXISTS "${HYP_PLATFORM_DIR}")
+if(EXISTS "${HYP_PLATFORM_DIR}" AND NOT HYP_ANDROID)
   file(GLOB PLATFORM_SOURCES "${HYP_PLATFORM_DIR}/*.cpp" "${HYP_PLATFORM_DIR}/*.c" "${HYP_PLATFORM_DIR}/*.mm" "${HYP_PLATFORM_DIR}/*.m")
   list(APPEND SOURCES ${PLATFORM_SOURCES})
 
@@ -58,7 +58,13 @@ if(HYP_USE_OBJECT_LIBRARIES)
   target_link_libraries(${OBJECTS_TARGET_NAME} PRIVATE $<COMPILE_ONLY:hyperion> $<COMPILE_ONLY:hyperion-core>)
   target_precompile_headers(${OBJECTS_TARGET_NAME} PRIVATE ${HYP_PCH})
 
-  add_executable(${BUILD_NAME} $<TARGET_OBJECTS:${OBJECTS_TARGET_NAME}>)
+  if(HYP_ANDROID)
+    add_library(${BUILD_NAME} SHARED $<TARGET_OBJECTS:${OBJECTS_TARGET_NAME}>)
+  else()
+    add_executable(${BUILD_NAME} $<TARGET_OBJECTS:${OBJECTS_TARGET_NAME}>)
+  endif()
+elseif(HYP_ANDROID)
+  add_library(${BUILD_NAME} SHARED ${SOURCES} ${HEADERS})
 else()
   add_executable(${BUILD_NAME} ${SOURCES} ${HEADERS})
 endif()

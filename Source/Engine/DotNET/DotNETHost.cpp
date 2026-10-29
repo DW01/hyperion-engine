@@ -33,6 +33,7 @@ namespace Hyperion {
 
 using namespace dotnet;
 
+#ifdef HYP_DOTNET
 // a wrapper's strong ref is only given back by its Dispose or finalizer, neither of which runs once the host is shut down
 static void ReleaseManagedObjectRefs()
 {
@@ -75,6 +76,7 @@ static void ReleaseManagedObjectRefs()
         ptr->Release();
     }
 }
+#endif // HYP_DOTNET
 
 class DotNetImpl
 {
@@ -373,7 +375,9 @@ void DotNETHost::Shutdown()
     m_isInitialized = false;
     m_isShuttingDown = false;
 
+#ifdef HYP_DOTNET
     ReleaseManagedObjectRefs();
+#endif // HYP_DOTNET
 }
 
 } // namespace Hyperion

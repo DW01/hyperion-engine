@@ -7,6 +7,7 @@ public final class HyperionBridge {
 
     static {
         System.loadLibrary("hyperion");
+        System.loadLibrary("hyperion-sample");
         System.loadLibrary("hyperion-android");
     }
 

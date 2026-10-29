@@ -697,7 +697,7 @@ extern "C"
 #elif HYP_MACOS
         g_appContext = MakeHandle<CocoaAppContext>("Hyperion", CoreApi::GetCommandLineArguments());
 #elif HYP_ANDROID
-        g_appContext = MakeHandle<AndroidAppContext>("Hyperion", CoreAPi::GetCommandLineArguments());
+        g_appContext = MakeHandle<AndroidAppContext>("Hyperion", CoreApi::GetCommandLineArguments());
 #elif HYP_IOS
         g_appContext = MakeHandle<IOSAppContext>("Hyperion", CoreApi::GetCommandLineArguments());
 #elif HYP_WEB
