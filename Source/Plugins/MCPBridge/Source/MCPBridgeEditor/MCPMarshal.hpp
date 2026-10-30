@@ -30,6 +30,16 @@ namespace MCP {
 /*! \brief How long a request thread waits for the simulation thread before giving up. */
 static constexpr uint32 SimThreadDispatchTimeoutMs = 30 * 1000;
 
+template <class ResultType>
+struct SimThreadDispatchState
+{
+    Mutex mutex;
+    ConditionVariable cv;
+    bool done = false;
+    bool abandoned = false;
+    ResultType result { HYP_MAKE_ERROR(Error, "Simulation thread call did not complete") };
+};
+
 /*! \brief Run \p fn on the simulation thread (where all editor state lives) and block
  *  on the calling thread until it completes.
  *
@@ -41,6 +51,7 @@ auto DispatchSimThread(Func&& fn) -> TResult<decltype(fn())>
 {
     using ReturnType = decltype(fn());
     using ResultType = TResult<ReturnType>;
+    using DispatchState = SimThreadDispatchState<ResultType>;
 
     ThreadBase* thread = GetThreadById(g_simThread);
     if (thread == nullptr)
@@ -61,16 +72,6 @@ auto DispatchSimThread(Func&& fn) -> TResult<decltype(fn())>
             return ResultType(fn());
         }
     }
-
-    // Shared with the sim thread's closure, which may outlive this call if we time out.
-    struct DispatchState
-    {
-        Mutex mutex;
-        ConditionVariable cv;
-        bool done = false;
-        bool abandoned = false;
-        ResultType result { HYP_MAKE_ERROR(Error, "Simulation thread call did not complete") };
-    };
 
     SharedPtr<DispatchState> state = MakeShared<DispatchState>();
 
