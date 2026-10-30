@@ -20,6 +20,7 @@ concurrency:
 jobs:
   codegen:
     name: codegen (${{ matrix.name }})
+    if: github.repository == 'HyperionGameTech/HyperionEngine'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:

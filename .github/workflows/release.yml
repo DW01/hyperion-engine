@@ -17,6 +17,7 @@ jobs:
   # The tool shipped in the SDK is native, so the Windows and macOS legs build it here for the packaging jobs.
   codegen:
     name: codegen (${{ matrix.name }})
+    if: github.repository == 'HyperionGameTech/HyperionEngine'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
