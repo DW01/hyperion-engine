@@ -139,6 +139,9 @@ Vec4f MakeGlimmerRandomRotation(uint32 seed);
 
 /// @TODO: Return a `StructuredBuffer`!
 GpuBufferRef CreateGlimmerStructuredBuffer(size_t elementSize, size_t numElements);
+GpuBufferRef CreateGlimmerRWBuffer(size_t byteSize, size_t alignment);
+
+void ClearGlimmerBuffer(GpuBuffer* buffer);
 
 Handle<Texture> CreateGlimmerStorageTexture(TextureType type, TextureFormat format, const Vec3u& extent, uint16 numLayers, Name name, TextureWrapMode wrapMode = TextureWrapMode::Repeat);
 

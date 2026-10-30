@@ -10,6 +10,7 @@
 #include <Rendering/Glimmer/Probes/GlimmerProbeVolume.hpp>
 #include <Rendering/Glimmer/GlimmerChannel.hpp>
 #include <Rendering/Glimmer/GlimmerSurfaceCache.hpp>
+#include <Rendering/Glimmer/GlimmerHelpers.hpp>
 #include <Rendering/Glimmer/SH/GlimmerSHOccupancy.hpp>
 
 #include <Rendering/RenderInterface.hpp>
@@ -54,8 +55,7 @@ void GlimmerProbeDebug::CreateResources(uint32 numRecords)
 {
     m_numRecords = numRecords;
 
-    m_recordsBuffer = RI.MakeGpuBuffer(GpuBufferType::RWStructuredBuffer, m_numRecords * sizeof(GlimmerProbeDebugRecord), alignof(Vec4f));
-    Check(m_recordsBuffer->Create());
+    m_recordsBuffer = GlimmerHelpers::CreateGlimmerRWBuffer(m_numRecords * sizeof(GlimmerProbeDebugRecord), alignof(Vec4f));
 
     for (GpuBufferRef& readbackBuffer : m_readbackBuffers)
     {

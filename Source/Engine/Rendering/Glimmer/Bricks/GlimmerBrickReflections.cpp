@@ -149,8 +149,7 @@ const GpuImageViewRef& GlimmerBrickReflections::GetImageView() const
 
 static GpuBufferRef CreateWordBuffer(size_t numWords, Name name)
 {
-    GpuBufferRef buffer = RI.MakeGpuBuffer(GpuBufferType::RWStructuredBuffer, MathUtil::Max(numWords, size_t(4)) * sizeof(uint32), alignof(uint32));
-    Check(buffer->Create());
+    GpuBufferRef buffer = GlimmerHelpers::CreateGlimmerRWBuffer(MathUtil::Max(numWords, size_t(4)) * sizeof(uint32), alignof(uint32));
 
 #ifdef HYP_RHI_DEBUG_NAMES
     buffer->SetDebugName(name);

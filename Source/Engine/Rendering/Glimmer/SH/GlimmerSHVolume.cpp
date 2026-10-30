@@ -215,12 +215,9 @@ void GlimmerSHVolume::CreateResources()
         1,
         NAME("GlimmerSHRadiance"));
 
-    m_lightBuffer = RI.MakeGpuBuffer(
-        GpuBufferType::RWStructuredBuffer,
+    m_lightBuffer = GlimmerHelpers::CreateGlimmerRWBuffer(
         size_t(extent.x) * extent.y * extent.z * LightUints * sizeof(uint32),
         alignof(Vec4f));
-
-    Check(m_lightBuffer->Create());
 }
 
 const GpuImageViewRef& GlimmerSHVolume::GetDataImageView() const

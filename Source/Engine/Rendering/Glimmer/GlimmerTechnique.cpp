@@ -243,8 +243,7 @@ void GlimmerTechnique::Update(const GlimmerTechniqueUpdateContext& context)
     {
         if (!m_scratchBuffer.IsValid())
         {
-            m_scratchBuffer = RI.MakeGpuBuffer(GpuBufferType::RWStructuredBuffer, 16, alignof(Vec4f));
-            Check(m_scratchBuffer->Create());
+            m_scratchBuffer = GlimmerHelpers::CreateGlimmerRWBuffer(16, alignof(Vec4f));
 
 #ifdef HYP_RHI_DEBUG_NAMES
             m_scratchBuffer->SetDebugName(NAME("GlimmerScratch"));

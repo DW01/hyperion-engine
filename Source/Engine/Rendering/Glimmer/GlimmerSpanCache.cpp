@@ -356,8 +356,7 @@ void GlimmerSpanCache::Update(Frame* frame, const GlimmerChannelState& state, co
     {
         const size_t numValues = size_t(GlimmerGroundLevels) * GlimmerGroundResolution * GlimmerGroundResolution * GlimmerSpanValuesPerTexel;
 
-        m_spansBuffer = RI.MakeGpuBuffer(GpuBufferType::RWStructuredBuffer, numValues * sizeof(uint32), alignof(uint32));
-        Check(m_spansBuffer->Create());
+        m_spansBuffer = GlimmerHelpers::CreateGlimmerRWBuffer(numValues * sizeof(uint32), alignof(uint32));
     }
 
     // a swap only has to redo where its span instances changed, on every level; one missed means not knowing where that was

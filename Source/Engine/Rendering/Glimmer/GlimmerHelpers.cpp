@@ -18,6 +18,7 @@
 #include <Rendering/RenderProxyList.hpp>
 #include <Rendering/GpuBuffer.hpp>
 #include <Rendering/CommandRecorder.hpp>
+#include <Rendering/Buffers.hpp>
 #include <Rendering/Texture.hpp>
 #include <Rendering/Material.hpp>
 #include <Rendering/RenderHelpers.hpp>
@@ -203,6 +204,36 @@ GpuBufferRef CreateGlimmerStructuredBuffer(size_t elementSize, size_t numElement
     Check(buffer->Create());
 
     return buffer;
+}
+
+GpuBufferRef CreateGlimmerRWBuffer(size_t byteSize, size_t alignment)
+{
+    GpuBufferRef buffer = RI.MakeGpuBuffer(GpuBufferType::RWStructuredBuffer, byteSize, alignment);
+    Check(buffer->Create());
+
+    ClearGlimmerBuffer(buffer.Get());
+
+    return buffer;
+}
+
+void ClearGlimmerBuffer(GpuBuffer* buffer)
+{
+    const size_t size = buffer->Size();
+
+    GpuBuffer* stagingBuffer = RI.stagingBufferPool->AcquireStagingBuffer(size);
+    Assert(stagingBuffer != nullptr);
+
+    stagingBuffer->Memset(size, 0);
+    stagingBuffer->Flush(0, size);
+
+    CommandRecorder& cr = RI.commandRecorderAllocator.GetCommandRecorder(CommandRecorderQueue::PreRender);
+
+    cr << InsertBarrier(stagingBuffer, ResourceState::CopySrc);
+    cr << InsertBarrier(buffer, ResourceState::CopyDst);
+    cr << CopyBuffer(stagingBuffer, buffer, uint32(size));
+    cr << InsertBarrier(buffer, ResourceState::UnorderedAccess);
+
+    cr.Done();
 }
 
 Handle<Texture> CreateGlimmerStorageTexture(TextureType type, TextureFormat format, const Vec3u& extent, uint16 numLayers, Name name, TextureWrapMode wrapMode)

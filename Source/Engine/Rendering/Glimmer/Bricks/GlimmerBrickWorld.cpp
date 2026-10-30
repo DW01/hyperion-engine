@@ -218,8 +218,7 @@ uint32 GlimmerBrickWorld::ChunkSlot(const Vec3i& coord)
 
 static GpuBufferRef CreateBrickBuffer(size_t numWords, Name name)
 {
-    GpuBufferRef buffer = RI.MakeGpuBuffer(GpuBufferType::RWStructuredBuffer, numWords * sizeof(uint32), alignof(uint32));
-    Check(buffer->Create());
+    GpuBufferRef buffer = GlimmerHelpers::CreateGlimmerRWBuffer(numWords * sizeof(uint32), alignof(uint32));
 
 #ifdef HYP_RHI_DEBUG_NAMES
     buffer->SetDebugName(name);
@@ -325,6 +324,8 @@ void GlimmerBrickWorld::CreateResources()
 
     m_dispatchArgsBuffer = RI.MakeGpuBuffer(GpuBufferType::IndirectArgsBuffer, BrickArgsWords * sizeof(uint32), alignof(uint32));
     Check(m_dispatchArgsBuffer->Create());
+
+    GlimmerHelpers::ClearGlimmerBuffer(m_dispatchArgsBuffer.Get());
 
 #ifdef HYP_RHI_DEBUG_NAMES
     m_dispatchArgsBuffer->SetDebugName(NAME("GlimmerBrickDispatchArgs"));

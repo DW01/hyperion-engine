@@ -199,10 +199,7 @@ struct GlimmerProbeBlendConstants
 
 static GpuBufferRef CreateProbeBuffer(size_t elementSize, size_t numElements)
 {
-    GpuBufferRef buffer = RI.MakeGpuBuffer(GpuBufferType::RWStructuredBuffer, elementSize * numElements, alignof(Vec4f));
-    Check(buffer->Create());
-
-    return buffer;
+    return GlimmerHelpers::CreateGlimmerRWBuffer(elementSize * numElements, alignof(Vec4f));
 }
 
 

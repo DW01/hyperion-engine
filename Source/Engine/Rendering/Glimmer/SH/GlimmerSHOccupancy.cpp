@@ -127,8 +127,7 @@ void GlimmerSHOccupancy::CreateResources()
     const size_t numMaskWords = numVoxels * GlimmerSHOccupancyMaskWords + numCascadeVoxels * GlimmerSHOccupancyTracedCascades * GlimmerSHOccupancyLightmapFaces
         + (numCascadeVoxels / (OccupancyBlockVoxels * OccupancyBlockVoxels * OccupancyBlockVoxels)) * GlimmerSHOccupancyTracedCascades;
 
-    m_maskBuffer = RI.MakeGpuBuffer(GpuBufferType::RWStructuredBuffer, numMaskWords * sizeof(uint32), alignof(uint32));
-    Check(m_maskBuffer->Create());
+    m_maskBuffer = GlimmerHelpers::CreateGlimmerRWBuffer(numMaskWords * sizeof(uint32), alignof(uint32));
 }
 
 const GpuImageViewRef& GlimmerSHOccupancy::GetImageView() const
