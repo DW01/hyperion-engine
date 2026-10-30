@@ -253,7 +253,7 @@ namespace Hyperion.Samples
                 new Vec3f(BallRadius),
                 color,
                 mass: 2.5f, 
-                elocity: velocity,
+                velocity: velocity,
                 roughness: 0.25f));
 
             while (_balls.Count > MaxBalls)
