@@ -15,6 +15,7 @@
 #include <Editor/EditorSubsystem.hpp>
 #include <Editor/EditorViewport.hpp>
 #include <Editor/EditorProject.hpp>
+#include <Editor/EditorHelpers.hpp>
 
 #include <Asset/SerializationUtils.hpp>
 
@@ -23,11 +24,11 @@
 #include <Scene/EnvironmentSettings.hpp>
 #include <Scene/Camera/Camera.hpp>
 
-#include <System/AppContext.hpp>
-
 #include <Core/Math/MathUtil.hpp>
 
 #include <Framework/EngineGlobals.hpp>
+#include <Framework/View.hpp>
+#include <Framework/Game.hpp>
 
 #include <cstdio>
 
@@ -39,6 +40,7 @@ namespace {
 constexpr uint32 DefaultCaptureMaxWidth = 1280;
 constexpr uint32 DefaultSettleMsAfterCameraMove = 1000;
 constexpr uint32 MaxSettleMs = 10000;
+constexpr uint32 GpuReadbackTimeoutMs = 10000;
 
 JSON::Value MakeErrorJson(const String& message)
 {
@@ -445,6 +447,105 @@ JSON::Object ComputeImageStats(const CapturedImage& image)
     return stats;
 }
 
+Handle<View> FindGameViewOnSimThread(EditorSubsystem* subsystem)
+{
+    const Handle<EditorProject>& project = subsystem->GetCurrentProject();
+
+    if (!project.IsValid() || !project->GetGame().IsValid() || !project->GetGame()->GetWorld().IsValid())
+    {
+        return Handle<View>();
+    }
+
+    constexpr EnumFlags<ViewFlags> DoNotWant =
+        ViewFlags::EDITOR_VIEW
+        | ViewFlags::THUMBNAIL_VIEW
+        | ViewFlags::ENV_PROBE_VIEW
+        | ViewFlags::BAKER_VIEW
+        | ViewFlags::SHADOW_VIEW
+        | ViewFlags::UI_VIEW;
+
+    for (View* view : project->GetGame()->GetWorld()->GetViews())
+    {
+        if (view != nullptr && (view->GetFlags() & ViewFlags::GBUFFER) && !(view->GetFlags() & DoNotWant))
+        {
+            return MakeStrongRef(view);
+        }
+    }
+
+    return Handle<View>();
+}
+
+TResult<CapturedImage> CaptureViewPixels(
+    const Handle<View>& view,
+    const Vec2u& wireframeExtent)
+{
+    if (!view.IsValid())
+    {
+        return TResult<CapturedImage>(HYP_MAKE_ERROR(Error, "No view to capture"));
+    }
+
+    struct ReadbackState
+    {
+        Mutex mutex;
+        ConditionVariable cv;
+        bool done = false;
+        EditorHelpers::ViewCaptureResult result;
+    };
+
+    SharedPtr<ReadbackState> state = MakeShared<ReadbackState>();
+
+    EditorHelpers::CaptureViewAsync(view, wireframeExtent, Vec2u::Zero(),
+        [state](EditorHelpers::ViewCaptureResult&& result)
+        {
+            Mutex::Guard guard(state->mutex);
+
+            state->result = std::move(result);
+            state->done = true;
+
+            state->cv.NotifyAll();
+        });
+
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(GpuReadbackTimeoutMs);
+
+    Mutex::Guard guard(state->mutex);
+
+    while (!state->done)
+    {
+        if (std::chrono::steady_clock::now() >= deadline)
+        {
+            return TResult<CapturedImage>(HYP_MAKE_ERROR(Error, "Timed out waiting for the GPU readback (is the viewport rendering?)"));
+        }
+
+        state->cv.WaitFor(state->mutex, 100);
+    }
+
+    const EditorHelpers::ViewCaptureResult& result = state->result;
+
+    if (result.rgba8.Empty() || result.extent.Volume() == 0)
+    {
+        return TResult<CapturedImage>(HYP_MAKE_ERROR(Error, "GPU readback failed - the viewport may not have rendered yet, or another capture is in flight (see get_logs)"));
+    }
+
+    const size_t numPixels = size_t(result.extent.x) * result.extent.y;
+
+    CapturedImage image;
+    image.width = result.extent.x;
+    image.height = result.extent.y;
+    image.rgb.Resize(numPixels * 3);
+
+    const ubyte* sourcePixel = result.rgba8.Data();
+    ubyte* destPixel = image.rgb.Data();
+
+    for (size_t i = 0; i < numPixels; i++, sourcePixel += 4, destPixel += 3)
+    {
+        destPixel[0] = sourcePixel[0];
+        destPixel[1] = sourcePixel[1];
+        destPixel[2] = sourcePixel[2];
+    }
+
+    return TResult<CapturedImage>(std::move(image));
+}
+
 TResult<JSON::Value> HandleCaptureViewport(const JSON::Object& args)
 {
     Vec3f position;
@@ -503,7 +604,8 @@ TResult<JSON::Value> HandleCaptureViewport(const JSON::Object& args)
 
     struct ViewportInfo
     {
-        void* hwnd = nullptr;
+        Handle<View> view;
+        Vec2u wireframeExtent = Vec2u::One();
         JSON::Object camera;
         String error;
         bool isPlaying = false;
@@ -517,25 +619,23 @@ TResult<JSON::Value> HandleCaptureViewport(const JSON::Object& args)
             Handle<EditorSubsystem> subsystem = EditorState::GetInstance()->GetEditorSubsystem();
             EditorViewport* viewport = subsystem.IsValid() ? subsystem->GetActiveViewport() : nullptr;
 
-            if (viewport == nullptr || viewport->GetWindow() == nullptr)
+            // editor viewports don't render while simulating, and the game owns its camera, so position/direction are left alone
+            if (subsystem.IsValid() && subsystem->IsSimulating())
             {
-                ApplicationWindow* mainWindow = g_appContext.IsValid() ? g_appContext->GetMainWindow() : nullptr;
+                info.isPlaying = true;
+                info.view = FindGameViewOnSimThread(subsystem.Get());
 
-                if (subsystem.IsValid() && subsystem->IsSimulating() && mainWindow != nullptr)
+                if (Camera* camera = GetSimulationCameraOnSimThread())
                 {
-                    // the game owns its camera while playing, so position/direction are left alone
-                    info.isPlaying = true;
-                    info.hwnd = mainWindow->GetHWND();
-
-                    if (Camera* camera = GetSimulationCameraOnSimThread())
-                    {
-                        info.camera = MakeCameraJson(camera);
-                    }
-
-                    return info;
+                    info.camera = MakeCameraJson(camera);
                 }
 
-                info.error = "No active editor viewport window";
+                return info;
+            }
+
+            if (viewport == nullptr || !viewport->GetView().IsValid())
+            {
+                info.error = "No active editor viewport";
 
                 return info;
             }
@@ -555,9 +655,10 @@ TResult<JSON::Value> HandleCaptureViewport(const JSON::Object& args)
                 }
 
                 info.camera = MakeCameraJson(camera);
+                info.wireframeExtent = Vec2u(MathUtil::Max(camera->GetDimensions(), Vec2i::One()));
             }
 
-            info.hwnd = viewport->GetWindow()->GetHWND();
+            info.view = viewport->GetView();
 
             return info;
         });
@@ -580,13 +681,14 @@ TResult<JSON::Value> HandleCaptureViewport(const JSON::Object& args)
         ThreadSleep(settleMs);
     }
 
-    CapturedImage image;
-    String captureError;
+    TResult<CapturedImage> captureResult = CaptureViewPixels(viewportInfo.view, viewportInfo.wireframeExtent);
 
-    if (!CaptureNativeWindow(viewportInfo.hwnd, image, captureError))
+    if (captureResult.HasError())
     {
-        return TResult<JSON::Value>(HYP_MAKE_ERROR(Error, "Failed to capture viewport: {}", captureError));
+        return TResult<JSON::Value>(HYP_MAKE_ERROR(Error, "Failed to capture viewport: {}", captureResult.GetError().GetMessage()));
     }
+
+    CapturedImage image = std::move(captureResult.GetValue());
 
     const uint32 capturedWidth = image.width;
     const uint32 capturedHeight = image.height;
@@ -690,7 +792,8 @@ void RegisterViewMCPTools(MCPRouter& router)
         "plus display-referred stats (mean/p5/p50/p95 luminance, mean RGB, mean saturation, all 0-1). "
         "Optionally move the camera first with position [x, y, z] and/or direction [x, y, z] (world space: left-handed, Y-up); "
         "the capture then waits settleMs (default 1000 after a move, else 0) for the frame and TAA to settle. "
-        "Editor overlays (grid, stats bar, probe warnings) are included - set_cvar Editor.ShowGrid false for cleaner shots. The viewport must be visible on screen. Windows only. "
+        "The view is read back from the GPU, so the viewport needn't be visible and UI drawn over it is left out; "
+        "in-view overlays like the grid are included - set_cvar Editor.ShowGrid false for cleaner shots. "
         "While playing, the game's view is captured (mode \"play\") and position/direction are ignored, since the game drives its own camera.",
         MakeToolInputSchema({ { "position", MakeArraySchemaProperty("Optional camera world position [x, y, z]", "number") },
                                 { "direction", MakeArraySchemaProperty("Optional camera view direction [x, y, z]", "number") },

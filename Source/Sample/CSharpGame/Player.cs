@@ -19,14 +19,18 @@ namespace Hyperion.Samples
         {
             float capsuleHalfHeight = CapsuleHeight * 0.5f + CapsuleRadius;
 
-            CapsulePhysicsShape capsuleShape = new CapsulePhysicsShape();
-            capsuleShape.Radius = CapsuleRadius;
-            capsuleShape.Height = CapsuleHeight;
+            CapsulePhysicsShape capsuleShape = new CapsulePhysicsShape
+            {
+                Radius = CapsuleRadius,
+                Height = CapsuleHeight
+            };
 
-            Entity = new Entity();
-            Entity.Name = "Player";
-            Entity.IsDynamic = true;
-            Entity.LocalTranslation = spawnPosition + new Vec3f(0.0f, capsuleHalfHeight, 0.0f);
+            Entity = new Entity
+            {
+                Name = "Player",
+                IsDynamic = true,
+                LocalTranslation = spawnPosition + new Vec3f(0.0f, capsuleHalfHeight, 0.0f)
+            };
 
             root.AddChild(Entity);
 
@@ -58,8 +62,10 @@ namespace Hyperion.Samples
         {
             ThirdPersonCameraController cameraController = CameraController;
 
-            Camera camera = new Camera();
-            camera.Name = "PlayerCamera";
+            Camera camera = new Camera
+            {
+                Name = "PlayerCamera"
+            };
             camera.SetDimensions(new Vec2i(1920, 1080));
             camera.SetCameraFlags(CameraFlags.MatchWindowSize);
             camera.SetNearClip(0.1f);
@@ -95,9 +101,11 @@ namespace Hyperion.Samples
                 return;
             }
 
-            Entity characterModel = new Entity();
-            characterModel.Name = "CharacterModel";
-            characterModel.IsDynamic = true;
+            Entity characterModel = new Entity
+            {
+                Name = "CharacterModel",
+                IsDynamic = true
+            };
 
             Entity.AddChild(characterModel);
             characterModel.AddChild(characterNode);
@@ -114,7 +122,6 @@ namespace Hyperion.Samples
             }
 
             Class componentClass = characterModelComponentClass.Value;
-
             if (!entityManager.AddDefaultComponent(characterModel, componentClass))
             {
                 return;

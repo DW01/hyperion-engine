@@ -46,22 +46,21 @@ HYP_DECLARE_LOG_CHANNEL(Editor);
 
 namespace EditorHelpers {
 
-EDITOR_API Task<void> CaptureViewToPNGAsync(
+EDITOR_API void CaptureViewAsync(
     const Handle<View>& view,
-    const FilePath& path,
     const Vec2u& wireframeExtent,
-    const Vec2u& outputExtent)
+    const Vec2u& outputExtent,
+    Proc<void(ViewCaptureResult&&)>&& onComplete)
 {
     if (!view.IsValid())
     {
-        return {};
+        onComplete(ViewCaptureResult {});
+
+        return;
     }
 
-    Task<void> future;
-    TaskPromise<void>* promise = future.Promise();
-
     GetThreadById(g_renderThread)->GetScheduler().Enqueue(
-        [view, path, wireframeExtent, outputExtent, promise]()
+        [view, wireframeExtent, outputExtent, onComplete = std::move(onComplete)]() mutable
         {
             static constexpr uint64 CaptureTimeoutMs = 5000;
 
@@ -74,7 +73,7 @@ EDITOR_API Task<void> CaptureViewToPNGAsync(
                 {
                     HYP_LOG(Editor, Warning, "a capture of this viewport is already in flight");
 
-                    promise->Fulfill();
+                    onComplete(ViewCaptureResult {});
 
                     return;
                 }
@@ -93,7 +92,7 @@ EDITOR_API Task<void> CaptureViewToPNGAsync(
             {
                 HYP_LOG(Editor, Warning, "the viewport hasn't rendered yet");
 
-                promise->Fulfill();
+                onComplete(ViewCaptureResult {});
 
                 return;
             }
@@ -110,27 +109,18 @@ EDITOR_API Task<void> CaptureViewToPNGAsync(
             s_pendingSinceMs = Time::Now().ToMilliseconds();
 
             captureState->Request(
-                [view, path, outputExtent, captureState, promise](ByteBuffer&& color, ByteBuffer&&, Vec2u extent)
+                [view, outputExtent, captureState, onComplete = std::move(onComplete)](ByteBuffer&& color, ByteBuffer&&, Vec2u extent) mutable
                 {
-                    const Vec2u& dstExtent = outputExtent.Volume() > 0
-                        ? outputExtent
-                        : extent;
+                    ViewCaptureResult result;
 
                     // RGBA16F
                     if (extent.Volume() > 0 && color.Size() >= size_t(extent.x) * extent.y * 8)
                     {
-                        const ByteBuffer rgba8 = TextureUtils::ResampleToSRGB8(reinterpret_cast<const Float16*>(color.Data()), extent, dstExtent);
+                        result.extent = outputExtent.Volume() > 0
+                            ? outputExtent
+                            : extent;
 
-                        path.BasePath().MkDir();
-
-                        if (WritePng::Write(path, dstExtent.x, dstExtent.y, 4, rgba8.Data()))
-                        {
-                            HYP_LOG(Editor, Info, "Wrote viewport capture {} ({}x{})", path, dstExtent.x, dstExtent.y);
-                        }
-                        else
-                        {
-                            HYP_LOG(Editor, Error, "Failed to write viewport capture {}", path);
-                        }
+                        result.rgba8 = TextureUtils::ResampleToSRGB8(reinterpret_cast<const Float16*>(color.Data()), extent, result.extent);
                     }
 
                     if (view->thumbnailCaptureState == captureState)
@@ -138,7 +128,7 @@ EDITOR_API Task<void> CaptureViewToPNGAsync(
                         view->thumbnailCaptureState = nullptr;
                     }
 
-                    promise->Fulfill();
+                    onComplete(std::move(result));
 
                     // do not delete it from inside its own callback
                     GetThreadById(g_renderThread)->GetScheduler().Enqueue(
@@ -150,6 +140,41 @@ EDITOR_API Task<void> CaptureViewToPNGAsync(
                 });
         },
         TaskEnqueueFlags::FIRE_AND_FORGET);
+}
+
+EDITOR_API Task<void> CaptureViewToPNGAsync(
+    const Handle<View>& view,
+    const FilePath& path,
+    const Vec2u& wireframeExtent,
+    const Vec2u& outputExtent)
+{
+    if (!view.IsValid())
+    {
+        return {};
+    }
+
+    Task<void> future;
+    TaskPromise<void>* promise = future.Promise();
+
+    CaptureViewAsync(view, wireframeExtent, outputExtent,
+        [path, promise](ViewCaptureResult&& result)
+        {
+            if (result.rgba8.Any())
+            {
+                path.BasePath().MkDir();
+
+                if (WritePng::Write(path, result.extent.x, result.extent.y, 4, result.rgba8.Data()))
+                {
+                    HYP_LOG(Editor, Info, "Wrote viewport capture {} ({}x{})", path, result.extent.x, result.extent.y);
+                }
+                else
+                {
+                    HYP_LOG(Editor, Error, "Failed to write viewport capture {}", path);
+                }
+            }
+
+            promise->Fulfill();
+        });
 
     return future;
 }

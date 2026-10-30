@@ -11,51 +11,55 @@ namespace Hyperion.Samples
         private const float BallSpeed = 22.0f;
         private const float KillHeight = -30.0f;
 
-        private static readonly Vec3f TowerPosition = new Vec3f(0.0f, 0.0f, -8.0f);
+        private static readonly Vec3f TowerPosition = new(0.0f, 0.0f, -8.0f);
         private const float TowerPlatformHeight = 1.5f;
         private const float CrateSize = 0.7f;
 
         private static readonly Color[] CrateColors =
-        {
+        [
             new Color(0.75f, 0.12f, 0.08f, 1.0f),
             new Color(0.9f, 0.45f, 0.02f, 1.0f),
             new Color(0.06f, 0.3f, 0.75f, 1.0f),
             new Color(0.12f, 0.55f, 0.15f, 1.0f)
-        };
+        ];
 
         private Props? _props;
         private Player? _player;
         private InputManager? _input;
         private ConsoleOverlay? _console;
 
-        private readonly List<Entity> _towerCrates = new List<Entity>();
-        private readonly Queue<Entity> _balls = new Queue<Entity>();
-        private readonly List<Entity> _droppedCrates = new List<Entity>();
+        private readonly List<Entity> _towerCrates = new();
+        private readonly Queue<Entity> _balls = new();
+        private readonly List<Entity> _droppedCrates = new();
 
-        private readonly HashSet<KeyCode> _keysDown = new HashSet<KeyCode>();
+        private readonly HashSet<KeyCode> _keysDown = new();
         private bool _throwButtonWasDown;
 
         private int _cratesKnockedOff;
         private bool _won;
         private float _throwCooldown;
-        private readonly Random _random = new Random();
+        private readonly Random _random = new();
 
         protected override void OnLaunch()
         {
             World world = World ?? throw new InvalidOperationException("Game has no World");
 
-            Scene scene = new Scene();
-            scene.Name = "PlaygroundScene";
-            scene.SceneFlags = SceneFlags.Default & ~SceneFlags.Streamed;
+            Scene scene = new Scene
+            {
+                Name = "PlaygroundScene",
+                SceneFlags = SceneFlags.Default & ~SceneFlags.Streamed
+            };
             world.AddScene(scene, false);
 
             Node root = scene.RootNode ?? throw new InvalidOperationException("Scene has no root node");
 
-            DirectionalLight sun = new DirectionalLight();
-            sun.Name = "Sun";
-            sun.Direction = new Vec3f(0.35f, 0.8f, 0.25f).Normalize();
-            sun.Color = new Color(1.0f, 0.93f, 0.85f, 1.0f);
-            sun.Intensity = 10.0f;
+            DirectionalLight sun = new DirectionalLight
+            {
+                Name = "Sun",
+                Direction = new Vec3f(0.35f, 0.8f, 0.25f).Normalize(),
+                Color = new Color(1.0f, 0.93f, 0.85f, 1.0f),
+                Intensity = 10.0f
+            };
             root.AddChild(sun);
 
             world.AddSystem(new DynamicSkySystem());
@@ -242,7 +246,15 @@ namespace Hyperion.Samples
 
             Color color = CrateColors[_random.Next(CrateColors.Length)];
 
-            _balls.Enqueue(_props!.Spawn("ThrownBall", PropShape.Sphere, origin, new Vec3f(BallRadius), color, mass: 2.5f, velocity: velocity, roughness: 0.25f));
+            _balls.Enqueue(_props!.Spawn(
+                "ThrownBall",
+                PropShape.Sphere, 
+                origin,
+                new Vec3f(BallRadius),
+                color,
+                mass: 2.5f, 
+                elocity: velocity,
+                roughness: 0.25f));
 
             while (_balls.Count > MaxBalls)
             {
@@ -252,7 +264,7 @@ namespace Hyperion.Samples
 
         private void DropCrate()
         {
-            Vec3f offset = new Vec3f((float)_random.NextDouble() * 2.0f - 1.0f, 6.0f, (float)_random.NextDouble() * 2.0f - 1.0f);
+            Vec3f offset = new((float)_random.NextDouble() * 2.0f - 1.0f, 6.0f, (float)_random.NextDouble() * 2.0f - 1.0f);
 
             _droppedCrates.Add(_props!.Spawn("DroppedCrate", PropShape.Box, _player!.Position + offset, new Vec3f(1.0f),
                 CrateColors[_random.Next(CrateColors.Length)], mass: 6.0f));

@@ -21,10 +21,6 @@ struct CapturedImage
     Array<ubyte> rgb; // tightly packed, top-down
 };
 
-/*! \brief Grab what is currently on screen inside a (possibly child) native window. Kept in its own
- *  translation unit so windows.h stays away from the engine headers. */
-bool CaptureNativeWindow(void* nativeWindowHandle, CapturedImage& outImage, String& outError);
-
 /*! \brief Box-filter the image down so it is at most \p maxWidth wide (no-op if already narrower). */
 void DownscaleImage(CapturedImage& image, uint32 maxWidth);
 

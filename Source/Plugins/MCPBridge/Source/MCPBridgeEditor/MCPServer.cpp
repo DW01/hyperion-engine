@@ -102,7 +102,9 @@ bool IsLoopbackAuthority(const String& authority)
         host = String(authority.Substr(0, colon));
     }
 
-    return host == String("localhost") || host == String("127.0.0.1") || host == String("[::1]");
+    return host == "localhost"
+        || host == "127.0.0.1"
+        || host == "[::1]";
 }
 
 bool SendAll(int socket, const char* data, size_t size)

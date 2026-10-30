@@ -32,12 +32,16 @@ namespace Hyperion.Samples
             _sphereMesh = MeshBuilder.Sphere(12);
             _sphereMesh.Name = "PropSphereMesh";
 
-            _boxShape = new BoxPhysicsShape();
-            _boxShape.Name = "PropBoxShape";
+            _boxShape = new BoxPhysicsShape
+            {
+                Name = "PropBoxShape"
+            };
             _boxShape.SetAABB(_cubeMesh.GetAABB());
 
-            _sphereShape = new SpherePhysicsShape();
-            _sphereShape.Name = "PropSphereShape";
+            _sphereShape = new SpherePhysicsShape
+            {
+                Name = "PropSphereShape"
+            };
             _sphereShape.SetSphere(new BoundingSphere(new Vec3f(0.0f, 0.0f, 0.0f), 1.0f));
         }
 
@@ -46,11 +50,13 @@ namespace Hyperion.Samples
             Mesh mesh = shape == PropShape.Box ? _cubeMesh : _sphereMesh;
             PhysicsShape physicsShape = shape == PropShape.Box ? _boxShape : _sphereShape;
 
-            Entity entity = new Entity();
-            entity.Name = name;
-            entity.IsDynamic = mass > 0.0f;
-            entity.LocalScale = shape == PropShape.Box ? size : new Vec3f(size.X);
-            entity.LocalTranslation = position;
+            Entity entity = new Entity
+            {
+                Name = name,
+                IsDynamic = mass > 0.0f,
+                LocalScale = shape == PropShape.Box ? size : new Vec3f(size.X),
+                LocalTranslation = position
+            };
 
             if (rotation.HasValue)
             {
@@ -59,10 +65,12 @@ namespace Hyperion.Samples
 
             _root.AddChild(entity);
 
-            MeshComponent meshComponent = new MeshComponent();
-            meshComponent.Mesh = mesh;
-            meshComponent.Material = GetMaterial(color, roughness, metalness);
-            meshComponent.EnableAutoInstancing = true;
+            MeshComponent meshComponent = new MeshComponent
+            {
+                Mesh = mesh,
+                Material = GetMaterial(color, roughness, metalness),
+                EnableAutoInstancing = true
+            };
 
             entity.AddComponent(ref meshComponent);
 
@@ -70,7 +78,11 @@ namespace Hyperion.Samples
 
             RigidBodyComponent rigidBodyComponent = new RigidBodyComponent
             {
-                PhysicsMaterial = new PhysicsMaterial { Mass = mass, Friction = 0.6f, Restitution = shape == PropShape.Sphere ? 0.35f : 0.05f },
+                PhysicsMaterial = new PhysicsMaterial {
+                    Mass = mass,
+                    Friction = 0.6f,
+                    Restitution = (shape == PropShape.Sphere ? 0.35f : 0.05f)
+                },
                 initialVelocity = velocity ?? new Vec3f(0.0f, 0.0f, 0.0f),
                 Shape = new Handle<PhysicsShape>(physicsShape)
             };
@@ -87,17 +99,23 @@ namespace Hyperion.Samples
                 return material;
             }
 
-            MaterialAttributes attributes = new MaterialAttributes();
-            attributes.ShaderName = new Name("GeometryPass");
-            attributes.Bucket = RenderBucket.Opaque;
+            MaterialAttributes attributes = new MaterialAttributes
+            {
+                ShaderName = new Name("GeometryPass"),
+                Bucket = RenderBucket.Opaque
+            };
 
-            MaterialParameters parameters = new MaterialParameters();
-            parameters.albedo = color;
-            parameters.roughness = roughness;
-            parameters.metalness = metalness;
+            MaterialParameters parameters = new MaterialParameters
+            {
+                albedo = color,
+                roughness = roughness,
+                metalness = metalness
+            };
 
-            material = new Material();
-            material.Name = $"PropMaterial_{_materials.Count}";
+            material = new Material
+            {
+                Name = $"PropMaterial_{_materials.Count}"
+            };
             material.SetAttributes(attributes);
             material.SetParameters(parameters);
 
