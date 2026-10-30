@@ -49,6 +49,18 @@ struct ProjectLoadStageInfo
     uint32 weight;
 };
 
+constexpr ProjectLoadStageInfo ProjectLoadStages[] = {
+    { ProjectLoadStage::CloseProject, "Closing current project", 1 },
+    { ProjectLoadStage::ReadAssetRegistry, "Reading asset registry", 1 },
+    { ProjectLoadStage::ReadProjectFile, "Reading project file", 3 },
+    { ProjectLoadStage::LoadGameModule, "Loading game module", 2 },
+    { ProjectLoadStage::RebuildGameModule, "Updating project for new engine version", 12 },
+    { ProjectLoadStage::LoadScripts, "Loading scripts", 1 },
+    { ProjectLoadStage::LoadAssetFolders, "Loading asset folders", 1 },
+    { ProjectLoadStage::LoadWorld, "Loading world", 8 },
+    { ProjectLoadStage::StartEditor, "Starting editor", 2 }
+};
+
 String NormalizeProjectFilepath(const String& projectFilepath)
 {
     const String trimmed = projectFilepath.Trimmed();
@@ -74,18 +86,6 @@ int64 GetUnixTimeSeconds()
 {
     return int64(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
 }
-
-static constexpr ProjectLoadStageInfo ProjectLoadStages[] = {
-    { ProjectLoadStage::CloseProject, "Closing current project", 1 },
-    { ProjectLoadStage::ReadAssetRegistry, "Reading asset registry", 1 },
-    { ProjectLoadStage::ReadProjectFile, "Reading project file", 3 },
-    { ProjectLoadStage::LoadGameModule, "Loading game module", 2 },
-    { ProjectLoadStage::RebuildGameModule, "This project's code needs to be recompiled before it can be opened. Please wait", 12 },
-    { ProjectLoadStage::LoadScripts, "Loading scripts", 1 },
-    { ProjectLoadStage::LoadAssetFolders, "Loading asset folders", 1 },
-    { ProjectLoadStage::LoadWorld, "Loading world", 8 },
-    { ProjectLoadStage::StartEditor, "Starting editor", 2 }
-};
 
 } // namespace
 

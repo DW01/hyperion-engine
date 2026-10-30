@@ -24,17 +24,41 @@ namespace Hyperion.Editor.Services
 
         public Task<bool> BuildAsync(string? projectFilePath)
         {
-            return BuildAsync(projectFilePath, isPackage: false, Array.Empty<string>());
+            return BuildAsync(
+                projectFilePath,
+                isPackage: false,
+                writeGameArgs: true,
+                Array.Empty<string>());
         }
 
-        public bool BuildPackage(string projectFilePath, string outputDirectory, string? scriptsLinkInputsFile, string? pluginModulesFile)
+        public bool BuildForProjectLoad(string projectFilePath)
         {
-            return BuildAsync(projectFilePath, isPackage: true, NativeGameBuild.GetPackageArguments(outputDirectory, scriptsLinkInputsFile, pluginModulesFile)).GetAwaiter().GetResult();
+            return BuildAsync(
+                projectFilePath,
+                isPackage: false,
+                writeGameArgs: false,
+                Array.Empty<string>())
+                .GetAwaiter().GetResult();
+        }
+
+        public bool BuildPackage(
+            string projectFilePath,
+            string outputDirectory,
+            string? scriptsLinkInputsFile,
+            string? pluginModulesFile)
+        {
+            return BuildAsync(
+                projectFilePath,
+                isPackage: true,
+                writeGameArgs: false,
+                NativeGameBuild.GetPackageArguments(outputDirectory, scriptsLinkInputsFile, pluginModulesFile))
+                .GetAwaiter().GetResult();
         }
 
         private async Task<bool> BuildAsync(
             string? projectFilePath,
             bool isPackage,
+            bool writeGameArgs,
             IReadOnlyList<string> cmakeArguments)
         {
             GameBuildPlatform platform = GameBuildPlatform.Current;
@@ -103,7 +127,7 @@ namespace Hyperion.Editor.Services
 
                 Logger.Log(BuildLogChannel, LogLevel.Info, "Game build succeeded in {0}", buildDirectory);
 
-                if (!isPackage)
+                if (writeGameArgs)
                 {
                     await EngineManager.WriteGameArgs(projectFilePath).ConfigureAwait(false);
                 }

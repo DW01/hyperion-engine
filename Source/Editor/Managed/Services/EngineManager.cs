@@ -233,7 +233,7 @@ namespace Hyperion.Editor
             _onRebuildNativeGameRequestedHandler?.Remove();
             _onRebuildNativeGameRequestedHandler = editorState.GetOnRebuildNativeGameRequestedDelegate().Bind((string projectFilePath) =>
             {
-                return Services.NativeGameBuildService.Instance.BuildAsync(projectFilePath).GetAwaiter().GetResult();
+                return Services.NativeGameBuildService.Instance.BuildForProjectLoad(projectFilePath);
             });
 
             _onViewportLayoutRequestedHandler?.Remove();
