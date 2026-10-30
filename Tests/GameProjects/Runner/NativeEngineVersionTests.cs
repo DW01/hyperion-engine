@@ -81,7 +81,7 @@ public class NativeEngineVersionTests : IClassFixture<NativeEngineVersionFixture
 
         Assert.False(step.Loaded, $"{step.Build} is stamped for engine {NativeEngineVersionFixture.OtherEngineVersion}, but it loaded");
         Assert.Contains($"built for engine version {NativeEngineVersionFixture.OtherEngineVersion}", step.LoadError ?? "");
-        Assert.Contains("Rebuild the game", step.LoadError ?? "");
+        Assert.Contains("currently running on version", step.LoadError ?? "");
 
         Assert.DoesNotContain("Loaded game module", File.ReadAllText(_fixture.Run.Process.LogPath));
     }

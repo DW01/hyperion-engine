@@ -541,6 +541,7 @@ public:
 
         const FilePath& projectFilepath = currentProject->GetFilePath();
 
+        /// @TODO: Remove this check, shouldn't be a blocker to packaging a game.
         if (!IsManagedProject(projectFilepath) && !HasNativeGameCode(projectFilepath) && !HasProjectScripts(projectFilepath))
         {
             ShowPackageGameMessage(MessageBoxType::INFO, "Nothing to package", "The project has no C# game, C++ game or scripts.");
