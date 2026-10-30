@@ -1,0 +1,37 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Editor (Debug)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/Binaries/Linux/Debug/Hyperion.Editor",
+      "args": [],
+      "cwd": "${workspaceFolder}/Binaries/Linux/Debug",
+    },
+    {
+      "name": "Launch Sample (Debug)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/Binaries/Linux/Debug/hyperion-sample",
+      "args": [],
+      "cwd": "${workspaceFolder}/Binaries/Linux/Debug",
+    },
+    {
+      "name": "Launch Editor (Release)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/Binaries/Linux/Release/Hyperion.Editor",
+      "args": [],
+      "cwd": "${workspaceFolder}/Binaries/Linux/Release",
+    },
+    {
+      "name": "Launch Sample (Release)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/Binaries/Linux/Release/hyperion-sample",
+      "args": [],
+      "cwd": "${workspaceFolder}/Binaries/Linux/Release",
+    },
+  ],
+}

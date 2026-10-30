@@ -79,7 +79,7 @@ void LoadManagedModuleCopy(
     if (!loadedModule.assembly)
     {
         loadedModule.loadedTimestampOrError = HYP_MAKE_ERROR(GameModuleError,
-            "Failed to load game assembly {} (it may have been built for a different engine version). Rebuild the game.",
+            "Failed to load game assembly {} - it may have been built for a different engine version. Try rebuilding the game module.",
             loadedModule.modulePath);
 
         return;

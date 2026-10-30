@@ -2,6 +2,8 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+"$SCRIPT_DIR/InstallIdeConfigs.sh"
+
 # Parse CLI args
 IOS=0
 XCODE=0

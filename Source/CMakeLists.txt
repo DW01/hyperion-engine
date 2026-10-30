@@ -1768,6 +1768,8 @@ function(hyp_collect_static_link_items rootTarget outVar)
 
         if(TARGET ${dependency})
           list(APPEND pending ${dependency})
+        elseif(dependency MATCHES "^[A-Za-z0-9_.+-]+::[A-Za-z0-9_.+-]+$")
+          message(FATAL_ERROR "${current} links ${dependency}, which isn't a target visible here (an imported target needs IMPORTED_GLOBAL)")
         elseif(NOT dependency IN_LIST items)
           list(APPEND items ${dependency})
         endif()
@@ -2033,14 +2035,6 @@ endif()
 # foreach(SAMPLE_SCRIPT ${SAMPLE_SCRIPTS})
 #     file(COPY ${SAMPLE_SCRIPT} DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 # endforeach()
-
-# # if .vscode/launch.json does not exist, create it
-# if(NOT EXISTS "${CMAKE_SOURCE_DIR}/.vscode/launch.json")
-#     # copy the template files
-#     file(COPY "${CMAKE_SOURCE_DIR}/launch-template.json" DESTINATION "${CMAKE_SOURCE_DIR}/.vscode/launch.json")
-#     file(COPY "${CMAKE_SOURCE_DIR}/tasks-template.json" DESTINATION "${CMAKE_SOURCE_DIR}/.vscode/tasks.json")
-#     message(STATUS "Created launch and task json files in .vscode directory")
-# endif()
 
 # # for all <ConfigName>Template.json files in the root directory, copy them to the CMAKE_RUNTIME_OUTPUT_DIRECTORY directory (if they do not exist),
 # # and remove the "Template" part from the filename

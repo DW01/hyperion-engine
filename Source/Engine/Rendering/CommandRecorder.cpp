@@ -39,7 +39,7 @@
 
 namespace Hyperion {
 
-CVar<bool> g_cvAsyncShaderLoading("Rendering.AsyncShaderLoading", false);
+CVar<bool> g_cvAsyncShaderLoading("Rendering.AsyncShaderLoading", true);
 
 namespace {
 

@@ -163,7 +163,10 @@ public:
 
 #ifdef HYP_ENABLE_SHADER_RELOAD
     static constexpr uint32 ShaderReloadIntervalMs = 3000;
+    
     AtomicVar<bool> m_shaderReloadShouldStop { false };
+    AtomicVar<bool> m_shaderReloadRunning { false };
+
     Task<void> m_shaderReloadTask;
 
     volatile int32 m_isReloadingShaders = 0;
@@ -283,17 +286,34 @@ public:
 #ifdef HYP_ENABLE_SHADER_RELOAD
         StopShaderReloadThread();
 #endif
+
+        for (ShaderMapEntry& entry : m_entries)
+        {
+            if (entry.compileTask.IsValid() && !entry.compileTask.IsCompleted())
+            {
+                entry.compileTask.Await();
+            }
+        }
+
+        while (m_numCompilingShaders.Get(MemoryOrder::ACQUIRE) != 0)
+        {
+            threading::ThreadSleep(0);
+        }
+
+#ifdef HYP_EDITOR
+        Mutex::Guard guard(m_compilingShadersMutex);
+#endif
     }
 
     ShaderInstanceRef CompileShaderWork(
         Name shaderName,
         ShaderPropertySet properties,
         VertexInputLayoutDesc inputLayout,
-        ShaderMapEntry* entry)
+        ShaderMapEntry* entry,
+        bool allowStale)
     {
         bool isValid = true;
-        isValid &= g_shaderCompiler->RequestShader(shaderName, properties, inputLayout, entry->shader);
-
+        isValid &= g_shaderCompiler->RequestShader(shaderName, properties, inputLayout, entry->shader, allowStale);
         isValid &= entry->shader->IsValid();
 
         entry->failedToLoad = !isValid;
@@ -334,7 +354,7 @@ public:
                     }
                 }
 
-                isValid = g_shaderCompiler->RequestShader(s_nameFallbackShader, fallbackProperties, inputLayout, entry->shader);
+                isValid = g_shaderCompiler->RequestShader(s_nameFallbackShader, fallbackProperties, inputLayout, entry->shader, allowStale);
 
                 isValid &= entry->shader->IsValid();
 
@@ -406,26 +426,36 @@ public:
         return releasedInstance;
     }
 
+    bool IsShaderReloadRunning() const
+    {
+#ifdef HYP_ENABLE_SHADER_RELOAD
+        return m_shaderReloadRunning.Get(MemoryOrder::ACQUIRE);
+#else
+        return false;
+#endif
+    }
+
     // Must be called while holding m_mutex exclusively, since readers check entry->compileTask under the shared lock.
     void EnqueueShaderCompile(
         ShaderMapEntry* entry,
         Name shaderName,
         const ShaderPropertySet& properties,
-        const VertexInputLayoutDesc& inputLayout)
+        const VertexInputLayoutDesc& inputLayout,
+        bool allowStale)
     {
         Assert(entry != nullptr);
 
         const uint64 enqueueTime = PerformanceClock::Now();
 
         entry->compileTask = TaskSystem::GetInstance().Enqueue(
-            [this, shaderName, properties, inputLayout, entry, enqueueTime]() -> ShaderInstanceRef
+            [this, shaderName, properties, inputLayout, entry, enqueueTime, allowStale]() -> ShaderInstanceRef
             {
                 const double queuedMs = PerformanceClock::ToMilliseconds(PerformanceClock::Now() - enqueueTime);
 
                 PerformanceClock workClock;
                 workClock.Start();
 
-                ShaderInstanceRef result = CompileShaderWork(shaderName, properties, inputLayout, entry);
+                ShaderInstanceRef result = CompileShaderWork(shaderName, properties, inputLayout, entry, allowStale);
 
                 HYP_LOG(Shader, Debug, "[ShaderTiming] {} queued {} ms, work {} ms", shaderName, uint32(queuedMs), uint32(workClock.ElapsedMs()));
 
@@ -659,7 +689,7 @@ public:
 
             if (doLoadShader && !entry->compileTask.IsValid())
             {
-                EnqueueShaderCompile(entry, name, properties, inputLayout);
+                EnqueueShaderCompile(entry, name, properties, inputLayout, /* allowStale */ IsShaderReloadRunning());
 
                 issuedCompile = true;
             }
@@ -1088,10 +1118,13 @@ public:
                 }
             },
             TaskThreadPoolName::THREAD_POOL_BACKGROUND);
+
+        m_shaderReloadRunning.Set(true, MemoryOrder::RELEASE);
     }
 
     void StopShaderReloadThread()
     {
+        m_shaderReloadRunning.Set(false, MemoryOrder::RELEASE);
         m_shaderReloadShouldStop.Set(true, MemoryOrder::RELAXED);
 
         if (m_shaderReloadTask.IsValid())
@@ -1184,7 +1217,7 @@ public:
             {
                 item.newEntry = CreateEntry_Locked(item.oldEntry->name, item.oldEntry->properties, item.oldEntry->inputLayout);
 
-                EnqueueShaderCompile(item.newEntry, item.newEntry->name, item.newEntry->properties, item.newEntry->inputLayout);
+                EnqueueShaderCompile(item.newEntry, item.newEntry->name, item.newEntry->properties, item.newEntry->inputLayout, /* allowStale */ false);
             }
         }
 

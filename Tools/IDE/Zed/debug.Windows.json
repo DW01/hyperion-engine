@@ -1,0 +1,14 @@
+[
+  {
+    "label": "Start editor",
+    "program": "$ZED_WORKTREE_ROOT/Binaries/Windows/Release/Hyperion.Editor.exe",
+    "request": "launch",
+    "adapter": "CodeLLDB",
+  },
+  {
+    "label": "Start sample",
+    "program": "$ZED_WORKTREE_ROOT/Binaries/Windows/Release/hyperion-sample.exe",
+    "request": "launch",
+    "adapter": "CodeLLDB",
+  },
+]

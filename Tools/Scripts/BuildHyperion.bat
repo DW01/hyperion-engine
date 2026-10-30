@@ -42,6 +42,8 @@ SHIFT
 GOTO PARSE_ARGS
 :END_PARSE_ARGS
 
+call "%~dp0InstallIdeConfigs.bat"
+
 REM Exported so BuildCodeGen.bat (invoked indirectly via RunCodeGen during CMake
 REM configuration) knows to build the CodeGen tool with the same MinGW toolchain
 REM instead of assuming a Visual Studio generator is available.

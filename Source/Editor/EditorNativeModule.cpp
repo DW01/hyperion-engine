@@ -491,7 +491,7 @@ bool LoadModuleBindings(const FilePath& modulePath)
 
     if (!DotNETHost::GetInstance().LoadAssembly(copyResult.GetValue().Data()))
     {
-        HYP_LOG(Editor, Error, "Failed to load game bindings {} of {}. Rebuild the game.", bindingsPath, modulePath);
+        HYP_LOG(Editor, Error, "Failed to load game bindings {} of {}", bindingsPath, modulePath);
 
         return false;
     }
@@ -504,7 +504,7 @@ void LoadModuleCopy(LoadedNativeModule& loadedModule)
 {
     if (const String versionError = CheckModuleEngineVersion(loadedModule.modulePath); versionError.Any())
     {
-        loadedModule.loadedTimestampOrError = HYP_MAKE_ERROR(GameModuleError, "{} Rebuild the game.", versionError);
+        loadedModule.loadedTimestampOrError = HYP_MAKE_ERROR(GameModuleError, "{}", versionError);
 
         return;
     }
@@ -539,7 +539,7 @@ void LoadModuleCopy(LoadedNativeModule& loadedModule)
         versionMajor != HYP_VERSION_MAJOR || versionMinor != HYP_VERSION_MINOR)
     {
         loadedModule.loadedTimestampOrError = HYP_MAKE_ERROR(GameModuleError,
-            "Game module {} was built for engine {}.{}.{} (this is {}.{}.{}). Rebuild the game.",
+            "Game module {} was built for engine {}.{}.{} (this is {}.{}.{}) and needs to be rebuilt",
             loadedModule.modulePath, versionMajor, versionMinor, versionPatch, HYP_VERSION_MAJOR, HYP_VERSION_MINOR, HYP_VERSION_PATCH);
     }
     else

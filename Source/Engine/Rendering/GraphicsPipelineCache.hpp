@@ -115,7 +115,6 @@ public:
         uint8 stencilWriteMask,
         uint8 stencilCompareMask);
 
-    // returns whether there was anything to wait for
     bool FinishPrewarm();
 
     void ExpirePipelinesForShader(const Shader* shader);
@@ -136,6 +135,9 @@ private:
         uint8 stencilCompareMask);
 
     bool TryFinishAsyncCreate(const PSOCacheKey& key, GraphicsPipelineCacheHandle& outCacheHandle);
+    bool AwaitAsyncCreate(const PSOCacheKey& key, GraphicsPipelineCacheHandle& outCacheHandle);
+
+    uint64 GetPrewarmStartTime_Locked(const PSOCacheKey& key, uint64 now);
 
     GraphicsPipelineCacheHandle AddFinishedPipeline_Internal(const PSOCacheKey& key, Task<GraphicsPipelineRef>&& task);
 
@@ -160,6 +162,9 @@ private:
     // Guarded by m_mutex.
     Array<PrewarmShader, RenderAllocator> m_prewarmShaders;
     Set<PSOCacheKey, RenderAllocator> m_failedPrewarms;
+
+    Set<HashCode, RenderAllocator> m_createdPipelineKeys;
+    Map<HashCode, uint64, RenderAllocator> m_prewarmStartTimes;
 };
 
 } // namespace Hyperion

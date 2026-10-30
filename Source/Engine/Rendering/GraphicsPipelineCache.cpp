@@ -26,15 +26,21 @@
 #include <Core/Threading/Task.hpp>
 #include <Core/Threading/TaskSystem.hpp>
 
+#include <Core/Memory/Allocator/ArenaAllocator.hpp>
+
 #include <Core/Containers/SparsePagedArray.hpp>
 
 #include <Core/Profiling/PerformanceClock.hpp>
 
 #include <Core/Utilities/DeferredScope.hpp>
 
+#include <Framework/CVarManager.hpp>
+
 namespace Hyperion {
 
 // #define HYP_GRAPHICS_PIPELINE_TIMING_DEBUG 1
+
+CVar<uint32> g_cvPrewarmBudgetMs("Rendering.PrewarmBudgetMs", 100);
 
 // discard a graphics pipeline that hasn't been used after this number of frames
 static constexpr uint32 GraphicsPipelineDiscardFrames = 3000;
@@ -427,6 +433,15 @@ void GraphicsPipelineCache::GetOrCreate(
         }
     }
 
+    bool createSync = !enableAsync;
+
+    if (!createSync)
+    {
+        TSharedLock guard(m_mutex);
+
+        createSync = m_createdPipelineKeys.Contains(key.GetHashCode());
+    }
+
     ShaderInstanceRef shader = g_shaderManager->GetOrCreate(
         inOutAttributes.GetMaterialAttributes().shaderName,
         inOutAttributes.GetMaterialAttributes().shaderProperties,
@@ -449,11 +464,18 @@ void GraphicsPipelineCache::GetOrCreate(
     // // See: ShaderBundle, staticProperties and its usage in ShaderCompiler.cpp.
     // inOutAttributes.GetMaterialAttributes().shaderProperties = shader->GetShader()->properties;
 
-    if (enableAsync)
+    if (!createSync)
     {
         EnsureAsyncCreateStarted(key, shader, framebufferDesc, inOutAttributes, stencilWriteMask, stencilCompareMask);
 
         outCacheHandle = {};
+
+        return;
+    }
+
+    if (AwaitAsyncCreate(key, cacheHandle))
+    {
+        outCacheHandle = std::move(cacheHandle);
 
         return;
     }
@@ -508,6 +530,9 @@ void GraphicsPipelineCache::GetOrCreate(
     // cache it now that it's been created so it can be reused
     m_cachedPipelines->Add(key, slot);
 
+    m_createdPipelineKeys.Insert(key.GetHashCode());
+    m_prewarmStartTimes.Erase(key.GetHashCode());
+
     return;
 }
 
@@ -546,6 +571,50 @@ bool GraphicsPipelineCache::TryFinishAsyncCreate(const PSOCacheKey& key, Graphic
     return true;
 }
 
+bool GraphicsPipelineCache::AwaitAsyncCreate(const PSOCacheKey& key, GraphicsPipelineCacheHandle& outCacheHandle)
+{
+    HYP_SCOPE;
+
+    Task<GraphicsPipelineRef> task;
+
+    {
+        TUniqueLock guard(m_mutex);
+
+        auto it = m_pendingPipelines.Find(key);
+
+        if (it == m_pendingPipelines.End())
+        {
+            return false;
+        }
+
+        task = std::move(it->second);
+
+        m_pendingPipelines.Erase(it);
+    }
+
+    task.Await();
+
+    TUniqueLock guard(m_mutex);
+
+    outCacheHandle = AddFinishedPipeline_Internal(key, std::move(task));
+
+    return outCacheHandle.IsAlive();
+}
+
+uint64 GraphicsPipelineCache::GetPrewarmStartTime_Locked(const PSOCacheKey& key, uint64 now)
+{
+    auto it = m_prewarmStartTimes.Find(key.GetHashCode());
+
+    if (it == m_prewarmStartTimes.End())
+    {
+        m_prewarmStartTimes.Insert(key.GetHashCode(), now);
+
+        return now;
+    }
+
+    return it->second;
+}
+
 GraphicsPipelineCacheHandle GraphicsPipelineCache::AddFinishedPipeline_Internal(const PSOCacheKey& key, Task<GraphicsPipelineRef>&& task)
 {
     GraphicsPipelineRef graphicsPipeline = std::move(task).Await();
@@ -572,6 +641,9 @@ GraphicsPipelineCacheHandle GraphicsPipelineCache::AddFinishedPipeline_Internal(
 
     *newHandle.m_ptr = std::move(graphicsPipeline);
     m_cachedPipelines->Add(key, slot);
+
+    m_createdPipelineKeys.Insert(key.GetHashCode());
+    m_prewarmStartTimes.Erase(key.GetHashCode());
 
     return newHandle;
 }
@@ -674,80 +746,132 @@ bool GraphicsPipelineCache::FinishPrewarm()
     HYP_SCOPE;
     AssertOnThread(g_renderThread);
 
-    Array<PrewarmShader, RenderAllocator> prewarmShaders;
-    Array<PSOCacheKey, RenderAllocator> pendingKeys;
+    struct WaitingEntry
+    {
+        PSOCacheKey key;
+        VertexInputLayoutDesc inputLayout;
+        uint64 startTime = 0;
+    };
+
+    Array<WaitingEntry, RenderTempAllocator> waitingShaders;
+    Array<WaitingEntry, RenderTempAllocator> waitingPipelines;
+
+    const double budgetMs = double(g_cvPrewarmBudgetMs.Get());
+
+    uint64 now = PerformanceClock::Now();
 
     {
         TUniqueLock guard(m_mutex);
 
-        prewarmShaders = std::move(m_prewarmShaders);
+        Set<HashCode, RenderTempAllocator> seenShaderKeys;
+        seenShaderKeys.Reserve(m_prewarmShaders.Size());
 
-        for (const auto& it : m_pendingPipelines)
+        waitingShaders.Reserve(m_prewarmShaders.Size());
+        waitingPipelines.Reserve(m_pendingPipelines.Size());
+
+        for (const PrewarmShader& prewarmShader : m_prewarmShaders)
         {
-            pendingKeys.PushBack(it.first);
-        }
-    }
-
-    if (prewarmShaders.Empty() && pendingKeys.Empty())
-    {
-        return false;
-    }
-
-    for (const PrewarmShader& prewarmShader : prewarmShaders)
-    {
-        ShaderInstanceRef shader = g_shaderManager->GetOrCreate(
-            prewarmShader.key.shaderName,
-            prewarmShader.key.shaderProperties,
-            prewarmShader.inputLayout,
-            /* waitForCompile */ true);
-
-        if (!shader.IsValid())
-        {
-            TUniqueLock guard(m_mutex);
-
-            m_failedPrewarms.Insert(prewarmShader.key);
-        }
-    }
-
-    for (const PSOCacheKey& key : pendingKeys)
-    {
-        Task<GraphicsPipelineRef> task;
-
-        {
-            TUniqueLock guard(m_mutex);
-
-            auto it = m_pendingPipelines.Find(key);
-
-            if (it == m_pendingPipelines.End())
+            if (!seenShaderKeys.Insert(prewarmShader.key.GetHashCode()).second)
             {
                 continue;
             }
 
-            task = std::move(it->second);
-
-            m_pendingPipelines.Erase(it);
+            waitingShaders.PushBack(WaitingEntry {
+                prewarmShader.key,
+                prewarmShader.inputLayout,
+                GetPrewarmStartTime_Locked(prewarmShader.key, now)
+            });
         }
 
-        const bool isCreated = task.Await().IsValid();
+        m_prewarmShaders.Clear();
 
-        TUniqueLock guard(m_mutex);
-
-        if (!isCreated)
+        for (const auto& it : m_pendingPipelines)
         {
-            m_failedPrewarms.Insert(key);
-        }
-
-        GraphicsPipelineCacheHandle cacheHandle = AddFinishedPipeline_Internal(key, std::move(task));
-
-        // the handle's destructor takes the lock we already hold
-        if (cacheHandle.m_ptr != nullptr)
-        {
-            GraphicsPipelineCacheHandle::UpdateRefCount(cacheHandle, -1, /* lock */ false);
-            cacheHandle.m_ptr = nullptr;
+            waitingPipelines.PushBack(WaitingEntry {
+                it.first,
+                VertexInputLayoutDesc {},
+                GetPrewarmStartTime_Locked(it.first, now)
+            });
         }
     }
 
-    return true;
+    bool anyShaderReady = false;
+
+    while (waitingShaders.Any() || waitingPipelines.Any())
+    {
+        for (size_t index = waitingShaders.Size(); index > 0; index--)
+        {
+            const WaitingEntry& item = waitingShaders[index - 1];
+
+            ShaderInstanceRef shader = g_shaderManager->GetOrCreate(
+                item.key.shaderName,
+                item.key.shaderProperties,
+                item.inputLayout,
+                /* waitForCompile */ false);
+
+            if (shader.IsValid())
+            {
+                anyShaderReady = true;
+            }
+            else if (PerformanceClock::ToMilliseconds(now - item.startTime) < budgetMs)
+            {
+                continue;
+            }
+
+            waitingShaders.EraseAt(index - 1);
+        }
+
+        {
+            TUniqueLock guard(m_mutex);
+
+            for (size_t index = waitingPipelines.Size(); index > 0; index--)
+            {
+                const WaitingEntry& item = waitingPipelines[index - 1];
+
+                auto it = m_pendingPipelines.Find(item.key);
+
+                if (it != m_pendingPipelines.End() && it->second.IsCompleted())
+                {
+                    Task<GraphicsPipelineRef> task = std::move(it->second);
+
+                    m_pendingPipelines.Erase(it);
+
+                    if (!task.Await().IsValid())
+                    {
+                        m_failedPrewarms.Insert(item.key);
+                    }
+
+                    GraphicsPipelineCacheHandle cacheHandle = AddFinishedPipeline_Internal(
+                        item.key,
+                        std::move(task));
+
+                    // the handle's destructor takes the lock we already hold
+                    if (cacheHandle.m_ptr != nullptr)
+                    {
+                        GraphicsPipelineCacheHandle::UpdateRefCount(cacheHandle, -1, /* lock */ false);
+                        cacheHandle.m_ptr = nullptr;
+                    }
+                }
+                else if (it != m_pendingPipelines.End() && PerformanceClock::ToMilliseconds(now - item.startTime) < budgetMs)
+                {
+                    continue;
+                }
+
+                waitingPipelines.EraseAt(index - 1);
+            }
+        }
+
+        if (waitingShaders.Empty() && waitingPipelines.Empty())
+        {
+            break;
+        }
+
+        ThreadSleep(1);
+
+        now = PerformanceClock::Now();
+    }
+
+    return anyShaderReady;
 }
 
 GraphicsPipelineCacheHandle GraphicsPipelineCache::FindGraphicsPipeline(

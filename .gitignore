@@ -38,8 +38,9 @@ ipch/
 # CMake generated files
 CMakeFiles/**/*
 
-# VS Code
-.vscode/settings.json
+# Editor configs (templates in Tools/IDE, installed by BuildHyperion)
+/.vscode/
+/.zed/
 
 # JetBrains Rider
 **/.idea/**/*
@@ -98,5 +99,3 @@ Tools/*/build/**/*
 
 # Ignore Data stuff. it's not used anymore except for staging assets
 Data/**/*
-
-.vscode/c_cpp_properties.json

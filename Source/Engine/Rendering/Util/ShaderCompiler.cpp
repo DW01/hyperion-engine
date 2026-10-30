@@ -2282,6 +2282,9 @@ bool ShaderCompiler::HandleBundle(
 
     Time maxSourceFileLastModified = Time(0);
 
+    const bool allowStale = shaderRequest.HasValue()
+                         && shaderRequest->allowStale;
+
     if (CanCompileShaders())
     {
         // Check that each version specified is present in the ShaderBundle.
@@ -2291,7 +2294,7 @@ bool ShaderCompiler::HandleBundle(
 
         maxSourceFileLastModified = GetTransitiveSourcesLastModifiedTimestamp(decl);
 
-        if (maxSourceFileLastModified > lastSavedTimestamp)
+        if (maxSourceFileLastModified > lastSavedTimestamp && !allowStale)
         {
             HYP_LOG(ShaderCompiler, Verbose,
                     "Source file in bundle {} has been modified since the bundle was "
@@ -2328,6 +2331,16 @@ bool ShaderCompiler::HandleBundle(
 
                 break;
             }
+        }
+
+        if (!requestedFound && requestedStale && allowStale)
+        {
+            HYP_LOG(ShaderCompiler, Verbose,
+                    "Using outdated variant of bundle {} until it's recompiled. Properties: {}",
+                    *decl.name,
+                    shaderRequest->properties.GetDebugString());
+
+            return true;
         }
 
         if (!requestedFound && requestedStale)
@@ -2615,7 +2628,7 @@ bool ShaderCompiler::CanCompileShaders(const ShaderCompileParams& params) const
     return true;
 #endif
 
-    HYP_LOG(ShaderCompiler, Warning, "Not linked with DXC");
+    HYP_LOG(ShaderCompiler, Verbose, "Not linked with DXC; skipping shader compilation");
 
     return false;
 }
@@ -4137,13 +4150,14 @@ bool ShaderCompiler::RequestShader(
     Name name,
     ShaderPropertySet properties,
     VertexInputLayoutDesc inputLayout,
-    Shader*& outShader)
+    Shader*& outShader,
+    bool allowStale)
 {
     MergeGlobalShaderProperties(/* isPrecompilingShaders */ false, properties);
 
     Handle<ShaderBundle> bundle;
 
-    if (!LoadBundle(name, ShaderRequest { properties, inputLayout }, bundle))
+    if (!LoadBundle(name, ShaderRequest { properties, inputLayout, allowStale }, bundle))
     {
         HYP_LOG(ShaderCompiler, Error, "Failed to attempt loading of shader bundle: {}", name);
 

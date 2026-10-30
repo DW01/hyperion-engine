@@ -709,6 +709,8 @@ class ENGINE_API ShaderCompiler
     {
         ShaderPropertySet properties;
         VertexInputLayoutDesc inputLayout;
+
+        bool allowStale = false;
     };
 
 public:
@@ -729,7 +731,8 @@ public:
         Name name,
         ShaderPropertySet properties,
         VertexInputLayoutDesc inputLayout,
-        Shader*& outShader);
+        Shader*& outShader,
+        bool allowStale = false);
 
     bool CompileVariantForTarget(
         Name name,
